@@ -40,7 +40,7 @@ Requirements:
 
 Usage:
 ------
-1. Place interview transcripts in the 'transkripte' directory
+1. Place interview transcripts in the 'output' directory
 2. Configure .env file with OpenAI API key
 3. Adjust CONFIG settings if needed
 4. Run the script
@@ -234,7 +234,7 @@ DEDUKTIVE_KATEGORIEN = {
 # ------------------------
 CONFIG = {
     'MODEL_NAME': 'gpt-4o-mini',
-    'DATA_DIR': os.path.join(os.getcwd(), 'transkripte'),
+    'DATA_DIR': os.path.join(os.getcwd(), 'output'),
     'OUTPUT_DIR': os.path.join(os.getcwd(), 'output'),
     'CHUNK_SIZE': 800,
     'CHUNK_OVERLAP': 80,
@@ -501,7 +501,7 @@ class ConfigLoader:
         print(DEDUKTIVE_KATEGORIEN)
 
 # --- Klasse: MaterialLoader ---
-# Aufgabe: Laden und Vorbereiten des Analysematerials (Textdokumente, Transkripte)
+# Aufgabe: Laden und Vorbereiten des Analysematerials (Textdokumente, Output)
 # WICHTIG: Lange Texte werden mittels Chunking in überschaubare Segmente zerlegt.
 class MaterialLoader:
     """Lädt und verarbeitet Interviewdokumente."""
@@ -4853,7 +4853,7 @@ class CategoryRevisionManager:
 
 
 # --- Klasse: DocumentReader ---
-# Aufgabe: Laden und Vorbereiten des Analysematerials (Textdokumente, Transkripte)
+# Aufgabe: Laden und Vorbereiten des Analysematerials (Textdokumente, Output)
 
 class DocumentReader:
     def __init__(self, data_dir: str):
