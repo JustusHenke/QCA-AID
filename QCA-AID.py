@@ -112,6 +112,8 @@ import tkinter as tk
 from tkinter import ttk, messagebox, simpledialog
 from typing import Dict, List, Optional
 import platform
+import time
+import statistics
 
 # ============================
 # 2. Globale Variablen
@@ -1030,257 +1032,443 @@ class Analyzer:
 # --- Klasse: IntegratedAnalysisManager ---
 # Aufgabe: Integriert die verschiedenen Analysephasen in einem zusammenhängenden Prozess
 class IntegratedAnalysisManager:
+    """
+    Verwaltet den integrierten Analyseprozess mit optimierter Sättigungsprüfung.
+    Koordiniert induktive und deduktive Kodierung sowie Kategorienentwicklung.
+    """
+    
     def __init__(self, config: Dict):
+        """
+        Initialisiert den IntegratedAnalysisManager mit verbesserter Konfiguration.
+        
+        Args:
+            config: Konfigurationsdictionary mit Analyse-Einstellungen
+        """
+        # Basis-Komponenten
+        self.config = config
+        self.saturation_checker = SaturationChecker(config)
         self.inductive_coder = InductiveCoder(config['MODEL_NAME'])
+        self.category_merger = CategoryMerger(similarity_threshold=0.8)
+        
+        # Kodierungs-Handler
         self.deductive_coders = [
-            DeductiveCoder(config['MODEL_NAME'], coder_config['temperature'], coder_config['coder_id'])
+            DeductiveCoder(
+                config['MODEL_NAME'], 
+                coder_config['temperature'],
+                coder_config['coder_id']
+            )
             for coder_config in config['CODER_SETTINGS']
         ]
-        self.category_merger = CategoryMerger(similarity_threshold=0.8)
+        
+        # Tracking-Variablen
         self.processed_segments = set()
         self.coding_results = []
-        
-        # Attribute für Sättigungsprüfung
-        self._iteration_count = 1
-        self._stable_iterations = 0
-        self.MAX_ITERATIONS = 10
-        self.MIN_MATERIAL_PERCENTAGE = 70
-        self.STABILITY_THRESHOLD = 3
-        
-        # Performance Tracking
-        self.start_time = datetime.now()
         self.performance_metrics = {
-            'total_segments': 0,
-            'processed_segments': 0,
-            'new_categories': 0,
-            'modified_categories': 0
+            'batch_processing_times': [],
+            'coding_times': [],
+            'category_changes': []
         }
-
+        
+        # Logging und Diagnose
+        self.analysis_log = []
+        self.start_time = datetime.now()
+        
         print("\nAnalyse-Manager initialisiert:")
-        print(f"- Max Iterationen: {self.MAX_ITERATIONS}")
-        print(f"- Min Material %: {self.MIN_MATERIAL_PERCENTAGE}%")
-        print(f"- Stabilitätsschwelle: {self.STABILITY_THRESHOLD} Durchläufe")
-        
-    async def analyze_material(self, chunks: Dict[str, List[str]], initial_categories: Dict):
-        """Integrierter Analyseprozess mit Sättigungsprüfung"""
-        current_categories = initial_categories.copy()
-        
-        # Berechne Batch-Größe mit Minimum von 1
-        total_chunks = len(chunks)
-        batch_size = max(1, total_chunks // 5)  # Mindestens 1 Chunk pro Batch
-        
-        print(f"\nAnalyse-Setup:")
-        print(f"- Gesamt Chunks: {total_chunks}")
-        print(f"- Batch-Größe: {batch_size}")
-        
-        # Segmente in Batches organisieren
-        all_segments = []
-        for doc_name, doc_chunks in chunks.items():
-            for chunk_idx, chunk in enumerate(doc_chunks):
-                all_segments.append((f"{doc_name}_chunk_{chunk_idx}", chunk))
-        
-        total_segments = len(all_segments)
-        print(f"- Gesamt Segmente: {total_segments}")
-        
-        # Verarbeite Batches
-        for batch_start in range(0, total_segments, batch_size):
-            batch = all_segments[batch_start:batch_start + batch_size]
-            print(f"\nVerarbeite Batch {batch_start//batch_size + 1} "
-                f"(Segmente {batch_start+1} bis {min(batch_start+batch_size, total_segments)})")
-            
-            # 1. Induktive Analyse des Batches
-            new_categories = await self.inductive_coder.develop_category_system(
-                [chunk for _, chunk in batch]
-            )
-            
-            # 2. Kategorien zusammenführen
-            merged_categories = self.category_merger.merge_categories({
-                **current_categories,
-                **new_categories
-            })
-            
-            # 3. Kodierung des Batches mit allen Kodierern
-            batch_results = []
-            for segment_id, chunk in batch:
-                chunk_results = []
-                for coder in self.deductive_coders:
-                    result = await coder.code_chunk(chunk, merged_categories)
-                    if result:
-                        # Füge segment_id zum Ergebnis hinzu
-                        result_dict = {
-                            'segment_id': segment_id,
-                            'coder_id': coder.coder_id,
-                            'category': result.category,
-                            'subcategories': result.subcategories,
-                            'confidence': result.confidence,
-                            'justification': result.justification
-                        }
-                        chunk_results.append(result_dict)
-                batch_results.extend(chunk_results)
-            
-            # 4. Sättigungsprüfung
-            category_changes = self._compare_category_systems(
-                current_categories, 
-                merged_categories
-            )
-            
-            current_categories = merged_categories
-            self.coding_results.extend(batch_results)
-            
-            material_percentage = (batch_start + len(batch)) / total_segments * 100
-            if self._check_saturation(category_changes, material_percentage):
-                print(f"\nSättigung erreicht bei {material_percentage:.1f}% des Materials")
-                break
-        
-        return current_categories, self.coding_results
+        print(f"- Anzahl Kodierer: {len(self.deductive_coders)}")
+        print(f"- Modell: {config['MODEL_NAME']}")
+        print(f"- Startzeit: {self.start_time.strftime('%H:%M:%S')}")
 
-    def _compare_category_systems(self, old_cats: Dict, new_cats: Dict) -> List[Dict]:
-        """Identifiziert Änderungen zwischen zwei Kategoriensystemen"""
-        changes = []
-        # Implementation...
-        return changes
-
-    def _check_saturation(self, changes: List[Dict], material_percentage: float) -> bool:
+    async def analyze_material(self, 
+                             chunks: Dict[str, List[str]], 
+                             initial_categories: Dict) -> Tuple[Dict, List]:
         """
-        Verbesserte Sättigungsprüfung, die verschiedene Qualitätskriterien berücksichtigt.
+        Führt die integrierte Analyse des Materials durch.
         
         Args:
-            changes: Liste der Kategorienänderungen im aktuellen Batch
-            material_percentage: Prozentsatz des analysierten Materials
+            chunks: Dictionary mit Dokumenten-Chunks
+            initial_categories: Initiales Kategoriensystem
             
         Returns:
-            bool: True wenn Sättigung erreicht ist
+            Tuple[Dict, List]: (Finales Kategoriensystem, Kodierungsergebnisse)
         """
         try:
-            # 1. Grundlegende Abbruchkriterien prüfen
-            if self._iteration_count >= self.MAX_ITERATIONS:
-                print(f"\nSättigung erreicht: Maximale Anzahl von {self.MAX_ITERATIONS} Durchläufen erreicht")
-                return True
-
-            # 2. Minimale Materialmenge prüfen
-            if material_percentage < self.MIN_MATERIAL_PERCENTAGE:
-                print(f"\nFortsetzung: Erst {material_percentage:.1f}% des Materials analysiert "
-                        f"(Minimum: {self.MIN_MATERIAL_PERCENTAGE}%)")
-                return False
-
-            # 3. Analyse der Änderungen
-            change_metrics = self._analyze_changes(changes)
+            # Vorbereitung
+            current_categories = initial_categories.copy()
+            all_segments = self._prepare_segments(chunks)
+            total_segments = len(all_segments)
             
-            # 4. Qualitative Sättigungsprüfung
-            saturation_indicators = {
-                'new_categories': change_metrics['new_categories'] == 0,
-                'significant_modifications': change_metrics['significant_modifications'] == 0,
-                'subcategory_changes': change_metrics['subcategory_changes'] <= 1,
-                'definition_refinements': change_metrics['definition_refinements'] <= 2
-            }
+            print(f"\nStarting analysis of {total_segments} segments")
             
-            # 5. Stabilität prüfen
-            current_stable = all(saturation_indicators.values())
-            if current_stable:
-                self._stable_iterations += 1
-                print(f"\nStabiler Durchlauf {self._stable_iterations}/{self.STABILITY_THRESHOLD}")
+            # Hauptanalyse-Schleife
+            while True:
+                # 1. Bestimme nächsten Batch
+                batch = await self._get_next_batch(
+                    all_segments, 
+                    self.saturation_checker.current_batch_size
+                )
+                if not batch:
+                    break
                 
-                if self._stable_iterations >= self.STABILITY_THRESHOLD:
-                    print(f"\nSättigung erreicht nach {self._stable_iterations} stabilen Durchläufen")
-                    self._document_saturation_metrics(change_metrics, material_percentage)
-                    return True
-            else:
-                self._stable_iterations = 0
-                print("\nNeue Änderungen erkannt - Stabilitätszähler zurückgesetzt")
-
-            # 6. Detaillierte Statusausgabe
-            print(f"\nSättigungsanalyse Durchlauf {self._iteration_count}:")
-            print(f"- Material analysiert: {material_percentage:.1f}%")
-            print(f"- Stabile Durchläufe: {self._stable_iterations}/{self.STABILITY_THRESHOLD}")
-            print("- Änderungsmetriken:")
-            for metric, value in change_metrics.items():
-                print(f"  • {metric}: {value}")
-            
-            self._iteration_count += 1
-            return False
+                # 2. Verarbeite Batch
+                batch_start_time = time.time()
+                
+                # 2.1 Induktive Analyse
+                new_categories = await self._process_batch_inductively(
+                    batch,
+                    current_categories
+                )
+                
+                # 2.2 Kategorien zusammenführen
+                merged_categories = await self._merge_categories(
+                    current_categories,
+                    new_categories
+                )
+                
+                # 2.3 Deduktive Kodierung
+                batch_results = await self._code_batch_deductively(
+                    batch,
+                    merged_categories
+                )
+                
+                # 3. Update Tracking
+                self._update_tracking(
+                    batch_results,
+                    time.time() - batch_start_time,
+                    len(batch)
+                )
+                
+                # 4. Sättigungsprüfung
+                material_percentage = (len(self.processed_segments) / total_segments) * 100
+                is_saturated, metrics = self.saturation_checker.check_saturation(
+                    merged_categories,
+                    self.coding_results,
+                    material_percentage
+                )
+                
+                # 5. Logging und Reporting
+                self._log_iteration_status(
+                    material_percentage,
+                    metrics,
+                    len(batch_results)
+                )
+                
+                if is_saturated:
+                    print(f"\nSättigung erreicht bei {material_percentage:.1f}% des Materials")
+                    break
+                    
+                # 6. Update für nächste Iteration
+                current_categories = merged_categories
+                
+            # Abschluss
+            return self._finalize_analysis(
+                current_categories,
+                initial_categories
+            )
 
         except Exception as e:
-            print(f"Fehler in der Sättigungsprüfung: {str(e)}")
+            print(f"Fehler in der Analyse: {str(e)}")
             import traceback
             traceback.print_exc()
-            return False
+            return current_categories, self.coding_results
 
-    def _analyze_changes(self, changes: List[Dict]) -> Dict[str, int]:
+    async def _get_next_batch(self, 
+                             segments: List[Tuple[str, str]], 
+                             batch_size_percentage: float) -> List[Tuple[str, str]]:
         """
-        Analysiert die Änderungen im Detail.
+        Bestimmt den nächsten zu analysierenden Batch.
         
         Args:
-            changes: Liste der Kategorienänderungen
+            segments: Liste aller Segmente
+            batch_size_percentage: Batch-Größe als Prozentsatz
             
         Returns:
-            Dict mit Änderungsmetriken
+            List[Tuple[str, str]]: Nächster Batch von Segmenten
         """
-        metrics = {
-            'new_categories': 0,
-            'significant_modifications': 0,
-            'subcategory_changes': 0,
-            'definition_refinements': 0
+        remaining_segments = [
+            seg for seg in segments 
+            if seg[0] not in self.processed_segments
+        ]
+        
+        if not remaining_segments:
+            return []
+            
+        batch_size = max(1, int(len(segments) * batch_size_percentage))
+        return remaining_segments[:batch_size]
+
+    async def _process_batch_inductively(self,
+                                       batch: List[Tuple[str, str]],
+                                       current_categories: Dict) -> Dict:
+        """
+        Führt die induktive Analyse eines Batches durch.
+        
+        Args:
+            batch: Zu analysierende Segmente
+            current_categories: Aktuelles Kategoriensystem
+            
+        Returns:
+            Dict: Neue/aktualisierte Kategorien
+        """
+        try:
+            print(f"\nInduktive Analyse von {len(batch)} Segmenten...")
+            
+            # Extrahiere nur die Texte für die Analyse
+            texts = [text for _, text in batch]
+            
+            # Induktive Kategorienentwicklung
+            new_categories = await self.inductive_coder.develop_category_system(texts)
+            
+            # Zusammenführen ähnlicher Kategorien
+            if new_categories:
+                new_categories = self.category_merger.merge_categories(new_categories)
+            
+            return new_categories
+            
+        except Exception as e:
+            print(f"Fehler bei induktiver Analyse: {str(e)}")
+            return {}
+
+    async def _merge_categories(self,
+                              current_cats: Dict,
+                              new_cats: Dict) -> Dict:
+        """
+        Führt bestehende und neue Kategorien zusammen.
+        
+        Args:
+            current_cats: Bestehendes Kategoriensystem
+            new_cats: Neue Kategorien
+            
+        Returns:
+            Dict: Zusammengeführtes Kategoriensystem
+        """
+        try:
+            # Basiskopie der aktuellen Kategorien
+            merged = current_cats.copy()
+            
+            # Verarbeite neue Kategorien
+            for name, category in new_cats.items():
+                if name in merged:
+                    # Update bestehende Kategorie
+                    current_cat = merged[name]
+                    merged[name] = CategoryDefinition(
+                        name=name,
+                        definition=current_cat.definition,
+                        examples=list(set(current_cat.examples + category.examples)),
+                        rules=list(set(current_cat.rules + category.rules)),
+                        subcategories={**current_cat.subcategories, **category.subcategories},
+                        added_date=current_cat.added_date,
+                        modified_date=datetime.now().strftime("%Y-%m-%d")
+                    )
+                else:
+                    # Füge neue Kategorie hinzu
+                    merged[name] = category
+            
+            return merged
+            
+        except Exception as e:
+            print(f"Fehler beim Zusammenführen der Kategorien: {str(e)}")
+            return current_cats
+
+    async def _code_batch_deductively(self,
+                                    batch: List[Tuple[str, str]],
+                                    categories: Dict) -> List[Dict]:
+        """
+        Führt die deduktive Kodierung eines Batches durch.
+        
+        Args:
+            batch: Zu kodierende Segmente
+            categories: Aktuelles Kategoriensystem
+            
+        Returns:
+            List[Dict]: Kodierungsergebnisse
+        """
+        results = []
+        
+        for segment_id, text in batch:
+            segment_results = []
+            
+            # Parallele Kodierung durch alle Kodierer
+            coding_tasks = [
+                coder.code_chunk(text, categories)
+                for coder in self.deductive_coders
+            ]
+            
+            # Warte auf alle Kodierungen
+            codings = await asyncio.gather(*coding_tasks)
+            
+            for coder_id, coding in zip(
+                [coder.coder_id for coder in self.deductive_coders],
+                codings
+            ):
+                if coding:
+                    result = {
+                        'segment_id': segment_id,
+                        'coder_id': coder_id,
+                        'category': coding.category,
+                        'subcategories': coding.subcategories,
+                        'confidence': coding.confidence,
+                        'justification': coding.justification
+                    }
+                    segment_results.append(result)
+            
+            results.extend(segment_results)
+            self.processed_segments.add(segment_id)
+        
+        return results
+
+    def _prepare_segments(self, chunks: Dict[str, List[str]]) -> List[Tuple[str, str]]:
+        """
+        Bereitet die Segmente für die Analyse vor.
+        
+        Args:
+            chunks: Dictionary mit Dokumenten-Chunks
+            
+        Returns:
+            List[Tuple[str, str]]: Liste von (segment_id, text) Tupeln
+        """
+        segments = []
+        for doc_name, doc_chunks in chunks.items():
+            for chunk_idx, chunk in enumerate(doc_chunks):
+                segment_id = f"{doc_name}_chunk_{chunk_idx}"
+                segments.append((segment_id, chunk))
+        return segments
+
+    def _update_tracking(self,
+                        batch_results: List[Dict],
+                        processing_time: float,
+                        batch_size: int) -> None:
+        """
+        Aktualisiert die Performance-Metriken.
+        
+        Args:
+            batch_results: Ergebnisse des Batches
+            processing_time: Verarbeitungszeit
+            batch_size: Größe des Batches
+        """
+        self.coding_results.extend(batch_results)
+        self.performance_metrics['batch_processing_times'].append(processing_time)
+        
+        # Berechne durchschnittliche Zeit pro Segment
+        avg_time_per_segment = processing_time / batch_size
+        self.performance_metrics['coding_times'].append(avg_time_per_segment)
+
+    def _log_iteration_status(self,
+                            material_percentage: float,
+                            saturation_metrics: Dict,
+                            num_results: int) -> None:
+        """
+        Protokolliert den Status der aktuellen Iteration.
+        
+        Args:
+            material_percentage: Prozentsatz des verarbeiteten Materials
+            saturation_metrics: Metriken der Sättigungsprüfung
+            num_results: Anzahl der Kodierungen
+        """
+        status = {
+            'timestamp': datetime.now().isoformat(),
+            'material_processed': material_percentage,
+            'saturation_metrics': saturation_metrics,
+            'results_count': num_results,
+            'processing_time': self.performance_metrics['batch_processing_times'][-1]
         }
         
-        for change in changes:
-            change_type = change.get('change_type')
-            if change_type == 'add':
-                metrics['new_categories'] += 1
-            elif change_type == 'modify':
-                old_val = change.get('old_value', {})
-                new_val = change.get('new_value', {})
-                
-                # Prüfe Definition
-                if old_val.get('definition') != new_val.get('definition'):
-                    metrics['definition_refinements'] += 1
-                
-                # Prüfe Subkategorien
-                old_subs = set(old_val.get('subcategories', {}).keys())
-                new_subs = set(new_val.get('subcategories', {}).keys())
-                if old_subs != new_subs:
-                    metrics['subcategory_changes'] += 1
-                
-                # Prüfe auf signifikante Änderungen
-                if self._is_significant_modification(old_val, new_val):
-                    metrics['significant_modifications'] += 1
+        self.analysis_log.append(status)
         
-        return metrics
+        print(f"\nIterations-Status:")
+        print(f"- Material verarbeitet: {material_percentage:.1f}%")
+        print(f"- Neue Kodierungen: {num_results}")
+        print(f"- Verarbeitungszeit: {status['processing_time']:.2f}s")
+        if saturation_metrics:
+            print("- Sättigungsmetriken:")
+            for key, value in saturation_metrics.items():
+                print(f"  • {key}: {value}")
 
-    def _is_significant_modification(self, old_val: Dict, new_val: Dict) -> bool:
+    def _finalize_analysis(self,
+                          final_categories: Dict,
+                          initial_categories: Dict) -> Tuple[Dict, List]:
         """
-        Bestimmt ob eine Änderung als signifikant einzustufen ist.
-        """
-        if not old_val or not new_val:
-            return True
-            
-        # Definition hat sich substanziell geändert
-        if old_val.get('definition') != new_val.get('definition'):
-            old_words = set(old_val.get('definition', '').split())
-            new_words = set(new_val.get('definition', '').split())
-            changes = len(old_words.symmetric_difference(new_words))
-            if changes > len(old_words) * 0.3:  # Mehr als 30% Änderung
-                return True
-                
-        # Subkategorienstruktur hat sich wesentlich verändert
-        old_subs = set(old_val.get('subcategories', {}).keys())
-        new_subs = set(new_val.get('subcategories', {}).keys())
-        if len(old_subs.symmetric_difference(new_subs)) > 2:
-            return True
-            
-        return False
-
-    def _document_saturation_metrics(self, metrics: Dict[str, int], material_percentage: float):
-        """
-        Dokumentiert die finalen Sättigungsmetriken.
-        """
-        print("\n=== Finale Sättigungsanalyse ===")
-        print(f"Material analysiert: {material_percentage:.1f}%")
-        print(f"Durchläufe: {self._iteration_count}")
-        print(f"Stabile Durchläufe: {self._stable_iterations}")
-        print("\nÄnderungsmetriken im letzten Durchlauf:")
-        for metric, value in metrics.items():
-            print(f"- {metric}: {value}")
+        Schließt die Analyse ab und bereitet die Ergebnisse vor.
         
+        Args:
+            final_categories: Finales Kategoriensystem
+            initial_categories: Initiales Kategoriensystem
+            
+        Returns:
+            Tuple[Dict, List]: (Finales Kategoriensystem, Kodierungsergebnisse)
+        """
+        # Berechne finale Statistiken
+        end_time = datetime.now()
+        total_time = (end_time - self.start_time).total_seconds()
+        avg_time_per_segment = total_time / len(self.processed_segments)
+        
+        print("\nAnalyse abgeschlossen:")
+        print(f"- Gesamtzeit: {total_time:.2f}s")
+        print(f"- Durchschnittliche Zeit pro Segment: {avg_time_per_segment:.2f}s")
+        print(f"- Verarbeitete Segmente: {len(self.processed_segments)}")
+        print(f"- Finale Kategorien: {len(final_categories)}")
+        print(f"- Gesamtanzahl Kodierungen: {len(self.coding_results)}")
+        
+        return final_categories, self.coding_results
+
+    def get_analysis_report(self) -> Dict:
+        """
+        Erstellt einen detaillierten Analysebericht.
+        
+        Returns:
+            Dict: Analysebericht mit Performance-Metriken und Statistiken
+        """
+        return {
+            'start_time': self.start_time.isoformat(),
+            'end_time': datetime.now().isoformat(),
+            'total_segments': len(self.processed_segments),
+            'total_codings': len(self.coding_results),
+            'performance_metrics': self.performance_metrics,
+            'analysis_log': self.analysis_log
+        }
+
+    def get_progress_report(self) -> Dict:
+        """
+        Erstellt einen detaillierten Fortschrittsbericht für die laufende Analyse.
+        
+        Returns:
+            Dict: Fortschrittsbericht mit aktuellen Metriken und Status
+        """
+        current_time = datetime.now()
+        elapsed_time = (current_time - self.start_time).total_seconds()
+        
+        # Berechne durchschnittliche Verarbeitungszeiten
+        avg_batch_time = statistics.mean(self.performance_metrics['batch_processing_times']) if self.performance_metrics['batch_processing_times'] else 0
+        avg_coding_time = statistics.mean(self.performance_metrics['coding_times']) if self.performance_metrics['coding_times'] else 0
+        
+        # Hole Sättigungsmetriken vom SaturationChecker
+        saturation_stats = {
+            'material_processed': self.saturation_checker.processed_percentage,
+            'stable_iterations': self.saturation_checker.stable_iterations,
+            'current_batch_size': self.saturation_checker.current_batch_size
+        }
+        
+        # Berechne Verarbeitungsstatistiken
+        total_segments = len(self.processed_segments)
+        segments_per_hour = (total_segments / elapsed_time) * 3600 if elapsed_time > 0 else 0
+        
+        return {
+            'progress': {
+                'processed_segments': total_segments,
+                'total_codings': len(self.coding_results),
+                'segments_per_hour': round(segments_per_hour, 2),
+                'elapsed_time': round(elapsed_time, 2)
+            },
+            'performance': {
+                'avg_batch_processing_time': round(avg_batch_time, 2),
+                'avg_coding_time': round(avg_coding_time, 2),
+                'last_batch_time': round(self.performance_metrics['batch_processing_times'][-1], 2) if self.performance_metrics['batch_processing_times'] else 0
+            },
+            'saturation': saturation_stats,
+            'status': {
+                'start_time': self.start_time.strftime('%Y-%m-%d %H:%M:%S'),
+                'current_time': current_time.strftime('%Y-%m-%d %H:%M:%S'),
+                'last_update': self.analysis_log[-1]['timestamp'] if self.analysis_log else None
+            }
+        }
 
 # --- Klasse: DeductiveCategoryBuilder ---
 # Aufgabe: Ableiten deduktiver Kategorien basierend auf theoretischem Vorwissen
@@ -1784,108 +1972,495 @@ class DeductiveCoder:
 # Aufgabe: Ergänzung deduktiver Kategorien durch induktive Kategorien mittels OpenAI API
 class InductiveCoder:
     """
-    Implements inductive category development according to Mayring's qualitative content analysis.
-    
-    This class handles the systematic development of categories from the text material,
-    including multiple feedback loops, reliability checks, and quality criteria validation.
-    The process follows Mayring's step-by-step model for inductive category formation.
+    Implementiert die induktive Kategorienentwicklung nach Mayring.
+    Optimiert für Performance und Integration mit SaturationChecker.
     """
     
     def __init__(self, model_name: str, output_dir: str = None):
-        """
-        Initializes the InductiveCoder with OpenAI API access.
-        
-        Args:
-            model_name (str): Name of the GPT model to use
-            output_dir (str): Directory for saving reliability reports
-        """
-        # Load environment variables for API access
-        load_dotenv(os.path.join(os.path.expanduser("~"), '.renviron.env'))
-        self.client = openai.AsyncOpenAI()
+        # OpenAI Konfiguration
         self.model_name = model_name
-
-        # Set output directory
+        self.client = openai.AsyncOpenAI()
         self.output_dir = output_dir or CONFIG['OUTPUT_DIR']
         
-        # Initialize category tracking
-        self.category_development_history = []
-        self.processed_material_percentage = 0
+        # Performance-Optimierung
+        self.category_cache = {}  # Cache für häufig verwendete Kategorien
+        self.batch_results = []   # Speichert Batch-Ergebnisse für Analyse
         
-        # Define quality thresholds
-        self.RELIABILITY_THRESHOLD = 0.80
-        self.SIMILARITY_THRESHOLD = 0.70
-        self.MIN_CATEGORY_SUPPORT = 3  # Minimum text segments per category
+        # Qualitätsschwellen
+        self.MIN_CONFIDENCE = 0.7
+        self.MIN_EXAMPLES = 3
+        self.MIN_DEFINITION_WORDS = 15
         
-        # System context for the AI analysis
-        self.system_context = """
-        Sie sind ein Experte für qualitative Inhaltsanalyse nach Mayring.
-        Ihre Aufgabe ist es, sinnvolle Kategorien in Interviewtexten zu identifizieren, indem Sie:
-        1. das Material Zeile für Zeile durcharbeiten
-        2. Kategorien induktiv aus dem Inhalt ableiten
-        3. Beibehaltung klarer Kategoriendefinitionen und Beispiele
-        4. Sicherstellen, dass die Kategorien eindeutig und gut definiert sind
-        5. Schaffung eines systematischen und nachvollziehbaren Kategoriesystems
+        # Tracking
+        self.development_history = []
+        self.last_analysis_time = None
+        
+        # System-Prompt-Cache
+        self._cached_system_prompt = None
+        
+    async def develop_category_system(self, segments: List[str]) -> Dict[str, CategoryDefinition]:
         """
-
-    def _validate_category(self, category: dict) -> bool:
-        """
-        Validiert die Vollständigkeit einer Kategorie und initialisiert fehlende Standardwerte.
+        Entwickelt Kategorien aus dem Textmaterial mit Optimierungen.
         
         Args:
-            category: Die zu validierende Kategorie
+            segments: Liste der Textsegmente
             
         Returns:
-            bool: True wenn die Kategorie nach Standardwert-Initialisierung valide ist
+            Dict[str, CategoryDefinition]: Entwickelte Kategorien
         """
         try:
-            if not isinstance(category, dict):
-                print(f"Warnung: Kategorie ist kein Dictionary: {category}")
-                return False
+            start_time = time.time()
+            print(f"\nStarting category development for {len(segments)} segments")
+            
+            # 1. Schnelle Voranalyse der Segmente
+            relevant_segments = await self._prefilter_segments(segments)
+            if not relevant_segments:
+                return {}
+                
+            # 2. Batch-basierte Kategorienentwicklung
+            categories = {}
+            batch_size = min(5, len(relevant_segments))  # Kleinere Batches für schnelleres Feedback
+            
+            for i in range(0, len(relevant_segments), batch_size):
+                batch = relevant_segments[i:i + batch_size]
+                
+                # 2.1 Extrahiere Kategorien aus Batch
+                batch_categories = await self._extract_categories_from_batch(batch)
+                
+                # 2.2 Validiere und integriere neue Kategorien
+                valid_categories = self._validate_categories(batch_categories)
+                categories = self._integrate_categories(categories, valid_categories)
+                
+                # 2.3 Optimiere Kategoriensystem
+                categories = self._optimize_category_system(categories)
+                
+                # 2.4 Tracking
+                self._track_development(categories, len(batch))
+            
+            # 3. Finale Optimierung
+            final_categories = self._finalize_categories(categories)
+            
+            # 4. Performance-Logging
+            processing_time = time.time() - start_time
+            self._log_performance(len(segments), len(final_categories), processing_time)
+            
+            return final_categories
+            
+        except Exception as e:
+            print(f"Error in category development: {str(e)}")
+            import traceback
+            traceback.print_exc()
+            return {}
 
-            # Definiere Standardwerte für fehlende Felder
-            defaults = {
-                'name': 'Neue Kategorie',
-                'definition': 'Zu definierende Kategorie',
-                'example': '',
-                'existing_subcategories': [],
-                'new_subcategories': [],
-                'justification': 'Induktiv aus dem Material entwickelt',
-                'confidence': {'category': 0.7, 'subcategories': 0.7}
-            }
+    async def _prefilter_segments(self, segments: List[str]) -> List[str]:
+        """
+        Filtert Segmente nach Relevanz für Kategorienentwicklung.
+        Optimiert durch Parallelverarbeitung und Caching.
+        """
+        async def check_segment(segment: str) -> Tuple[str, float]:
+            cache_key = hash(segment)
+            if cache_key in self.category_cache:
+                return segment, self.category_cache[cache_key]
+            
+            relevance = await self._assess_segment_relevance(segment)
+            self.category_cache[cache_key] = relevance
+            return segment, relevance
+        
+        # Parallele Relevanzprüfung
+        tasks = [check_segment(seg) for seg in segments]
+        results = await asyncio.gather(*tasks)
+        
+        # Filter relevante Segmente
+        return [seg for seg, relevance in results if relevance > self.MIN_CONFIDENCE]
 
-            # Füge fehlende Felder mit Standardwerten hinzu
-            missing_fields = []
-            for field, default_value in defaults.items():
-                if field not in category or not category[field]:
-                    category[field] = default_value
-                    missing_fields.append(field)
+    async def _assess_segment_relevance(self, segment: str) -> float:
+        """
+        Bewertet die Relevanz eines Segments für die Kategorienentwicklung.
+        """
+        prompt = f"""
+        Bewerte die Relevanz des folgenden Textsegments für die Kategorienentwicklung.
+        Berücksichtige:
+        1. Bezug zur Forschungsfrage: {FORSCHUNGSFRAGE}
+        2. Informationsgehalt
+        3. Abstraktionsniveau
+        
+        Text: {segment}
+        
+        Antworte nur mit einem JSON-Objekt:
+        {{
+            "relevance_score": 0.8,  // 0-1
+            "reasoning": "Kurze Begründung"
+        }}
+        """
+        
+        try:
+            response = await self.client.chat.completions.create(
+                model=self.model_name,
+                messages=[
+                    {"role": "system", "content": "Du bist ein Experte für qualitative Inhaltsanalyse."},
+                    {"role": "user", "content": prompt}
+                ],
+                temperature=0.3,
+                response_format={"type": "json_object"}
+            )
+            
+            result = json.loads(response.choices[0].message.content)
+            return float(result.get('relevance_score', 0))
+            
+        except Exception as e:
+            print(f"Error in relevance assessment: {str(e)}")
+            return 0.0
 
-            if missing_fields:
-                name = category.get('name', 'UNBENANNTE KATEGORIE')
-                print(f"Info: Standardwerte für {name} ergänzt: {', '.join(missing_fields)}")
+    async def _extract_categories_from_batch(self, batch: List[str]) -> List[Dict]:
+        """
+        Extrahiert Kategorien aus einem Batch von Segmenten.
+        Optimiert für parallele Verarbeitung.
+        """
+        async def process_segment(segment: str) -> List[Dict]:
+            prompt = self._get_category_extraction_prompt(segment)
+            
+            try:
+                response = await self.client.chat.completions.create(
+                    model=self.model_name,
+                    messages=[
+                        {"role": "system", "content": self._get_system_prompt()},
+                        {"role": "user", "content": prompt}
+                    ],
+                    temperature=0.7,
+                    response_format={"type": "json_object"}
+                )
+                
+                result = json.loads(response.choices[0].message.content)
+                return result if isinstance(result, list) else [result]
+                
+            except Exception as e:
+                print(f"Error processing segment: {str(e)}")
+                return []
+        
+        # Parallele Verarbeitung der Segmente
+        tasks = [process_segment(seg) for seg in batch]
+        results = await asyncio.gather(*tasks)
+        
+        # Kombiniere und bereinige Ergebnisse
+        all_categories = []
+        for categories in results:
+            all_categories.extend(categories)
+        
+        return all_categories
 
-            # Validiere Datentypen
-            type_checks = {
+    def _get_system_prompt(self) -> str:
+        """
+        Liefert den System-Prompt mit Caching.
+        """
+        if not self._cached_system_prompt:
+            self._cached_system_prompt = """
+            Du bist ein Experte für qualitative Inhaltsanalyse nach Mayring.
+            Deine Aufgabe ist die systematische Entwicklung von Kategorien aus Textmaterial.
+            
+            Wichtige Prinzipien:
+            1. Kategorien müssen klar definiert und abgrenzbar sein
+            2. Angemessenes Abstraktionsniveau
+            3. Regelgeleitetes Vorgehen
+            4. Intersubjektive Nachvollziehbarkeit
+            """
+        return self._cached_system_prompt
+
+    def _get_category_extraction_prompt(self, segment: str) -> str:
+        """
+        Erstellt den detaillierten Prompt für die Kategorienextraktion.
+        Kombiniert den ursprünglichen spezifischen Prompt mit optimierter Struktur.
+        """
+        return f"""
+        Analysiere das folgende Textsegment nach Mayrings qualitativer Inhaltsanalyse.
+        Fokussiere dabei auf die induktive Kategorienbildung und die Relevanz für die Forschungsfrage:
+        "{FORSCHUNGSFRAGE}"
+
+        WICHTIG - KATEGORIENSTRUKTUR UND HIERARCHIE:
+        1. Unterscheide klar zwischen Haupt- und Subkategorien:
+
+        HAUPTKATEGORIEN müssen:
+        - übergeordnete Themenkomplexe abdecken
+        - mehrere Subkategorien bündeln
+        - sich gegenseitig ausschließen
+        - maximal 4-6 Hauptkategorien insgesamt
+        Beispiele: "Forschungsstrukturen", "Personalentwicklung"
+
+        SUBKATEGORIEN müssen:
+        - spezifische Aspekte einer Hauptkategorie beschreiben
+        - sich eindeutig zuordnen lassen
+        - konkrete Phänomene erfassen
+        - 2-5 Subkategorien pro Hauptkategorie
+        Beispiele: "Forschungsprofil", "Beruflicher Werdegang"
+
+        WICHTIG - DEUTSCHE KATEGORIENBILDUNG:
+        1. Kategorienamen MÜSSEN auf Deutsch sein - KEINE AUSNAHMEN!
+        2. Übersetze englische Konzepte IMMER ins Deutsche
+        3. Nutze etablierte deutsche Fachbegriffe
+        4. Vermeide englische Wörter, Anglizismen oder Fachbegriffe
+        5. Kategorienname sollte prägnant sein (2-4 Wörter)
+
+        WICHTIGE REGELN FÜR NEUE KATEGORIEN:
+        1. VORRANG DEDUKTIVER KATEGORIEN:
+        - Prüfe IMMER ZUERST, ob der Inhalt zu einer bestehenden deduktiven Kategorie passt
+        - Neue Hauptkategorien NUR wenn keine bestehende Kategorie passt
+        - Bevorzuge das Hinzufügen von Subkategorien zu bestehenden Hauptkategorien
+
+        2. HIERARCHIE BEACHTEN:
+        - Maximal 8-10 Hauptkategorien insgesamt
+        - Neue Hauptkategorien müssen sich deutlich von bestehenden unterscheiden
+        - Ähnliche Konzepte als Subkategorien einordnen
+
+        TEXT:
+        {segment}
+
+        BESTEHENDES KATEGORIENSYSTEM:
+        {json.dumps(DEDUKTIVE_KATEGORIEN, indent=2, ensure_ascii=False)}
+
+        Prüfe bei jedem neuen Konzept:
+        1. Passt es in eine bestehende Hauptkategorie?
+        2. Könnte es als Subkategorie eingeordnet werden?
+        3. Ist eine neue Hauptkategorie WIRKLICH notwendig?
+
+        Antworte nur mit einem JSON-Array von NEUEN Kategorien:
+        [
+            {{
+                "name": "Name der neuen Hauptkategorie (ZWINGEND DEUTSCH!)",
+                "definition": "Präzise Definition der Hauptkategorie",
+                "example": "Relevante Textstelle als Beispiel",
+                "existing_subcategories": [],
+                "new_subcategories": [
+                    "Subkategorie 1 (präzise, spezifisch)",
+                    "Subkategorie 2 (präzise, spezifisch)"
+                ],
+                "justification": "Prägnante Paraphrase der relevanten Textaspekte und ihre Bedeutung für die Kategorienzuordnung",
+                "confidence": {{
+                    "category": 0.9,
+                    "subcategories": 0.8
+                }}
+            }}
+        ]
+
+        WICHTIG FÜR DIE BEGRÜNDUNG (justification):
+        - Knappe Paraphrase der relevanten Textinhalte ohne einleitende Phrasen
+        - Fokus auf spezifische Informationen für Kategorienzuordnung
+        - Vermeide Redundanzen und allgemeine Beschreibungen
+        - Erkläre, warum eine neue Hauptkategorie nötig ist
+        """
+
+    def _validate_categories(self, categories: List[Dict]) -> List[Dict]:
+        """
+        Validiert extrahierte Kategorien mit verbesserten Qualitätskriterien.
+        """
+        valid_categories = []
+        
+        for category in categories:
+            if not self._validate_category(category):
+                continue
+                
+            # Zusätzliche Qualitätsprüfungen
+            definition_quality = self._assess_definition_quality(category)
+            if definition_quality < self.MIN_CONFIDENCE:
+                continue
+                
+            valid_categories.append(category)
+        
+        return valid_categories
+
+    def _validate_category(self, category: Dict) -> bool:
+        """
+        Validiert eine einzelne Kategorie nach definierten Kriterien.
+        
+        Args:
+            category: Zu validierende Kategorie
+            
+        Returns:
+            bool: True wenn die Kategorie valide ist
+        """
+        try:
+            # 1. Prüfe ob alle erforderlichen Felder vorhanden sind
+            required_fields = {
                 'name': str,
                 'definition': str,
                 'example': str,
-                'existing_subcategories': list,
                 'new_subcategories': list,
+                'existing_subcategories': list,
                 'justification': str,
                 'confidence': dict
             }
-
-            for field, expected_type in type_checks.items():
-                if not isinstance(category[field], expected_type):
-                    print(f"Warnung: Falscher Datentyp für {field} in {category['name']}")
+            
+            for field, expected_type in required_fields.items():
+                if field not in category:
+                    print(f"Warnung: Fehlendes Feld '{field}' in Kategorie")
                     return False
-
+                if not isinstance(category[field], expected_type):
+                    print(f"Warnung: Falscher Datentyp für '{field}' in Kategorie")
+                    return False
+            
+            # 2. Prüfe Inhaltsqualität
+            name = category['name']
+            definition = category['definition']
+            example = category['example']
+            
+            # Name-Validierung
+            if len(name) < 3 or len(name) > 50:
+                print(f"Warnung: Ungültige Namenslänge für '{name}'")
+                return False
+            
+            # Definition-Validierung
+            if len(definition.split()) < self.MIN_DEFINITION_WORDS:
+                print(f"Warnung: Definition zu kurz für '{name}'")
+                return False
+            
+            # Beispiel-Validierung
+            if len(example) < 10:
+                print(f"Warnung: Beispiel zu kurz für '{name}'")
+                return False
+            
+            # 3. Prüfe Subkategorien
+            subcats = category['new_subcategories'] + category['existing_subcategories']
+            if not subcats:
+                print(f"Warnung: Keine Subkategorien für '{name}'")
+                return False
+            
+            # 4. Prüfe Confidence-Werte
+            confidence = category['confidence']
+            required_confidence = {'category', 'subcategories'}
+            if not all(key in confidence for key in required_confidence):
+                print(f"Warnung: Unvollständige Confidence-Werte für '{name}'")
+                return False
+            
+            # 5. Prüfe auf englische Wörter im Namen
+            english_indicators = {'research', 'development',
+                             'management', 'system', 'process', 'analysis'}
+            name_words = set(name.lower().split())
+            if name_words & english_indicators:
+                print(f"Warnung: Englische Wörter in Kategoriename '{name}'")
+                return False
+            
             return True
-
+            
         except Exception as e:
             print(f"Fehler bei der Kategorievalidierung: {str(e)}")
             return False
-    
+
+    def _assess_definition_quality(self, category: Dict) -> float:
+        """
+        Bewertet die Qualität einer Kategoriendefinition.
+        """
+        definition = category.get('definition', '')
+        
+        # Grundlegende Qualitätskriterien
+        criteria = {
+            'length': len(definition.split()) >= self.MIN_DEFINITION_WORDS,
+            'structure': all(x in definition.lower() for x in ['ist', 'umfasst', 'bezeichnet']),
+            'specificity': len(set(definition.split())) / len(definition.split()) > 0.5
+        }
+        
+        return sum(criteria.values()) / len(criteria)
+
+    def _integrate_categories(self, 
+                            existing: Dict[str, CategoryDefinition],
+                            new_categories: List[Dict]) -> Dict[str, CategoryDefinition]:
+        """
+        Integriert neue Kategorien in das bestehende System.
+        """
+        integrated = existing.copy()
+        
+        for category in new_categories:
+            name = category['name']
+            
+            if name in integrated:
+                # Update bestehende Kategorie
+                current = integrated[name]
+                integrated[name] = self._merge_category_definitions(current, category)
+            else:
+                # Füge neue Kategorie hinzu
+                integrated[name] = CategoryDefinition(
+                    name=name,
+                    definition=category['definition'],
+                    examples=[category['example']],
+                    rules=[],  # Regeln werden später entwickelt
+                    subcategories=dict.fromkeys(category['subcategories']),
+                    added_date=datetime.now().strftime("%Y-%m-%d"),
+                    modified_date=datetime.now().strftime("%Y-%m-%d")
+                )
+        
+        return integrated
+
+    def _remove_redundant_categories(self, categories: Dict[str, CategoryDefinition]) -> Dict[str, CategoryDefinition]:
+        """
+        Entfernt redundante Kategorien basierend auf Ähnlichkeitsanalyse.
+        
+        Args:
+            categories: Dictionary mit Kategorien
+            
+        Returns:
+            Dict[str, CategoryDefinition]: Bereinigtes Kategoriensystem
+        """
+        try:
+            # Wenn zu wenige Kategorien vorhanden, keine Bereinigung nötig
+            if len(categories) <= 1:
+                return categories
+                
+            unique_categories = {}
+            redundant_pairs = []
+            
+            # Vergleiche jede Kategorie mit jeder anderen
+            for name1, cat1 in categories.items():
+                is_redundant = False
+                
+                for name2, cat2 in categories.items():
+                    if name1 >= name2:  # Überspringe Selbstvergleich und Duplikate
+                        continue
+                        
+                    # Berechne verschiedene Ähnlichkeitsmetriken
+                    name_similarity = self._calculate_text_similarity(name1, name2)
+                    def_similarity = self._calculate_text_similarity(cat1.definition, cat2.definition)
+                    
+                    # Prüfe Subkategorien-Überlappung
+                    sub_overlap = len(set(cat1.subcategories.keys()) & set(cat2.subcategories.keys()))
+                    sub_similarity = sub_overlap / max(len(cat1.subcategories), len(cat2.subcategories)) if cat1.subcategories else 0
+                    
+                    # Gewichtete Gesamtähnlichkeit
+                    total_similarity = (name_similarity * 0.3 + 
+                                     def_similarity * 0.4 + 
+                                     sub_similarity * 0.3)
+                    
+                    # Wenn Kategorien sehr ähnlich sind
+                    if total_similarity > 0.8:
+                        redundant_pairs.append((name1, name2, total_similarity))
+                        is_redundant = True
+                        
+                        # Dokumentiere die Redundanz
+                        print(f"\nRedundante Kategorien gefunden:")
+                        print(f"- {name1} und {name2}")
+                        print(f"- Ähnlichkeit: {total_similarity:.2f}")
+                        print(f"  • Name: {name_similarity:.2f}")
+                        print(f"  • Definition: {def_similarity:.2f}")
+                        print(f"  • Subkategorien: {sub_similarity:.2f}")
+                
+                # Behalte nur nicht-redundante Kategorien
+                if not is_redundant:
+                    unique_categories[name1] = cat1
+            
+            # Wenn redundante Paare gefunden wurden, merge diese
+            if redundant_pairs:
+                print(f"\nFüge {len(redundant_pairs)} redundante Kategorienpaare zusammen...")
+                for name1, name2, sim in redundant_pairs:
+                    if name1 in categories and name2 in categories:
+                        merged = self._merge_redundant_categories(
+                            categories[name1],
+                            categories[name2],
+                            sim
+                        )
+                        unique_categories[merged.name] = merged
+            
+            return unique_categories
+            
+        except Exception as e:
+            print(f"Fehler beim Entfernen redundanter Kategorien: {str(e)}")
+            return categories
+
     def _validate_category_system(self, categories: Dict[str, CategoryDefinition]) -> bool:
         """
         Validates the coherence and quality of the entire category system.
@@ -1946,549 +2521,291 @@ class InductiveCoder:
         except Exception as e:
             print(f"Fehler bei der Kategoriesystem-Validierung: {str(e)}")
             return False
-
-    def _is_valid_category(self, category: dict) -> bool:
-        required_fields = ['name', 'definition', 'example', 'existing_subcategories', 'new_subcategories', 'justification', 'confidence']
         
-        if not isinstance(category, dict):
-            print(f"Warnung: Kategorie ist kein Dictionary: {category}")
-            return False
-
-        missing_fields = [field for field in required_fields if field not in category or not category[field]]
-        
-        if missing_fields:
-            print(f"Warnung: Fehlende Felder in Kategorie: {', '.join(missing_fields)}")
-            return False
-        
-        return True
-
-
-    def _integrate_new_category(self, new_category: dict, existing_categories: Dict[str, CategoryDefinition]) -> Tuple[Dict[str, CategoryDefinition], Optional[CategoryChange]]:
-        if new_category['name'] in existing_categories:
-            # Update existing category
-            existing_cat = existing_categories[new_category['name']]
-            updated_cat = CategoryDefinition(
-                name=existing_cat.name,
-                definition=existing_cat.definition,
-                examples=list(set(existing_cat.examples + [new_category['example']])),
-                rules=existing_cat.rules,
-                subcategories={**existing_cat.subcategories, **dict.fromkeys(new_category['new_subcategories'])},
-                added_date=existing_cat.added_date,
-                modified_date=datetime.now().strftime("%Y-%m-%d")
-            )
-            existing_categories[new_category['name']] = updated_cat
-            change = CategoryChange(
-                category_name=new_category['name'],
-                change_type='modify',
-                description=f"Updated category {new_category['name']}",
-                timestamp=datetime.now().isoformat(),
-                old_value=existing_cat.__dict__,
-                new_value=updated_cat.__dict__,
-                justification=new_category['justification']
-            )
-        else:
-            # Add new category
-            new_cat = CategoryDefinition(
-                name=new_category['name'],
-                definition=new_category['definition'],
-                examples=[new_category['example']],
-                rules=[],  # You might want to add rules here
-                subcategories=dict.fromkeys(new_category['new_subcategories']),
-                added_date=datetime.now().strftime("%Y-%m-%d"),
-                modified_date=datetime.now().strftime("%Y-%m-%d")
-            )
-            existing_categories[new_category['name']] = new_cat
-            change = CategoryChange(
-                category_name=new_category['name'],
-                change_type='add',
-                description=f"Added new category {new_category['name']}",
-                timestamp=datetime.now().isoformat(),
-                new_value=new_cat.__dict__,
-                justification=new_category['justification']
-            )
-        
-        return existing_categories, change
-
-
-    def _calculate_text_similarity(self, text1: str, text2: str) -> float:
-        """
-        Berechnet die Ähnlichkeit zwischen zwei Texten.
-        
-        Args:
-            text1: Erster Text
-            text2: Zweiter Text
-            
-        Returns:
-            float: Ähnlichkeitswert zwischen 0 und 1
-        """
-        try:
-            # Texte in Wortmengen umwandeln
-            words1 = set(text1.lower().split())
-            words2 = set(text2.lower().split())
-            
-            # Jaccard-Ähnlichkeit berechnen
-            intersection = len(words1.intersection(words2))
-            union = len(words1.union(words2))
-            
-            if union == 0:
-                return 0.0
-                
-            return intersection / union
-            
-        except Exception as e:
-            print(f"Fehler bei der Textähnlichkeitsberechnung: {str(e)}")
-            return 0.0
-
-    async def develop_category_system(self, material: List[str]) -> Dict[str, CategoryDefinition]:
-        """
-        Develops a category system from the material following Mayring's steps.
-        
-        Args:
-            material: List of text segments to analyze
-            
-        Returns:
-            Dict[str, CategoryDefinition]: Developed category system
-        """
-        try:
-            # 1. Initial category development (first 10% of material)
-            initial_sample = material[:int(len(material) * 0.1)]
-            initial_categories = await self._initial_categorization(initial_sample)
-            
-            # 2. First revision loop (up to 50% of material)
-            mid_sample = material[:int(len(material) * 0.5)]
-            revised_categories = await self._revision_loop(
-                initial_categories,
-                mid_sample,
-                "First revision - 50% of material"
-            )
-            
-            # 3. Second revision loop (remaining material)
-            final_categories = await self._revision_loop(
-                revised_categories,
-                material,
-                "Final revision - complete material"
-            )
-            
-            # 4. Quality checks and documentation
-            if self._validate_category_system(final_categories):
-                self._document_category_development(
-                    "Final category system validated",
-                    final_categories
-                )
-                return final_categories
-            else:
-                raise ValueError("Final category system failed validation")
-                
-        except Exception as e:
-            print(f"Error in category system development: {str(e)}")
-            raise
-
-    async def _initial_categorization(self, material: List[str]) -> Dict[str, CategoryDefinition]:
-        """
-        Performs the initial category development on a sample of the material.
-        
-        Args:
-            material: Initial text segments for analysis
-            
-        Returns:
-            Dict[str, CategoryDefinition]: Initial category system
-        """
-        categories = {}
-        
-        for segment in material:
-            try:
-                # Use AI to suggest categories for the segment
-                suggested_categories = await self._extract_categories_from_segment(segment)
-                
-                # Process and integrate each suggested category
-                for category in suggested_categories:
-                    if self._is_valid_category(category):
-                        if category['name'] in categories:
-                            # Update existing category
-                            categories[category['name']] = self._merge_category_definitions(
-                                categories[category['name']],
-                                category
-                            )
-                        else:
-                            # Add new category
-                            categories[category['name']] = CategoryDefinition(
-                                name=category['name'],
-                                definition=category['definition'],
-                                examples=[category['example']],
-                                rules=self._generate_KODIERREGELN(category),
-                                subcategories={},
-                                added_date=datetime.now().strftime("%Y-%m-%d"),
-                                modified_date=datetime.now().strftime("%Y-%m-%d")
-                            )
-                            
-                self._document_category_development(
-                    f"Added categories from segment: {segment[:50]}...",
-                    categories
-                )
-                
-            except Exception as e:
-                print(f"Error processing segment: {str(e)}")
-                continue
-                
-        return categories
-
-    async def _analyze_segment_coverage(self, segment: str, categories: Dict[str, CategoryDefinition]) -> float:
-        """
-        Analysiert, wie gut ein Segment durch das bestehende Kategoriensystem abgedeckt wird.
-        """
-        try:
-            prompt = f"""
-            Analysiere, wie gut das folgende Textsegment durch das bestehende Kategoriensystem 
-            abgedeckt wird. Berücksichtige dabei:
-            1. Inhaltliche Passung zu bestehenden Kategorien
-            2. Vollständigkeit der Abdeckung
-            3. Präzision der Kategorisierung
-
-            TEXT:
-            {segment}
-
-            KATEGORIENSYSTEM:
-            {json.dumps({name: cat.__dict__ for name, cat in categories.items()}, indent=2, ensure_ascii=False)}
-
-            Antworte nur mit einem JSON-Objekt:
-            {{
-                "coverage_score": 0.8,
-                "covered_aspects": ["Liste der abgedeckten Aspekte"],
-                "uncovered_aspects": ["Liste der nicht abgedeckten Aspekte"],
-                "justification": "Begründung der Bewertung"
-            }}
-            """
-
-            input_tokens = estimate_tokens(prompt + segment)
-
-            # Hier das wichtige await hinzufügen
-            response =  await self.client.chat.completions.create(
-                model=self.model_name,
-                messages=[
-                    {"role": "system", "content": self.system_context},
-                    {"role": "user", "content": prompt}
-                ],
-                temperature=0.3,
-                response_format={"type": "json_object"}
-            )
-
-            # Hier das Ergebnis direkt aus der Response extrahieren
-            result = json.loads(response.choices[0].message.content)
-
-            output_tokens = estimate_tokens(response.choices[0].message.content)
-            token_counter.add_tokens(input_tokens, output_tokens)
-
-            return result.get('coverage_score', 0.0)
-
-        except Exception as e:
-            print(f"Error in coverage analysis: {str(e)}")
-            return 0.0
-
-    async def _revision_loop(
-        self,
-        current_categories: Dict[str, CategoryDefinition],
-        material: List[str],
-        revision_phase: str
-    ) -> Dict[str, CategoryDefinition]:
-        revised_categories = current_categories.copy()
-        category_changes = []
-        segments_processed = 0
-        
-        for segment in material:
-            segments_processed += 1
-            self.processed_material_percentage = (segments_processed / len(material)) * 100
-            
-            coverage = await self._analyze_segment_coverage(segment, revised_categories)
-            
-            if coverage < self.RELIABILITY_THRESHOLD:
-                new_categories = await self._extract_categories_from_segment(segment)
-                
-                for category in new_categories:
-                    if self._is_valid_category(category):
-                        revised_categories, change = self._integrate_new_category(category, revised_categories)
-                        if change:
-                            category_changes.append(change)
-            
-            if self._check_category_saturation(category_changes):
-                self._document_category_development(
-                    f"Category saturation reached at {self.processed_material_percentage:.1f}%",
-                    revised_categories
-                )
-                break
-        
-        revised_categories = self._optimize_category_system(revised_categories)
-        
-        return revised_categories
-
-
-    async def _extract_categories_from_segment(self, segment: str) -> List[dict]:
-        """
-        Extrahiert potenzielle Kategorien aus einem Textsegment mit Fokus auf deutsche Kategorienamen.
-        """
-        try:
-            prompt = f"""
-            Analysiere das folgende Textsegment nach Mayrings qualitativer Inhaltsanalyse.
-            Fokussiere dabei auf die induktive Kategorienbildung und die Relevanz für die Forschungsfrage:
-            "{FORSCHUNGSFRAGE}"
-
-            WICHTIG - KATEGORIENSTRUKTUR UND HIERARCHIE:
-            1. Unterscheide klar zwischen Haupt- und Subkategorien:
-
-            HAUPTKATEGORIEN müssen:
-            - übergeordnete Themenkomplexe abdecken
-            - mehrere Subkategorien bündeln
-            - sich gegenseitig ausschließen
-            - maximal 4-6 Hauptkategorien insgesamt
-            Beispiele: "Forschungsstrukturen", "Personalentwicklung"
-
-            SUBKATEGORIEN müssen:
-            - spezifische Aspekte einer Hauptkategorie beschreiben
-            - sich eindeutig zuordnen lassen
-            - konkrete Phänomene erfassen
-            - 2-5 Subkategorien pro Hauptkategorie
-            Beispiele: "Forschungsprofil", "Beruflicher Werdegang"
-
-            WICHTIG - DEUTSCHE KATEGORIENBILDUNG:
-            1. Kategorienamen MÜSSEN auf Deutsch sein - KEINE AUSNAHMEN!
-            2. Übersetze englische Konzepte IMMER ins Deutsche
-            3. Nutze etablierte deutsche Fachbegriffe
-            4. Vermeide englische Wörter, Anglizismen, Fachbegriffe oder Syntax
-            5. Kategorienname sollte prägnant sein (2-4 Wörter)
-
-            WICHTIGE REGELN FÜR NEUE KATEGORIEN:
-            1. VORRANG DEDUKTIVER KATEGORIEN:
-            - Prüfe IMMER ZUERST, ob der Inhalt zu einer bestehenden deduktiven Kategorie passt
-            - Neue Hauptkategorien NUR wenn keine bestehende Kategorie passt
-            - Bevorzuge das Hinzufügen von Subkategorien zu bestehenden Hauptkategorien
-
-            2. HIERARCHIE BEACHTEN:
-            - Maximal 8-10 Hauptkategorien insgesamt
-            - Neue Hauptkategorien müssen sich deutlich von bestehenden unterscheiden
-            - Ähnliche Konzepte als Subkategorien einordnen
-
-            TEXT:
-            {segment}
-
-            BESTEHENDES KATEGORIENSYSTEM:
-            {json.dumps(DEDUKTIVE_KATEGORIEN, indent=2, ensure_ascii=False)}
-
-            Prüfe bei jedem neuen Konzept:
-            1. Passt es in eine bestehende Hauptkategorie?
-            2. Könnte es als Subkategorie eingeordnet werden?
-            3. Ist eine neue Hauptkategorie WIRKLICH notwendig?
-
-            Antworte nur mit einem JSON-Array von NEUEN Kategorien:
-            [
-                {{
-                    "name": "Name der neuen Hauptkategorie (ZWINGEND DEUTSCH!)",
-                    "definition": "Präzise Definition der Hauptkategorie",
-                    "example": "Relevante Textstelle als Beispiel",
-                    "existing_subcategories": [],
-                    "new_subcategories": [
-                        "Subkategorie 1 (präzise, spezifisch)",
-                        "Subkategorie 2 (präzise, spezifisch)"
-                    ],
-                    "justification": "Prägnante Paraphrase der relevanten Textaspekte und ihre Bedeutung für die Kategorienzuordnung",
-                    "confidence": {{
-                        "category": 0.9,
-                        "subcategories": 0.8
-                    }}
-                }}
-            ]
-
-            WICHTIG FÜR DIE BEGRÜNDUNG (justification):
-            - Knappe Paraphrase der relevanten Textinhalte ohne einleitende Phrasen wie "Der Text beschreibt..."
-            - Fokus auf spezifische Informationen, die für die Kategorienzuordnung und die Forschungsfrage relevant sind
-            - Vermeide Redundanzen und allgemeine Beschreibungen
-            - Erkläre, warum eine neue Hauptkategorie nötig ist oder warum bestehende Kategorien nicht ausreichen
-
-            WICHTIG: 
-            1. Erstelle nur dann neue Hauptkategorien, wenn der Inhalt nicht durch das bestehende System abgedeckt wird!
-            2. Prüfe immer, ob neue Aspekte nicht als Subkategorien in bestehende Hauptkategorien eingeordnet werden können!
-            3. Kategorienamen MÜSSEN auf Deutsch sein!
-            4. Stelle sicher, dass Hauptkategorien sich nicht überschneiden!
-            5. Bei Unsicherheit IMMER die deutsche Variante wählen!
-            """
-
-            input_tokens = estimate_tokens(prompt + segment)
-
-            response = await self.client.chat.completions.create(
-                model=self.model_name,
-                messages=[
-                    {"role": "system", "content": "Du bist ein Experte für qualitative Inhaltsanalyse. "
-                    "Deine Aufgabe ist es, AUSSCHLIESSLICH DEUTSCHE Kategoriennamen zu erstellen und "
-                    "eine klare Hierarchie zwischen Haupt- und Subkategorien zu gewährleisten."},
-                    {"role": "user", "content": prompt}
-                ],
-                temperature=0.7,
-                response_format={"type": "json_object"}
-            )
-
-            result = json.loads(response.choices[0].message.content)
-
-            output_tokens = estimate_tokens(response.choices[0].message.content)
-        
-            token_counter.add_tokens(input_tokens, output_tokens)
-            
-            # Stelle sicher, dass das Ergebnis eine Liste ist
-            if isinstance(result, dict):
-                result = [result]
-            elif not isinstance(result, list):
-                print(f"Unerwartetes Response-Format: {type(result)}")
-                return []
-
-            # Zusätzliche Validierung der Kategorienamen
-            validated_categories = []
-            for category in result:
-                # Prüfe auf englische Wörter im Kategorienamen
-                name = category.get('name', '')
-                english_indicators = {'and', 'of', 'in', 'the', 'research', 'higher', 
-                                'education', 'private', 'state', 'involvement', 
-                                'sector', 'institutions', 'quality', 'management',
-                                'development', 'framework', 'impact', 'challenge'}
-                
-                words = set(name.lower().split())
-                if any(word in english_indicators for word in words):
-                    print(f"Überspringe Kategorie mit englischem Namen: {name}")
-                    continue
-                    
-                validated_categories.append(category)
-
-            return self._validate_categories(validated_categories)
-
-        except Exception as e:
-            print(f"Error in category extraction: {str(e)}")
-            if 'response' in locals():
-                print(f"Response was: {response.choices[0].message.content}")
-            return []
-
-
-    def _validate_categories(self, categories: List[dict]) -> List[dict]:
-        """
-        Validiert die extrahierten Kategorien anhand der Qualitätskriterien von Mayring.
-        """
-        valid_categories = []
-        required_fields = {
-            'name', 'definition', 'existing_subcategories', 
-            'new_subcategories', 'justification', 'example', 'confidence'
-        }
-        
-        for category in categories:
-            try:
-                category_name = category.get('name', 'UNBENANNTE KATEGORIE')
-            
-                # Prüfe ob alle erforderlichen Felder vorhanden sind
-                missing_fields = [field for field in required_fields if field not in category]
-                if missing_fields:
-                    print(f"Warnung: Fehlende Felder in Kategorie '{category_name}': {', '.join(missing_fields)}")
-                    continue
-                    
-                # Prüfe ob Subkategorien vorhanden sind
-                has_subcategories = (
-                    len(category['existing_subcategories']) > 0 or 
-                    len(category['new_subcategories']) > 0
-                )
-                if not has_subcategories:
-                    print(f"Warnung: Keine Subkategorien für {category['name']}")
-                    continue
-                    
-                # Weitere Qualitätsprüfungen...
-                valid_categories.append(category)
-                
-            except Exception as e:
-                print(f"Fehler bei Kategorienvalidierung von '{category_name}': {str(e)}")
-                continue
-            
-        return valid_categories
-
     def _optimize_category_system(self, categories: Dict[str, CategoryDefinition]) -> Dict[str, CategoryDefinition]:
         """
-        Optimizes the category system by merging similar categories and adjusting abstraction levels.
+        Optimiert das Kategoriensystem für Konsistenz und Effizienz.
         
         Args:
-            categories: Current category system
+            categories: Zu optimierendes Kategoriensystem
             
         Returns:
-            Dict[str, CategoryDefinition]: Optimized category system
+            Dict[str, CategoryDefinition]: Optimiertes Kategoriensystem
         """
-        optimized = categories.copy()
-        
-        # Get all possible pairs of category names using itertools.combinations
-        # This ensures we compare each pair exactly once
-        category_pairs = itertools.combinations(list(optimized.keys()), 2)
-        
-        # Check each pair of categories for similarity
-        for cat1_name, cat2_name in category_pairs:
-            # Calculate similarity between the two categories
-            similarity = self._calculate_category_similarity(
-                optimized[cat1_name],
-                optimized[cat2_name]
-            )
+        try:
+            print("\nOptimiere Kategoriensystem...")
+            optimized = {}
             
-            # If categories are similar enough to merge
-            if similarity > self.SIMILARITY_THRESHOLD:
-                # Create a merged category
-                merged = self._merge_categories(
-                    optimized[cat1_name], 
-                    optimized[cat2_name]
-                )
-                # Add the merged category and remove the original ones
-                optimized[merged.name] = merged
-                del optimized[cat1_name]
-                del optimized[cat2_name]
-        
-        # After merging, adjust abstraction levels of remaining categories
-        for name, category in list(optimized.items()):  # Use list() to avoid runtime modification issues
-            if len(category.examples) > self.MIN_CATEGORY_SUPPORT:
-                optimized[name] = self._adjust_abstraction_level(category)
-        
-        return optimized
+            # 1. Entferne redundante Kategorien
+            unique_categories = self._remove_redundant_categories(categories)
+            
+            # 2. Optimiere Hierarchie und Struktur
+            for name, category in unique_categories.items():
+                try:
+                    # 2.1 Validiere und optimiere Subkategorien
+                    valid_subs = self._validate_subcategories(category.subcategories)
+                    
+                    # 2.2 Optimiere Definition
+                    improved_definition = self._improve_definition(category.definition)
+                    
+                    # 2.3 Optimiere Beispiele
+                    curated_examples = self._curate_examples(category.examples)
+                    
+                    # 2.4 Generiere Kodierregeln falls nötig
+                    if not category.rules:
+                        rules = self._generate_coding_rules(category)
+                    else:
+                        rules = category.rules
+                    
+                    # 2.5 Erstelle optimierte Kategorie
+                    optimized[name] = CategoryDefinition(
+                        name=name,
+                        definition=improved_definition,
+                        examples=curated_examples,
+                        rules=rules,
+                        subcategories=valid_subs,
+                        added_date=category.added_date,
+                        modified_date=datetime.now().strftime("%Y-%m-%d")
+                    )
+                    
+                except Exception as e:
+                    print(f"Warnung: Fehler bei der Optimierung von '{name}': {str(e)}")
+                    # Bei Fehler: Behalte ursprüngliche Kategorie
+                    optimized[name] = category
+            
+            # 3. Validiere finales System
+            if self._validate_category_system(optimized):
+                print(f"Optimierung abgeschlossen: {len(optimized)} Kategorien")
+            else:
+                print("Warnung: Optimiertes System erfüllt nicht alle Qualitätskriterien")
+            
+            return optimized
+            
+        except Exception as e:
+            print(f"Fehler bei der Systemoptimierung: {str(e)}")
+            return categories
 
-    def _document_category_development(self, 
-                                    action: str, 
-                                    categories: Dict[str, CategoryDefinition]) -> None:
+    def _validate_subcategories(self, subcategories: Dict[str, str]) -> Dict[str, str]:
         """
-        Documents the category development process.
+        Validiert und bereinigt Subkategorien.
         
         Args:
-            action: Description of the development step
-            categories: Current state of the category system
-        """
-        self.category_development_history.append({
-            'timestamp': datetime.now().isoformat(),
-            'action': action,
-            'processed_percentage': self.processed_material_percentage,
-            'num_categories': len(categories),
-            'categories': {name: cat.__dict__ for name, cat in categories.items()}
-        })
-
-    def generate_development_report(self) -> str:
-        """
-        Generates a detailed report of the category development process.
-        
-        Returns:
-            str: Formatted report of the category development process
-        """
-        report = ["# Category Development Report\n"]
-        
-        for entry in self.category_development_history:
-            report.extend([
-                f"## {entry['timestamp']}",
-                f"Action: {entry['action']}",
-                f"Material processed: {entry['processed_percentage']:.1f}%",
-                f"Number of categories: {entry['num_categories']}\n",
-                "### Categories:"
-            ])
+            subcategories: Dictionary mit Subkategorien
             
-            for name, cat in entry['categories'].items():
-                report.extend([
-                    f"#### {name}",
-                    f"Definition: {cat['definition']}",
-                    f"Examples: {', '.join(cat['examples'])}",
-                    "---\n"
-                ])
+        Returns:
+            Dict[str, str]: Bereinigte Subkategorien
+        """
+        valid_subcats = {}
+        
+        for name, definition in subcategories.items():
+            # Grundlegende Validierung
+            if not name or not isinstance(name, str):
+                continue
                 
-        return '\n'.join(report)
+            # Bereinige Namen
+            clean_name = name.strip()
+            if len(clean_name) < 3:
+                continue
+                
+            # Prüfe auf englische Wörter
+            english_indicators = {'and', 'of', 'the', 'for'}
+            if any(word in clean_name.lower().split() for word in english_indicators):
+                continue
+                
+            # Füge valide Subkategorie hinzu
+            valid_subcats[clean_name] = definition.strip() if definition else ""
+            
+        return valid_subcats
+
+    def _improve_definition(self, definition: str) -> str:
+        """
+        Verbessert eine Kategoriendefinition.
+        
+        Args:
+            definition: Ursprüngliche Definition
+            
+        Returns:
+            str: Verbesserte Definition
+        """
+        if not definition:
+            return ""
+            
+        # Entferne überflüssige Whitespaces
+        improved = " ".join(definition.split())
+        
+        # Stelle sicher, dass die Definition mit Großbuchstaben beginnt
+        improved = improved[0].upper() + improved[1:]
+        
+        # Füge Punkt am Ende hinzu falls nötig
+        if not improved.endswith('.'):
+            improved += '.'
+            
+        return improved
+
+    def _curate_examples(self, examples: List[str]) -> List[str]:
+        """
+        Bereinigt und optimiert Beispiele.
+        
+        Args:
+            examples: Liste von Beispielen
+            
+        Returns:
+            List[str]: Bereinigte Beispiele
+        """
+        curated = []
+        
+        for example in examples:
+            if not example or not isinstance(example, str):
+                continue
+                
+            # Bereinige Text
+            cleaned = " ".join(example.split())
+            
+            # Prüfe Mindestlänge
+            if len(cleaned) < 10:
+                continue
+                
+            curated.append(cleaned)
+            
+        return curated[:self.MIN_EXAMPLES]  # Begrenzt auf minimale Anzahl
+
+    def _generate_coding_rules(self, category: CategoryDefinition) -> List[str]:
+        """
+        Generiert Kodierregeln für eine Kategorie.
+        
+        Args:
+            category: Kategorie für die Regeln generiert werden sollen
+            
+        Returns:
+            List[str]: Generierte Kodierregeln
+        """
+        rules = [
+            f"Kodiere Textstellen, die sich auf {category.name} beziehen",
+            f"Berücksichtige den Kontext der Aussage",
+            f"Bei Unsicherheit dokumentiere die Gründe"
+        ]
+        
+        # Füge kategorienspezifische Regeln hinzu
+        if category.subcategories:
+            rules.append(f"Prüfe Zuordnung zu Subkategorien: {', '.join(category.subcategories.keys())}")
+        
+        return rules
+
+    def _merge_redundant_categories(self, 
+                                  cat1: CategoryDefinition, 
+                                  cat2: CategoryDefinition,
+                                  similarity: float) -> CategoryDefinition:
+        """
+        Führt zwei redundante Kategorien zusammen.
+        
+        Args:
+            cat1: Erste Kategorie
+            cat2: Zweite Kategorie
+            similarity: Ähnlichkeitswert der Kategorien
+            
+        Returns:
+            CategoryDefinition: Zusammengeführte Kategorie
+        """
+        # Wähle den kürzeren Namen oder kombiniere bei geringer Namenssimilarität
+        name_sim = self._calculate_text_similarity(cat1.name, cat2.name)
+        if name_sim > 0.7:
+            name = min([cat1.name, cat2.name], key=len)
+        else:
+            name = f"{cat1.name}_{cat2.name}"
+            
+        # Kombiniere Definitionen
+        definition = self._merge_definitions(cat1.definition, cat2.definition)
+        
+        # Vereinige Beispiele und entferne Duplikate
+        examples = list(set(cat1.examples + cat2.examples))
+        
+        # Vereinige Regeln
+        rules = list(set(cat1.rules + cat2.rules))
+        
+        # Kombiniere Subkategorien
+        subcategories = {**cat1.subcategories, **cat2.subcategories}
+        
+        # Erstelle neue zusammengeführte Kategorie
+        return CategoryDefinition(
+            name=name,
+            definition=definition,
+            examples=examples,
+            rules=rules,
+            subcategories=subcategories,
+            added_date=min(cat1.added_date, cat2.added_date),
+            modified_date=datetime.now().strftime("%Y-%m-%d")
+        )
+
+    def _merge_definitions(self, def1: str, def2: str) -> str:
+        """
+        Führt zwei Kategoriendefinitionen intelligent zusammen.
+        
+        Args:
+            def1: Erste Definition
+            def2: Zweite Definition
+            
+        Returns:
+            str: Kombinierte Definition
+        """
+        # Wenn eine Definition leer ist, verwende die andere
+        if not def1:
+            return def2
+        if not def2:
+            return def1
+            
+        # Teile Definitionen in Sätze
+        sentences1 = set(sent.strip() for sent in def1.split('.') if sent.strip())
+        sentences2 = set(sent.strip() for sent in def2.split('.') if sent.strip())
+        
+        # Finde einzigartige Aspekte
+        unique_sentences = sentences1 | sentences2
+        
+        # Kombiniere zu einer neuen Definition
+        combined = '. '.join(sorted(unique_sentences))
+        if not combined.endswith('.'):
+            combined += '.'
+            
+        return combined
+
+    def _track_development(self, 
+                          categories: Dict[str, CategoryDefinition],
+                          batch_size: int) -> None:
+        """
+        Dokumentiert die Kategorienentwicklung für Analyse und Reporting.
+        """
+        timestamp = datetime.now().isoformat()
+        
+        entry = {
+            'timestamp': timestamp,
+            'num_categories': len(categories),
+            'batch_size': batch_size,
+            'categories': {
+                name: cat.__dict__ for name, cat in categories.items()
+            }
+        }
+        
+        self.development_history.append(entry)
+
+    def _finalize_categories(self, categories: Dict[str, CategoryDefinition]) -> Dict[str, CategoryDefinition]:
+        """
+        Führt finale Optimierungen und Qualitätsprüfungen durch.
+        """
+        # 1. Entferne unterentwickelte Kategorien
+        finalized = {
+            name: cat for name, cat in categories.items()
+            if len(cat.examples) >= self.MIN_EXAMPLES
+        }
+        
+        # 2. Entwickle Kodierregeln
+        for name, category in finalized.items():
+            if not category.rules:
+                category.rules = self._generate_coding_rules(category)
+        
+        # 3. Überprüfe Gesamtqualität
+        if not self._validate_category_system(finalized):
+            print("Warning: Final category system may have quality issues")
+            
+        return finalized
 
     def _calculate_reliability(self, codings: List[Dict]) -> float:
         """
@@ -2668,117 +2985,31 @@ class InductiveCoder:
             import traceback
             traceback.print_exc()
             return "# Reliability Report\n\nError generating report"
-
-
-    def _check_category_saturation(self, category_changes: List[Dict]) -> bool:
-        """
-        Überprüft, ob das Kategoriensystem gesättigt ist.
         
-        Args:
-            category_changes: Liste der Kategorienänderungen
-            
-        Returns:
-            bool: True wenn Sättigung erreicht ist, sonst False
+    def _log_performance(self, 
+                        num_segments: int,
+                        num_categories: int,
+                        processing_time: float) -> None:
         """
-        try:
-            # Konstanten für Abbruchkriterien
-            MAX_ITERATIONS = 10  # Maximale Anzahl der Durchläufe
-            MIN_MATERIAL_PERCENTAGE = 70  # Minimaler Prozentsatz des Materials
-            STABILITY_THRESHOLD = 3  # Anzahl der Durchläufe ohne signifikante Änderungen
-
-            # Prüfe ob maximale Iterationen erreicht
-            if hasattr(self, '_iteration_count'):
-                self._iteration_count += 1
-            else:
-                self._iteration_count = 1
-
-            if self._iteration_count >= MAX_ITERATIONS:
-                print(f"\nSättigung erreicht: Maximale Anzahl von {MAX_ITERATIONS} Durchläufen erreicht")
-                return True
-
-            # Prüfe ob genügend Material analysiert wurde
-            if self.processed_material_percentage >= MIN_MATERIAL_PERCENTAGE:
-                if not category_changes:
-                    if hasattr(self, '_stable_iterations'):
-                        self._stable_iterations += 1
-                    else:
-                        self._stable_iterations = 1
-
-                    if self._stable_iterations >= STABILITY_THRESHOLD:
-                        print(f"\nSättigung erreicht: {STABILITY_THRESHOLD} stabile Durchläufe bei {self.processed_material_percentage:.1f}% des Materials")
-                        return True
-                else:
-                    self._stable_iterations = 0
-
-            # Prüfe Art der Änderungen
-            significant_changes = False
-            for change in category_changes:
-                # Neue Kategorien oder substanzielle Änderungen
-                if change.get('change_type') in ['add', 'modify']:
-                    if change.get('change_type') == 'modify':
-                        # Bei Modifikationen: Prüfe ob es sich um wesentliche Änderungen handelt
-                        old_val = change.get('old_value', {})
-                        new_val = change.get('new_value', {})
-                        
-                        # Prüfe auf wesentliche Änderungen in Definition oder Struktur
-                        if (old_val.get('definition') != new_val.get('definition') or
-                            old_val.get('subcategories') != new_val.get('subcategories')):
-                            significant_changes = True
-                            break
-                    else:  # Bei neuen Kategorien
-                        significant_changes = True
-                        break
-
-            # Logging des Fortschritts
-            print(f"\nSättigungsprüfung:")
-            print(f"- Durchlauf: {self._iteration_count}/{MAX_ITERATIONS}")
-            print(f"- Material analysiert: {self.processed_material_percentage:.1f}%")
-            print(f"- Stabile Durchläufe: {getattr(self, '_stable_iterations', 0)}/{STABILITY_THRESHOLD}")
-            print(f"- Signifikante Änderungen: {'Ja' if significant_changes else 'Nein'}")
-
-            return not significant_changes and self.processed_material_percentage >= MIN_MATERIAL_PERCENTAGE
-                
-        except Exception as e:
-            print(f"Fehler bei der Sättigungsprüfung: {str(e)}")
-            return False
-
-
-    def _merge_categories(self, 
-                        cat1: CategoryDefinition, 
-                        cat2: CategoryDefinition) -> CategoryDefinition:
+        Protokolliert Performance-Metriken.
         """
-        Merges two similar categories.
+        metrics = {
+            'timestamp': datetime.now().isoformat(),
+            'segments_processed': num_segments,
+            'categories_developed': num_categories,
+            'processing_time': processing_time,
+            'segments_per_second': num_segments / processing_time
+        }
         
-        Args:
-            cat1: First category
-            cat2: Second category
-            
-        Returns:
-            CategoryDefinition: Merged category
-        """
-        return CategoryDefinition(
-            name=f"{cat1.name}_{cat2.name}",
-            definition=self._merge_definitions(cat1.definition, cat2.definition),
-            examples=list(set(cat1.examples + cat2.examples)),
-            rules=list(set(cat1.rules + cat2.rules)),
-            subcategories={**cat1.subcategories, **cat2.subcategories},
-            added_date=datetime.now().strftime("%Y-%m-%d"),
-            modified_date=datetime.now().strftime("%Y-%m-%d")
-        )
-
-    def _adjust_abstraction_level(self, 
-                                category: CategoryDefinition) -> CategoryDefinition:
-        """
-        Adjusts the abstraction level of a category.
+        print("\nPerformance Metrics:")
+        print(f"- Segments processed: {num_segments}")
+        print(f"- Categories developed: {num_categories}")
+        print(f"- Processing time: {processing_time:.2f}s")
+        print(f"- Segments/second: {metrics['segments_per_second']:.2f}")
         
-        Args:
-            category: Category to adjust
-            
-        Returns:
-            CategoryDefinition: Adjusted category
-        """
-        # Implementation of abstraction level adjustment
-        pass
+        # Speichere Metriken
+        self.last_analysis_time = processing_time
+        self.batch_results.append(metrics)
 
 # --- Klasse: ManualCoder ---
 class ManualCoder:
@@ -3025,7 +3256,285 @@ class ManualCoder:
             else:
                 messagebox.showwarning("Warnung", "Bitte geben Sie eine gültige Nummer ein.")
 
+# --- Klasse: SaturationChecker ---
+class SaturationChecker:
+    """
+    Zentrale Klasse für die Sättigungsprüfung nach Mayring.
+    Implementiert ein effizientes, adaptives Verfahren zur Bestimmung der Sättigung.
+    """
+    
+    def __init__(self, config: dict):
+        # Konfigurationsparameter
+        self.MIN_MATERIAL_PERCENTAGE = 70
+        self.STABILITY_THRESHOLD = 3
+        self.MAX_ITERATIONS = 10
+        self.INITIAL_BATCH_SIZE = 0.05  # Start mit 5% des Materials
+        self.MAX_BATCH_SIZE = 0.2       # Maximale Batch-Größe 20%
+        
+        # Tracking-Variablen
+        self.processed_percentage = 0
+        self.stable_iterations = 0
+        self.current_batch_size = self.INITIAL_BATCH_SIZE
+        self.last_changes = []
+        self.category_metrics = {}
+        
+        # Performance-Metriken
+        self.processing_times = []
+        self.change_rates = []
+    
+    def update_batch_size(self, changes: List[Dict]) -> float:
+        """
+        Passt die Batch-Größe dynamisch an basierend auf Änderungsrate und Performance.
+        """
+        if not self.change_rates:
+            return self.current_batch_size
+            
+        change_rate = len(changes) / self.current_batch_size
+        avg_change_rate = sum(self.change_rates) / len(self.change_rates)
+        
+        # Erhöhe Batch-Größe wenn wenige Änderungen
+        if change_rate < avg_change_rate * 0.5:
+            new_size = min(self.current_batch_size * 1.5, self.MAX_BATCH_SIZE)
+        # Verkleinere Batch wenn viele Änderungen
+        elif change_rate > avg_change_rate * 1.5:
+            new_size = max(self.current_batch_size * 0.7, self.INITIAL_BATCH_SIZE)
+        else:
+            new_size = self.current_batch_size
+            
+        self.change_rates.append(change_rate)
+        return new_size
 
+    def check_saturation(self, 
+                        current_categories: Dict[str, CategoryDefinition],
+                        coded_segments: List[CodingResult],
+                        material_percentage: float) -> Tuple[bool, Dict]:
+        """
+        Prüft die Sättigung mit optimierter Performance und Integration der Kodierungsergebnisse.
+        """
+        start_time = time.time()
+        
+        # 1. Schnelle Vorprüfung
+        if material_percentage < self.MIN_MATERIAL_PERCENTAGE:
+            return False, {"reason": "Minimum material not processed"}
+            
+        # 2. Analysiere Kategorienstabilität
+        category_changes = self._analyze_category_changes(
+            current_categories, 
+            self.last_changes
+        )
+        
+        # 3. Integriere Kodierungsergebnisse
+        coding_metrics = self._analyze_coding_results(coded_segments)
+        
+        # 4. Kombinierte Sättigungsmetriken
+        saturation_metrics = {
+            'category_stability': len(category_changes) == 0,
+            'coding_consistency': coding_metrics['consistency'] > 0.8,
+            'coverage_adequate': coding_metrics['coverage'] > 0.9
+        }
+        
+        # 5. Update Performance-Metriken
+        processing_time = time.time() - start_time
+        self.processing_times.append(processing_time)
+        
+        # 6. Adaptive Batch-Größenanpassung
+        self.current_batch_size = self.update_batch_size(category_changes)
+        
+        # 7. Prüfe Sättigung
+        is_saturated = all(saturation_metrics.values())
+        if is_saturated:
+            self.stable_iterations += 1
+        else:
+            self.stable_iterations = 0
+        
+        # 8. Speichere Zustand für nächste Iteration
+        self.last_changes = category_changes
+        self.processed_percentage = material_percentage
+        
+        return (self.stable_iterations >= self.STABILITY_THRESHOLD, {
+            'metrics': saturation_metrics,
+            'processing_time': processing_time,
+            'batch_size': self.current_batch_size,
+            'stable_iterations': self.stable_iterations
+        })
+
+    def _analyze_category_changes(self, 
+                                current_categories: Dict[str, CategoryDefinition],
+                                last_changes: List[Dict]) -> List[Dict]:
+        """
+        Analysiert Kategorienänderungen mit Fokus auf Performance.
+        """
+        changes = []
+        
+        # Verwende Sets für schnelle Vergleiche
+        current_cats = set(current_categories.keys())
+        previous_cats = {change['category'] for change in last_changes}
+        
+        # 1. Identifiziere neue und gelöschte Kategorien
+        new_cats = current_cats - previous_cats
+        deleted_cats = previous_cats - current_cats
+        
+        # 2. Prüfe auf signifikante Änderungen (nur für bestehende Kategorien)
+        for cat_name in current_cats & previous_cats:
+            if self._has_significant_changes(
+                current_categories[cat_name],
+                self.category_metrics.get(cat_name, {})
+            ):
+                changes.append({
+                    'type': 'modification',
+                    'category': cat_name
+                })
+        
+        # 3. Füge neue/gelöschte Kategorien hinzu
+        changes.extend([{'type': 'new', 'category': cat} for cat in new_cats])
+        changes.extend([{'type': 'deleted', 'category': cat} for cat in deleted_cats])
+        
+        # 4. Update Metriken für nächste Iteration
+        self.category_metrics = {
+            name: self._extract_category_metrics(cat)
+            for name, cat in current_categories.items()
+        }
+        
+        return changes
+
+    def _analyze_coding_results(self, coded_segments: List[Dict]) -> Dict:
+        """
+        Analysiert Kodierungsergebnisse für Sättigungsprüfung.
+        """
+        from collections import defaultdict
+        
+        # Gruppiere Kodierungen nach Segment für effiziente Analyse
+        segment_codings = defaultdict(list)
+        
+        for coding in coded_segments:
+            # Get segment identifier
+            segment_id = (
+                coding.get('segment_id') or  # Try segment_id first
+                (coding.get('text_references', [None])[0] if coding.get('text_references') else None)  # Then text_references
+            )
+            
+            if segment_id:
+                segment_codings[segment_id].append(coding)
+        
+        # Berechne Metriken
+        total_segments = len(segment_codings)
+        consistent_segments = 0
+        
+        # Prüfe Konsistenz für jedes Segment
+        for segment_codings_list in segment_codings.values():
+            if self._is_coding_consistent(segment_codings_list):
+                consistent_segments += 1
+        
+        # Kategorienutzung analysieren
+        category_usage = defaultdict(int)
+        for coding in coded_segments:
+            if 'category' in coding:
+                category_usage[coding['category']] += 1
+        
+        return {
+            'consistency': consistent_segments / total_segments if total_segments > 0 else 0,
+            'coverage': len(category_usage) / len(self.category_metrics) if self.category_metrics else 0,
+            'category_usage': dict(category_usage)
+        }
+
+    def _is_coding_consistent(self, codings: List[Dict]) -> bool:
+        """
+        Prüft die Konsistenz mehrerer Kodierungen eines Segments.
+        """
+        if not codings:
+            return False
+        
+        try:
+            # Use dictionary access instead of attribute access
+            categories = {coding.get('category', '') if isinstance(coding, CodingResult) 
+                        else coding['category'] if isinstance(coding, dict) and 'category' in coding 
+                        else '' for coding in codings}
+            
+            # Get subcategories
+            subcategories = set()
+            for coding in codings:
+                if isinstance(coding, dict) and 'subcategories' in coding:
+                    subs = coding['subcategories']
+                    if isinstance(subs, list):
+                        subcategories.update(subs)
+                    elif isinstance(subs, str):
+                        subcategories.add(subs)
+                elif isinstance(coding, CodingResult):
+                    subs = coding.subcategories if hasattr(coding, 'subcategories') else []
+                    if isinstance(subs, list):
+                        subcategories.update(subs)
+                    elif isinstance(subs, str):
+                        subcategories.add(subs)
+            
+            # Remove empty categories
+            categories.discard('')
+            subcategories.discard('')
+            
+            # Consistent if only one main category or at most 2 subcategories
+            return len(categories) <= 1 or len(subcategories) <= 2
+            
+        except Exception as e:
+            print(f"Warning: Error in consistency check: {str(e)}")
+            return False
+
+
+    def _has_significant_changes(self, 
+                               category: CategoryDefinition,
+                               previous_metrics: Dict) -> bool:
+        """
+        Prüft auf signifikante Änderungen einer Kategorie.
+        Optimiert für schnelle Vergleiche.
+        """
+        current_metrics = self._extract_category_metrics(category)
+        
+        if not previous_metrics:
+            return True
+            
+        # Schnelle Vergleiche mit vorberechneten Hashes
+        return (
+            current_metrics['definition_hash'] != previous_metrics['definition_hash'] or
+            current_metrics['examples_hash'] != previous_metrics['examples_hash'] or
+            current_metrics['rules_hash'] != previous_metrics['rules_hash']
+        )
+
+    def _extract_category_metrics(self, category: CategoryDefinition) -> Dict:
+        """
+        Extrahiert und cached wichtige Kategorie-Metriken.
+        """
+        import hashlib
+        
+        def quick_hash(text: str) -> str:
+            return hashlib.md5(text.encode()).hexdigest()
+        
+        return {
+            'definition_hash': quick_hash(category.definition),
+            'examples_hash': quick_hash(''.join(category.examples)),
+            'rules_hash': quick_hash(''.join(category.rules)),
+            'subcategory_count': len(category.subcategories)
+        }
+
+    def _is_coding_consistent(self, codings: List[CodingResult]) -> bool:
+        """
+        Prüft die Konsistenz mehrerer Kodierungen eines Segments.
+        """
+        if not codings:
+            return False
+            
+        # Prüfe Hauptkategorien
+        categories = {coding.category for coding in codings}
+        if len(categories) > 1:
+            return False
+            
+        # Prüfe Subkategorien
+        subcategories = {
+            subcat 
+            for coding in codings 
+            for subcat in coding.subcategories
+        }
+        
+        # Konsistent wenn weniger als 3 verschiedene Subkategorien
+        return len(subcategories) <= 2
+    
 # --- Klasse: ResultsExporter ---
 # Aufgabe: Export der kodierten Daten und des finalen Kategoriensystems
 class ResultsExporter:
@@ -3591,7 +4100,7 @@ class ResultsExporter:
                 df_details.to_excel(writer, sheet_name='Kodierte_Segmente', index=False)
                 worksheet = writer.sheets['Kodierte_Segmente']
                 self._format_worksheet(worksheet)
-                self._adjust_row_heights(worksheet)
+                # self._adjust_row_heights(worksheet)
 
                 # Arbeitsblatt 2: Häufigkeitsanalysen
                 self._export_frequency_analysis(
@@ -5160,7 +5669,7 @@ async def main() -> None:
     try:
         print("=== Qualitative Inhaltsanalyse nach Mayring ===")
 
-        # 0. Konfiguration laden
+        # 1. Konfiguration laden
         script_dir = os.path.dirname(os.path.abspath(__file__))
         config_loader = ConfigLoader(script_dir)
         
@@ -5170,24 +5679,25 @@ async def main() -> None:
         else:
             print("Verwende Standard-Konfiguration")
 
-        # 1. Kategoriensystem initialisieren
+        # 2. Kategoriensystem initialisieren
         print("\n1. Initialisiere Kategoriensystem...")
         category_builder = DeductiveCategoryBuilder()
         initial_categories = category_builder.load_theoretical_categories()
         
-        # Revision Manager initialisieren
+        # 3. Revision Manager initialisieren
         revision_manager = CategoryRevisionManager(CONFIG['OUTPUT_DIR'])
         
+        # Initiale Kategorien dokumentieren
         for category_name in initial_categories.keys():
             revision_manager.changes.append(CategoryChange(
                 category_name=category_name,
                 change_type='add',
-                description="Erste deduktive Kategorie",
+                description="Initiale deduktive Kategorie",
                 timestamp=datetime.now().isoformat(),
                 justification="Teil des ursprünglichen deduktiven Kategoriensystems"
             ))
 
-        # 2. Dokumente einlesen
+        # 4. Dokumente einlesen
         print("\n2. Lese Dokumente ein...")
         reader = DocumentReader(CONFIG['DATA_DIR'])
         documents = await reader.read_documents()
@@ -5196,61 +5706,72 @@ async def main() -> None:
             print("\nKeine Dokumente zum Analysieren gefunden.")
             return
 
-        # 3. Kodierer konfigurieren
-        auto_coders = []
-        manual_coders = []
-
-        for config in CONFIG['CODER_SETTINGS']:
-            coder = DeductiveCoder(
+        # 5. Kodierer konfigurieren
+        print("\n3. Konfiguriere Kodierer...")
+        auto_coders = [
+            DeductiveCoder(
                 model_name=CONFIG['MODEL_NAME'],
                 temperature=config["temperature"],
                 coder_id=config["coder_id"]
             )
-            auto_coders.append(coder)
+            for config in CONFIG['CODER_SETTINGS']
+        ]
 
         # Optional: Manuellen Kodierer hinzufügen
         print("\nAutomatische Fortführung in 10 Sekunden...")
-        include_manual = get_input_with_timeout("\nMöchten Sie manuell kodieren? (j/n): ") == 'j'
-        if include_manual:
-            manual_coder = ManualCoder(coder_id="human_1")
-            manual_coders.append(manual_coder)
+        manual_coders = []
+        if get_input_with_timeout("\nMöchten Sie manuell kodieren? (j/n): ") == 'j':
+            manual_coders.append(ManualCoder(coder_id="human_1"))
+            print("Manueller Kodierer hinzugefügt")
 
-        # 4. Chunks erstellen
+        # 6. Material vorbereiten
+        print("\n4. Bereite Material vor...")
         loader = MaterialLoader()
         chunks = {}
         for doc_name, doc_text in documents.items():
             chunks[doc_name] = loader.chunk_text(doc_text)
+            print(f"- {doc_name}: {len(chunks[doc_name])} Chunks erstellt")
 
-        
-        # 5. Manuelle Codierung (falls gewünscht)
+        # 7. Manuelle Kodierung (falls gewählt)
         manual_codings = []
-        if include_manual:
-            print("\n5. Starte manuelle Codierung...")
+        if manual_coders:
+            print("\n5. Starte manuelle Kodierung...")
             manual_coding_result = await perform_manual_coding(
                 chunks=chunks, 
-                categories=initial_categories,  # Verwende initiale Kategorien
+                categories=initial_categories,
                 manual_coders=manual_coders
             )
             if manual_coding_result == "ABORT_ALL":
-                print("Manuelle Codierung wurde abgebrochen. Beende das Programm.")
+                print("Manuelle Kodierung abgebrochen. Beende Programm.")
                 return
             manual_codings = manual_coding_result
-            print(f"Manuelle Codierung abgeschlossen: {len(manual_codings)} Codierungen")
+            print(f"Manuelle Kodierung abgeschlossen: {len(manual_codings)} Kodierungen")
 
-        # 6. Integrierte Analyse starten
-        print("\n5. Starte integrierte Analyse...")
+        # 8. Integrierte Analyse starten
+        print("\n6. Starte integrierte Analyse...")
         analysis_manager = IntegratedAnalysisManager(CONFIG)
         
-        # Führe integrierte Analyse durch
-        final_categories, all_codings = await analysis_manager.analyze_material(
-            chunks=chunks,
-            initial_categories=initial_categories
-        )
+        # Fortschritts-Monitoring Setup
+        monitoring_task = asyncio.create_task(monitor_progress(analysis_manager))
+        
+        try:
+            # Führe integrierte Analyse durch
+            final_categories, all_codings = await analysis_manager.analyze_material(
+                chunks=chunks,
+                initial_categories=initial_categories
+            )
+        finally:
+            # Stelle sicher, dass Monitoring gestoppt wird
+            monitoring_task.cancel()
+            try:
+                await monitoring_task
+            except asyncio.CancelledError:
+                pass
 
         # Kombiniere alle Kodierungen
         all_codings.extend(manual_codings)
 
-        # 7. Berechne Intercoder-Reliabilität
+        # 9. Berechne Intercoder-Reliabilität
         print("\n7. Berechne Intercoder-Reliabilität...")
         reliability_calculator = InductiveCoder(
             model_name=CONFIG['MODEL_NAME'],
@@ -5260,7 +5781,7 @@ async def main() -> None:
 
         print(f"\nIntercoder-Reliabilität (Krippendorffs Alpha): {reliability:.3f}")
 
-        # 8. Exportiere Ergebnisse
+        # 10. Exportiere Ergebnisse
         print("\n8. Exportiere Ergebnisse...")
         exporter = ResultsExporter(
             output_dir=CONFIG['OUTPUT_DIR'],
@@ -5279,13 +5800,37 @@ async def main() -> None:
             inductive_coder=reliability_calculator
         )
 
-        print("\nAnalyse abgeschlossen.")
-        print("\n" + token_counter.get_report())
+        # 11. Finale Statistiken
+        print("\nAnalyse abgeschlossen:")
+        print(analysis_manager.get_analysis_report())
+        print("\nToken-Nutzung:")
+        print(token_counter.get_report())
 
     except Exception as e:
         print(f"Fehler in der Hauptausführung: {str(e)}")
         import traceback
         traceback.print_exc()
+
+async def monitor_progress(analysis_manager: IntegratedAnalysisManager):
+    """
+    Überwacht und zeigt den Analysefortschritt an.
+    """
+    try:
+        while True:
+            progress = analysis_manager.get_progress_report()
+            
+            # Formatiere Fortschrittsanzeige
+            print("\n--- Analysefortschritt ---")
+            print(f"Verarbeitet: {progress['progress']['processed_segments']} Segmente")
+            print(f"Geschwindigkeit: {progress['progress']['segments_per_hour']:.1f} Segmente/Stunde")
+            print(f"Sättigung: {progress['saturation']['material_processed']:.1f}%")
+            print(f"Stabile Iterationen: {progress['saturation']['stable_iterations']}")
+            print("------------------------")
+            
+            await asyncio.sleep(30)  # Update alle 30 Sekunden
+            
+    except asyncio.CancelledError:
+        print("\nFortschrittsüberwachung beendet.")
 
 if __name__ == "__main__":
     try:
