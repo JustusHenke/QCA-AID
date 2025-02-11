@@ -44,7 +44,7 @@ Die KI-gestützte Datenverarbeitung nutzt die Schnittstelle von OpenAI. Auch wen
 
 ## Weitere Hinweise zur aktuellen Version 
 
-- Die Sättigungsprüfung der induktivierung Kodierung nimmt aktuell relativ viel Zeit in Anspruch. Hier wird künftig ein effizienteres Verfahren angestrebt, damit auch längere Texte (>15 Seiten) zügiger verarbeitet werden. Man kann die Größe der Textsegmente mittels `CHUNK_SIZE` erhöhen (aktuell 800 Zeichen), um weniger Segmente im Stapel zu verarbeiten.  
+- Die Sättigungsprüfung der induktiven Kodierung nimmt aktuell relativ viel Zeit in Anspruch. Hier wird künftig ein effizienteres Verfahren angestrebt, damit auch längere Texte (>15 Seiten) zügiger verarbeitet werden. Man kann die Größe der Textsegmente mittels `CHUNK_SIZE` erhöhen (aktuell 800 Zeichen), um weniger Segmente im Stapel zu verarbeiten.  
 - Die induktive Kodierung ist aktuell relativ großzügig, was Redundanzen und eher mehr als weniger Subcodes zulässt. Regulieren Sie ggf. den CONFIG-Wert 'Temperature' herunter (z.B. auf '0.1')
 - Momentan wird nur Konsensentscheidung der Kodierer zugelassen, Mehrheitsvoting (bei n>2 Kodierern) ist noch nicht implementiert
 
