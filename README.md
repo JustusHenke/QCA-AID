@@ -1,16 +1,32 @@
 # QCA-AID: Qualitative Content Analysis with AI Support - Deductive Coding
 
-Dieses Python-Skript implementiert Mayrings Methode der Qualitativen Inhaltsanalyse mit KI-Unterstützung durch die OpenAI API. Es kombiniert traditionelle qualitative Forschungsmethoden mit modernen KI-Fähigkeiten, um Forschende bei der Analyse von Dokumenten- und Interviewdaten zu unterstützen.
+Dieses Python-Skript implementiert Mayrings Methode der Qualitativen Inhaltsanalyse mit KI-Unterstützung durch die OpenAI API. Es kombiniert traditionelle qualitative Forschungsmethoden mit modernen KI-Fähigkeiten, um Forschende bei der Analyse von Dokumenten- und Interviewdaten zu unterstützen. Das Ziel dieses Tools ist nicht, die menschliche Arbeit der Inhaltsanalyse zu ersetzen, sondern neue Möglichkeiten zu eröffnen, mehr Zeit für die Analyse und Reflexion bereits vorstrukturierter Textdaten zu gewinnen. 
 
-## Merkmale
+Chancen:
+- Es ermöglicht mehr Dokumente in einer Untersuchung zu berücksichtigen als in herkömmlichen Verfahren, bei denen Personalkapazitäten stark begrenzt sind.    
+- Es ermöglicht die Umsetzung von Intercoder-Vergleichen mittels zugeschalteten KI-Coder, wo sonst nur ein menschlicher Coder pro Dokument arbeiten würde, und kann damit zur Qualitätsverbesserung beitragen
+- QCA-AID kann auch ganz ohne KI-Coder genutzt werden, als Alternative zu kostenpflichtigen Programmen.
+- Es ermöglicht zusätzliche explorative Dokumentenanalysen, die sonst aus pragmatischen Gründen mit einfacheren Verfahren umgesetzt würden
+
+Zu beachten ist aber:
+- Gefahr der Überkonfidenz in eine automatisiert ermittelte Struktur der Daten 
+- Bei geringer Anzahl von Dokumenten überwiegen weiterhin die Vorteile menschlicher Kodierung (Close-reading, Kontextverständnis, Erfahrung)
+
+## Merkmale von QCA-AID
 
 - Automatisierte Textvorverarbeitung und Chunking
 - Deduktive Anwendung von Kategorien
 - Induktive Kategorienentwicklung
-- Multi-Coder-Unterstützung (KI und Mensch)
+- Multi-Coder-Unterstützung (AI und Mensch)
+- Fähigkeiten zur Zusammenführung und Aufteilung von Kategorien
 - Berechnung der Intercoder-Zuverlässigkeit
-- Umfassender Analyse-Export
+- Überarbeitung und Optimierung des Kategoriesystems
+- Iterativer Analyseprozess mit Sättigungsprüfungen
+- Umfassender Analyseexport
+- Attributbasierte Analyse für demografische oder kontextbezogene Faktoren
+- Konfigurierbare Analyseparameter und Schwellenwerte
 - Detaillierte Dokumentation des Kodierungsprozesses
+- Schätzung der verwendeten Input-/Output-Tokens der API-Aufrufe
 
 __ACHTUNG!__
 Bitte beachten Sie, dass sich dieses Skript noch in der Entwicklung befindet und noch nicht alle Funktionen verfügbar sind. Beachten Sie auch
@@ -18,6 +34,16 @@ Beachten Sie auch, dass AI-Assistance nicht perfekt ist und die Ergebnisse von d
 Verwenden Sie das Skript auf eigene Gefahr!
 
 --> Feedback ist willkommen! <--
+Kontakt: justus.henke@hof.uni-halle.de
+
+## Hinweis zum Datenschutz
+
+Die KI-gestützte Datenverarbeitung nutzt die Schnittstelle von OpenAI. Auch wenn diese Anfragen offiziell nicht für das Training von Modellen genutzt werden, stellt diese eine Verarbeitung durch Dritte dar. Prüfen Sie, ob Ihre Dokumente dafür freigegeben sind und entfernen Sie ggf. sensible Informationen. Eine Nutzung mit hochsensiblen Daten wird ausdrücklich nicht empfohlen. 
+
+## Weitere Hinweise zur aktuellen Version 
+
+- Die induktive Kodierung ist aktuell relativ großzügig, was Redundanzen und eher mehr als weniger Subcodes zulässt. Regulieren Sie ggf. den CONFIG-Wert 'Temperature' herunter (z.B. auf '0.1')
+- Momentan wird nur Konsensentscheidung der Kodierer zugelassen, Mehrheitsvoting (bei n>2 Kodierern) ist noch nicht implementiert
 
 ## Installation
 
@@ -191,9 +217,18 @@ Feedback is welcome!
 - Deductive category application
 - Inductive category development
 - Multi-coder support (AI and human)
+- Category merging and splitting capabilities
 - Intercoder reliability calculation
+- Category system revision and optimization
+- Iterative analysis process with saturation checks
 - Comprehensive analysis export
+- Attribute-based analysis for demographic or contextual factors
+- Configurable analysis parameters and thresholds
 - Detailed documentation of the coding process
+
+## Note on data protection
+
+AI-supported data processing uses the OpenAI interface. Even if these requests are not officially used for training models, this constitutes processing by third parties. Check whether your documents are approved for this and remove sensitive information if necessary. Use with highly sensitive data is expressly not recommended.
 
 ## Installation
 
