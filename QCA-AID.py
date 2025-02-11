@@ -3126,6 +3126,14 @@ class ResultsExporter:
     def _prepare_coding_for_export(self, coding: dict, chunk: str, chunk_id: int, doc_name: str) -> dict:
         """Bereitet eine Kodierung für den Export vor."""
         attribut1, attribut2 = self._extract_metadata(doc_name)
+        
+        # Formatiere die Konfidenz-Werte
+        confidence = coding.get('confidence', {})
+        if isinstance(confidence, dict):
+            formatted_confidence = f"Kategorie: {confidence.get('category', 0):.2f}\nSubkategorien: {confidence.get('subcategories', 0):.2f}"
+        else:
+            formatted_confidence = f"{confidence:.2f}"
+        
         export_data = {
             'Dokument': doc_name,
             self.attribute_labels['attribut1']: attribut1,
@@ -3137,7 +3145,7 @@ class ResultsExporter:
             'Kategorietyp': coding.get('Kategorietyp', 'unbekannt'),
             'Subkategorien': ', '.join(coding.get('subcategories', [])),
             'Begründung': coding.get('justification', ''),
-            'Konfidenz': coding.get('confidence', 0),
+            'Konfidenz': formatted_confidence,
             'Mehrfachkodierung': 'Ja' if len(coding.get('subcategories', [])) > 1 else 'Nein'
         }
         return export_data
@@ -3581,7 +3589,9 @@ class ResultsExporter:
             with pd.ExcelWriter(filepath, engine='openpyxl') as writer:
                 # Arbeitsblatt 1: Detaillierte Kodierungen
                 df_details.to_excel(writer, sheet_name='Kodierte_Segmente', index=False)
-                self._format_worksheet(writer.sheets['Kodierte_Segmente'])
+                worksheet = writer.sheets['Kodierte_Segmente']
+                self._format_worksheet(worksheet)
+                self._adjust_row_heights(worksheet)
 
                 # Arbeitsblatt 2: Häufigkeitsanalysen
                 self._export_frequency_analysis(
@@ -3641,8 +3651,25 @@ class ResultsExporter:
             
             for col, width in column_widths.items():
                 worksheet.column_dimensions[col].width = width
+            
+            # Formatiere die Konfidenz-Spalte
+            confidence_col = worksheet['K']
+            for cell in confidence_col[1:]:  # Skip header
+                cell.alignment = Alignment(vertical='top', wrap_text=True)
+        
         except Exception as e:
             print(f"Warnung: Formatierung fehlgeschlagen: {str(e)}")
+
+    def _adjust_row_heights(self, worksheet) -> None:
+        """Passt die Zeilenhöhe basierend auf dem Inhalt an"""
+        for row in worksheet.iter_rows():
+            max_height = 0
+            for cell in row:
+                if cell.value:
+                    lines = str(cell.value).count('\n') + 1
+                    max_height = max(max_height, lines * 15)  # 15 Punkte pro Zeile
+            if max_height > worksheet.row_dimensions[row[0].row].height:
+                worksheet.row_dimensions[row[0].row].height = max_height
 
     def _format_revision_worksheet(self, worksheet) -> None:
         """Formatiert das Revisions-Worksheet"""
