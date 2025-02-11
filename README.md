@@ -31,9 +31,9 @@ Zu beachten ist aber:
 - Schätzung der verwendeten Input-/Output-Tokens der API-Aufrufe
 
 __ACHTUNG!__
-Bitte beachten Sie, dass sich dieses Skript noch in der Entwicklung befindet und noch nicht alle Funktionen verfügbar sind. Beachten Sie auch
-Beachten Sie auch, dass AI-Assistance nicht perfekt ist und die Ergebnisse von der Qualität der Eingabedaten abhängen.
-Verwenden Sie das Skript auf eigene Gefahr!
+Bitte beachten Sie, dass sich dieses Skript noch in der Entwicklung befindet und noch nicht alle Funktionen verfügbar sind oder zuverlässig arbeiten. Es wird aktuell eine Nutzung zu Testzwecken empfohlen. 
+Beachten Sie auch, dass KI-Ergebnisse nicht perfekt sind und die Ergebnisse von der Qualität der Eingabedaten abhängen.
+Verwenden Sie das Skript auf eigene Gefahr! 
 
 --> Feedback ist willkommen! <--
 Kontakt: justus.henke@hof.uni-halle.de
@@ -44,6 +44,7 @@ Die KI-gestützte Datenverarbeitung nutzt die Schnittstelle von OpenAI. Auch wen
 
 ## Weitere Hinweise zur aktuellen Version 
 
+- Die Sättigungsprüfung der induktivierung Kodierung nimmt aktuell relativ viel Zeit in Anspruch. Hier wird künftig ein effizienteres Verfahren angestrebt, damit auch längere Texte (>15 Seiten) zügiger verarbeitet werden. Man kann die Größe der Textsegmente mittels `CHUNK_SIZE` erhöhen (aktuell 800 Zeichen), um weniger Segmente im Stapel zu verarbeiten.  
 - Die induktive Kodierung ist aktuell relativ großzügig, was Redundanzen und eher mehr als weniger Subcodes zulässt. Regulieren Sie ggf. den CONFIG-Wert 'Temperature' herunter (z.B. auf '0.1')
 - Momentan wird nur Konsensentscheidung der Kodierer zugelassen, Mehrheitsvoting (bei n>2 Kodierern) ist noch nicht implementiert
 
