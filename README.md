@@ -189,13 +189,6 @@ Das Programm speichert verschiedene Ausgabedateien im konfigurierten Ausgabeverz
      - Löschungen von Kategorien
      - Zeitstempel und Begründungen für jede Änderung
 
-3. **Reliabilitätsbericht**:
-   - Dateiname: `reliability_report_[DATUM]_[ZEIT].json`
-   - Inhalt: Ergebnisse der Intercoder-Reliabilitätsberechnung, einschließlich:
-     - Übereinstimmungsmaße zwischen verschiedenen Kodierern
-     - Detaillierte Statistiken zur Zuverlässigkeit der Kodierung
-     - Eventuell vorhandene Diskrepanzen oder Problembereiche in der Kodierung
-
 Alle Dateien sind mit Datum und Uhrzeit versehen, um mehrere Analysedurchläufe unterscheiden zu können. Diese Ausgaben bieten eine umfassende Dokumentation des Analyseprozesses und ermöglichen eine detaillierte Nachverfolgung und Auswertung der Ergebnisse.
 
 **Hinweis**: Stellen Sie sicher, dass Sie über ausreichend Speicherplatz im Ausgabeverzeichnis verfügen, insbesondere bei der Analyse großer Datenmengen oder bei mehreren Durchläufen.
