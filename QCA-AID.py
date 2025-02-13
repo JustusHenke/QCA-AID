@@ -7,7 +7,7 @@ enhanced with AI capabilities through the OpenAI API.
 
 Version:
 --------
-0.9.2 (2025-02-13)
+0.9.3 (2025-02-13)
 
 Description:
 -----------
@@ -1312,87 +1312,175 @@ class IntegratedAnalysisManager:
         # Tracking-Variablen
         self.coding_results = []
         self.processed_segments = set()
+        self.relevant_segments = set()  
+        self.relevance_details = {}  # Speichert detaillierte Relevanzinfos pro Segment 
         self.performance_metrics = {
             'batch_processing_times': [],
             'coding_times': [],
             'category_changes': []
         }
         
+        # Analysis Log initialisieren
+        self.analysis_log = []
+        
         print("\nAnalyse-Manager initialisiert:")
         print(f"- Anzahl Kodierer: {len(self.deductive_coders)}")
         print(f"- Modell: {config['MODEL_NAME']}")
 
+    async def _check_segment_relevance(self, segment_id: str, text: str) -> bool:
+        """
+        Prüft die Relevanz eines Segments für die Forschungsfrage.
+        Wird nur einmal pro Segment durchgeführt.
+        """
+        # Wenn das Segment bereits geprüft wurde, verwende das gespeicherte Ergebnis
+        if segment_id in self.processed_segments:
+            return segment_id in self.relevant_segments
+            
+        try:
+            prompt = f"""
+            Analysiere sorgfältig die Relevanz des folgenden Texts für die Forschungsfrage:
+            "{FORSCHUNGSFRAGE}"
+            
+            TEXT:
+            {text}
+            
+            Prüfe systematisch:
+            1. Inhaltlicher Bezug: Behandelt der Text explizit Aspekte der Forschungsfrage?
+            2. Aussagekraft: Enthält der Text konkrete, analysierbare Aussagen?
+            3. Substanz: Geht der Text über oberflächliche/beiläufige Erwähnungen hinaus?
+            4. Kontext: Ist der Bezug zur Forschungsfrage eindeutig und nicht nur implizit?
+
+            Antworte NUR mit einem JSON-Objekt:
+            {{
+                "is_relevant": true/false,
+                "confidence": 0.0-1.0,
+                "justification": "Kurze Begründung der Entscheidung",
+                "key_aspects": ["Liste", "relevanter", "Aspekte"]
+            }}
+            """
+
+            input_tokens = estimate_tokens(prompt + text)
+
+            # Verwende den ersten Auto-Coder für die Relevanzprüfung
+            response = await self.deductive_coders[0].client.chat.completions.create(
+                model=self.deductive_coders[0].model_name,
+                messages=[
+                    {"role": "system", "content": "Du bist ein Experte für qualitative Inhaltsanalyse."},
+                    {"role": "user", "content": prompt}
+                ],
+                temperature=0.3,
+                response_format={"type": "json_object"}
+            )
+
+            result = json.loads(response.choices[0].message.content)
+            is_relevant = result.get('is_relevant', False)
+            
+            output_tokens = estimate_tokens(response.choices[0].message.content)
+            token_counter.add_tokens(input_tokens, output_tokens)
+
+            # Speichere detaillierte Relevanzinformationen
+            self.relevance_details[segment_id] = {
+                'is_relevant': is_relevant,
+                'confidence': result.get('confidence', 0),
+                'justification': result.get('justification', ''),
+                'key_aspects': result.get('key_aspects', [])
+            }
+
+            # Konsolenausgabe
+            if is_relevant:
+                print(f"✓ Segment relevant (Konfidenz: {result.get('confidence', 0):.2f})")
+                if result.get('key_aspects'):
+                    print(f"  Auszug: '{text[:100]}...'")
+                    print("  Relevante Aspekte:")
+                    for aspect in result['key_aspects']:
+                        print(f"  - {aspect}")
+            else:
+                print(f"❌ Segment nicht relevant: {result.get('justification', 'Keine Begründung')}")
+            
+            # Speichere Relevanzstatus
+            self.processed_segments.add(segment_id)
+            if is_relevant:
+                self.relevant_segments.add(segment_id)
+            
+            return is_relevant
+
+        except Exception as e:
+            print(f"Fehler bei der Relevanzprüfung: {str(e)}")
+            return True 
+    
     async def _code_batch_deductively(self,
-                                batch: List[Tuple[str, str]],
-                                categories: Dict[str, CategoryDefinition]) -> List[Dict]:
+                                    batch: List[Tuple[str, str]],
+                                    categories: Dict[str, CategoryDefinition]) -> List[Dict]:
         """
         Führt die deduktive Kodierung eines Batches durch.
-        
-        Args:
-            batch: Liste von (segment_id, text) Tupeln
-            categories: Aktuelles Kategoriensystem
-            
-        Returns:
-            List[Dict]: Liste der Kodierungsergebnisse
         """
         batch_results = []
         
         for segment_id, text in batch:
-            print(f"\nKodiere Segment {segment_id}")
-            print(f"Chunk-Inhalt (erste 100 Zeichen): {text[:100]}...")  # Zeige die ersten 100 Zeichen des Chunks an
-            segment_results = []
+            print(f"\nVerarbeite Segment {segment_id}")
             
-            try:
-                # Verarbeite jeden Kodierer sequentiell
+            # Prüfe Relevanz nur einmal pro Segment
+            if not await self._check_segment_relevance(segment_id, text):
+                print("Segment wird aufgrund mangelnder Relevanz übersprungen")
+                # Erstelle "Nicht kodiert" Ergebnis für nicht-relevante Segmente
                 for coder in self.deductive_coders:
-                    try:
-                        # Direkte Verarbeitung ohne gather()
-                        coding = await coder.code_chunk(text, categories)
-                        
-                        if coding and isinstance(coding, CodingResult):
-                            # Konvertiere CodingResult in Dict
-                            result = {
-                                'segment_id': segment_id,
-                                'coder_id': coder.coder_id,
-                                'category': coding.category,
-                                'subcategories': list(coding.subcategories),
-                                'confidence': coding.confidence,
-                                'justification': coding.justification,
-                                'text': text
-                            }
-                            
-                            print(f"  ✓ Kodierung von {coder.coder_id}: {result['category']}")
-                            segment_results.append(result)
-                            self.coding_results.append(result)
-                            batch_results.append(result)
-                        else:
-                            print(f"  ✗ Keine gültige Kodierung von {coder.coder_id}")
-                            
-                    except Exception as e:
-                        print(f"  ✗ Fehler bei Kodierer {coder.coder_id}: {str(e)}")
-                        continue
-                
-                if segment_results:
-                    print(f"  → {len(segment_results)} Kodierungen für Segment {segment_id}")
-                else:
-                    print(f"  ✗ Keine Kodierungen für Segment {segment_id}")
-                
-                self.processed_segments.add(segment_id)
-                
-            except Exception as e:
-                print(f"Fehler bei der Kodierung von Segment {segment_id}: {str(e)}")
-                import traceback
-                traceback.print_exc()
+                    result = {
+                        'segment_id': segment_id,
+                        'coder_id': coder.coder_id,
+                        'category': "Nicht kodiert",
+                        'subcategories': [],
+                        'confidence': {'total': 1.0, 'category': 1.0, 'subcategories': 1.0},
+                        'justification': "Nicht relevant für Forschungsfrage",
+                        'text': text
+                    }
+                    batch_results.append(result)
+                    print(f"  ✓ Segment als nicht relevant markiert für {coder.coder_id}")
                 continue
-        
-        print(f"\nBatch abgeschlossen: {len(batch_results)} Kodierungen erstellt")
+
+            # Verarbeite relevante Segmente mit allen Codierern
+            print(f"Kodiere relevantes Segment mit {len(self.deductive_coders)} Codierern")
+            for coder in self.deductive_coders:
+                try:
+                    coding = await coder.code_chunk(text, categories)
+                    
+                    if coding and isinstance(coding, CodingResult):
+                        result = {
+                            'segment_id': segment_id,
+                            'coder_id': coder.coder_id,
+                            'category': coding.category,
+                            'subcategories': list(coding.subcategories),
+                            'confidence': coding.confidence,
+                            'justification': coding.justification,
+                            'text': text
+                        }
+                        print(f"  ✓ Kodierung von {coder.coder_id}: {result['category']}")
+                        batch_results.append(result)
+                    else:
+                        print(f"  ✗ Keine gültige Kodierung von {coder.coder_id}")
+                        
+                except Exception as e:
+                    print(f"  ✗ Fehler bei Kodierer {coder.coder_id}: {str(e)}")
+                    continue
+
+            self.processed_segments.add(segment_id)
+            
         return batch_results
 
     async def analyze_material(self, 
-                            chunks: Dict[str, List[str]], 
-                            initial_categories: Dict,
-                            skip_inductive: bool = False) -> Tuple[Dict, List]:
-        """Hauptanalyse mit Zeiterfassung und optionalem Überspringen der induktiven Kodierung"""
+                                    chunks: Dict[str, List[str]], 
+                                    initial_categories: Dict,
+                                    skip_inductive: bool = False) -> Tuple[Dict, List]:
+        """
+        Hauptanalyse mit verbesserter Integration induktiver Kategorien.
+
+        Args:
+            chunks: Dictionary mit Text-Chunks pro Dokument
+            initial_categories: Initiales Kategoriensystem
+            skip_inductive: Flag zum Überspringen der induktiven Kodierung
+            
+        Returns:
+            Tuple[Dict, List]: (Finales Kategoriensystem, Kodierungsergebnisse)
+        """
         try:
             self.start_time = datetime.now()
             print(f"\nAnalyse gestartet um {self.start_time.strftime('%H:%M:%S')}")
@@ -1404,6 +1492,7 @@ class IntegratedAnalysisManager:
             # Reset Tracking-Variablen
             self.coding_results = []
             self.processed_segments = set()
+            self.relevant_segments = set()
             
             print(f"Verarbeite {total_segments} Segmente...")
             self.history.log_analysis_start(total_segments, len(initial_categories))
@@ -1422,78 +1511,91 @@ class IntegratedAnalysisManager:
                 batch_start = time.time()
                 
                 try:
-                    # Induktive Analyse nur durchführen, wenn nicht übersprungen
-                    if not skip_inductive:
-                        # Induktive Kategorienentwicklung
-                        new_categories = await self._process_batch_inductively(batch, current_categories)
-                        merged_categories = await self._merge_categories(current_categories, new_categories)
-                    else:
-                        merged_categories = current_categories
-                    
-                    # Synchronous deductive coding implementation
+                    # Prüfe Relevanz der Segmente
+                    relevant_segments_in_batch = 0
                     for segment_id, text in batch:
-                        segment_results = []
-
-                        print(f"Chunk-Inhalt (erste 100 Zeichen): {text[:100]}...")
-                        
-                        # Process each coder sequentially
-                        for coder in self.deductive_coders:
-                            try:
-                                coding = await coder.code_chunk(text, merged_categories if not skip_inductive else initial_categories)
-                                
-                                if coding and isinstance(coding, CodingResult):
-                                    # Convert CodingResult to dict
-                                    result = {
-                                        'segment_id': segment_id,
-                                        'coder_id': coder.coder_id,
-                                        'category': coding.category,
-                                        'subcategories': list(coding.subcategories),
-                                        'confidence': coding.confidence,
-                                        'justification': coding.justification,
-                                        'text': text
-                                    }
-                                    
-                                    print(f"  ✓ Kodierung von {coder.coder_id}: {result['category']}")
-                                    segment_results.append(result)
-                                    self.coding_results.append(result)
-                                else:
-                                    print(f"  ✗ Keine gültige Kodierung von {coder.coder_id}")
-                                    
-                            except Exception as e:
-                                print(f"  ✗ Fehler bei Kodierer {coder.coder_id}: {str(e)}")
-                                continue
-                        
-                        if segment_results:
-                            print(f"  → {len(segment_results)} Kodierungen für Segment {segment_id}")
-                        else:
-                            print(f"  ✗ Keine Kodierungen für Segment {segment_id}")
-                        
+                        is_relevant = await self._check_segment_relevance(segment_id, text)
+                        if is_relevant:
+                            self.relevant_segments.add(segment_id)
+                            relevant_segments_in_batch += 1
                         self.processed_segments.add(segment_id)
+                    
+                    print(f"Relevanzprüfung: {relevant_segments_in_batch} von {len(batch)} Segmenten relevant")
+
+                    # Relevante Segmente für induktive Analyse
+                    relevant_batch = [
+                        (segment_id, text) for segment_id, text in batch 
+                        if segment_id in self.relevant_segments
+                    ]
+                    
+                    # Induktive Analyse wenn nicht übersprungen
+                    if not skip_inductive and relevant_batch:
+                        print(f"\nStarte induktive Analyse für {len(relevant_batch)} relevante Segmente...")
+                        new_categories = await self._process_batch_inductively(relevant_batch, current_categories)
+                        
+                        if new_categories:
+                            # Validiere und integriere neue Kategorien
+                            current_categories = self._validate_and_integrate_categories(
+                                current_categories, 
+                                new_categories
+                            )
+                            
+                            # Aktualisiere Kategoriensystem für alle Kodierer
+                            for coder in self.deductive_coders:
+                                await coder.update_category_system(current_categories)
+                                
+                            print(f"Kategoriensystem erweitert auf {len(current_categories)} Kategorien")
+                    
+                    # Deduktive Kodierung für alle Segmente
+                    print("\nStarte deduktive Kodierung...")
+                    batch_results = await self._code_batch_deductively(batch, current_categories)
+                    self.coding_results.extend(batch_results)
                     
                     # Performance-Tracking
                     batch_time = time.time() - batch_start
                     self.performance_metrics['batch_processing_times'].append(batch_time)
+                    avg_time_per_segment = batch_time / len(batch)
+                    self.performance_metrics['coding_times'].append(avg_time_per_segment)
                     
                     # Fortschritt
                     material_percentage = (len(self.processed_segments) / total_segments) * 100
-                    print(f"Fortschritt: {material_percentage:.1f}% ({len(self.coding_results)} Kodierungen gesamt)")
+                    print(f"\nFortschritt: {material_percentage:.1f}%")
+                    print(f"Kodierungen gesamt: {len(self.coding_results)}")
+                    print(f"Durchschnittliche Zeit pro Segment: {avg_time_per_segment:.2f}s")
                     
                     # Sättigungsprüfung nur bei aktivierter induktiver Analyse
                     if not skip_inductive:
-                        if self.saturation_checker.check_saturation(
-                            merged_categories,
+                        saturation_reached, metrics = self.saturation_checker.check_saturation(
+                            current_categories,
                             self.coding_results,
                             material_percentage
-                        )[0]:
-                            print("Sättigung erreicht")
+                        )
+                        if saturation_reached:
+                            print("\nSättigung erreicht!")
+                            if metrics:
+                                print("Sättigungsmetriken:")
+                                for key, value in metrics.items():
+                                    print(f"- {key}: {value}")
                             break
                     
-                    current_categories = merged_categories
+                    # Status-Update für History
+                    self._log_iteration_status(
+                        material_percentage=material_percentage,
+                        saturation_metrics=metrics if not skip_inductive else None,
+                        num_results=len(batch_results)
+                    )
                     
                 except Exception as e:
                     print(f"Fehler bei der Verarbeitung von Batch {total_batches}: {str(e)}")
+                    print("Details:")
                     traceback.print_exc()
                     continue
+            
+            # Finaler Analysebericht
+            final_metrics = self._finalize_analysis(
+                final_categories=current_categories,
+                initial_categories=initial_categories
+            )
             
             # Abschluss
             self.end_time = datetime.now()
@@ -1501,17 +1603,30 @@ class IntegratedAnalysisManager:
             
             print(f"\nAnalyse abgeschlossen:")
             print(f"- {len(self.processed_segments)} Segmente verarbeitet")
+            print(f"- {len(self.relevant_segments)} relevante Segmente identifiziert")
             print(f"- {len(self.coding_results)} Kodierungen erstellt")
             print(f"- {processing_time:.1f} Sekunden Verarbeitungszeit")
+            print(f"- Durchschnittliche Zeit pro Segment: {processing_time/total_segments:.2f}s")
             
-            # Rückgabewert anpassen je nach Modus
-            final_categories = current_categories if not skip_inductive else initial_categories
+            if not skip_inductive:
+                print(f"- Kategorienentwicklung:")
+                print(f"  • Initial: {len(initial_categories)} Kategorien")
+                print(f"  • Final: {len(current_categories)} Kategorien")
+                print(f"  • Neu entwickelt: {len(current_categories) - len(initial_categories)} Kategorien")
             
-            return final_categories, self.coding_results
+            # Dokumentiere Abschluss
+            self.history.log_analysis_completion(
+                final_categories=current_categories,
+                total_time=processing_time,
+                total_codings=len(self.coding_results)
+            )
             
+            return current_categories, self.coding_results
+                
         except Exception as e:
             self.end_time = datetime.now()
             print(f"Fehler in der Analyse: {str(e)}")
+            print("Details:")
             traceback.print_exc()
             raise
 
@@ -1557,8 +1672,8 @@ class IntegratedAnalysisManager:
         return segments
 
     async def _process_batch_inductively(self,
-                                     batch: List[Tuple[str, str]],
-                                     current_categories: Dict) -> Dict:
+                                        batch: List[Tuple[str, str]],
+                                        current_categories: Dict) -> Dict:
         """
         Führt die induktive Analyse eines Batches durch.
         
@@ -1572,21 +1687,122 @@ class IntegratedAnalysisManager:
         try:
             print(f"\nInduktive Analyse von {len(batch)} Segmenten...")
             
-            # Extrahiere nur die Texte für die Analyse
-            texts = [text for _, text in batch]
+            # Sammle nur relevante Segmente
+            relevant_texts = []
+            for segment_id, text in batch:
+                # Nutze die bereits durchgeführte Relevanzprüfung
+                if segment_id in self.relevant_segments:
+                    relevant_texts.append(text)
+                else:
+                    # Führe Relevanzprüfung durch, falls noch nicht geschehen
+                    if segment_id not in self.processed_segments:
+                        if await self._check_segment_relevance(segment_id, text):
+                            relevant_texts.append(text)
+
+            if not relevant_texts:
+                print("   ℹ️ Keine relevanten Segmente für induktive Analyse")
+                return {}
+
+            print(f"   ℹ️ Analysiere {len(relevant_texts)} relevante Segmente")
             
-            # Induktive Kategorienentwicklung
-            new_categories = await self.inductive_coder.develop_category_system(texts)
+            # Induktive Kategorienentwicklung nur für relevante Texte
+            new_categories = await self.inductive_coder.develop_category_system(relevant_texts)
             
-            # Zusammenführen ähnlicher Kategorien
             if new_categories:
-                new_categories = self.category_merger.merge_categories(new_categories)
-            
-            return new_categories
-            
+                print("\nNeue Kategorien identifiziert:")
+                for cat_name, category in new_categories.items():
+                    # Prüfe ob es sich um eine wirklich neue Kategorie handelt
+                    if cat_name not in current_categories:
+                        print(f"\n🆕 Neue Hauptkategorie: {cat_name}")
+                        print(f"   Definition: {category.definition[:100]}...")
+                        if category.subcategories:
+                            print(f"   Subkategorien:")
+                            for sub_name in category.subcategories:
+                                print(f"   - {sub_name}")
+                    else:
+                        # Zeige neue Subkategorien für bestehende Hauptkategorien
+                        new_subs = set(category.subcategories.keys()) - set(current_categories[cat_name].subcategories.keys())
+                        if new_subs:
+                            print(f"\n📑 Neue Subkategorien für {cat_name}:")
+                            for sub_name in new_subs:
+                                print(f"   + {sub_name}")
+
+                # Zusammenführen ähnlicher Kategorien
+                merged_categories = self.category_merger.merge_categories(new_categories)
+                
+                if len(merged_categories) < len(new_categories):
+                    print(f"\n🔄 Kategorien zusammengeführt:")
+                    print(f"   Vorher: {len(new_categories)} Kategorien")
+                    print(f"   Nachher: {len(merged_categories)} Kategorien")
+                
+                return merged_categories
+            else:
+                print("   ℹ️ Keine neuen Kategorien in diesem Batch identifiziert")
+                return {}
+                
         except Exception as e:
             print(f"Fehler bei induktiver Analyse: {str(e)}")
             return {}
+    
+
+    async def _code_batch_deductively(self,
+                                    batch: List[Tuple[str, str]],
+                                    categories: Dict[str, CategoryDefinition]) -> List[Dict]:
+        """
+        Führt die deduktive Kodierung eines Batches durch.
+        Berücksichtigt nur bereits als relevant markierte Segmente.
+        """
+        batch_results = []
+        
+        for segment_id, text in batch:
+            print(f"\nVerarbeite Segment {segment_id}")
+            
+            # Nutze die bereits durchgeführte Relevanzprüfung
+            if segment_id not in self.relevant_segments:
+                print(f"Segment wurde als nicht relevant markiert - wird übersprungen")
+                # Erstelle "Nicht kodiert" Ergebnis für nicht-relevante Segmente
+                for coder in self.deductive_coders:
+                    result = {
+                        'segment_id': segment_id,
+                        'coder_id': coder.coder_id,
+                        'category': "Nicht kodiert",
+                        'subcategories': [],
+                        'confidence': {'total': 1.0, 'category': 1.0, 'subcategories': 1.0},
+                        'justification': "Nicht relevant für Forschungsfrage",
+                        'text': text
+                    }
+                    batch_results.append(result)
+                    print(f"  ✓ Segment als nicht relevant markiert für {coder.coder_id}")
+                continue
+
+            # Verarbeite relevante Segmente mit allen Codierern
+            print(f"Kodiere relevantes Segment mit {len(self.deductive_coders)} Codierern")
+            for coder in self.deductive_coders:
+                try:
+                    coding = await coder.code_chunk(text, categories)
+                    
+                    if coding and isinstance(coding, CodingResult):
+                        result = {
+                            'segment_id': segment_id,
+                            'coder_id': coder.coder_id,
+                            'category': coding.category,
+                            'subcategories': list(coding.subcategories),
+                            'confidence': coding.confidence,
+                            'justification': coding.justification,
+                            'text': text
+                        }
+                        print(f"  ✓ Kodierung von {coder.coder_id}: {result['category']}")
+                        batch_results.append(result)
+                    else:
+                        print(f"  ✗ Keine gültige Kodierung von {coder.coder_id}")
+                        
+                except Exception as e:
+                    print(f"  ✗ Fehler bei Kodierer {coder.coder_id}: {str(e)}")
+                    continue
+
+            self.processed_segments.add(segment_id)
+            
+        return batch_results
 
     async def _merge_categories(self,
                             current_cats: Dict,
@@ -1628,89 +1844,39 @@ class IntegratedAnalysisManager:
         except Exception as e:
             print(f"Fehler beim Zusammenführen der Kategorien: {str(e)}")
             return current_cats
-
-    async def _merge_categories(self,
-                              current_cats: Dict,
-                              new_cats: Dict) -> Dict:
+        
+    def _validate_and_integrate_categories(self, 
+                                        existing_categories: Dict[str, CategoryDefinition],
+                                        new_categories: Dict[str, CategoryDefinition]) -> Dict[str, CategoryDefinition]:
         """
-        Führt bestehende und neue Kategorien zusammen.
+        Validiert neue induktive Kategorien und integriert sie ins bestehende System.
         
         Args:
-            current_cats: Bestehendes Kategoriensystem
-            new_cats: Neue Kategorien
+            existing_categories: Bestehendes Kategoriensystem
+            new_categories: Neu entwickelte induktive Kategorien
             
         Returns:
-            Dict: Zusammengeführtes Kategoriensystem
+            Dict[str, CategoryDefinition]: Integriertes Kategoriensystem
         """
-        try:
-            # Basiskopie der aktuellen Kategorien
-            merged = current_cats.copy()
-            
-            # Verarbeite neue Kategorien
-            for name, category in new_cats.items():
-                if name in merged:
-                    # Update bestehende Kategorie
-                    current_cat = merged[name]
-                    merged[name] = CategoryDefinition(
-                        name=name,
-                        definition=current_cat.definition,
-                        examples=list(set(current_cat.examples + category.examples)),
-                        rules=list(set(current_cat.rules + category.rules)),
-                        subcategories={**current_cat.subcategories, **category.subcategories},
-                        added_date=current_cat.added_date,
-                        modified_date=datetime.now().strftime("%Y-%m-%d")
-                    )
-                else:
-                    # Füge neue Kategorie hinzu
-                    merged[name] = category
-            
-            return merged
-            
-        except Exception as e:
-            print(f"Fehler beim Zusammenführen der Kategorien: {str(e)}")
-            return current_cats
-
-    async def _code_batch_deductively(self,
-                                batch: List[Tuple[str, str]],
-                                categories: Dict) -> List[Dict]:
-        """
-        Führt die deduktive Kodierung eines Batches durch.
-        """
-        results = []
+        integrated = existing_categories.copy()
         
-        for segment_id, text in batch:
-            segment_results = []
+        for name, category in new_categories.items():
+            # Prüfe auf Ähnlichkeit mit bestehenden Kategorien
+            similar_category = self._find_similar_category(category, existing_categories)
             
-            # Parallele Kodierung durch alle Kodierer
-            coding_tasks = [
-                coder.code_chunk(text, categories)
-                for coder in self.deductive_coders
-            ]
-            
-            # Warte auf alle Kodierungen
-            codings = await asyncio.gather(*coding_tasks)
-            
-            for coder_id, coding in zip(
-                [coder.coder_id for coder in self.deductive_coders],
-                codings
-            ):
-                if coding:
-                    # Konvertiere CodingResult in Dictionary-Format
-                    result = {
-                        'segment_id': segment_id,
-                        'coder_id': coder_id,
-                        'category': coding.category if hasattr(coding, 'category') else "Nicht kodiert",
-                        'subcategories': coding.subcategories if hasattr(coding, 'subcategories') else [],
-                        'confidence': coding.confidence if hasattr(coding, 'confidence') else {'total': 0.0},
-                        'justification': coding.justification if hasattr(coding, 'justification') else "",
-                        'text': text  # Füge den Text hinzu
-                    }
-                    segment_results.append(result)
-            
-            results.extend(segment_results)
-            self.processed_segments.add(segment_id)
+            if similar_category:
+                # Erweitere bestehende Kategorie
+                integrated[similar_category] = self._merge_category_definitions(
+                    integrated[similar_category], 
+                    category
+                )
+                print(f"Induktive Kategorie '{name}' in bestehende Kategorie '{similar_category}' integriert")
+            else:
+                # Füge als neue Kategorie hinzu
+                integrated[name] = category
+                print(f"Neue induktive Kategorie '{name}' hinzugefügt")
         
-        return results
+        return integrated
 
     def _prepare_segments(self, chunks: Dict[str, List[str]]) -> List[Tuple[str, str]]:
         """
@@ -1768,9 +1934,11 @@ class IntegratedAnalysisManager:
             'processing_time': self.performance_metrics['batch_processing_times'][-1]
         }
         
+        # Füge Status zum Log hinzu
         self.analysis_log.append(status)
         
-        print(f"\nIterations-Status:")
+        # Debug-Ausgabe für wichtige Metriken
+        print("\nIterations-Status:")
         print(f"- Material verarbeitet: {material_percentage:.1f}%")
         print(f"- Neue Kodierungen: {num_results}")
         print(f"- Verarbeitungszeit: {status['processing_time']:.2f}s")
@@ -2260,8 +2428,8 @@ class DeductiveCoder:
             }
 
             prompt = f"""
-            Analysiere folgenden Text mithilfe des Kategoriensystems der qualitativen Inhaltsanalyse.
-            Ordne den Text der am besten passenden Kategorie zu.
+            Analysiere folgenden Text im Kontext der Forschungsfrage:
+            "{FORSCHUNGSFRAGE}"
             
             TEXT:
             {chunk}
@@ -2272,7 +2440,12 @@ class DeductiveCoder:
             KODIERREGELN:
             {json.dumps(KODIERREGELN, indent=2, ensure_ascii=False)}
 
-            Gib deine Antwort ausschließlich als JSON-Objekt zurück in diesem Format:
+            Beachte:
+            1. Die Zuordnung zu einer Kategorie muss eindeutig begründbar sein
+            2. Der inhaltliche Beitrag muss substanziell sein
+            3. Berücksichtige den Kontext der Aussage
+
+            Gib deine Antwort ausschließlich als JSON-Objekt zurück:
             {{
                 "category": "Name der Hauptkategorie",
                 "subcategories": ["Liste", "der", "Subkategorien"],
@@ -2300,80 +2473,94 @@ class DeductiveCoder:
             )
 
             result = json.loads(response.choices[0].message.content)
-            print(f"  ✓ Kodierung erstellt: {result.get('category', 'Keine Kategorie')} "
-                f"(Konfidenz: {result.get('confidence', {}).get('total', 0):.2f})")
             
             output_tokens = estimate_tokens(response.choices[0].message.content)
             token_counter.add_tokens(input_tokens, output_tokens)
 
             if result.get('category'):
+                print(f"  ✓ Kodierung erstellt: {result['category']} "
+                    f"(Konfidenz: {result.get('confidence', {}).get('total', 0):.2f})")
                 return CodingResult(
                     category=result['category'],
-                    subcategories=tuple(result.get('subcategories', [])),  # Als Tuple
+                    subcategories=tuple(result.get('subcategories', [])),
                     justification=result.get('justification', ''),
                     confidence=result.get('confidence', {'total': 0.0, 'category': 0.0, 'subcategories': 0.0}),
-                    text_references=tuple([chunk[:100]]),  # Als Tuple
+                    text_references=tuple([chunk[:100]]),
                     uncertainties=None
                 )
             else:
-                print("  ✗ Keine gültige Kategorie gefunden")
+                print("  ✗ Keine passende Kategorie gefunden")
                 return None
 
         except Exception as e:
             print(f"Fehler bei der Kodierung durch {self.coder_id}: {str(e)}")
             return None
-    
+
     async def _check_relevance(self, chunk: str) -> bool:
         """
-        Prüft die Relevanz eines Chunks für die Forschungsfrage und Kategorien.
+        Prüft die Relevanz eines Chunks für die Forschungsfrage.
+        
+        Args:
+            chunk: Zu prüfender Text
+            
+        Returns:
+            bool: True wenn der Text relevant ist
         """
         try:
             prompt = f"""
-            Analysiere den folgenden Text im Hinblick auf seine Relevanz für die Forschungsfrage:
+            Analysiere sorgfältig die Relevanz des folgenden Texts für die Forschungsfrage:
             "{FORSCHUNGSFRAGE}"
             
             TEXT:
             {chunk}
             
-            Prüfe:
-            1. Bezieht sich der Text auf die Forschungsfrage
-            2. Behandelt er Aspekte die zum Kontext der Forschungsfrage passen?
-            3. Enthält er konkrete, analysierbare Aussagen?
+            Prüfe systematisch:
+            1. Inhaltlicher Bezug: Behandelt der Text explizit Aspekte der Forschungsfrage?
+            2. Aussagekraft: Enthält der Text konkrete, analysierbare Aussagen?
+            3. Substanz: Geht der Text über oberflächliche/beiläufige Erwähnungen hinaus?
+            4. Kontext: Ist der Bezug zur Forschungsfrage eindeutig und nicht nur implizit?
 
-            Antworte nur mit einem JSON-Objekt:
+            Antworte NUR mit einem JSON-Objekt:
             {{
                 "is_relevant": true/false,
-                "justification": "Begründung der Entscheidung"
+                "confidence": 0.0-1.0,
+                "justification": "Kurze Begründung der Entscheidung",
+                "key_aspects": ["Liste", "relevanter", "Aspekte"]
             }}
             """
 
             input_tokens = estimate_tokens(prompt + chunk)
 
-            response = self.client.chat.completions.create(
+            response = await self.client.chat.completions.create(
                 model=self.model_name,
                 messages=[
                     {"role": "system", "content": "Du bist ein Experte für qualitative Inhaltsanalyse."},
                     {"role": "user", "content": prompt}
                 ],
                 temperature=0.3,
-                response_format={"type": "json_object"}  # Wichtig: Erzwingt JSON-Antwort
+                response_format={"type": "json_object"}
             )
 
-            # Extrahiere den JSON-String aus der Response
             result = json.loads(response.choices[0].message.content)
             
             output_tokens = estimate_tokens(response.choices[0].message.content)
             token_counter.add_tokens(input_tokens, output_tokens)
 
-            if not isinstance(result, dict) or 'is_relevant' not in result:
-                print(f"Ungültiges Response-Format: {result}")
-                return True  # Im Zweifelsfall als relevant markieren
-                
-            return result['is_relevant']
+            # Detaillierte Ausgabe der Relevanzprüfung
+            if result.get('is_relevant'):
+                print(f"✓ Relevanz bestätigt (Konfidenz: {result.get('confidence', 0):.2f})")
+                if result.get('key_aspects'):
+                    print("  Relevante Aspekte:")
+
+                    for aspect in result['key_aspects']:
+                        print(f"  - {aspect}")
+            else:
+                print(f"❌ Nicht relevant: {result.get('justification', 'Keine Begründung')}")
+
+            return result.get('is_relevant', False)
 
         except Exception as e:
             print(f"Fehler bei der Relevanzprüfung: {str(e)}")
-            print(f"Response war: {response.choices[0].message.content if response else 'Keine Response'}")
             return True  # Im Zweifelsfall als relevant markieren
 
     
@@ -3982,10 +4169,12 @@ class ResultsExporter:
     Supports the documentation of coded chunks and the category system.
     """
     
-    def __init__(self, output_dir: str, attribute_labels: Dict[str, str], inductive_coder: InductiveCoder = None):
+    def __init__(self, output_dir: str, attribute_labels: Dict[str, str], inductive_coder: InductiveCoder = None,
+                 analysis_manager: 'IntegratedAnalysisManager' = None):
         self.output_dir = output_dir
         self.attribute_labels = attribute_labels
         self.inductive_coder = inductive_coder
+        self.analysis_manager = analysis_manager
         os.makedirs(output_dir, exist_ok=True)
 
     def _get_consensus_coding(self, segment_codes: List[Dict]) -> Optional[Dict]:
@@ -4126,6 +4315,24 @@ class ResultsExporter:
                 'Mehrfachkodierung': 'Ja' if len(coding.get('subcategories', [])) > 1 else 'Nein'
             }
             
+            # Füge Relevanzinformationen hinzu
+            segment_id = f"{doc_name}_chunk_{chunk_id}"
+            if hasattr(self.analysis_manager, 'relevance_details') and segment_id in self.analysis_manager.relevance_details:
+                relevance_info = self.analysis_manager.relevance_details[segment_id]
+                export_data.update({
+                    'Relevant': 'Ja' if relevance_info['is_relevant'] else 'Nein',
+                    'Relevanz-Konfidenz': f"{relevance_info['confidence']:.2f}",
+                    'Relevanz-Begründung': relevance_info['justification'],
+                    'Relevante Aspekte': '\n'.join(f"- {aspect}" for aspect in relevance_info['key_aspects'])
+                })
+            else:
+                export_data.update({
+                    'Relevant': 'Unbekannt',
+                    'Relevanz-Konfidenz': '',
+                    'Relevanz-Begründung': '',
+                    'Relevante Aspekte': ''
+                })
+
             return export_data
             
         except Exception as e:
@@ -4190,9 +4397,8 @@ class ResultsExporter:
         return attribut1, attribut2
 
     def _export_frequency_analysis(self, writer, df_coded: pd.DataFrame, attribut1_label: str, attribut2_label: str) -> None:
-        """Exportiert die Häufigkeitsanalysen mit Haupt- und Subkategorien inkl. Randsummen"""
+        """Exportiert die Häufigkeitsanalysen mit korrekter Formatierung"""
         try:
-            # Erstelle das Arbeitsblatt
             if 'Häufigkeitsanalysen' not in writer.sheets:
                 writer.book.create_sheet('Häufigkeitsanalysen')
             
@@ -4208,7 +4414,8 @@ class ResultsExporter:
             title_font = Font(bold=True, size=12)
             
             # 1. Hauptkategorien nach Dokumenten
-            worksheet.cell(row=current_row, column=1, value="1. Verteilung der Hauptkategorien").font = title_font
+            cell = worksheet.cell(row=current_row, column=1, value="1. Verteilung der Hauptkategorien")
+            cell.font = title_font
             current_row += 2
 
             # Erstelle Pivot-Tabelle für Hauptkategorien
@@ -4218,15 +4425,26 @@ class ResultsExporter:
                 columns=[attribut1_label, attribut2_label],
                 values='Chunk_Nr',
                 aggfunc='count',
-                margins=True,  # Aktiviere Randsummen
+                margins=True,
                 margins_name='Gesamt',
                 fill_value=0
             )
 
+            # Formatiere die Spaltenbezeichnungen
+            formatted_columns = []
+            for col in pivot_main.columns:
+                if isinstance(col, tuple):
+                    # Entferne leere Strings und None-Werte
+                    col_parts = [str(part) for part in col if part and part != '']
+                    formatted_columns.append(' - '.join(col_parts))
+                else:
+                    formatted_columns.append(str(col))
+
             # Schreibe Header
             header_row = current_row
-            for col, header in enumerate(['Hauptkategorie'] + list(pivot_main.columns), 1):
-                cell = worksheet.cell(row=header_row, column=col, value=str(header))
+            headers = ['Hauptkategorie'] + formatted_columns
+            for col, header in enumerate(headers, 1):
+                cell = worksheet.cell(row=header_row, column=col, value=header)
                 cell.font = header_font
             current_row += 1
 
@@ -4235,14 +4453,15 @@ class ResultsExporter:
                 worksheet.cell(row=current_row, column=1, value=str(idx)).font = Font(bold=(idx == 'Gesamt'))
                 for col, value in enumerate(row, 2):
                     cell = worksheet.cell(row=current_row, column=col, value=value)
-                    if idx == 'Gesamt' or col == len(row) + 2:  # Formatiere Randsummen
+                    if idx == 'Gesamt' or col == len(row) + 2:
                         cell.font = header_font
                 current_row += 1
 
             current_row += 2
 
             # 2. Subkategorien-Hierarchie
-            worksheet.cell(row=current_row, column=1, value="2. Subkategorien nach Hauptkategorien").font = title_font
+            cell = worksheet.cell(row=current_row, column=1, value="2. Subkategorien nach Hauptkategorien")
+            cell.font = title_font
             current_row += 2
 
             # Erstelle Pivot für Subkategorien
@@ -4261,11 +4480,20 @@ class ResultsExporter:
                 fill_value=0
             )
 
+            # Formatiere die Spaltenbezeichnungen für Subkategorien
+            formatted_sub_columns = []
+            for col in pivot_sub.columns:
+                if isinstance(col, tuple):
+                    col_parts = [str(part) for part in col if part and part != '']
+                    formatted_sub_columns.append(' - '.join(col_parts))
+                else:
+                    formatted_sub_columns.append(str(col))
+
             # Schreibe Header
             header_row = current_row
-            headers = ['Hauptkategorie', 'Subkategorie'] + list(pivot_sub.columns)
+            headers = ['Hauptkategorie', 'Subkategorie'] + formatted_sub_columns
             for col, header in enumerate(headers, 1):
-                cell = worksheet.cell(row=header_row, column=col, value=str(header))
+                cell = worksheet.cell(row=header_row, column=col, value=header)
                 cell.font = header_font
             current_row += 1
 
@@ -4290,6 +4518,98 @@ class ResultsExporter:
                     worksheet.cell(row=current_row, column=1, value=index).font = header_font
                     for col, value in enumerate(row, 3):
                         cell = worksheet.cell(row=current_row, column=col, value=value)
+                        cell.font = header_font
+                current_row += 1
+
+            current_row += 2
+
+            # 3. Attribut-Analysen
+            cell = worksheet.cell(row=current_row, column=1, value="3. Verteilung nach Attributen")
+            cell.font = title_font
+            current_row += 2
+
+            # 3.1 Attribut 1
+            cell = worksheet.cell(row=current_row, column=1, value=f"3.1 Verteilung nach {attribut1_label}")
+            cell.font = subheader_font
+            current_row += 1
+
+            attr1_counts = df_coded[attribut1_label].value_counts()
+            attr1_counts['Gesamt'] = attr1_counts.sum()
+
+            # Header
+            headers = [attribut1_label, 'Anzahl']
+            for col, header in enumerate(headers, 1):
+                cell = worksheet.cell(row=current_row, column=col, value=header)
+                cell.font = header_font
+            current_row += 1
+
+            # Daten
+            for idx, value in attr1_counts.items():
+                cell = worksheet.cell(row=current_row, column=1, value=idx)
+                if idx == 'Gesamt':
+                    cell.font = header_font
+                cell = worksheet.cell(row=current_row, column=2, value=value)
+                if idx == 'Gesamt':
+                    cell.font = header_font
+                current_row += 1
+
+            current_row += 2
+
+            # 3.2 Attribut 2
+            cell = worksheet.cell(row=current_row, column=1, value=f"3.2 Verteilung nach {attribut2_label}")
+            cell.font = subheader_font
+            current_row += 1
+
+            attr2_counts = df_coded[attribut2_label].value_counts()
+            attr2_counts['Gesamt'] = attr2_counts.sum()
+
+            # Header
+            headers = [attribut2_label, 'Anzahl']
+            for col, header in enumerate(headers, 1):
+                cell = worksheet.cell(row=current_row, column=col, value=header)
+                cell.font = header_font
+            current_row += 1
+
+            # Daten
+            for idx, value in attr2_counts.items():
+                cell = worksheet.cell(row=current_row, column=1, value=idx)
+                if idx == 'Gesamt':
+                    cell.font = header_font
+                cell = worksheet.cell(row=current_row, column=2, value=value)
+                if idx == 'Gesamt':
+                    cell.font = header_font
+                current_row += 1
+
+            current_row += 2
+
+            # 3.3 Kreuztabelle der Attribute
+            cell = worksheet.cell(row=current_row, column=1, value="3.3 Kreuztabelle der Attribute")
+            cell.font = subheader_font
+            current_row += 1
+
+            # Erstelle Kreuztabelle
+            cross_tab = pd.crosstab(
+                df_coded[attribut1_label], 
+                df_coded[attribut2_label],
+                margins=True,
+                margins_name='Gesamt'
+            )
+
+            # Header
+            headers = [attribut1_label] + list(cross_tab.columns)
+            for col, header in enumerate(headers, 1):
+                cell = worksheet.cell(row=current_row, column=col, value=header)
+                cell.font = header_font
+            current_row += 1
+
+            # Daten
+            for idx, row in cross_tab.iterrows():
+                cell = worksheet.cell(row=current_row, column=1, value=idx)
+                if idx == 'Gesamt':
+                    cell.font = header_font
+                for col, value in enumerate(row, 2):
+                    cell = worksheet.cell(row=current_row, column=col, value=value)
+                    if idx == 'Gesamt' or col == len(row) + 2:
                         cell.font = header_font
                 current_row += 1
 
@@ -4732,23 +5052,32 @@ class ResultsExporter:
             print(f"Fehler beim Extrahieren der Metadaten aus {filename}: {str(e)}")
             return filename, ""
         
-    async def export_results(
-        self,
-        codings: List[Dict],
-        reliability: float,
-        categories: Dict[str, CategoryDefinition],
-        chunks: Dict[str, List[str]],
-        revision_manager: 'CategoryRevisionManager',
-        export_mode: str = "all",
-        original_categories: Dict[str, CategoryDefinition] = None,
-        merge_log: List[Dict] = None,
-        inductive_coder: 'InductiveCoder' = None 
-    ) -> None:
+    async def export_results(self,
+                            codings: List[Dict],
+                            reliability: float,
+                            categories: Dict[str, CategoryDefinition],
+                            chunks: Dict[str, List[str]],
+                            revision_manager: 'CategoryRevisionManager',
+                            export_mode: str = "consensus",
+                            original_categories: Dict[str, CategoryDefinition] = None,
+                            merge_log: List[Dict] = None,
+                            inductive_coder: 'InductiveCoder' = None) -> None:
         """
-        Exportiert die Analyseergebnisse in eine Excel-Datei.
+        Exportiert die Analyseergebnisse mit Konsensfindung zwischen Kodierern.
+        
+        Args:
+            codings: Liste der Kodierungen aller Kodierer
+            reliability: Berechnete Reliabilität
+            categories: Aktuelles Kategoriensystem
+            chunks: Dictionary mit Text-Chunks
+            revision_manager: Manager für Kategorienrevisionen
+            export_mode: Art der Konsensfindung ("consensus", "majority", "manual_priority")
+            original_categories: Ursprüngliches Kategoriensystem
+            merge_log: Log der Kategorienzusammenführungen
+            inductive_coder: Instanz des induktiven Kodierers
         """
         try:
-            # Wenn inductive_coder als Parameter übergeben wurde, aktualisieren Sie das Attribut
+            # Wenn inductive_coder als Parameter übergeben wurde, aktualisiere das Attribut
             if inductive_coder:
                 self.inductive_coder = inductive_coder
 
@@ -4769,15 +5098,40 @@ class ResultsExporter:
             
             print(f"\nVerarbeite {len(codings)} Kodierungen...")
             print(f"Gefunden: {total_segments} Segmente, {total_coders} Kodierer")
+
+            # Gruppiere Kodierungen nach Segmenten
+            segment_codings = {}
+            for coding in codings:
+                segment_id = coding.get('segment_id')
+                if segment_id:
+                    if segment_id not in segment_codings:
+                        segment_codings[segment_id] = []
+                    segment_codings[segment_id].append(coding)
+
+            # Erstelle Konsens-Kodierungen
+            consensus_codings = []
+            for segment_id, segment_codes in segment_codings.items():
+                if export_mode == "consensus":
+                    consensus = self._get_consensus_coding(segment_codes)
+                elif export_mode == "majority":
+                    consensus = self._get_majority_coding(segment_codes)
+                elif export_mode == "manual_priority":
+                    consensus = self._get_manual_priority_coding(segment_codes)
+                else:
+                    raise ValueError(f"Ungültiger export_mode: {export_mode}")
+
+                if consensus:
+                    consensus_codings.append(consensus)
+
+            print(f"Konsens-Kodierungen erstellt: {len(consensus_codings)}")
             
             # Bereite Export-Daten vor
             export_data = []
-            for coding in codings:
+            for coding in consensus_codings:
                 segment_id = coding.get('segment_id', '')
                 if not segment_id:
-                    print(f"Warnung: Überspringe Kodierung ohne segment_id")
                     continue
-                    
+
                 try:
                     doc_name = segment_id.split('_chunk_')[0]
                     chunk_id = int(segment_id.split('_chunk_')[1])
@@ -4787,9 +5141,7 @@ class ResultsExporter:
                 except Exception as e:
                     print(f"Fehler bei Verarbeitung von Segment {segment_id}: {str(e)}")
                     continue
-            
-            print(f"Export-Daten vorbereitet: {len(export_data)} Einträge")
-            
+
             # Validiere Export-Daten
             if not self._validate_export_data(export_data):
                 print("Fehler: Keine validen Export-Daten vorhanden")
@@ -4798,12 +5150,12 @@ class ResultsExporter:
             # Erstelle DataFrames
             df_details = pd.DataFrame(export_data)
             df_coded = df_details[df_details['Kodiert'] == 'Ja'].copy()
-            
+
             print(f"DataFrames erstellt: {len(df_details)} Gesamt, {len(df_coded)} Kodiert")
 
             # Exportiere nach Excel
             with pd.ExcelWriter(filepath, engine='openpyxl') as writer:
-                # Erstelle ein leeres Workbook mit mindestens einem Sheet
+                # Erstelle ein leeres Workbook
                 if not hasattr(writer, 'book') or writer.book is None:
                     writer.book = Workbook()
                 
@@ -4851,22 +5203,32 @@ class ResultsExporter:
                 if revision_manager and hasattr(revision_manager, 'changes'):
                     revision_manager._export_revision_history(writer, revision_manager.changes)
                 
-                if codings:
+                # Exportiere Intercoderanalyse
+                if segment_codings:
                     self._export_intercoder_analysis(
                         writer, 
-                        {c['segment_id']: [c] for c in codings},
+                        segment_codings,
                         reliability
                     )
-                    
+
+                # Exportiere Reliabilitätsbericht
                 if inductive_coder:
                     self._export_reliability_report(
-                        writer, 
-                        reliability,
-                        total_segments,
-                        total_coders,
-                        category_frequencies
+                        writer,
+                        reliability=reliability,
+                        total_segments=len(segment_codings),
+                        total_coders=total_coders,
+                        category_frequencies=category_frequencies
                     )
-                
+
+                # Exportiere Kategorienentwicklung wenn vorhanden
+                if original_categories and merge_log:
+                    self.export_merge_analysis(
+                        original_categories=original_categories,
+                        merged_categories=categories,
+                        merge_log=merge_log
+                    )
+
                 # Stelle sicher, dass mindestens ein Sheet sichtbar ist
                 if len(writer.book.sheetnames) == 0:
                     writer.book.create_sheet('Leeres_Sheet')
@@ -4876,6 +5238,11 @@ class ResultsExporter:
                     writer.book[sheet].sheet_state = 'visible'
 
             print(f"\nErgebnisse erfolgreich exportiert nach: {filepath}")
+            print(f"- {len(consensus_codings)} Konsens-Kodierungen")
+            print(f"- {len(segment_codings)} Segmente analysiert")
+            print(f"- Reliabilität: {reliability:.3f}")
+            if merge_log:
+                print(f"- {len(merge_log)} Kategorienzusammenführungen dokumentiert")
 
         except Exception as e:
             print(f"Fehler beim Excel-Export: {str(e)}")
@@ -4907,7 +5274,7 @@ class ResultsExporter:
             # Formatiere die Konfidenz-Spalte
             confidence_col = worksheet['K']
             for cell in confidence_col[1:]:  # Skip header
-                cell.alignment = Alignment(vertical='top', wrap_text=True)
+                cell.alignment = Alignment(vertical='top', wrap_text=False)
         
         except Exception as e:
             print(f"Warnung: Formatierung fehlgeschlagen: {str(e)}")
@@ -6421,9 +6788,9 @@ token_counter = TokenCounter()
 def estimate_tokens(text: str) -> int:
     return len(text.split())
 
-def get_input_with_timeout(prompt: str, timeout: int = 10) -> str:
+def get_input_with_timeout(prompt: str, timeout: int = 30) -> str:
     """
-    Fragt nach Benutzereingabe mit Timeout.
+    Fragt nach Benutzereingabe mit Timeout und verbesserter Benutzerführung.
     
     Args:
         prompt: Anzuzeigender Text
@@ -6434,11 +6801,38 @@ def get_input_with_timeout(prompt: str, timeout: int = 10) -> str:
     """
     import threading
     import time
+    import sys
+    from threading import Event
     
-    answer = {'value': 'n'}  # Default-Wert bei Timeout
+    answer = {'value': None}
+    stop_event = Event()
     
     def get_input():
-        answer['value'] = input(prompt).lower()
+        try:
+            while not stop_event.is_set():
+                if sys.stdin.isatty():  # Prüfe ob wir in einer interaktiven Konsole sind
+                    sys.stdout.write('\r' + prompt)  # Schreibe den Prompt
+                    sys.stdout.flush()
+                    
+                    # Zeige Countdown
+                    for remaining in range(timeout, 0, -1):
+                        if stop_event.is_set():
+                            return
+                        #sys.stdout.write(f'\r{prompt} ({remaining}s verbleibend): ')
+                        #sys.stdout.flush()
+                        time.sleep(1)
+                        
+                    # Bei Timeout
+                    sys.stdout.write('\n')
+                    return
+                else:
+                    # Nicht-interaktive Umgebung
+                    answer['value'] = input(prompt)
+                    return
+                    
+        except (KeyboardInterrupt, EOFError):
+            stop_event.set()
+            return
     
     # Starte Input-Thread
     thread = threading.Thread(target=get_input)
@@ -6447,13 +6841,16 @@ def get_input_with_timeout(prompt: str, timeout: int = 10) -> str:
     
     # Warte auf Antwort oder Timeout
     thread.join(timeout)
+    stop_event.set()
     
     if thread.is_alive():
-        # Thread läuft noch (Timeout erreicht)
-        print(f"\nKeine Eingabe innerhalb von {timeout} Sekunden - fahre automatisch fort...")
+        print("\nKeine Eingabe innerhalb der Zeitbegrenzung - fahre fort mit 'n'")
         return 'n'
-    
-    return answer['value']
+        
+    if answer['value'] is None:
+        return 'n'
+        
+    return answer['value'].lower()
 
 async def perform_manual_coding(chunks, categories, manual_coders):
     """Führt die manuelle Kodierung durch"""
@@ -6569,11 +6966,19 @@ async def main() -> None:
         ]
 
         # Optional: Manuellen Kodierer hinzufügen
-        print("\nAutomatische Fortführung in 10 Sekunden...")
+        print("\nKonfiguriere manuelle Kodierung...")
+        print("Sie haben 10 Sekunden Zeit für die Eingabe.")
+        print("Drücken Sie 'j' für manuelle Kodierung oder 'n' zum Überspringen.")
+
         manual_coders = []
-        if get_input_with_timeout("\nMöchten Sie manuell kodieren? (j/n): ") == 'j':
+        user_response = get_input_with_timeout("\nMöchten Sie manuell kodieren? (j/n): ", timeout=10)
+
+        if user_response == 'j':
             manual_coders.append(ManualCoder(coder_id="human_1"))
-            print("Manueller Kodierer hinzugefügt")
+            print("\n✓ Manueller Kodierer wurde hinzugefügt")
+            print("Sie können nun mit der manuellen Kodierung beginnen.")
+        else:
+            print("\nℹ Keine manuelle Kodierung - nur automatische Kodierung wird durchgeführt")
 
         # 6. Material vorbereiten
         print("\n5. Bereite Material vor...")
@@ -6657,6 +7062,7 @@ async def main() -> None:
             exporter = ResultsExporter(
                 output_dir=CONFIG['OUTPUT_DIR'],
                 attribute_labels=CONFIG['ATTRIBUTE_LABELS'],
+                analysis_manager=analysis_manager,
                 inductive_coder=reliability_calculator  # Übergebe den initialisierten InductiveCoder
             )
             
