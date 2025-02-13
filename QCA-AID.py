@@ -7,7 +7,7 @@ enhanced with AI capabilities through the OpenAI API.
 
 Version:
 --------
-0.9 (2025-02-12)
+0.9.2 (2025-02-13)
 
 Description:
 -----------
@@ -81,6 +81,7 @@ https://github.com/JustusHenke/QCA-AID
 import os        # Dateisystemzugriff
 import re        # Reguläre Ausdrücke für deduktives Codieren
 import openai    # OpenAI API-Integration
+from openai import AsyncOpenAI
 import json      # Export/Import von Daten (z.B. CSV/JSON)
 import pandas as pd  # Zum Aggregieren und Visualisieren der Ergebnisse
 import logging   # Protokollierung
@@ -108,12 +109,14 @@ from openpyxl.utils import get_column_letter
 from openpyxl.formatting.rule import ColorScaleRule
 from openpyxl.utils.dataframe import dataframe_to_rows
 from openpyxl import load_workbook
+from openpyxl import Workbook
 import tkinter as tk
 from tkinter import ttk, messagebox, simpledialog
 from typing import Dict, List, Optional
 import platform
 import time
 import statistics
+import traceback 
 
 # ============================
 # 2. Globale Variablen
@@ -280,15 +283,43 @@ class CategoryDefinition:
     added_date: str
     modified_date: str
 
-@dataclass
+@dataclass(frozen=True)  # Macht die Klasse immutable und hashable
 class CodingResult:
     """Datenklasse für ein Kodierungsergebnis"""
     category: str
-    subcategories: List[str]
+    subcategories: Tuple[str, ...]  # Änderung von List zu Tuple für Hashability
     justification: str
-    confidence: Dict[str, Union[float, List[str]]]
-    text_references: List[str]
-    uncertainties: Optional[List[str]] = None
+    confidence: Dict[str, Union[float, Tuple[str, ...]]]  # Ändere List zu Tuple
+    text_references: Tuple[str, ...]  # Änderung von List zu Tuple
+    uncertainties: Optional[Tuple[str, ...]] = None  # Änderung von List zu Tuple
+
+    def __post_init__(self):
+        # Konvertiere Listen zu Tupeln, falls nötig
+        object.__setattr__(self, 'subcategories', tuple(self.subcategories) if isinstance(self.subcategories, list) else self.subcategories)
+        object.__setattr__(self, 'text_references', tuple(self.text_references) if isinstance(self.text_references, list) else self.text_references)
+        if self.uncertainties is not None:
+            object.__setattr__(self, 'uncertainties', tuple(self.uncertainties) if isinstance(self.uncertainties, list) else self.uncertainties)
+        
+        # Konvertiere confidence Listen zu Tupeln
+        if isinstance(self.confidence, dict):
+            new_confidence = {}
+            for k, v in self.confidence.items():
+                if isinstance(v, list):
+                    new_confidence[k] = tuple(v)
+                else:
+                    new_confidence[k] = v
+            object.__setattr__(self, 'confidence', new_confidence)
+
+    def to_dict(self) -> Dict:
+        """Konvertiert das CodingResult in ein Dictionary"""
+        return {
+            'category': self.category,
+            'subcategories': list(self.subcategories),  # Zurück zu Liste für JSON-Serialisierung
+            'justification': self.justification,
+            'confidence': self.confidence,
+            'text_references': list(self.text_references),  # Zurück zu Liste
+            'uncertainties': list(self.uncertainties) if self.uncertainties else None
+        }
 
 @dataclass
 class CategoryChange:
@@ -503,7 +534,7 @@ class ConfigLoader:
         print(DEDUKTIVE_KATEGORIEN)
 
 # --- Klasse: MaterialLoader ---
-# Aufgabe: Laden und Vorbereiten des Analysematerials (Textdokumente, Output)
+# Aufgabe: Laden und Vorbereiten des Analysematerials (Textdokumente, output)
 # WICHTIG: Lange Texte werden mittels Chunking in überschaubare Segmente zerlegt.
 class MaterialLoader:
     """Lädt und verarbeitet Interviewdokumente."""
@@ -692,6 +723,188 @@ class MaterialLoader:
             
         return documents
 
+# --- Klasse: DevelopmentHistory ---
+# Aufgabe: Dokumentation der Kategorienentwicklung
+class DevelopmentHistory:
+    def __init__(self, output_dir: str):
+        self.output_dir = output_dir
+        self.history_file = os.path.join(output_dir, "development_history.json")
+        
+        # Various aspects of history
+        self.category_changes = []     # Category changes
+        self.coding_history = []       # Coding results
+        self.batch_history = []        # Batch processing
+        self.saturation_checks = []    # Saturation checks
+        self.validation_history = []   # System validations
+        self.analysis_events = []      # Analysis events
+        self.errors = []              # Error events
+        self.category_development = [] # Category development tracking
+        self.analysis_start = None    # Analysis start information
+        
+        # Performance tracking
+        self.performance_metrics = {
+            'batch_times': [],
+            'coding_times': [],
+            'processing_rates': []
+        }
+
+    def log_category_development(self, phase: str, **metrics) -> None:
+        """
+        Logs the progress of category development.
+        
+        Args:
+            phase: Current phase of development
+            **metrics: Additional metrics to log
+        """
+        entry = {
+            'timestamp': datetime.now().isoformat(),
+            'phase': phase,
+            **metrics
+        }
+        self.category_development.append(entry)
+        self._save_history()
+
+    def log_batch_processing(self, batch_size: int, processing_time: float, results: dict) -> None:
+        """Logs information about batch processing."""
+        entry = {
+            'timestamp': datetime.now().isoformat(),
+            'batch_size': batch_size,
+            'processing_time': processing_time,
+            'results': results
+        }
+        self.batch_history.append(entry)
+        self._save_history()
+
+    def log_saturation_check(self, material_percentage: float, result: str, metrics: Optional[dict]) -> None:
+        """Logs the results of a saturation check."""
+        entry = {
+            'timestamp': datetime.now().isoformat(),
+            'material_percentage': material_percentage,
+            'result': result,
+            'metrics': metrics
+        }
+        self.saturation_checks.append(entry)
+        self._save_history()
+
+    def log_saturation_reached(self, material_percentage: float, metrics: dict) -> None:
+        """Logs when saturation is reached."""
+        entry = {
+            'timestamp': datetime.now().isoformat(),
+            'event': 'saturation_reached',
+            'material_percentage': material_percentage,
+            'metrics': metrics
+        }
+        self.analysis_events.append(entry)
+        self._save_history()
+
+    def log_analysis_completion(self, final_categories: dict, total_time: float, total_codings: int) -> None:
+        """Logs the completion of the analysis."""
+        entry = {
+            'timestamp': datetime.now().isoformat(),
+            'event': 'analysis_complete',
+            'total_time': total_time,
+            'total_categories': len(final_categories),
+            'total_codings': total_codings
+        }
+        self.analysis_events.append(entry)
+        self._save_history()
+
+    def log_analysis_start(self, total_segments: int, total_categories: int) -> None:
+        """
+        Logs the start of analysis with initial metrics.
+        
+        Args:
+            total_segments: Total number of text segments to analyze
+            total_categories: Initial number of categories
+        """
+        self.analysis_start = {
+            'timestamp': datetime.now().isoformat(),
+            'total_segments': total_segments,
+            'total_categories': total_categories,
+            'start_time': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        }
+        self.analysis_events.append({
+            'event': 'analysis_start',
+            **self.analysis_start
+        })
+        self._save_history()
+
+    def log_error(self, error_type: str, error_message: str) -> None:
+        """Logs an error event."""
+        entry = {
+            'timestamp': datetime.now().isoformat(),
+            'event': 'error',
+            'type': error_type,
+            'message': error_message
+        }
+        self.errors.append(entry)
+        self._save_history()
+
+    def _save_history(self) -> None:
+        """Saves the current history to the JSON file."""
+        try:
+            with open(self.history_file, 'w', encoding='utf-8') as f:
+                json.dump({
+                    'category_changes': self.category_changes,
+                    'coding_history': self.coding_history,
+                    'batch_history': self.batch_history,
+                    'saturation_checks': self.saturation_checks,
+                    'validation_history': self.validation_history,
+                    'analysis_events': self.analysis_events,
+                    'errors': self.errors,
+                    'category_development': self.category_development,
+                    'performance_metrics': self.performance_metrics,
+                'analysis_start': self.analysis_start
+                }, f, indent=2, ensure_ascii=False)
+        except Exception as e:
+            print(f"Error saving history: {str(e)}")
+
+    def generate_development_report(self) -> str:
+        """
+        Generates a comprehensive report of the development process.
+        
+        Returns:
+            str: Formatted report
+        """
+        report = ["=== Category Development Report ===\n"]
+        
+        # Phase Analysis
+        phases = {}
+        for entry in self.category_development:
+            phase = entry['phase']
+            if phase not in phases:
+                phases[phase] = []
+            phases[phase].append(entry)
+        
+        for phase, entries in phases.items():
+            report.append(f"\nPhase: {phase}")
+            report.append("-" * (len(phase) + 7))
+            
+            # Summarize metrics for this phase
+            metrics_summary = {}
+            for entry in entries:
+                for key, value in entry.items():
+                    if key not in ['timestamp', 'phase']:
+                        if key not in metrics_summary:
+                            metrics_summary[key] = []
+                        metrics_summary[key].append(value)
+            
+            # Report metrics
+            for key, values in metrics_summary.items():
+                if all(isinstance(v, (int, float)) for v in values):
+                    avg = sum(values) / len(values)
+                    report.append(f"{key}: avg = {avg:.2f}")
+                else:
+                    report.append(f"{key}: {len(values)} entries")
+        
+        # Error Analysis
+        if self.errors:
+            report.append("\nErrors:")
+            report.append("-------")
+            for error in self.errors:
+                report.append(f"- {error['type']}: {error['message']}")
+        
+        return "\n".join(report)
 # --- Klasse: CategoryManager ---
 class CategoryManager:
     """Verwaltet das Speichern und Laden von Kategorien"""
@@ -789,6 +1002,41 @@ class CategoryManager:
             import traceback
             traceback.print_exc()
             return None
+    
+    def save_codebook(self, 
+                    categories: Dict[str, CategoryDefinition], 
+                    filename: str = "codebook_inductive.json") -> None:
+        """Speichert das vollständige Codebook inkl. deduktiver und induktiver Kategorien"""
+        try:
+            codebook_data = {
+                "metadata": {
+                    "created": datetime.now().isoformat(),
+                    "version": "2.0",
+                    "total_categories": len(categories),
+                    "research_question": FORSCHUNGSFRAGE
+                },
+                "categories": {}
+            }
+            
+            for name, category in categories.items():
+                codebook_data["categories"][name] = {
+                    "definition": category.definition,
+                    "examples": category.examples,
+                    "rules": category.rules,
+                    "subcategories": category.subcategories,
+                    "development_type": "deductive" if name in DEDUKTIVE_KATEGORIEN else "inductive",
+                    "added_date": category.added_date,
+                    "last_modified": category.modified_date
+                }
+            
+            output_path = os.path.join(self.output_dir, filename)
+            with open(output_path, 'w', encoding='utf-8') as f:
+                json.dump(codebook_data, f, indent=2, ensure_ascii=False)
+                
+            print(f"\nInduktiv erweitertes Codebook gespeichert unter: {output_path}")
+            
+        except Exception as e:
+            print(f"Fehler beim Speichern des Codebooks: {str(e)}")
 
 # Klasse: CategoryMerger
 # ----------------------
@@ -884,6 +1132,7 @@ class CategoryMerger:
                 json.dump(self.merge_log, f, ensure_ascii=False, indent=2)
             print(f"Zusammenführungsprotokoll gespeichert unter: {merge_log_path}")
 
+    
 
 # --- Klasse: Analyzer ---
 # Aufgabe: Festlegung der Analyseeinheiten (Auswertungs-, Kodiereinheit, Kontexteinheit)
@@ -1032,25 +1281,25 @@ class Analyzer:
 # --- Klasse: IntegratedAnalysisManager ---
 # Aufgabe: Integriert die verschiedenen Analysephasen in einem zusammenhängenden Prozess
 class IntegratedAnalysisManager:
-    """
-    Verwaltet den integrierten Analyseprozess mit optimierter Sättigungsprüfung.
-    Koordiniert induktive und deduktive Kodierung sowie Kategorienentwicklung.
-    """
-    
     def __init__(self, config: Dict):
-        """
-        Initialisiert den IntegratedAnalysisManager mit verbesserter Konfiguration.
-        
-        Args:
-            config: Konfigurationsdictionary mit Analyse-Einstellungen
-        """
-        # Basis-Komponenten
+        """Initialisiert den Manager mit Zeitstempeln"""
         self.config = config
-        self.saturation_checker = SaturationChecker(config)
-        self.inductive_coder = InductiveCoder(config['MODEL_NAME'])
+        self.history = DevelopmentHistory(config['OUTPUT_DIR'])
+        
+        # Zeitstempel
+        self.start_time = None
+        self.end_time = None
+        
+        # Analyse-Komponenten
+        self.saturation_checker = SaturationChecker(config, self.history)
+        self.inductive_coder = InductiveCoder(
+            model_name=config['MODEL_NAME'],
+            history=self.history,
+            output_dir=config['OUTPUT_DIR']
+        )
         self.category_merger = CategoryMerger(similarity_threshold=0.8)
         
-        # Kodierungs-Handler
+        # Kodierer
         self.deductive_coders = [
             DeductiveCoder(
                 config['MODEL_NAME'], 
@@ -1061,119 +1310,214 @@ class IntegratedAnalysisManager:
         ]
         
         # Tracking-Variablen
-        self.processed_segments = set()
         self.coding_results = []
+        self.processed_segments = set()
         self.performance_metrics = {
             'batch_processing_times': [],
             'coding_times': [],
             'category_changes': []
         }
         
-        # Logging und Diagnose
-        self.analysis_log = []
-        self.start_time = datetime.now()
-        
         print("\nAnalyse-Manager initialisiert:")
         print(f"- Anzahl Kodierer: {len(self.deductive_coders)}")
         print(f"- Modell: {config['MODEL_NAME']}")
-        print(f"- Startzeit: {self.start_time.strftime('%H:%M:%S')}")
 
-    async def analyze_material(self, 
-                             chunks: Dict[str, List[str]], 
-                             initial_categories: Dict) -> Tuple[Dict, List]:
+    async def _code_batch_deductively(self,
+                                batch: List[Tuple[str, str]],
+                                categories: Dict[str, CategoryDefinition]) -> List[Dict]:
         """
-        Führt die integrierte Analyse des Materials durch.
+        Führt die deduktive Kodierung eines Batches durch.
         
         Args:
-            chunks: Dictionary mit Dokumenten-Chunks
-            initial_categories: Initiales Kategoriensystem
+            batch: Liste von (segment_id, text) Tupeln
+            categories: Aktuelles Kategoriensystem
             
         Returns:
-            Tuple[Dict, List]: (Finales Kategoriensystem, Kodierungsergebnisse)
+            List[Dict]: Liste der Kodierungsergebnisse
         """
+        batch_results = []
+        
+        for segment_id, text in batch:
+            print(f"\nKodiere Segment {segment_id}")
+            print(f"Chunk-Inhalt (erste 100 Zeichen): {text[:100]}...")  # Zeige die ersten 100 Zeichen des Chunks an
+            segment_results = []
+            
+            try:
+                # Verarbeite jeden Kodierer sequentiell
+                for coder in self.deductive_coders:
+                    try:
+                        # Direkte Verarbeitung ohne gather()
+                        coding = await coder.code_chunk(text, categories)
+                        
+                        if coding and isinstance(coding, CodingResult):
+                            # Konvertiere CodingResult in Dict
+                            result = {
+                                'segment_id': segment_id,
+                                'coder_id': coder.coder_id,
+                                'category': coding.category,
+                                'subcategories': list(coding.subcategories),
+                                'confidence': coding.confidence,
+                                'justification': coding.justification,
+                                'text': text
+                            }
+                            
+                            print(f"  ✓ Kodierung von {coder.coder_id}: {result['category']}")
+                            segment_results.append(result)
+                            self.coding_results.append(result)
+                            batch_results.append(result)
+                        else:
+                            print(f"  ✗ Keine gültige Kodierung von {coder.coder_id}")
+                            
+                    except Exception as e:
+                        print(f"  ✗ Fehler bei Kodierer {coder.coder_id}: {str(e)}")
+                        continue
+                
+                if segment_results:
+                    print(f"  → {len(segment_results)} Kodierungen für Segment {segment_id}")
+                else:
+                    print(f"  ✗ Keine Kodierungen für Segment {segment_id}")
+                
+                self.processed_segments.add(segment_id)
+                
+            except Exception as e:
+                print(f"Fehler bei der Kodierung von Segment {segment_id}: {str(e)}")
+                import traceback
+                traceback.print_exc()
+                continue
+        
+        print(f"\nBatch abgeschlossen: {len(batch_results)} Kodierungen erstellt")
+        return batch_results
+
+    async def analyze_material(self, 
+                            chunks: Dict[str, List[str]], 
+                            initial_categories: Dict,
+                            skip_inductive: bool = False) -> Tuple[Dict, List]:
+        """Hauptanalyse mit Zeiterfassung und optionalem Überspringen der induktiven Kodierung"""
         try:
-            # Vorbereitung
+            self.start_time = datetime.now()
+            print(f"\nAnalyse gestartet um {self.start_time.strftime('%H:%M:%S')}")
+            
             current_categories = initial_categories.copy()
             all_segments = self._prepare_segments(chunks)
             total_segments = len(all_segments)
             
-            print(f"\nStarting analysis of {total_segments} segments")
+            # Reset Tracking-Variablen
+            self.coding_results = []
+            self.processed_segments = set()
             
-            # Hauptanalyse-Schleife
+            print(f"Verarbeite {total_segments} Segmente...")
+            self.history.log_analysis_start(total_segments, len(initial_categories))
+            
+            batch_size_percentage = 0.1
+            total_batches = 0
+            
             while True:
-                # 1. Bestimme nächsten Batch
-                batch = await self._get_next_batch(
-                    all_segments, 
-                    self.saturation_checker.current_batch_size
-                )
+                batch = await self._get_next_batch(all_segments, batch_size_percentage)
                 if not batch:
                     break
                 
-                # 2. Verarbeite Batch
-                batch_start_time = time.time()
+                total_batches += 1
+                print(f"\nBatch {total_batches}: {len(batch)} Segmente")
                 
-                # 2.1 Induktive Analyse
-                new_categories = await self._process_batch_inductively(
-                    batch,
-                    current_categories
-                )
+                batch_start = time.time()
                 
-                # 2.2 Kategorien zusammenführen
-                merged_categories = await self._merge_categories(
-                    current_categories,
-                    new_categories
-                )
-                
-                # 2.3 Deduktive Kodierung
-                batch_results = await self._code_batch_deductively(
-                    batch,
-                    merged_categories
-                )
-                
-                # 3. Update Tracking
-                self._update_tracking(
-                    batch_results,
-                    time.time() - batch_start_time,
-                    len(batch)
-                )
-                
-                # 4. Sättigungsprüfung
-                material_percentage = (len(self.processed_segments) / total_segments) * 100
-                is_saturated, metrics = self.saturation_checker.check_saturation(
-                    merged_categories,
-                    self.coding_results,
-                    material_percentage
-                )
-                
-                # 5. Logging und Reporting
-                self._log_iteration_status(
-                    material_percentage,
-                    metrics,
-                    len(batch_results)
-                )
-                
-                if is_saturated:
-                    print(f"\nSättigung erreicht bei {material_percentage:.1f}% des Materials")
-                    break
+                try:
+                    # Induktive Analyse nur durchführen, wenn nicht übersprungen
+                    if not skip_inductive:
+                        # Induktive Kategorienentwicklung
+                        new_categories = await self._process_batch_inductively(batch, current_categories)
+                        merged_categories = await self._merge_categories(current_categories, new_categories)
+                    else:
+                        merged_categories = current_categories
                     
-                # 6. Update für nächste Iteration
-                current_categories = merged_categories
-                
-            # Abschluss
-            return self._finalize_analysis(
-                current_categories,
-                initial_categories
-            )
+                    # Synchronous deductive coding implementation
+                    for segment_id, text in batch:
+                        segment_results = []
 
+                        print(f"Chunk-Inhalt (erste 100 Zeichen): {text[:100]}...")
+                        
+                        # Process each coder sequentially
+                        for coder in self.deductive_coders:
+                            try:
+                                coding = await coder.code_chunk(text, merged_categories if not skip_inductive else initial_categories)
+                                
+                                if coding and isinstance(coding, CodingResult):
+                                    # Convert CodingResult to dict
+                                    result = {
+                                        'segment_id': segment_id,
+                                        'coder_id': coder.coder_id,
+                                        'category': coding.category,
+                                        'subcategories': list(coding.subcategories),
+                                        'confidence': coding.confidence,
+                                        'justification': coding.justification,
+                                        'text': text
+                                    }
+                                    
+                                    print(f"  ✓ Kodierung von {coder.coder_id}: {result['category']}")
+                                    segment_results.append(result)
+                                    self.coding_results.append(result)
+                                else:
+                                    print(f"  ✗ Keine gültige Kodierung von {coder.coder_id}")
+                                    
+                            except Exception as e:
+                                print(f"  ✗ Fehler bei Kodierer {coder.coder_id}: {str(e)}")
+                                continue
+                        
+                        if segment_results:
+                            print(f"  → {len(segment_results)} Kodierungen für Segment {segment_id}")
+                        else:
+                            print(f"  ✗ Keine Kodierungen für Segment {segment_id}")
+                        
+                        self.processed_segments.add(segment_id)
+                    
+                    # Performance-Tracking
+                    batch_time = time.time() - batch_start
+                    self.performance_metrics['batch_processing_times'].append(batch_time)
+                    
+                    # Fortschritt
+                    material_percentage = (len(self.processed_segments) / total_segments) * 100
+                    print(f"Fortschritt: {material_percentage:.1f}% ({len(self.coding_results)} Kodierungen gesamt)")
+                    
+                    # Sättigungsprüfung nur bei aktivierter induktiver Analyse
+                    if not skip_inductive:
+                        if self.saturation_checker.check_saturation(
+                            merged_categories,
+                            self.coding_results,
+                            material_percentage
+                        )[0]:
+                            print("Sättigung erreicht")
+                            break
+                    
+                    current_categories = merged_categories
+                    
+                except Exception as e:
+                    print(f"Fehler bei der Verarbeitung von Batch {total_batches}: {str(e)}")
+                    traceback.print_exc()
+                    continue
+            
+            # Abschluss
+            self.end_time = datetime.now()
+            processing_time = (self.end_time - self.start_time).total_seconds()
+            
+            print(f"\nAnalyse abgeschlossen:")
+            print(f"- {len(self.processed_segments)} Segmente verarbeitet")
+            print(f"- {len(self.coding_results)} Kodierungen erstellt")
+            print(f"- {processing_time:.1f} Sekunden Verarbeitungszeit")
+            
+            # Rückgabewert anpassen je nach Modus
+            final_categories = current_categories if not skip_inductive else initial_categories
+            
+            return final_categories, self.coding_results
+            
         except Exception as e:
+            self.end_time = datetime.now()
             print(f"Fehler in der Analyse: {str(e)}")
-            import traceback
             traceback.print_exc()
-            return current_categories, self.coding_results
+            raise
 
     async def _get_next_batch(self, 
-                             segments: List[Tuple[str, str]], 
-                             batch_size_percentage: float) -> List[Tuple[str, str]]:
+                           segments: List[Tuple[str, str]], 
+                           batch_size_percentage: float) -> List[Tuple[str, str]]:
         """
         Bestimmt den nächsten zu analysierenden Batch.
         
@@ -1195,9 +1539,26 @@ class IntegratedAnalysisManager:
         batch_size = max(1, int(len(segments) * batch_size_percentage))
         return remaining_segments[:batch_size]
 
+    def _prepare_segments(self, chunks: Dict[str, List[str]]) -> List[Tuple[str, str]]:
+        """
+        Bereitet die Segmente für die Analyse vor.
+        
+        Args:
+            chunks: Dictionary mit Dokumenten-Chunks
+            
+        Returns:
+            List[Tuple[str, str]]: Liste von (segment_id, text) Tupeln
+        """
+        segments = []
+        for doc_name, doc_chunks in chunks.items():
+            for chunk_idx, chunk in enumerate(doc_chunks):
+                segment_id = f"{doc_name}_chunk_{chunk_idx}"
+                segments.append((segment_id, chunk))
+        return segments
+
     async def _process_batch_inductively(self,
-                                       batch: List[Tuple[str, str]],
-                                       current_categories: Dict) -> Dict:
+                                     batch: List[Tuple[str, str]],
+                                     current_categories: Dict) -> Dict:
         """
         Führt die induktive Analyse eines Batches durch.
         
@@ -1226,6 +1587,47 @@ class IntegratedAnalysisManager:
         except Exception as e:
             print(f"Fehler bei induktiver Analyse: {str(e)}")
             return {}
+
+    async def _merge_categories(self,
+                            current_cats: Dict,
+                            new_cats: Dict) -> Dict:
+        """
+        Führt bestehende und neue Kategorien zusammen.
+        
+        Args:
+            current_cats: Bestehendes Kategoriensystem
+            new_cats: Neue Kategorien
+            
+        Returns:
+            Dict: Zusammengeführtes Kategoriensystem
+        """
+        try:
+            # Basiskopie der aktuellen Kategorien
+            merged = current_cats.copy()
+            
+            # Verarbeite neue Kategorien
+            for name, category in new_cats.items():
+                if name in merged:
+                    # Update bestehende Kategorie
+                    current_cat = merged[name]
+                    merged[name] = CategoryDefinition(
+                        name=name,
+                        definition=current_cat.definition,
+                        examples=list(set(current_cat.examples + category.examples)),
+                        rules=list(set(current_cat.rules + category.rules)),
+                        subcategories={**current_cat.subcategories, **category.subcategories},
+                        added_date=current_cat.added_date,
+                        modified_date=datetime.now().strftime("%Y-%m-%d")
+                    )
+                else:
+                    # Füge neue Kategorie hinzu
+                    merged[name] = category
+            
+            return merged
+            
+        except Exception as e:
+            print(f"Fehler beim Zusammenführen der Kategorien: {str(e)}")
+            return current_cats
 
     async def _merge_categories(self,
                               current_cats: Dict,
@@ -1269,17 +1671,10 @@ class IntegratedAnalysisManager:
             return current_cats
 
     async def _code_batch_deductively(self,
-                                    batch: List[Tuple[str, str]],
-                                    categories: Dict) -> List[Dict]:
+                                batch: List[Tuple[str, str]],
+                                categories: Dict) -> List[Dict]:
         """
         Führt die deduktive Kodierung eines Batches durch.
-        
-        Args:
-            batch: Zu kodierende Segmente
-            categories: Aktuelles Kategoriensystem
-            
-        Returns:
-            List[Dict]: Kodierungsergebnisse
         """
         results = []
         
@@ -1300,13 +1695,15 @@ class IntegratedAnalysisManager:
                 codings
             ):
                 if coding:
+                    # Konvertiere CodingResult in Dictionary-Format
                     result = {
                         'segment_id': segment_id,
                         'coder_id': coder_id,
-                        'category': coding.category,
-                        'subcategories': coding.subcategories,
-                        'confidence': coding.confidence,
-                        'justification': coding.justification
+                        'category': coding.category if hasattr(coding, 'category') else "Nicht kodiert",
+                        'subcategories': coding.subcategories if hasattr(coding, 'subcategories') else [],
+                        'confidence': coding.confidence if hasattr(coding, 'confidence') else {'total': 0.0},
+                        'justification': coding.justification if hasattr(coding, 'justification') else "",
+                        'text': text  # Füge den Text hinzu
                     }
                     segment_results.append(result)
             
@@ -1410,19 +1807,45 @@ class IntegratedAnalysisManager:
         return final_categories, self.coding_results
 
     def get_analysis_report(self) -> Dict:
-        """
-        Erstellt einen detaillierten Analysebericht.
-        
-        Returns:
-            Dict: Analysebericht mit Performance-Metriken und Statistiken
-        """
+        """Erstellt einen detaillierten Analysebericht."""
         return {
-            'start_time': self.start_time.isoformat(),
-            'end_time': datetime.now().isoformat(),
+            'start_time': self.start_time.isoformat() if self.start_time else None,
+            'end_time': self.end_time.isoformat() if self.end_time else None,
             'total_segments': len(self.processed_segments),
             'total_codings': len(self.coding_results),
-            'performance_metrics': self.performance_metrics,
-            'analysis_log': self.analysis_log
+            'performance_metrics': {
+                'avg_batch_time': (
+                    sum(self.performance_metrics['batch_processing_times']) / 
+                    len(self.performance_metrics['batch_processing_times'])
+                ) if self.performance_metrics['batch_processing_times'] else 0,
+                'total_batches': len(self.performance_metrics['batch_processing_times']),
+                'coding_distribution': self._get_coding_distribution()
+            },
+            'coding_summary': self._get_coding_summary()
+        }
+    
+    def _get_coding_distribution(self) -> Dict:
+        """Analysiert die Verteilung der Kodierungen."""
+        if not self.coding_results:
+            return {}
+            
+        coders = Counter(coding['coder_id'] for coding in self.coding_results)
+        categories = Counter(coding['category'] for coding in self.coding_results)
+        
+        return {
+            'coders': dict(coders),
+            'categories': dict(categories)
+        }
+    
+    def _get_coding_summary(self) -> Dict:
+        """Erstellt eine Zusammenfassung der Kodierungen."""
+        if not self.coding_results:
+            return {}
+            
+        return {
+            'total_segments_coded': len(set(coding['segment_id'] for coding in self.coding_results)),
+            'avg_codings_per_segment': len(self.coding_results) / len(self.processed_segments) if self.processed_segments else 0,
+            'unique_categories': len(set(coding['category'] for coding in self.coding_results))
         }
 
     def get_progress_report(self) -> Dict:
@@ -1719,7 +2142,9 @@ class DeductiveCoder:
         load_dotenv(env_path)
         
         # Initialisiere OpenAI Client
-        self.client = OpenAI()
+        # self.client = OpenAI()
+        # Initialisiere den asynchronen OpenAI-Client
+        self.client = AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"))
         
         # Prüfe API Key
         if not os.getenv("OPENAI_API_KEY"):
@@ -1774,17 +2199,21 @@ class DeductiveCoder:
 
             input_tokens = estimate_tokens(prompt + chunk)
 
-            response = self.client.chat.completions.create(
+             # Verwende die asynchrone OpenAI-API
+            response = await self.client.chat.completions.create(
                 model=self.model_name,
                 messages=[
                     {"role": "system", "content": "Du bist ein Experte für qualitative Inhaltsanalyse."},
                     {"role": "user", "content": prompt}
                 ],
-                temperature=0.3,
+                temperature=float(self.temperature),
                 response_format={"type": "json_object"}
             )
 
             result = json.loads(response.choices[0].message.content)
+            print(f"  ✓ Kodierung erstellt: {result.get('category', 'Keine Kategorie')} "
+                  f"(Konfidenz: {result.get('confidence', {}).get('total', 0):.2f})")
+
 
             output_tokens = estimate_tokens(response.choices[0].message.content)
             token_counter.add_tokens(input_tokens, output_tokens)
@@ -1803,11 +2232,11 @@ class DeductiveCoder:
 
                 return CodingResult(
                     category=result['category'],
-                    subcategories=all_subcategories,
-                    justification=justification,
-                    confidence=result.get('confidence', {'category': 0.0, 'subcategories': 0.0}),
-                    text_references=[chunk[:100]],
-                    uncertainties=[]
+                    subcategories=tuple(result.get('subcategories', [])),  # Als Tuple
+                    justification=result.get('justification', ''),
+                    confidence=result.get('confidence', {'total': 0.0, 'category': 0.0, 'subcategories': 0.0}),
+                    text_references=tuple([chunk[:100]]),  # Als Tuple
+                    uncertainties=None
                 )
             return None
 
@@ -1815,25 +2244,10 @@ class DeductiveCoder:
             print(f"Fehler bei der Prüfung deduktiver Kategorien: {str(e)}")
             return None
 
-    
     async def code_chunk(self, chunk: str, categories: Dict[str, CategoryDefinition]) -> Optional[CodingResult]:
+        """Kodiert einen Text-Chunk basierend auf dem Kategoriensystem."""
         try:
-            # Prüfe zuerst die Relevanz des Chunks
-            is_relevant = await self._check_relevance(chunk)
-            if not is_relevant:
-                return CodingResult(
-                    category="Nicht kodiert",
-                    subcategories=[],
-                    justification="Segment hat keinen hinreichenden Bezug zur Forschungsfrage",
-                    confidence={'total': 1.0, 'category': 1.0, 'subcategories': 1.0},
-                    text_references=[chunk[:100]],
-                    uncertainties=[]
-                )
-            
-            # Prüfe zuerst deduktive Kategorien
-            deductive_match = await self._check_deductive_categories(chunk, DEDUKTIVE_KATEGORIEN)
-            if deductive_match:
-                return deductive_match
+            print(f"\nDeduktiver Kodierer {self.coder_id} verarbeitet Chunk...")
             
             # Konvertiere CategoryDefinition in serialisierbares Dict
             categories_dict = {
@@ -1846,9 +2260,9 @@ class DeductiveCoder:
             }
 
             prompt = f"""
-            Analysiere folgenden Text nach dem Kategoriensystem von Mayring.
-            Gib deine Antwort ausschließlich als valides JSON-Objekt zurück.
-
+            Analysiere folgenden Text mithilfe des Kategoriensystems der qualitativen Inhaltsanalyse.
+            Ordne den Text der am besten passenden Kategorie zu.
+            
             TEXT:
             {chunk}
 
@@ -1858,7 +2272,7 @@ class DeductiveCoder:
             KODIERREGELN:
             {json.dumps(KODIERREGELN, indent=2, ensure_ascii=False)}
 
-            Deine Antwort MUSS exakt diesem JSON-Format folgen:
+            Gib deine Antwort ausschließlich als JSON-Objekt zurück in diesem Format:
             {{
                 "category": "Name der Hauptkategorie",
                 "subcategories": ["Liste", "der", "Subkategorien"],
@@ -1868,36 +2282,47 @@ class DeductiveCoder:
                     "category": 0.9,
                     "subcategories": 0.8
                 }},
-                "text_references": ["Relevante", "Textstellen"],
-                "uncertainties": ["Optional: Unsicherheiten", "bei der Kodierung"]
+                "text_references": ["Relevante", "Textstellen"]
             }}
             """
 
             input_tokens = estimate_tokens(prompt + chunk)
 
-            # Synchroner API-Aufruf
-            response = self.client.chat.completions.create(
+            # Verwende die asynchrone OpenAI-API
+            response = await self.client.chat.completions.create(
                 model=self.model_name,
                 messages=[
                     {"role": "system", "content": "Du bist ein Experte für qualitative Inhaltsanalyse."},
                     {"role": "user", "content": prompt}
                 ],
-                temperature=self.temperature,
+                temperature=float(self.temperature),
                 response_format={"type": "json_object"}
             )
 
             result = json.loads(response.choices[0].message.content)
-
+            print(f"  ✓ Kodierung erstellt: {result.get('category', 'Keine Kategorie')} "
+                f"(Konfidenz: {result.get('confidence', {}).get('total', 0):.2f})")
+            
             output_tokens = estimate_tokens(response.choices[0].message.content)
             token_counter.add_tokens(input_tokens, output_tokens)
 
-            return self._validate_coding(result)
+            if result.get('category'):
+                return CodingResult(
+                    category=result['category'],
+                    subcategories=tuple(result.get('subcategories', [])),  # Als Tuple
+                    justification=result.get('justification', ''),
+                    confidence=result.get('confidence', {'total': 0.0, 'category': 0.0, 'subcategories': 0.0}),
+                    text_references=tuple([chunk[:100]]),  # Als Tuple
+                    uncertainties=None
+                )
+            else:
+                print("  ✗ Keine gültige Kategorie gefunden")
+                return None
 
         except Exception as e:
-            print(f"Fehler bei der deduktiven Kodierung: {str(e)}")
-            print(f"Chunk: {chunk[:100]}...")
+            print(f"Fehler bei der Kodierung durch {self.coder_id}: {str(e)}")
             return None
-
+    
     async def _check_relevance(self, chunk: str) -> bool:
         """
         Prüft die Relevanz eines Chunks für die Forschungsfrage und Kategorien.
@@ -1976,7 +2401,7 @@ class InductiveCoder:
     Optimiert für Performance und Integration mit SaturationChecker.
     """
     
-    def __init__(self, model_name: str, output_dir: str = None):
+    def __init__(self, model_name: str, history: DevelopmentHistory, output_dir: str = None):
         # OpenAI Konfiguration
         self.model_name = model_name
         self.client = openai.AsyncOpenAI()
@@ -1990,67 +2415,79 @@ class InductiveCoder:
         self.MIN_CONFIDENCE = 0.7
         self.MIN_EXAMPLES = 3
         self.MIN_DEFINITION_WORDS = 15
+
+        # Batch processing configuration
+        self.BATCH_SIZE = 5  # Number of segments to process at once
+        self.MAX_RETRIES = 3 # Maximum number of retries for failed API calls
         
         # Tracking
+        self.history = history
         self.development_history = []
         self.last_analysis_time = None
         
         # System-Prompt-Cache
         self._cached_system_prompt = None
-        
-    async def develop_category_system(self, segments: List[str]) -> Dict[str, CategoryDefinition]:
+
+    def _create_batches(self, segments: List[str], batch_size: int = None) -> List[List[str]]:
         """
-        Entwickelt Kategorien aus dem Textmaterial mit Optimierungen.
+        Creates batches of segments for processing.
         
         Args:
-            segments: Liste der Textsegmente
+            segments: List of text segments to process
+            batch_size: Optional custom batch size (defaults to self.BATCH_SIZE)
             
         Returns:
-            Dict[str, CategoryDefinition]: Entwickelte Kategorien
+            List[List[str]]: List of segment batches
         """
+        if batch_size is None:
+            batch_size = self.BATCH_SIZE
+            
+        return [
+            segments[i:i + batch_size] 
+            for i in range(0, len(segments), batch_size)
+        ]
+       
+    async def develop_category_system(self, segments: List[str]) -> Dict[str, CategoryDefinition]:
+        """Kategorienentwicklung mit integrierter Historie."""
         try:
             start_time = time.time()
-            print(f"\nStarting category development for {len(segments)} segments")
             
-            # 1. Schnelle Voranalyse der Segmente
+            # Voranalyse
             relevant_segments = await self._prefilter_segments(segments)
-            if not relevant_segments:
-                return {}
-                
-            # 2. Batch-basierte Kategorienentwicklung
-            categories = {}
-            batch_size = min(5, len(relevant_segments))  # Kleinere Batches für schnelleres Feedback
+            self.history.log_category_development(
+                phase="prefiltering",
+                total_segments=len(segments),
+                relevant_segments=len(relevant_segments)
+            )
             
-            for i in range(0, len(relevant_segments), batch_size):
-                batch = relevant_segments[i:i + batch_size]
-                
-                # 2.1 Extrahiere Kategorien aus Batch
+            # Stapel von Segmenten erstellen
+            batches = self._create_batches(relevant_segments)
+            
+            # Jede Charge verarbeiten
+            categories = {}
+            for batch_idx, batch in enumerate(batches):
+                # Extract new categories
                 batch_categories = await self._extract_categories_from_batch(batch)
                 
-                # 2.2 Validiere und integriere neue Kategorien
+                # Validate categories
                 valid_categories = self._validate_categories(batch_categories)
+                
+                # Integrate into existing system
                 categories = self._integrate_categories(categories, valid_categories)
                 
-                # 2.3 Optimiere Kategoriensystem
-                categories = self._optimize_category_system(categories)
-                
-                # 2.4 Tracking
-                self._track_development(categories, len(batch))
+                # Document development
+                self.history.log_category_development(
+                    phase=f"batch_{batch_idx + 1}",
+                    new_categories=len(batch_categories),
+                    valid_categories=len(valid_categories),
+                    total_categories=len(categories)
+                )
             
-            # 3. Finale Optimierung
-            final_categories = self._finalize_categories(categories)
-            
-            # 4. Performance-Logging
-            processing_time = time.time() - start_time
-            self._log_performance(len(segments), len(final_categories), processing_time)
-            
-            return final_categories
+            return categories
             
         except Exception as e:
-            print(f"Error in category development: {str(e)}")
-            import traceback
-            traceback.print_exc()
-            return {}
+            self.history.log_error("category_development_error", str(e))
+            raise
 
     async def _prefilter_segments(self, segments: List[str]) -> List[str]:
         """
@@ -2094,6 +2531,8 @@ class InductiveCoder:
         """
         
         try:
+            input_tokens = estimate_tokens(prompt)
+
             response = await self.client.chat.completions.create(
                 model=self.model_name,
                 messages=[
@@ -2105,6 +2544,10 @@ class InductiveCoder:
             )
             
             result = json.loads(response.choices[0].message.content)
+
+            output_tokens = estimate_tokens(response.choices[0].message.content)
+            token_counter.add_tokens(input_tokens, output_tokens)
+
             return float(result.get('relevance_score', 0))
             
         except Exception as e:
@@ -2120,6 +2563,8 @@ class InductiveCoder:
             prompt = self._get_category_extraction_prompt(segment)
             
             try:
+                input_tokens = estimate_tokens(prompt)
+                
                 response = await self.client.chat.completions.create(
                     model=self.model_name,
                     messages=[
@@ -2131,6 +2576,10 @@ class InductiveCoder:
                 )
                 
                 result = json.loads(response.choices[0].message.content)
+
+                output_tokens = estimate_tokens(response.choices[0].message.content)
+                token_counter.add_tokens(input_tokens, output_tokens)
+                
                 return result if isinstance(result, list) else [result]
                 
             except Exception as e:
@@ -3256,6 +3705,7 @@ class ManualCoder:
             else:
                 messagebox.showwarning("Warnung", "Bitte geben Sie eine gültige Nummer ein.")
 
+
 # --- Klasse: SaturationChecker ---
 class SaturationChecker:
     """
@@ -3263,39 +3713,52 @@ class SaturationChecker:
     Implementiert ein effizientes, adaptives Verfahren zur Bestimmung der Sättigung.
     """
     
-    def __init__(self, config: dict):
-        # Konfigurationsparameter
+    def __init__(self, config: dict, history: DevelopmentHistory):
+        """
+        Initialize the SaturationChecker with configuration and history tracking.
+        
+        Args:
+            config: Configuration dictionary
+            history: DevelopmentHistory instance for logging
+        """
+        # Store history reference
+        self._history = history  # Use protected attribute to avoid conflicts
+        
+        # Configuration parameters
         self.MIN_MATERIAL_PERCENTAGE = 70
         self.STABILITY_THRESHOLD = 3
         self.MAX_ITERATIONS = 10
-        self.INITIAL_BATCH_SIZE = 0.05  # Start mit 5% des Materials
-        self.MAX_BATCH_SIZE = 0.2       # Maximale Batch-Größe 20%
+        self.INITIAL_BATCH_SIZE = 0.05  # Start with 5% of material
+        self.MAX_BATCH_SIZE = 0.2       # Maximum batch size 20%
         
-        # Tracking-Variablen
+        # Tracking variables
         self.processed_percentage = 0
         self.stable_iterations = 0
         self.current_batch_size = self.INITIAL_BATCH_SIZE
         self.last_changes = []
         self.category_metrics = {}
         
-        # Performance-Metriken
+        # Performance metrics
         self.processing_times = []
         self.change_rates = []
+        
+        print("\nInitialisierung von SaturationChecker:")
+        print(f"- Initiale batch size: {self.INITIAL_BATCH_SIZE * 100}%")
+        print(f"- Stabilitätsschwelle: {self.STABILITY_THRESHOLD} Iterationen")
+        print(f"- Minimale Materialmenge: {self.MIN_MATERIAL_PERCENTAGE}%")
     
     def update_batch_size(self, changes: List[Dict]) -> float:
-        """
-        Passt die Batch-Größe dynamisch an basierend auf Änderungsrate und Performance.
-        """
+        """Adjust batch size based on change rate and performance."""
         if not self.change_rates:
             return self.current_batch_size
             
         change_rate = len(changes) / self.current_batch_size
         avg_change_rate = sum(self.change_rates) / len(self.change_rates)
         
-        # Erhöhe Batch-Größe wenn wenige Änderungen
+        # Increase batch size if few changes
         if change_rate < avg_change_rate * 0.5:
             new_size = min(self.current_batch_size * 1.5, self.MAX_BATCH_SIZE)
-        # Verkleinere Batch wenn viele Änderungen
+        # Decrease batch size if many changes
         elif change_rate > avg_change_rate * 1.5:
             new_size = max(self.current_batch_size * 0.7, self.INITIAL_BATCH_SIZE)
         else:
@@ -3309,133 +3772,117 @@ class SaturationChecker:
                         coded_segments: List[CodingResult],
                         material_percentage: float) -> Tuple[bool, Dict]:
         """
-        Prüft die Sättigung mit optimierter Performance und Integration der Kodierungsergebnisse.
-        """
-        start_time = time.time()
+        Check if theoretical saturation has been reached.
         
-        # 1. Schnelle Vorprüfung
-        if material_percentage < self.MIN_MATERIAL_PERCENTAGE:
-            return False, {"reason": "Minimum material not processed"}
+        Args:
+            current_categories: Current category system
+            coded_segments: Previously coded segments
+            material_percentage: Percentage of material processed
             
-        # 2. Analysiere Kategorienstabilität
-        category_changes = self._analyze_category_changes(
-            current_categories, 
-            self.last_changes
-        )
-        
-        # 3. Integriere Kodierungsergebnisse
-        coding_metrics = self._analyze_coding_results(coded_segments)
-        
-        # 4. Kombinierte Sättigungsmetriken
-        saturation_metrics = {
-            'category_stability': len(category_changes) == 0,
-            'coding_consistency': coding_metrics['consistency'] > 0.8,
-            'coverage_adequate': coding_metrics['coverage'] > 0.9
-        }
-        
-        # 5. Update Performance-Metriken
-        processing_time = time.time() - start_time
-        self.processing_times.append(processing_time)
-        
-        # 6. Adaptive Batch-Größenanpassung
-        self.current_batch_size = self.update_batch_size(category_changes)
-        
-        # 7. Prüfe Sättigung
-        is_saturated = all(saturation_metrics.values())
-        if is_saturated:
-            self.stable_iterations += 1
-        else:
-            self.stable_iterations = 0
-        
-        # 8. Speichere Zustand für nächste Iteration
-        self.last_changes = category_changes
-        self.processed_percentage = material_percentage
-        
-        return (self.stable_iterations >= self.STABILITY_THRESHOLD, {
-            'metrics': saturation_metrics,
-            'processing_time': processing_time,
-            'batch_size': self.current_batch_size,
-            'stable_iterations': self.stable_iterations
-        })
-
-    def _analyze_category_changes(self, 
-                                current_categories: Dict[str, CategoryDefinition],
-                                last_changes: List[Dict]) -> List[Dict]:
+        Returns:
+            Tuple[bool, Dict]: (is_saturated, metrics)
         """
-        Analysiert Kategorienänderungen mit Fokus auf Performance.
-        """
-        changes = []
-        
-        # Verwende Sets für schnelle Vergleiche
-        current_cats = set(current_categories.keys())
-        previous_cats = {change['category'] for change in last_changes}
-        
-        # 1. Identifiziere neue und gelöschte Kategorien
-        new_cats = current_cats - previous_cats
-        deleted_cats = previous_cats - current_cats
-        
-        # 2. Prüfe auf signifikante Änderungen (nur für bestehende Kategorien)
-        for cat_name in current_cats & previous_cats:
-            if self._has_significant_changes(
-                current_categories[cat_name],
-                self.category_metrics.get(cat_name, {})
-            ):
-                changes.append({
-                    'type': 'modification',
-                    'category': cat_name
-                })
-        
-        # 3. Füge neue/gelöschte Kategorien hinzu
-        changes.extend([{'type': 'new', 'category': cat} for cat in new_cats])
-        changes.extend([{'type': 'deleted', 'category': cat} for cat in deleted_cats])
-        
-        # 4. Update Metriken für nächste Iteration
-        self.category_metrics = {
-            name: self._extract_category_metrics(cat)
-            for name, cat in current_categories.items()
-        }
-        
-        return changes
-
-    def _analyze_coding_results(self, coded_segments: List[Dict]) -> Dict:
-        """
-        Analysiert Kodierungsergebnisse für Sättigungsprüfung.
-        """
-        from collections import defaultdict
-        
-        # Gruppiere Kodierungen nach Segment für effiziente Analyse
-        segment_codings = defaultdict(list)
-        
-        for coding in coded_segments:
-            # Get segment identifier
-            segment_id = (
-                coding.get('segment_id') or  # Try segment_id first
-                (coding.get('text_references', [None])[0] if coding.get('text_references') else None)  # Then text_references
+        try:
+            # 1. Quick pre-check
+            if material_percentage < self.MIN_MATERIAL_PERCENTAGE:
+                self._history.log_saturation_check(
+                    material_percentage=material_percentage,
+                    result="insufficient_material",
+                    metrics=None
+                )
+                return False, {"reason": "insufficient_material"}
+            
+            # 2. Analyze categories
+            category_metrics = self._analyze_categories(current_categories)
+            
+            # 3. Analyze codings
+            coding_metrics = self._analyze_coding_results(coded_segments)
+            
+            # 4. Combined metrics
+            metrics = {
+                'category_stability': category_metrics['stability'],
+                'coding_consistency': coding_metrics['consistency'],
+                'coverage': coding_metrics['coverage']
+            }
+            
+            # 5. Check saturation
+            is_saturated = all(metrics.values())
+            if is_saturated:
+                self.stable_iterations += 1
+            else:
+                self.stable_iterations = 0
+            
+            # 6. Log results
+            self._history.log_saturation_check(
+                material_percentage=material_percentage,
+                result="saturated" if is_saturated else "not_saturated",
+                metrics={
+                    **metrics,
+                    'stable_iterations': self.stable_iterations
+                }
             )
             
-            if segment_id:
-                segment_codings[segment_id].append(coding)
-        
-        # Berechne Metriken
-        total_segments = len(segment_codings)
-        consistent_segments = 0
-        
-        # Prüfe Konsistenz für jedes Segment
-        for segment_codings_list in segment_codings.values():
-            if self._is_coding_consistent(segment_codings_list):
-                consistent_segments += 1
-        
-        # Kategorienutzung analysieren
-        category_usage = defaultdict(int)
-        for coding in coded_segments:
-            if 'category' in coding:
-                category_usage[coding['category']] += 1
-        
-        return {
-            'consistency': consistent_segments / total_segments if total_segments > 0 else 0,
-            'coverage': len(category_usage) / len(self.category_metrics) if self.category_metrics else 0,
-            'category_usage': dict(category_usage)
+            self.processed_percentage = material_percentage
+            return (self.stable_iterations >= self.STABILITY_THRESHOLD), metrics
+            
+        except Exception as e:
+            self._history.log_error("saturation_check_error", str(e))
+            raise
+
+    def _analyze_categories(self, categories: Dict[str, CategoryDefinition]) -> Dict:
+        """Analyze the current state of the category system."""
+        analysis = {
+            'stability': True,
+            'metrics': {}
         }
+        
+        # Simple category analysis
+        if len(self.last_changes) >= 3:
+            changes_rate = len(self.last_changes[-3:]) / 3
+            analysis['stability'] = changes_rate < 0.2
+            
+        return analysis
+
+    def _analyze_coding_results(self, coded_segments: List[Dict]) -> Dict:
+        """Analyze the coding results for consistency and coverage."""
+        try:
+            # Initialize metrics
+            consistency = 0.0
+            coverage = 0.0
+            
+            if coded_segments:
+                # Calculate coding consistency
+                segment_categories = {}
+                for coding in coded_segments:
+                    segment_id = coding.get('segment_id', '')
+                    if segment_id not in segment_categories:
+                        segment_categories[segment_id] = set()
+                    segment_categories[segment_id].add(coding.get('category', ''))
+                
+                # Calculate average agreement
+                agreements = sum(1 for cats in segment_categories.values() if len(cats) == 1)
+                consistency = agreements / len(segment_categories) if segment_categories else 0
+                
+                # Calculate category coverage
+                used_categories = set()
+                possible_categories = set()
+                for coding in coded_segments:
+                    if coding.get('category'):
+                        used_categories.add(coding['category'])
+                        
+                coverage = len(used_categories) / len(possible_categories) if possible_categories else 1
+            
+            return {
+                'consistency': consistency,
+                'coverage': coverage
+            }
+            
+        except Exception as e:
+            self._history.log_error("coding_analysis_error", str(e))
+            return {
+                'consistency': 0.0,
+                'coverage': 0.0
+            }
 
     def _is_coding_consistent(self, codings: List[Dict]) -> bool:
         """
@@ -3445,30 +3892,18 @@ class SaturationChecker:
             return False
         
         try:
-            # Use dictionary access instead of attribute access
-            categories = {coding.get('category', '') if isinstance(coding, CodingResult) 
-                        else coding['category'] if isinstance(coding, dict) and 'category' in coding 
-                        else '' for coding in codings}
+            # Extract categories using dictionary access
+            categories = {coding['category'] for coding in codings if 'category' in coding}
             
-            # Get subcategories
+            # Get subcategories using dictionary access
             subcategories = set()
             for coding in codings:
-                if isinstance(coding, dict) and 'subcategories' in coding:
+                if 'subcategories' in coding:
                     subs = coding['subcategories']
                     if isinstance(subs, list):
                         subcategories.update(subs)
                     elif isinstance(subs, str):
                         subcategories.add(subs)
-                elif isinstance(coding, CodingResult):
-                    subs = coding.subcategories if hasattr(coding, 'subcategories') else []
-                    if isinstance(subs, list):
-                        subcategories.update(subs)
-                    elif isinstance(subs, str):
-                        subcategories.add(subs)
-            
-            # Remove empty categories
-            categories.discard('')
-            subcategories.discard('')
             
             # Consistent if only one main category or at most 2 subcategories
             return len(categories) <= 1 or len(subcategories) <= 2
@@ -3476,6 +3911,8 @@ class SaturationChecker:
         except Exception as e:
             print(f"Warning: Error in consistency check: {str(e)}")
             return False
+
+
 
 
     def _has_significant_changes(self, 
@@ -3534,7 +3971,9 @@ class SaturationChecker:
         
         # Konsistent wenn weniger als 3 verschiedene Subkategorien
         return len(subcategories) <= 2
-    
+
+
+
 # --- Klasse: ResultsExporter ---
 # Aufgabe: Export der kodierten Daten und des finalen Kategoriensystems
 class ResultsExporter:
@@ -3633,32 +4072,115 @@ class ResultsExporter:
         pass
     
     def _prepare_coding_for_export(self, coding: dict, chunk: str, chunk_id: int, doc_name: str) -> dict:
-        """Bereitet eine Kodierung für den Export vor."""
-        attribut1, attribut2 = self._extract_metadata(doc_name)
+        """
+        Bereitet eine Kodierung für den Export vor.
         
-        # Formatiere die Konfidenz-Werte
-        confidence = coding.get('confidence', {})
-        if isinstance(confidence, dict):
-            formatted_confidence = f"Kategorie: {confidence.get('category', 0):.2f}\nSubkategorien: {confidence.get('subcategories', 0):.2f}"
-        else:
-            formatted_confidence = f"{confidence:.2f}"
-        
-        export_data = {
-            'Dokument': doc_name,
-            self.attribute_labels['attribut1']: attribut1,
-            self.attribute_labels['attribut2']: attribut2,
-            'Chunk_Nr': chunk_id,
-            'Text': chunk,
-            'Kodiert': 'Nein' if coding['category'] == "Nicht kodiert" else 'Ja',
-            'Hauptkategorie': coding.get('category', ''),
-            'Kategorietyp': coding.get('Kategorietyp', 'unbekannt'),
-            'Subkategorien': ', '.join(coding.get('subcategories', [])),
-            'Begründung': coding.get('justification', ''),
-            'Konfidenz': formatted_confidence,
-            'Mehrfachkodierung': 'Ja' if len(coding.get('subcategories', [])) > 1 else 'Nein'
-        }
-        return export_data
+        Args:
+            coding: Kodierungsergebnis
+            chunk: Textabschnitt
+            chunk_id: ID des Chunks
+            doc_name: Name des Dokuments
+            
+        Returns:
+            dict: Aufbereitete Kodierungsdaten für Export
+        """
+        try:
+            # Extrahiere Attribute aus dem Dateinamen
+            attribut1, attribut2 = self._extract_metadata(doc_name)
+            
+            # Prüfe ob eine gültige Kategorie vorhanden ist
+            category = coding.get('category', '')
+            
+            # Bestimme den Kategorietyp (deduktiv/induktiv)
+            if category in DEDUKTIVE_KATEGORIEN:
+                kategorie_typ = "deduktiv"
+            else:
+                kategorie_typ = "induktiv"
+                
+            # Setze Kodiert-Status basierend auf Kategorie
+            is_coded = 'Ja' if category and category != "Nicht kodiert" else 'Nein'
+            
+            # Formatiere Konfidenz-Werte
+            confidence = coding.get('confidence', {})
+            if isinstance(confidence, dict):
+                formatted_confidence = (
+                    f"Kategorie: {confidence.get('category', 0):.2f}\n"
+                    f"Subkategorien: {confidence.get('subcategories', 0):.2f}"
+                )
+            else:
+                formatted_confidence = f"{float(confidence):.2f}"
+            
+            # Erstelle Export-Dictionary mit allen erforderlichen Feldern
+            export_data = {
+                'Dokument': doc_name,
+                self.attribute_labels['attribut1']: attribut1,
+                self.attribute_labels['attribut2']: attribut2,
+                'Chunk_Nr': chunk_id,
+                'Text': chunk,
+                'Kodiert': is_coded,
+                'Hauptkategorie': category,
+                'Kategorietyp': kategorie_typ,  # Hier wird der korrekte Typ gesetzt
+                'Subkategorien': ', '.join(coding.get('subcategories', [])),
+                'Begründung': coding.get('justification', ''),
+                'Konfidenz': formatted_confidence,
+                'Mehrfachkodierung': 'Ja' if len(coding.get('subcategories', [])) > 1 else 'Nein'
+            }
+            
+            return export_data
+            
+        except Exception as e:
+            print(f"Fehler bei der Exportvorbereitung für Chunk {chunk_id}: {str(e)}")
+            # Rückgabe eines Minimal-Datensatzes im Fehlerfall
+            return {
+                'Dokument': doc_name,
+                'Chunk_Nr': chunk_id,
+                'Text': chunk,
+                'Kodiert': 'Nein',
+                'Hauptkategorie': 'Fehler bei Verarbeitung',
+                'Kategorietyp': 'unbekannt',
+                'Begründung': f'Fehler: {str(e)}'
+            }
 
+    def _validate_export_data(self, export_data: List[dict]) -> bool:
+        """
+        Validiert die zu exportierenden Daten.
+        
+        Args:
+            export_data: Liste der aufbereiteten Export-Daten
+            
+        Returns:
+            bool: True wenn Daten valide sind
+        """
+        required_columns = {
+            'Dokument', 'Chunk_Nr', 'Text', 'Kodiert', 
+            'Hauptkategorie', 'Kategorietyp', 'Subkategorien', 
+            'Begründung', 'Konfidenz', 'Mehrfachkodierung'
+        }
+        
+        try:
+            if not export_data:
+                print("Warnung: Keine Daten zum Exportieren vorhanden")
+                return False
+                
+            # Prüfe ob alle erforderlichen Spalten vorhanden sind
+            for entry in export_data:
+                missing_columns = required_columns - set(entry.keys())
+                if missing_columns:
+                    print(f"Warnung: Fehlende Spalten in Eintrag: {missing_columns}")
+                    return False
+                    
+                # Prüfe Kodiert-Status
+                if entry['Kodiert'] not in {'Ja', 'Nein'}:
+                    print(f"Warnung: Ungültiger Kodiert-Status: {entry['Kodiert']}")
+                    return False
+                    
+            print("Validierung der Export-Daten erfolgreich")
+            return True
+            
+        except Exception as e:
+            print(f"Fehler bei der Validierung der Export-Daten: {str(e)}")
+            return False
+            
     def _extract_metadata(self, filename: str) -> tuple:
         """Extrahiert Metadaten aus dem Dateinamen"""
         from pathlib import Path
@@ -3667,183 +4189,320 @@ class ResultsExporter:
         attribut2 = tokens[1] if len(tokens) >= 2 else ""
         return attribut1, attribut2
 
-    def _export_frequency_analysis(
-            self, writer, df_coded: pd.DataFrame, df_pivot_main: pd.DataFrame, 
-            df_pivot_subcats: pd.DataFrame, df_pivot_attr1: pd.DataFrame, 
-            df_pivot_attr2: pd.DataFrame, attribut1_label: str, attribut2_label: str
-        ) -> None:
-        """
-        Exportiert die Häufigkeitsanalysen mit Randsummen und bedingter Formatierung.
-        """
+    def _export_frequency_analysis(self, writer, df_coded: pd.DataFrame, attribut1_label: str, attribut2_label: str) -> None:
+        """Exportiert die Häufigkeitsanalysen mit Haupt- und Subkategorien inkl. Randsummen"""
         try:
+            # Erstelle das Arbeitsblatt
             if 'Häufigkeitsanalysen' not in writer.sheets:
                 writer.book.create_sheet('Häufigkeitsanalysen')
             
             worksheet = writer.sheets['Häufigkeitsanalysen']
-            start_row = 1
+            worksheet.delete_rows(1, worksheet.max_row)  # Bestehende Daten löschen
 
-            # 1. Hauptkategorien nach Dokumenten
-            worksheet.cell(row=start_row, column=1, value="1. Hauptkategorien nach Dokumenten")
-            start_row += 1
-
-            # Füge Randsummen hinzu
-            df_main_with_totals = df_pivot_main.copy()
-            df_main_with_totals['Summe'] = df_main_with_totals.sum(axis=1)
-            df_main_with_totals.loc['Summe'] = df_main_with_totals.sum()
-
-            # Export der Hauptkategorien
-            for r_idx, row in enumerate(dataframe_to_rows(df_main_with_totals, index=True), start_row):
-                for c_idx, value in enumerate(row, 1):
-                    cell = worksheet.cell(row=r_idx, column=c_idx, value=value)
-                    if r_idx == len(df_main_with_totals) + start_row - 1 or c_idx == len(row):
-                        cell.font = Font(bold=True)
-                        cell.fill = PatternFill(start_color='EEEEEE', end_color='EEEEEE', fill_type='solid')
-
-            # Bedingte Formatierung für Hauptkategorien
-            data_range = f"B{start_row+1}:{get_column_letter(len(df_pivot_main.columns)+1)}{start_row+len(df_pivot_main)}"
-            self._add_color_scale(worksheet, data_range)
-
-            # 2. Subkategorien nach Dokumenten
-            if not df_pivot_subcats.empty:
-                start_row += len(df_main_with_totals) + 3
-                worksheet.cell(row=start_row, column=1, value="2. Subkategorien nach Dokumenten")
-                start_row += 1
-
-                # Pivot-Tabelle für Subkategorien erstellen
-                df_sub_pivot = pd.pivot_table(
-                    df_pivot_subcats,
-                    index=['Subkategorie'],
-                    columns=[attribut1_label, attribut2_label],
-                    values='Chunk_Nr',
-                    aggfunc='count',
-                    fill_value=0
-                )
-
-                # Randsummen hinzufügen
-                df_sub_with_totals = df_sub_pivot.copy()
-                df_sub_with_totals['Summe'] = df_sub_with_totals.sum(axis=1)
-                df_sub_with_totals.loc['Summe'] = df_sub_with_totals.sum()
-
-                for r_idx, row in enumerate(dataframe_to_rows(df_sub_with_totals, index=True), start_row):
-                    for c_idx, value in enumerate(row, 1):
-                        cell = worksheet.cell(row=r_idx, column=c_idx, value=value)
-                        if r_idx == len(df_sub_with_totals) + start_row - 1 or c_idx == len(row):
-                            cell.font = Font(bold=True)
-                            cell.fill = PatternFill(start_color='EEEEEE', end_color='EEEEEE', fill_type='solid')
-
-                data_range = f"B{start_row+1}:{get_column_letter(len(df_sub_pivot.columns)+1)}{start_row+len(df_sub_pivot)}"
-                self._add_color_scale(worksheet, data_range)
-
-            # 3. Attribut 1 Analyse
-            start_row += (len(df_sub_with_totals) if 'df_sub_with_totals' in locals() else 0) + 3
-            worksheet.cell(row=start_row, column=1, value=f"3. Analyse nach {attribut1_label}")
-            start_row += 1
-
-            # Randsummen für Attribut 1
-            df_attr1_with_totals = df_pivot_attr1.copy()
-            df_attr1_with_totals.loc['Summe'] = df_attr1_with_totals.sum()
-
-            for r_idx, row in enumerate(dataframe_to_rows(df_attr1_with_totals, index=True), start_row):
-                for c_idx, value in enumerate(row, 1):
-                    cell = worksheet.cell(row=r_idx, column=c_idx, value=value)
-                    if r_idx == len(df_attr1_with_totals) + start_row - 1:
-                        cell.font = Font(bold=True)
-                        cell.fill = PatternFill(start_color='EEEEEE', end_color='EEEEEE', fill_type='solid')
-
-            # 4. Attribut 2 Analyse
-            start_row += len(df_attr1_with_totals) + 3
-            worksheet.cell(row=start_row, column=1, value=f"4. Analyse nach {attribut2_label}")
-            start_row += 1
-
-            # Randsummen für Attribut 2
-            df_attr2_with_totals = df_pivot_attr2.copy()
-            df_attr2_with_totals.loc['Summe'] = df_attr2_with_totals.sum()
-
-            for r_idx, row in enumerate(dataframe_to_rows(df_attr2_with_totals, index=True), start_row):
-                for c_idx, value in enumerate(row, 1):
-                    cell = worksheet.cell(row=r_idx, column=c_idx, value=value)
-                    if r_idx == len(df_attr2_with_totals) + start_row - 1:
-                        cell.font = Font(bold=True)
-                        cell.fill = PatternFill(start_color='EEEEEE', end_color='EEEEEE', fill_type='solid')
-
-            # 5. Kreuztabelle der Attribute
-            start_row += len(df_attr2_with_totals) + 3
-            worksheet.cell(row=start_row, column=1, value="5. Kreuztabelle der Attribute")
-            start_row += 1
-
-            # Erstelle Kreuztabelle
-            df_cross = pd.crosstab(df_coded[attribut1_label], df_coded[attribut2_label])
+            current_row = 1
             
-            # Randsummen für Kreuztabelle
-            df_cross_with_totals = df_cross.copy()
-            df_cross_with_totals['Summe'] = df_cross_with_totals.sum(axis=1)
-            df_cross_with_totals.loc['Summe'] = df_cross_with_totals.sum()
-
-            for r_idx, row in enumerate(dataframe_to_rows(df_cross_with_totals, index=True), start_row):
-                for c_idx, value in enumerate(row, 1):
-                    cell = worksheet.cell(row=r_idx, column=c_idx, value=value)
-                    if r_idx == len(df_cross_with_totals) + start_row - 1 or c_idx == len(row):
-                        cell.font = Font(bold=True)
-                        cell.fill = PatternFill(start_color='EEEEEE', end_color='EEEEEE', fill_type='solid')
-
-            data_range = f"B{start_row+1}:{get_column_letter(len(df_cross.columns)+1)}{start_row+len(df_cross)}"
-            self._add_color_scale(worksheet, data_range)
-
-            # Allgemeine Formatierung
-            self._format_frequency_worksheet(worksheet)
-
-        except Exception as e:
-            print(f"Fehler beim Export der Häufigkeitsanalysen: {str(e)}")
-            import traceback
-            traceback.print_exc()
-    def _add_color_scale(self, worksheet, range_string: str) -> None:
-        """Fügt Farbskala für einen Bereich hinzu."""
-        color_scale_rule = ColorScaleRule(
-            start_type='min',
-            start_color='FFFFFF',
-            mid_type='percentile',
-            mid_value=50,
-            mid_color='FFD966',
-            end_type='max',
-            end_color='FF8C00'
-        )
-        worksheet.conditional_formatting.add(range_string, color_scale_rule)
-
-    def _format_frequency_worksheet(self, worksheet) -> None:
-        """Formatiert das Häufigkeitsanalysen-Worksheet."""
-        try:
-            # Definiere Stile
+            # Formatierungsstile
+            from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
             header_font = Font(bold=True)
-            centered_alignment = Alignment(horizontal='center', vertical='center')
-            border = Border(
-                left=Side(style='thin'),
-                right=Side(style='thin'),
-                top=Side(style='thin'),
-                bottom=Side(style='thin')
+            subheader_font = Font(bold=True, size=11)
+            title_font = Font(bold=True, size=12)
+            
+            # 1. Hauptkategorien nach Dokumenten
+            worksheet.cell(row=current_row, column=1, value="1. Verteilung der Hauptkategorien").font = title_font
+            current_row += 2
+
+            # Erstelle Pivot-Tabelle für Hauptkategorien
+            pivot_main = pd.pivot_table(
+                df_coded,
+                index=['Hauptkategorie'],
+                columns=[attribut1_label, attribut2_label],
+                values='Chunk_Nr',
+                aggfunc='count',
+                margins=True,  # Aktiviere Randsummen
+                margins_name='Gesamt',
+                fill_value=0
             )
 
-            # Setze Spaltenbreiten
-            worksheet.column_dimensions['A'].width = 40  # Kategorienamen
-            for col in range(1, worksheet.max_column + 1):
-                col_letter = get_column_letter(col)
-                if col > 1:
-                    worksheet.column_dimensions[col_letter].width = 15
+            # Schreibe Header
+            header_row = current_row
+            for col, header in enumerate(['Hauptkategorie'] + list(pivot_main.columns), 1):
+                cell = worksheet.cell(row=header_row, column=col, value=str(header))
+                cell.font = header_font
+            current_row += 1
 
-            # Formatiere Überschriften und Zellen
-            for row in worksheet.iter_rows():
-                for cell in row:
-                    cell.border = border
-                    
-                    # Formatiere Überschriften
-                    if cell.row == 1 or cell.column == 1:
+            # Schreibe Daten inkl. Randsummen
+            for idx, row in pivot_main.iterrows():
+                worksheet.cell(row=current_row, column=1, value=str(idx)).font = Font(bold=(idx == 'Gesamt'))
+                for col, value in enumerate(row, 2):
+                    cell = worksheet.cell(row=current_row, column=col, value=value)
+                    if idx == 'Gesamt' or col == len(row) + 2:  # Formatiere Randsummen
                         cell.font = header_font
-                    
-                    # Zentriere Zahlenwerte
-                    if isinstance(cell.value, (int, float)):
-                        cell.alignment = centered_alignment
+                current_row += 1
 
+            current_row += 2
+
+            # 2. Subkategorien-Hierarchie
+            worksheet.cell(row=current_row, column=1, value="2. Subkategorien nach Hauptkategorien").font = title_font
+            current_row += 2
+
+            # Erstelle Pivot für Subkategorien
+            df_sub = df_coded.copy()
+            df_sub['Subkategorie'] = df_sub['Subkategorien'].str.split(', ')
+            df_sub = df_sub.explode('Subkategorie')
+            
+            pivot_sub = pd.pivot_table(
+                df_sub,
+                index=['Hauptkategorie', 'Subkategorie'],
+                columns=[attribut1_label, attribut2_label],
+                values='Chunk_Nr',
+                aggfunc='count',
+                margins=True,
+                margins_name='Gesamt',
+                fill_value=0
+            )
+
+            # Schreibe Header
+            header_row = current_row
+            headers = ['Hauptkategorie', 'Subkategorie'] + list(pivot_sub.columns)
+            for col, header in enumerate(headers, 1):
+                cell = worksheet.cell(row=header_row, column=col, value=str(header))
+                cell.font = header_font
+            current_row += 1
+
+            # Schreibe Daten mit hierarchischer Struktur
+            current_main_cat = None
+            for index, row in pivot_sub.iterrows():
+                if isinstance(index, tuple):  # Normale Zeile
+                    main_cat, sub_cat = index
+                    if main_cat != current_main_cat:
+                        # Neue Hauptkategorie - füge Zwischenüberschrift ein
+                        current_row += 1
+                        cell = worksheet.cell(row=current_row, column=1, value=main_cat)
+                        cell.font = subheader_font
+                        current_row += 1
+                        current_main_cat = main_cat
+                    
+                    # Schreibe Subkategorie und Werte
+                    worksheet.cell(row=current_row, column=2, value=sub_cat)
+                    for col, value in enumerate(row, 3):
+                        cell = worksheet.cell(row=current_row, column=col, value=value)
+                else:  # Randsummenzeile
+                    worksheet.cell(row=current_row, column=1, value=index).font = header_font
+                    for col, value in enumerate(row, 3):
+                        cell = worksheet.cell(row=current_row, column=col, value=value)
+                        cell.font = header_font
+                current_row += 1
+
+            # Passe Spaltenbreiten an
+            for col in worksheet.columns:
+                max_length = 0
+                for cell in col:
+                    try:
+                        if len(str(cell.value)) > max_length:
+                            max_length = len(str(cell.value))
+                    except:
+                        pass
+                worksheet.column_dimensions[col[0].column_letter].width = min(max_length + 2, 40)
+
+            print("Häufigkeitsanalysen erfolgreich exportiert")
+            
         except Exception as e:
-            print(f"Warnung: Formatierung des Häufigkeitsanalysen-Worksheets fehlgeschlagen: {str(e)}")
+            print(f"Fehler bei Häufigkeitsanalysen: {str(e)}")
+            import traceback
+            traceback.print_exc()
+
+    def _write_main_category_analysis(self, worksheet, df_coded, attribut1_label, attribut2_label):
+        """Hauptkategorien nach Dokumenten mit Formatierung"""
+        if not df_coded.empty:
+            # Pivot-Tabelle erstellen
+            main_pivot = pd.pivot_table(
+                df_coded,
+                index=['Hauptkategorie'],
+                columns=[attribut1_label, attribut2_label],
+                values='Chunk_Nr',
+                aggfunc='count',
+                fill_value=0
+            )
+
+            # Überschrift
+            worksheet.append(["Hauptkategorien nach Dokumenten"])
+            worksheet.append([])  # Leerzeile
+
+            # Header formatieren - Tuples in Strings umwandeln
+            header = ["Hauptkategorie"]
+            for col in main_pivot.columns:
+                # Kombiniere die Tuple-Werte zu einem String
+                header_text = f"{col[0]}_{col[1]}" if isinstance(col, tuple) else str(col)
+                header.append(header_text)
+            
+            # Schreibe formatierten Header
+            worksheet.append(header)
+
+            # Daten schreiben
+            for index, row in main_pivot.iterrows():
+                worksheet.append([index] + list(row))
+
+            # Formatierung
+            self._apply_table_formatting(worksheet, main_pivot, start_row=3)
+
+    def _write_subcategory_hierarchy(self, worksheet, df_coded, attribut1_label, attribut2_label):
+        """Subkategorien-Hierarchie mit Hauptkategorien"""
+        if not df_coded.empty and 'Subkategorien' in df_coded.columns:
+            # Subkategorien aufspalten
+            df_sub = df_coded.copy()
+            df_sub['Subkategorie'] = df_sub['Subkategorien'].str.split(', ')
+            df_sub = df_sub.explode('Subkategorie')
+
+            # Pivot-Tabelle erstellen
+            sub_pivot = pd.pivot_table(
+                df_sub,
+                index=['Hauptkategorie', 'Subkategorie'],
+                columns=[attribut1_label, attribut2_label],
+                values='Chunk_Nr',
+                aggfunc='count',
+                fill_value=0
+            )
+
+            # Abstand
+            worksheet.append([])
+            worksheet.append(["Subkategorien-Hierarchie"])
+            worksheet.append([])
+
+            # Header formatieren - Tuples in Strings umwandeln
+            header = ["Hauptkategorie", "Subkategorie"]
+            for col in sub_pivot.columns:
+                # Kombiniere die Tuple-Werte zu einem String
+                header_text = f"{col[0]}_{col[1]}" if isinstance(col, tuple) else str(col)
+                header.append(header_text)
+
+            # Schreibe formatierten Header
+            worksheet.append(header)
+
+            # Daten schreiben - Mit Tuple-Handling für MultiIndex
+            for index, row in sub_pivot.iterrows():
+                # Behandle MultiIndex (Hauptkategorie, Subkategorie)
+                if isinstance(index, tuple):
+                    row_data = list(index) + list(row)
+                else:
+                    row_data = [index, ""] + list(row)
+                worksheet.append(row_data)
+
+            # Formatierung
+            self._apply_table_formatting(worksheet, sub_pivot, start_row=worksheet.max_row - len(sub_pivot))
+
+    def _format_column_header(self, column):
+        """Formatiert Spaltenüberschriften für Excel-Export.
+        
+        Args:
+            column: Spaltenname (kann String, Tuple oder andere Typen sein)
+            
+        Returns:
+            str: Formatierter Spaltenname
+        """
+        if isinstance(column, tuple):
+            # Verbinde Tuple-Elemente mit Unterstrich
+            return "_".join(str(x) for x in column if x is not None)
+        else:
+            return str(column)
+        
+    def _write_attribute_analysis(self, worksheet, df_coded, attribut1_label, attribut2_label):
+        """Analysen nach Attributen"""
+        # Abstand und Überschrift
+        worksheet.append([])
+        worksheet.append(["Attribut-Analysen"])
+        worksheet.append([])
+        
+        # Attribut 1 Analyse
+        worksheet.append([f"Verteilung nach {attribut1_label}"])
+        worksheet.append([])
+        
+        attr1_pivot = pd.pivot_table(
+            df_coded,
+            index=[attribut1_label],
+            values='Chunk_Nr',
+            aggfunc='count'
+        )
+        
+        # Header und Daten für Attribut 1
+        worksheet.append([attribut1_label, "Anzahl"])
+        for index, value in attr1_pivot.iterrows():
+            worksheet.append([index, int(value.iloc[0])])
+        
+        # Leerzeilen
+        worksheet.append([])
+        worksheet.append([])
+        
+        # Attribut 2 Analyse
+        worksheet.append([f"Verteilung nach {attribut2_label}"])
+        worksheet.append([])
+        
+        attr2_pivot = pd.pivot_table(
+            df_coded,
+            index=[attribut2_label],
+            values='Chunk_Nr',
+            aggfunc='count'
+        )
+        
+        # Header und Daten für Attribut 2
+        worksheet.append([attribut2_label, "Anzahl"])
+        for index, value in attr2_pivot.iterrows():
+            worksheet.append([index, int(value.iloc[0])])
+        
+        # Leerzeilen
+        worksheet.append([])
+        worksheet.append([])
+        
+        # Kreuztabelle beider Attribute
+        worksheet.append(["Kreuztabelle der Attribute"])
+        worksheet.append([])
+        
+        cross_pivot = pd.pivot_table(
+            df_coded,
+            index=[attribut1_label],
+            columns=[attribut2_label],
+            values='Chunk_Nr',
+            aggfunc='count',
+            fill_value=0
+        )
+        
+        # Header für Kreuztabelle
+        header = [attribut1_label]
+        for col in cross_pivot.columns:
+            header.append(self._format_column_header(col))
+        worksheet.append(header)
+        
+        # Daten für Kreuztabelle
+        for index, row in cross_pivot.iterrows():
+            worksheet.append([index] + [int(x) for x in row])
+        
+        # Formatierung der Tabellen
+        self._apply_table_formatting(worksheet, attr1_pivot, start_row=worksheet.max_row - len(attr1_pivot))
+        self._apply_table_formatting(worksheet, attr2_pivot, start_row=worksheet.max_row - len(attr2_pivot))
+        self._apply_table_formatting(worksheet, cross_pivot, start_row=worksheet.max_row - len(cross_pivot))
+
+    def _apply_table_formatting(self, worksheet, pivot_table, start_row):
+        """Wendet Formatierung auf die Pivot-Tabellen an"""
+        # Rahmen
+        border = Border(left=Side(style='thin'), 
+                    right=Side(style='thin'),
+                    top=Side(style='thin'), 
+                    bottom=Side(style='thin'))
+
+        # Zahlenformatierung
+        for row in worksheet.iter_rows(min_row=start_row, max_row=worksheet.max_row):
+            for cell in row[1:]:  # Überspringt die erste Spalte (Kategorienamen)
+                cell.number_format = '0'
+                cell.border = border
+
+        # Bedingte Formatierung
+        color_scale_rule = ColorScaleRule(
+            start_type='min', start_color='FFFFFF',
+            mid_type='percentile', mid_value=50, mid_color='FFD966',
+            end_type='max', end_color='FF8C00'
+        )
+        
+        data_range = f"B{start_row}:{get_column_letter(len(pivot_table.columns)+1)}{worksheet.max_row}"
+        worksheet.conditional_formatting.add(data_range, color_scale_rule)
 
     def _export_reliability_report(self, writer, reliability: float, total_segments: int, 
                                    total_coders: int, category_frequencies: dict):
@@ -3900,49 +4559,179 @@ class ResultsExporter:
         self._format_reliability_worksheet(worksheet)
 
 
-    def _format_reliability_worksheet(self, worksheet):
+    def _format_reliability_worksheet(self, worksheet) -> None:
         """
-        Formatiert das Reliability Report Worksheet.
+        Formatiert das Reliability Report Worksheet und entfernt Markdown-Formatierungen.
+        
+        Args:
+            worksheet: Das zu formatierende Worksheet-Objekt
         """
-        from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+        try:
+            # Importiere Styling-Klassen
+            from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+            
+            # Definiere Stile
+            title_font = Font(bold=True, size=14)
+            header_font = Font(bold=True, size=12)
+            normal_font = Font(size=11)
+            header_fill = PatternFill(start_color='EEEEEE', end_color='EEEEEE', fill_type='solid')
+            border = Border(
+                left=Side(style='thin'),
+                right=Side(style='thin'),
+                top=Side(style='thin'),
+                bottom=Side(style='thin')
+            )
 
-        # Definiere Stile
-        title_font = Font(bold=True, size=14)
-        header_font = Font(bold=True, size=12)
-        normal_font = Font(size=11)
-        border = Border(left=Side(style='thin'), right=Side(style='thin'), top=Side(style='thin'), bottom=Side(style='thin'))
+            # Setze Spaltenbreiten
+            worksheet.column_dimensions['A'].width = 40
+            worksheet.column_dimensions['B'].width = 20
 
-        # Setze Spaltenbreiten
-        worksheet.column_dimensions['A'].width = 40
-        worksheet.column_dimensions['B'].width = 20
+            # Formatiere Zellen und entferne Markdown
+            for row in worksheet.iter_rows():
+                for cell in row:
+                    if cell.value and isinstance(cell.value, str):
+                        # Entferne Markdown-Formatierungen
+                        value = cell.value
+                        # Entferne Überschriften-Markierungen
+                        if value.startswith('# '):
+                            value = value.replace('# ', '')
+                            cell.font = title_font
+                        elif value.startswith('## '):
+                            value = value.replace('## ', '')
+                            cell.font = header_font
+                        elif value.startswith('### '):
+                            value = value.replace('### ', '')
+                            cell.font = header_font
+                        
+                        # Entferne Aufzählungszeichen
+                        if value.startswith('- '):
+                            value = value.replace('- ', '')
+                        elif value.startswith('* '):
+                            value = value.replace('* ', '')
+                        
+                        # Aktualisiere Zellenwert
+                        cell.value = value
+                        
+                        # Grundformatierung
+                        cell.alignment = Alignment(wrap_text=True, vertical='top')
+                        if not cell.font:
+                            cell.font = normal_font
 
-        # Formatiere Zellen
-        for row in worksheet.iter_rows():
-            for cell in row:
-                cell.alignment = Alignment(wrap_text=True, vertical='top')
-                cell.font = normal_font
-                if cell.row == 1:  # Titel
-                    cell.font = title_font
-                elif cell.column == 1 and cell.value and ':' not in str(cell.value):  # Überschriften
-                    cell.font = header_font
-                
-                # Füge Rahmen zu Tabellenzellen hinzu
-                if '|' in str(worksheet.cell(row=1, column=cell.column).value):
-                    cell.border = border
+                        # Formatiere Überschriften
+                        if row[0].row == 1:  # Erste Zeile
+                            cell.font = title_font
+                        elif cell.column == 1 and value and ':' not in value:
+                            cell.font = header_font
+                            cell.fill = header_fill
 
-        # Zentriere Tabellenkopf
-        for cell in worksheet[2]:
-            if cell.value:
-                cell.alignment = Alignment(horizontal='center', vertical='center')
+                        # Rahmen für alle nicht-leeren Zellen
+                        if value:
+                            cell.border = border
 
-        # Füge einen schmalen Rahmen um den gesamten Bericht hinzu
-        thin_border = Border(left=Side(style='thin'), right=Side(style='thin'), top=Side(style='thin'), bottom=Side(style='thin'))
-        for row in worksheet.iter_rows():
-            for cell in row:
-                if cell.value:
-                    cell.border = thin_border
+                        # Spezielle Formatierung für Tabellenzellen
+                        if '|' in str(worksheet.cell(row=1, column=cell.column).value):
+                            cell.alignment = Alignment(horizontal='center', vertical='center')
+                            cell.border = border
 
-    
+        except Exception as e:
+            print(f"Warnung: Formatierung des Reliability-Worksheets fehlgeschlagen: {str(e)}")
+            import traceback
+            traceback.print_exc()
+
+    def _prepare_export_data(self, codings: List[Dict], chunks: Dict[str, List[str]]) -> List[Dict]:
+        """
+        Bereitet die Kodierungsdaten für den Export vor.
+        
+        Args:
+            codings: Liste der Kodierungsergebnisse
+            chunks: Dictionary mit Dokumenten-Chunks
+            
+        Returns:
+            List[Dict]: Aufbereitete Daten für Export
+        """
+        export_data = []
+        
+        for coding in codings:
+            try:
+                # Extrahiere segment_id und chunk
+                segment_id = coding.get('segment_id', '')
+                if not segment_id:
+                    print(f"Warnung: Überspringe Kodierung ohne segment_id")
+                    continue
+                    
+                try:
+                    doc_name = segment_id.split('_chunk_')[0]
+                    chunk_id = int(segment_id.split('_chunk_')[1])
+                    chunk_text = chunks[doc_name][chunk_id]
+                    
+                    # Extrahiere Attribute aus dem Dateinamen
+                    attribut1, attribut2 = self._extract_metadata(doc_name)
+                    
+                    # Prüfe ob eine gültige Kategorie vorhanden ist
+                    category = coding.get('category', '')
+                    # Setze Kodiert-Status basierend auf Kategorie und deren Gültigkeit
+                    is_coded = 'Ja' if category and category != "Nicht kodiert" else 'Nein'
+                    
+                    # Formatiere Konfidenz-Werte
+                    confidence = coding.get('confidence', {})
+                    if isinstance(confidence, dict):
+                        formatted_confidence = (
+                            f"Kategorie: {confidence.get('category', 0):.2f}\n"
+                            f"Subkategorien: {confidence.get('subcategories', 0):.2f}"
+                        )
+                    else:
+                        formatted_confidence = f"{float(confidence):.2f}"
+                    
+                    # Erstelle Export-Dictionary
+                    export_entry = {
+                        'Dokument': doc_name,
+                        self.attribute_labels['attribut1']: attribut1,
+                        self.attribute_labels['attribut2']: attribut2,
+                        'Chunk_Nr': chunk_id,
+                        'Text': chunk_text,
+                        'Kodiert': is_coded,
+                        'Hauptkategorie': category,
+                        'Kategorietyp': coding.get('Kategorietyp', 'unbekannt'),
+                        'Subkategorien': ', '.join(coding.get('subcategories', [])),
+                        'Begründung': coding.get('justification', ''),
+                        'Konfidenz': formatted_confidence,
+                        'Mehrfachkodierung': 'Ja' if len(coding.get('subcategories', [])) > 1 else 'Nein'
+                    }
+                    
+                    export_data.append(export_entry)
+                    
+                except Exception as e:
+                    print(f"Fehler bei Verarbeitung von Segment {segment_id}: {str(e)}")
+                    continue
+                    
+            except Exception as e:
+                print(f"Fehler bei der Exportvorbereitung: {str(e)}")
+                continue
+        
+        return export_data
+
+    def _extract_metadata(self, filename: str) -> Tuple[str, str]:
+        """
+        Extrahiert Metadaten aus dem Dateinamen.
+        Erwartet Format: attribut1_attribut2.extension
+        
+        Args:
+            filename (str): Name der Datei
+            
+        Returns:
+            Tuple[str, str]: (attribut1, attribut2)
+        """
+        try:
+            name_without_ext = os.path.splitext(filename)[0]
+            parts = name_without_ext.split('_')
+            if len(parts) >= 2:
+                return parts[0], parts[1]
+            else:
+                return name_without_ext, ""
+        except Exception as e:
+            print(f"Fehler beim Extrahieren der Metadaten aus {filename}: {str(e)}")
+            return filename, ""
+        
     async def export_results(
         self,
         codings: List[Dict],
@@ -3954,16 +4743,15 @@ class ResultsExporter:
         original_categories: Dict[str, CategoryDefinition] = None,
         merge_log: List[Dict] = None,
         inductive_coder: 'InductiveCoder' = None 
-        ) -> None:
+    ) -> None:
         """
-        Exportiert die Analyseergebnisse in eine Excel-Datei mit verschiedenen Auswertungen.
+        Exportiert die Analyseergebnisse in eine Excel-Datei.
         """
-
-        # Wenn inductive_coder als Parameter übergeben wurde, aktualisieren Sie das Attribut
-        if inductive_coder:
-            self.inductive_coder = inductive_coder
-
         try:
+            # Wenn inductive_coder als Parameter übergeben wurde, aktualisieren Sie das Attribut
+            if inductive_coder:
+                self.inductive_coder = inductive_coder
+
             # Erstelle Zeitstempel für den Dateinamen
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             filename = f"QCA-AID_Analysis_{timestamp}.xlsx"
@@ -3973,156 +4761,103 @@ class ResultsExporter:
             attribut1_label = self.attribute_labels['attribut1']
             attribut2_label = self.attribute_labels['attribut2']
 
-            # Berechne benötigte Statistiken
+            # Berechne Statistiken
             total_segments = len(codings)
-            coders = list(set(c['coder_id'] for c in codings))
+            coders = list(set(c.get('coder_id', 'unknown') for c in codings))
             total_coders = len(coders)
-            category_frequencies = Counter(c['category'] for c in codings if 'category' in c)
+            category_frequencies = Counter(c.get('category', 'unknown') for c in codings)
             
-            if original_categories and merge_log:
-                self.export_merge_analysis(original_categories, categories, merge_log)
-
-            # Stelle sicher, dass codings eine Liste ist
-            if not isinstance(codings, list):
-                codings = list(codings)
-
-            # Kombiniere deduktive und induktive Kategorien
-            all_categories = {**DEDUKTIVE_KATEGORIEN, **categories}
+            print(f"\nVerarbeite {len(codings)} Kodierungen...")
+            print(f"Gefunden: {total_segments} Segmente, {total_coders} Kodierer")
             
-            # Sammle alle Kodierungen (deduktiv und induktiv)
-            enriched_codings = []
-            for coding in codings:
-                filename = coding['segment_id'].split('_chunk_')[0]
-                attribut1, attribut2 = self._extract_metadata(filename)
-                
-                # Prüfe ob die Kategorie deduktiv oder induktiv ist
-                category = coding['category']
-                if category in DEDUKTIVE_KATEGORIEN:
-                    category_type = 'deduktiv'
-                else:
-                    category_type = 'induktiv'
-                
-                enriched_coding = coding.copy()
-                enriched_coding.update({
-                    attribut1_label: attribut1,
-                    attribut2_label: attribut2,
-                    'Datei': filename,
-                    'Kategorietyp': category_type  # Füge Information über Kategorietyp hinzu
-                })
-                enriched_codings.append(enriched_coding)
-
-            # Gruppierung nach Segmenten für Konsensus-Entscheidungen
-            segment_codings = defaultdict(list)
-            for coding in enriched_codings:
-                segment_codings[coding['segment_id']].append(coding)
-
-            # Erstelle die Revisionshistorie als DataFrame
-            revisions_data = []
-            for change in revision_manager.changes:
-                revisions_data.append({
-                    'Datum': datetime.fromisoformat(change.timestamp).strftime('%Y-%m-%d %H:%M'),
-                    'Kategorie': change.category_name,
-                    'Art der Änderung': change.change_type,
-                    'Beschreibung': change.description,
-                    'Begründung': change.justification,
-                    'Betroffene Kodierungen': ', '.join(change.affected_codings) if change.affected_codings else ''
-                })
-            df_revisions = pd.DataFrame(revisions_data)
-
-            # Erstelle DataFrame für detaillierte Ergebnisse
+            # Bereite Export-Daten vor
             export_data = []
-            for segment_id, segment_codes in segment_codings.items():
-                chunk_text = chunks[segment_id.split('_chunk_')[0]][int(segment_id.split('_chunk_')[1])]
-                chunk_id = int(segment_id.split('_chunk_')[1])
-                doc_name = segment_id.split('_chunk_')[0]
-
-                if export_mode == "all":
-                    for coding in segment_codes:
-                        export_data.append(self._prepare_coding_for_export(coding, chunk_text, chunk_id, doc_name))
-                else:
-                    if export_mode == "consensus":
-                        final_coding = self._get_consensus_coding(segment_codes)
-                    elif export_mode == "majority":
-                        final_coding = self._get_majority_coding(segment_codes)
-                    elif export_mode == "manual":
-                        final_coding = self._get_manual_priority_coding(segment_codes)
+            for coding in codings:
+                segment_id = coding.get('segment_id', '')
+                if not segment_id:
+                    print(f"Warnung: Überspringe Kodierung ohne segment_id")
+                    continue
                     
-                    if final_coding:
-                        export_data.append(self._prepare_coding_for_export(final_coding, chunk_text, chunk_id, doc_name))
-                
-            # Erstelle die verschiedenen DataFrames für die Analyse
-            df_details = pd.DataFrame(export_data)
-            df_coded = df_details[df_details['Kodiert'] == 'Ja']
-
-            # Erstelle verschiedene Analysen
-            # 1. Hauptkategorien nach Attributen
-            df_pivot_main = pd.pivot_table(
-                df_coded,
-                index=['Hauptkategorie'],
-                columns=[attribut1_label, attribut2_label],
-                values='Chunk_Nr',
-                aggfunc='count',
-                fill_value=0
-            )
-
-            # 2. Subkategorien-Analyse
-            subcats_split = []
-            for _, row in df_coded.iterrows():
-                subcats = row['Subkategorien'].split(', ') if row['Subkategorien'] else []
-                for subcat in subcats:
-                    if subcat:
-                        new_row = row.copy()
-                        new_row['Subkategorie'] = subcat.strip()
-                        subcats_split.append(new_row)
+                try:
+                    doc_name = segment_id.split('_chunk_')[0]
+                    chunk_id = int(segment_id.split('_chunk_')[1])
+                    chunk_text = chunks[doc_name][chunk_id]
+                    export_entry = self._prepare_coding_for_export(coding, chunk_text, chunk_id, doc_name)
+                    export_data.append(export_entry)
+                except Exception as e:
+                    print(f"Fehler bei Verarbeitung von Segment {segment_id}: {str(e)}")
+                    continue
             
-            df_subcats = pd.DataFrame(subcats_split)
+            print(f"Export-Daten vorbereitet: {len(export_data)} Einträge")
+            
+            # Validiere Export-Daten
+            if not self._validate_export_data(export_data):
+                print("Fehler: Keine validen Export-Daten vorhanden")
+                return
 
-            # 3. Häufigkeit der Attribute
-            df_pivot_attr1 = pd.pivot_table(
-                df_coded,
-                index=[attribut1_label],
-                values='Chunk_Nr',
-                aggfunc='count',
-                fill_value=0
-            ).rename(columns={'Chunk_Nr': 'Anzahl Kodierungen'})
+            # Erstelle DataFrames
+            df_details = pd.DataFrame(export_data)
+            df_coded = df_details[df_details['Kodiert'] == 'Ja'].copy()
+            
+            print(f"DataFrames erstellt: {len(df_details)} Gesamt, {len(df_coded)} Kodiert")
 
-            df_pivot_attr2 = pd.pivot_table(
-                df_coded,
-                index=[attribut2_label],
-                values='Chunk_Nr',
-                aggfunc='count',
-                fill_value=0
-            ).rename(columns={'Chunk_Nr': 'Anzahl Kodierungen'})
-
-            # Exportiere alle Ergebnisse nach Excel
+            # Exportiere nach Excel
             with pd.ExcelWriter(filepath, engine='openpyxl') as writer:
+                # Erstelle ein leeres Workbook mit mindestens einem Sheet
+                if not hasattr(writer, 'book') or writer.book is None:
+                    writer.book = Workbook()
+                
                 # Arbeitsblatt 1: Detaillierte Kodierungen
                 df_details.to_excel(writer, sheet_name='Kodierte_Segmente', index=False)
-                worksheet = writer.sheets['Kodierte_Segmente']
-                self._format_worksheet(worksheet)
-                # self._adjust_row_heights(worksheet)
-
-                # Arbeitsblatt 2: Häufigkeitsanalysen
-                self._export_frequency_analysis(
-                    writer=writer,
-                    df_coded=df_coded,
-                    df_pivot_main=df_pivot_main,
-                    df_pivot_subcats=df_subcats,
-                    df_pivot_attr1=df_pivot_attr1,
-                    df_pivot_attr2=df_pivot_attr2,
-                    attribut1_label=attribut1_label,
-                    attribut2_label=attribut2_label
-                )
-
-                # Arbeitsblatt 3: Revisionshistorie
-                if not df_revisions.empty:
-                    df_revisions.to_excel(writer, sheet_name='Revisionshistorie', index=False)
-                    self._format_revision_worksheet(writer.sheets['Revisionshistorie'])
-
-                # Arbeitsblatt 4: Intercoder-Analyse
-                self._export_intercoder_analysis(writer, segment_codings, reliability)
-
-                # Arbeitsblatt 5: Reliabilitätsanalyse
+                self._format_worksheet(writer.sheets['Kodierte_Segmente'])
+                
+                # Weitere Exports nur wenn kodierte Daten vorhanden
+                if not df_coded.empty:
+                    # Erstelle Pivot-Tabellen
+                    df_pivot_main = pd.pivot_table(
+                        df_coded,
+                        index=['Hauptkategorie'],
+                        columns=[attribut1_label, attribut2_label],
+                        values='Chunk_Nr',
+                        aggfunc='count',
+                        fill_value=0
+                    )
+                    
+                    df_pivot_attr1 = pd.pivot_table(
+                        df_coded,
+                        index=[attribut1_label],
+                        values='Chunk_Nr',
+                        aggfunc='count',
+                        fill_value=0
+                    )
+                    
+                    df_pivot_attr2 = pd.pivot_table(
+                        df_coded,
+                        index=[attribut2_label],
+                        values='Chunk_Nr',
+                        aggfunc='count',
+                        fill_value=0
+                    )
+                    
+                    # Exportiere Häufigkeitsanalysen
+                    self._export_frequency_analysis(
+                        writer=writer,
+                        df_coded=df_coded,
+                        attribut1_label=attribut1_label,
+                        attribut2_label=attribut2_label
+                    )
+                                    
+                # Exportiere weitere Analysen
+                if revision_manager and hasattr(revision_manager, 'changes'):
+                    revision_manager._export_revision_history(writer, revision_manager.changes)
+                
+                if codings:
+                    self._export_intercoder_analysis(
+                        writer, 
+                        {c['segment_id']: [c] for c in codings},
+                        reliability
+                    )
+                    
                 if inductive_coder:
                     self._export_reliability_report(
                         writer, 
@@ -4131,6 +4866,14 @@ class ResultsExporter:
                         total_coders,
                         category_frequencies
                     )
+                
+                # Stelle sicher, dass mindestens ein Sheet sichtbar ist
+                if len(writer.book.sheetnames) == 0:
+                    writer.book.create_sheet('Leeres_Sheet')
+                
+                # Setze alle Sheets auf sichtbar
+                for sheet in writer.book.sheetnames:
+                    writer.book[sheet].sheet_state = 'visible'
 
             print(f"\nErgebnisse erfolgreich exportiert nach: {filepath}")
 
@@ -5360,9 +6103,101 @@ class CategoryRevisionManager:
         except Exception as e:
             print(f"Warnung: Intercoder-Formatierung fehlgeschlagen: {str(e)}")
 
+    def _export_revision_history(self, writer, changes: List['CategoryChange']) -> None:
+        """
+        Exportiert die Revisionshistorie in ein separates Excel-Sheet.
+        
+        Args:
+            writer: Excel Writer Objekt
+            changes: Liste der Kategorieänderungen
+        """
+        try:
+            # Erstelle DataFrame für Revisionshistorie
+            revision_data = []
+            for change in changes:
+                # Erstelle lesbares Änderungsdatum
+                change_date = datetime.fromisoformat(change.timestamp)
+                
+                # Bereite die betroffenen Kodierungen auf
+                affected_codings = (
+                    ', '.join(change.affected_codings)
+                    if change.affected_codings
+                    else 'Keine'
+                )
+                
+                # Sammle Änderungsdetails
+                if change.old_value and change.new_value:
+                    details = []
+                    for key in set(change.old_value.keys()) | set(change.new_value.keys()):
+                        old = change.old_value.get(key, 'Nicht vorhanden')
+                        new = change.new_value.get(key, 'Nicht vorhanden')
+                        if old != new:
+                            details.append(f"{key}: {old} → {new}")
+                    details_str = '\n'.join(details)
+                else:
+                    details_str = ''
+
+                revision_data.append({
+                    'Datum': change_date.strftime('%Y-%m-%d %H:%M'),
+                    'Kategorie': change.category_name,
+                    'Art der Änderung': change.change_type,
+                    'Beschreibung': change.description,
+                    'Details': details_str,
+                    'Begründung': change.justification,
+                    'Betroffene Kodierungen': affected_codings
+                })
+            
+            if revision_data:
+                df_revisions = pd.DataFrame(revision_data)
+                sheet_name = 'Revisionshistorie'
+                
+                # Erstelle Sheet falls nicht vorhanden
+                if sheet_name not in writer.sheets:
+                    writer.book.create_sheet(sheet_name)
+                    
+                # Exportiere Daten
+                df_revisions.to_excel(writer, sheet_name=sheet_name, index=False)
+                
+                # Formatiere Worksheet
+                worksheet = writer.sheets[sheet_name]
+                
+                # Setze Spaltenbreiten
+                column_widths = {
+                    'A': 20,  # Datum
+                    'B': 25,  # Kategorie
+                    'C': 15,  # Art der Änderung
+                    'D': 50,  # Beschreibung
+                    'E': 50,  # Details
+                    'F': 50,  # Begründung
+                    'G': 40   # Betroffene Kodierungen
+                }
+                
+                for col, width in column_widths.items():
+                    worksheet.column_dimensions[col].width = width
+                    
+                # Formatiere Überschriften
+                for cell in worksheet[1]:
+                    cell.font = Font(bold=True)
+                    cell.fill = PatternFill(start_color='EEEEEE', end_color='EEEEEE', fill_type='solid')
+                
+                # Aktiviere Zeilenumbruch für lange Texte
+                for row in worksheet.iter_rows(min_row=2):
+                    for cell in row:
+                        cell.alignment = Alignment(wrap_text=True, vertical='top')
+                
+                print(f"Revisionshistorie mit {len(revision_data)} Einträgen exportiert")
+                
+            else:
+                print("Keine Revisionshistorie zum Exportieren vorhanden")
+                
+        except Exception as e:
+            print(f"Warnung: Fehler beim Export der Revisionshistorie: {str(e)}")
+            import traceback
+            traceback.print_exc()
+
 
 # --- Klasse: DocumentReader ---
-# Aufgabe: Laden und Vorbereiten des Analysematerials (Textdokumente, Output)
+# Aufgabe: Laden und Vorbereiten des Analysematerials (Textdokumente, output)
 
 class DocumentReader:
     def __init__(self, data_dir: str):
@@ -5684,7 +6519,8 @@ async def main() -> None:
         category_builder = DeductiveCategoryBuilder()
         initial_categories = category_builder.load_theoretical_categories()
         
-        # 3. Revision Manager initialisieren
+        # 3. DevelopmentHistory und Revision Manager initialisieren
+        development_history = DevelopmentHistory(CONFIG['OUTPUT_DIR'])
         revision_manager = CategoryRevisionManager(CONFIG['OUTPUT_DIR'])
         
         # Initiale Kategorien dokumentieren
@@ -5706,8 +6542,23 @@ async def main() -> None:
             print("\nKeine Dokumente zum Analysieren gefunden.")
             return
 
+        # 4b. Abfrage zum Überspringen der induktiven Kodierung
+        print("\n3. Induktive Kodierung konfigurieren...")
+        print("Automatische Fortführung in 10 Sekunden...")
+        skip_inductive = False
+        user_input = get_input_with_timeout(
+            "\nMöchten Sie die induktive Kodierung überspringen und nur deduktiv arbeiten? (j/N): ",
+            timeout=10
+        )
+        
+        if user_input.lower() == 'j':
+            skip_inductive = True
+            print("ℹ Induktive Kodierung wird übersprungen - Nur deduktive Kategorien werden verwendet")
+        else:
+            print("ℹ Vollständige Analyse mit deduktiven und induktiven Kategorien")
+
         # 5. Kodierer konfigurieren
-        print("\n3. Konfiguriere Kodierer...")
+        print("\n4. Konfiguriere Kodierer...")
         auto_coders = [
             DeductiveCoder(
                 model_name=CONFIG['MODEL_NAME'],
@@ -5725,7 +6576,7 @@ async def main() -> None:
             print("Manueller Kodierer hinzugefügt")
 
         # 6. Material vorbereiten
-        print("\n4. Bereite Material vor...")
+        print("\n5. Bereite Material vor...")
         loader = MaterialLoader()
         chunks = {}
         for doc_name, doc_text in documents.items():
@@ -5735,7 +6586,7 @@ async def main() -> None:
         # 7. Manuelle Kodierung (falls gewählt)
         manual_codings = []
         if manual_coders:
-            print("\n5. Starte manuelle Kodierung...")
+            print("\n6. Starte manuelle Kodierung...")
             manual_coding_result = await perform_manual_coding(
                 chunks=chunks, 
                 categories=initial_categories,
@@ -5747,60 +6598,96 @@ async def main() -> None:
             manual_codings = manual_coding_result
             print(f"Manuelle Kodierung abgeschlossen: {len(manual_codings)} Kodierungen")
 
-        # 8. Integrierte Analyse starten
-        print("\n6. Starte integrierte Analyse...")
+        # Integrierte Analyse
+        print("\n7. Starte integrierte Analyse...")
         analysis_manager = IntegratedAnalysisManager(CONFIG)
-        
-        # Fortschritts-Monitoring Setup
-        monitoring_task = asyncio.create_task(monitor_progress(analysis_manager))
-        
-        try:
-            # Führe integrierte Analyse durch
-            final_categories, all_codings = await analysis_manager.analyze_material(
-                chunks=chunks,
-                initial_categories=initial_categories
-            )
-        finally:
-            # Stelle sicher, dass Monitoring gestoppt wird
-            monitoring_task.cancel()
-            try:
-                await monitoring_task
-            except asyncio.CancelledError:
-                pass
+        final_categories, auto_codings = await analysis_manager.analyze_material(
+            chunks=chunks,
+            initial_categories=initial_categories,
+            skip_inductive=skip_inductive 
+        )
 
         # Kombiniere alle Kodierungen
-        all_codings.extend(manual_codings)
-
-        # 9. Berechne Intercoder-Reliabilität
-        print("\n7. Berechne Intercoder-Reliabilität...")
-        reliability_calculator = InductiveCoder(
-            model_name=CONFIG['MODEL_NAME'],
-            output_dir=CONFIG['OUTPUT_DIR']
-        )
-        reliability = reliability_calculator._calculate_reliability(all_codings)
-
-        print(f"\nIntercoder-Reliabilität (Krippendorffs Alpha): {reliability:.3f}")
-
-        # 10. Exportiere Ergebnisse
-        print("\n8. Exportiere Ergebnisse...")
-        exporter = ResultsExporter(
-            output_dir=CONFIG['OUTPUT_DIR'],
-            attribute_labels=CONFIG['ATTRIBUTE_LABELS']
-        )
+        all_codings = []
         
-        await exporter.export_results(
-            codings=all_codings,
-            reliability=reliability,
-            categories=final_categories,
-            chunks=chunks,
-            revision_manager=revision_manager,
-            export_mode="consensus",
-            original_categories=initial_categories,
-            merge_log=analysis_manager.category_merger.merge_log,
-            inductive_coder=reliability_calculator
-        )
+        # Füge automatische Kodierungen hinzu
+        if auto_codings and len(auto_codings) > 0:
+            print(f"\nFüge {len(auto_codings)} automatische Kodierungen hinzu")
+            for coding in auto_codings:
+                if isinstance(coding, dict) and 'segment_id' in coding:
+                    all_codings.append(coding)
+                else:
+                    print(f"Überspringe ungültige Kodierung: {coding}")
+        
+        # Füge manuelle Kodierungen hinzu
+        if manual_codings and len(manual_codings) > 0:
+            print(f"Füge {len(manual_codings)} manuelle Kodierungen hinzu")
+            all_codings.extend(manual_codings)
+        
+        print(f"\nGesamtzahl Kodierungen: {len(all_codings)}")
 
-        # 11. Finale Statistiken
+        # Speichere induktiv erweitertes Codebook
+        if final_categories:
+            # Initialisiere CategoryManager
+            category_manager = CategoryManager(CONFIG['OUTPUT_DIR'])
+            
+            # Speichere induktiv erweitertes Codebook
+            category_manager.save_codebook(
+                categories=final_categories,
+                filename="codebook_inductive.json"
+            )
+
+        # Berechne Intercoder-Reliabilität falls Kodierungen vorhanden
+        if all_codings:
+            print("\n7. Berechne Intercoder-Reliabilität...")
+            reliability_calculator = InductiveCoder(
+                model_name=CONFIG['MODEL_NAME'],
+                history=development_history,  # Übergebe die bereits initialisierte history
+                output_dir=CONFIG['OUTPUT_DIR']
+            )
+            reliability = reliability_calculator._calculate_reliability(all_codings)
+            print(f"Reliabilität (Krippendorffs Alpha): {reliability:.3f}")
+        else:
+            print("\nKeine Kodierungen für Reliabilitätsberechnung")
+            reliability = 0.0
+
+        # Export der Ergebnisse
+        print("\n8. Exportiere Ergebnisse...")
+        if all_codings:
+            exporter = ResultsExporter(
+                output_dir=CONFIG['OUTPUT_DIR'],
+                attribute_labels=CONFIG['ATTRIBUTE_LABELS'],
+                inductive_coder=reliability_calculator  # Übergebe den initialisierten InductiveCoder
+            )
+            
+            # Debug-Ausgabe vor Export
+            print(f"Exportiere {len(all_codings)} Kodierungen:")
+            for i, coding in enumerate(all_codings[:3], 1):
+                print(f"  Kodierung {i}: {coding.get('category', 'Keine Kategorie')} "
+                      f"für Segment {coding.get('segment_id', 'Unbekannt')}")
+            if len(all_codings) > 3:
+                print(f"  ... und {len(all_codings) - 3} weitere")
+            
+            try:
+                await exporter.export_results(
+                    codings=all_codings,
+                    reliability=reliability,
+                    categories=final_categories,
+                    chunks=chunks,
+                    revision_manager=revision_manager,
+                    export_mode="consensus",
+                    original_categories=initial_categories,
+                    merge_log=analysis_manager.category_merger.merge_log,
+                    inductive_coder=reliability_calculator
+                )
+                print("Export erfolgreich")
+            except Exception as e:
+                print(f"Fehler beim Export: {str(e)}")
+                traceback.print_exc()
+        else:
+            print("Keine Kodierungen zum Exportieren vorhanden")
+
+        # Abschlussstatistiken
         print("\nAnalyse abgeschlossen:")
         print(analysis_manager.get_analysis_report())
         print("\nToken-Nutzung:")
@@ -5808,7 +6695,6 @@ async def main() -> None:
 
     except Exception as e:
         print(f"Fehler in der Hauptausführung: {str(e)}")
-        import traceback
         traceback.print_exc()
 
 async def monitor_progress(analysis_manager: IntegratedAnalysisManager):
