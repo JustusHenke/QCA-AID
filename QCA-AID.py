@@ -7,7 +7,7 @@ enhanced with AI capabilities through the OpenAI API.
 
 Version:
 --------
-0.9.3 (2025-02-13)
+0.9.4 (2025-02-13)
 
 Description:
 -----------
@@ -1705,39 +1705,55 @@ class IntegratedAnalysisManager:
 
             print(f"   ℹ️ Analysiere {len(relevant_texts)} relevante Segmente")
             
-            # Induktive Kategorienentwicklung nur für relevante Texte
-            new_categories = await self.inductive_coder.develop_category_system(relevant_texts)
-            
-            if new_categories:
-                print("\nNeue Kategorien identifiziert:")
-                for cat_name, category in new_categories.items():
-                    # Prüfe ob es sich um eine wirklich neue Kategorie handelt
-                    if cat_name not in current_categories:
-                        print(f"\n🆕 Neue Hauptkategorie: {cat_name}")
-                        print(f"   Definition: {category.definition[:100]}...")
-                        if category.subcategories:
-                            print(f"   Subkategorien:")
-                            for sub_name in category.subcategories:
-                                print(f"   - {sub_name}")
-                    else:
-                        # Zeige neue Subkategorien für bestehende Hauptkategorien
-                        new_subs = set(category.subcategories.keys()) - set(current_categories[cat_name].subcategories.keys())
-                        if new_subs:
-                            print(f"\n📑 Neue Subkategorien für {cat_name}:")
-                            for sub_name in new_subs:
-                                print(f"   + {sub_name}")
+            try:
+                # Induktive Kategorienentwicklung nur für relevante Texte
+                new_categories = await self.inductive_coder.develop_category_system(relevant_texts)
+                
+                if new_categories:
+                    print("\nNeue Kategorien identifiziert:")
+                    for cat_name, category in new_categories.items():
+                        # Stelle sicher, dass Subkategorien als Dict existieren
+                        if not hasattr(category, 'subcategories'):
+                            category.subcategories = {}
+                            
+                        # Prüfe ob es sich um eine wirklich neue Kategorie handelt
+                        if cat_name not in current_categories:
+                            print(f"\n🆕 Neue Hauptkategorie: {cat_name}")
+                            print(f"   Definition: {category.definition[:100]}...")
+                            if category.subcategories:
+                                print(f"   Subkategorien:")
+                                for sub_name in category.subcategories:
+                                    print(f"   - {sub_name}")
+                        else:
+                            # Zeige neue Subkategorien für bestehende Hauptkategorien
+                            if hasattr(current_categories[cat_name], 'subcategories'):
+                                new_subs = set(category.subcategories.keys()) - set(current_categories[cat_name].subcategories.keys())
+                                if new_subs:
+                                    print(f"\n📑 Neue Subkategorien für {cat_name}:")
+                                    for sub_name in new_subs:
+                                        print(f"   + {sub_name}")
 
-                # Zusammenführen ähnlicher Kategorien
-                merged_categories = self.category_merger.merge_categories(new_categories)
-                
-                if len(merged_categories) < len(new_categories):
-                    print(f"\n🔄 Kategorien zusammengeführt:")
-                    print(f"   Vorher: {len(new_categories)} Kategorien")
-                    print(f"   Nachher: {len(merged_categories)} Kategorien")
-                
-                return merged_categories
-            else:
-                print("   ℹ️ Keine neuen Kategorien in diesem Batch identifiziert")
+                    # Zusammenführen ähnlicher Kategorien
+                    try:
+                        merged_categories = self.category_merger.merge_categories(new_categories)
+                        
+                        if len(merged_categories) < len(new_categories):
+                            print(f"\n🔄 Kategorien zusammengeführt:")
+                            print(f"   Vorher: {len(new_categories)} Kategorien")
+                            print(f"   Nachher: {len(merged_categories)} Kategorien")
+                        
+                        return merged_categories
+                    except Exception as merge_error:
+                        print(f"Warnung: Fehler beim Zusammenführen der Kategorien: {str(merge_error)}")
+                        return new_categories
+                else:
+                    print("   ℹ️ Keine neuen Kategorien in diesem Batch identifiziert")
+                    return {}
+                    
+            except Exception as e:
+                print(f"Fehler bei induktiver Analyse: {str(e)}")
+                print("Details:")
+                traceback.print_exc()
                 return {}
                 
         except Exception as e:
@@ -1844,7 +1860,164 @@ class IntegratedAnalysisManager:
         except Exception as e:
             print(f"Fehler beim Zusammenführen der Kategorien: {str(e)}")
             return current_cats
+
+    def _find_similar_category(self, 
+                                category: CategoryDefinition,
+                                existing_categories: Dict[str, CategoryDefinition]) -> Optional[str]:
+        """
+        Findet ähnliche existierende Kategorien basierend auf Namen und Definition.
         
+        Args:
+            category: Zu prüfende Kategorie
+            existing_categories: Bestehendes Kategoriensystem
+            
+        Returns:
+            Optional[str]: Name der ähnlichsten Kategorie oder None
+        """
+        try:
+            best_match = None
+            highest_similarity = 0.0
+            
+            for existing_name, existing_cat in existing_categories.items():
+                # Berechne Ähnlichkeit basierend auf verschiedenen Faktoren
+                
+                # 1. Name-Ähnlichkeit (gewichtet: 0.3)
+                name_similarity = self._calculate_text_similarity(
+                    category.name.lower(),
+                    existing_name.lower()
+                ) * 0.3
+                
+                # 2. Definitions-Ähnlichkeit (gewichtet: 0.5)
+                definition_similarity = self._calculate_text_similarity(
+                    category.definition,
+                    existing_cat.definition
+                ) * 0.5
+                
+                # 3. Subkategorien-Überlappung (gewichtet: 0.2)
+                subcats1 = set(category.subcategories.keys())
+                subcats2 = set(existing_cat.subcategories.keys())
+                if subcats1 and subcats2:
+                    subcat_overlap = len(subcats1 & subcats2) / len(subcats1 | subcats2)
+                else:
+                    subcat_overlap = 0
+                subcat_similarity = subcat_overlap * 0.2
+                
+                # Gesamtähnlichkeit
+                total_similarity = name_similarity + definition_similarity + subcat_similarity
+                
+                # Debug-Ausgabe für hohe Ähnlichkeiten
+                if total_similarity > 0.5:
+                    print(f"\nÄhnlichkeitsprüfung für '{category.name}' und '{existing_name}':")
+                    print(f"- Name-Ähnlichkeit: {name_similarity:.2f}")
+                    print(f"- Definitions-Ähnlichkeit: {definition_similarity:.2f}")
+                    print(f"- Subkategorien-Überlappung: {subcat_similarity:.2f}")
+                    print(f"- Gesamt: {total_similarity:.2f}")
+                
+                # Update beste Übereinstimmung
+                if total_similarity > highest_similarity:
+                    highest_similarity = total_similarity
+                    best_match = existing_name
+            
+            # Nur zurückgeben wenn Ähnlichkeit hoch genug
+            if highest_similarity > 0.7:  # Schwellenwert für Ähnlichkeit
+                print(f"\n⚠ Hohe Ähnlichkeit ({highest_similarity:.2f}) gefunden:")
+                print(f"- Neue Kategorie: {category.name}")
+                print(f"- Existierende Kategorie: {best_match}")
+                return best_match
+                
+            return None
+            
+        except Exception as e:
+            print(f"Fehler bei Ähnlichkeitsprüfung: {str(e)}")
+            return None
+
+    def _calculate_text_similarity(self, text1: str, text2: str) -> float:
+        """
+        Berechnet die Ähnlichkeit zwischen zwei Texten.
+        
+        Args:
+            text1: Erster Text
+            text2: Zweiter Text
+            
+        Returns:
+            float: Ähnlichkeitswert zwischen 0 und 1
+        """
+        try:
+            # Bereinige und tokenisiere Texte
+            words1 = set(self._normalize_text(text1).split())
+            words2 = set(self._normalize_text(text2).split())
+            
+            # Berechne Jaccard-Ähnlichkeit
+            intersection = len(words1 & words2)
+            union = len(words1 | words2)
+            
+            return intersection / union if union > 0 else 0.0
+            
+        except Exception as e:
+            print(f"Fehler bei Textähnlichkeitsberechnung: {str(e)}")
+            return 0.0
+
+    def _normalize_text(self, text: str) -> str:
+        """
+        Normalisiert Text für Vergleiche.
+        
+        Args:
+            text: Zu normalisierender Text
+            
+        Returns:
+            str: Normalisierter Text
+        """
+        # Zu Kleinbuchstaben
+        text = text.lower()
+        
+        # Entferne Sonderzeichen
+        text = re.sub(r'[^\w\s]', '', text)
+        
+        # Entferne Stoppwörter
+        stop_words = {'und', 'oder', 'der', 'die', 'das', 'in', 'im', 'für', 'bei'}
+        words = text.split()
+        words = [w for w in words if w not in stop_words]
+        
+        return ' '.join(words)
+
+    def _merge_category_definitions(self, 
+                                original: CategoryDefinition,
+                                new: CategoryDefinition) -> CategoryDefinition:
+        """
+        Führt zwei Kategoriendefinitionen zusammen.
+        
+        Args:
+            original: Ursprüngliche Kategorie
+            new: Neue Kategorie
+            
+        Returns:
+            CategoryDefinition: Zusammengeführte Kategorie
+        """
+        try:
+            # Kombiniere Definitionen
+            combined_def = f"{original.definition}\n\nErgänzung: {new.definition}"
+            
+            # Kombiniere Beispiele
+            combined_examples = list(set(original.examples + new.examples))
+            
+            # Kombiniere Subkategorien
+            combined_subcats = {**original.subcategories, **new.subcategories}
+            
+            # Erstelle neue CategoryDefinition
+            return CategoryDefinition(
+                name=original.name,  # Behalte ursprünglichen Namen
+                definition=combined_def,
+                examples=combined_examples,
+                rules=original.rules,  # Behalte ursprüngliche Regeln
+                subcategories=combined_subcats,
+                added_date=original.added_date,
+                modified_date=datetime.now().strftime("%Y-%m-%d")
+            )
+            
+        except Exception as e:
+            print(f"Fehler beim Zusammenführen der Kategorien: {str(e)}")
+            return original
+
     def _validate_and_integrate_categories(self, 
                                         existing_categories: Dict[str, CategoryDefinition],
                                         new_categories: Dict[str, CategoryDefinition]) -> Dict[str, CategoryDefinition]:
@@ -2076,9 +2249,6 @@ class DeductiveCategoryBuilder:
         """
         categories = {}
         today = datetime.now().strftime("%Y-%m-%d")
-
-        print("DEDUKTIVE_KATEGORIEN in load_theoretical_categories:")
-        print(DEDUKTIVE_KATEGORIEN)
         
         try:
             # Konvertiere DEDUKTIVE_KATEGORIEN in CategoryDefinition-Objekte
@@ -2412,8 +2582,76 @@ class DeductiveCoder:
             print(f"Fehler bei der Prüfung deduktiver Kategorien: {str(e)}")
             return None
 
+    async def update_category_system(self, categories: Dict[str, CategoryDefinition]) -> bool:
+        """
+        Aktualisiert das Kategoriensystem des Kodierers.
+        
+        Args:
+            categories: Neues/aktualisiertes Kategoriensystem
+            
+        Returns:
+            bool: True wenn Update erfolgreich
+        """
+        try:
+            # Konvertiere CategoryDefinition in serialisierbares Dict
+            categories_dict = {
+                name: {
+                    'definition': cat.definition,
+                    'examples': cat.examples,
+                    'rules': cat.rules,
+                    'subcategories': cat.subcategories
+                } for name, cat in categories.items()
+            }
+
+            # Aktualisiere das Kontextwissen des Kodierers
+            prompt = f"""
+            Das Kategoriensystem wurde aktualisiert. Neue Zusammensetzung:
+            {json.dumps(categories_dict, indent=2, ensure_ascii=False)}
+            
+            Berücksichtige bei der Kodierung:
+            1. Sowohl ursprüngliche als auch neue Kategorien verwenden
+            2. Auf Überschneidungen zwischen Kategorien achten
+            3. Subkategorien der neuen Kategorien einbeziehen
+            """
+
+            input_tokens = estimate_tokens(prompt)
+
+            # Sende Aktualisierung an GPT
+            response = await self.client.chat.completions.create(
+                model=self.model_name,
+                messages=[
+                    {"role": "system", "content": "Du bist ein Experte für qualitative Inhaltsanalyse."},
+                    {"role": "user", "content": prompt}
+                ],
+                temperature=0.3
+            )
+
+            if response.choices[0].message.content:
+                print(f"Kategoriensystem für Kodierer {self.coder_id} aktualisiert")
+                print(f"- {len(categories)} Kategorien verfügbar")
+                return True
+            
+            output_tokens = estimate_tokens(response.choices[0].message.content)
+            token_counter.add_tokens(input_tokens, output_tokens)
+            return False
+
+        except Exception as e:
+            print(f"Fehler beim Update des Kategoriensystems für {self.coder_id}: {str(e)}")
+            print("Details:")
+            traceback.print_exc()
+            return False
+
     async def code_chunk(self, chunk: str, categories: Dict[str, CategoryDefinition]) -> Optional[CodingResult]:
-        """Kodiert einen Text-Chunk basierend auf dem Kategoriensystem."""
+        """
+        Kodiert einen Text-Chunk basierend auf dem aktuellen Kategoriensystem.
+        
+        Args:
+            chunk: Zu kodierender Text
+            categories: Aktuelles Kategoriensystem
+            
+        Returns:
+            Optional[CodingResult]: Kodierungsergebnis oder None bei Fehler
+        """
         try:
             print(f"\nDeduktiver Kodierer {self.coder_id} verarbeitet Chunk...")
             
@@ -2444,8 +2682,9 @@ class DeductiveCoder:
             1. Die Zuordnung zu einer Kategorie muss eindeutig begründbar sein
             2. Der inhaltliche Beitrag muss substanziell sein
             3. Berücksichtige den Kontext der Aussage
+            4. Prüfe auch die neu hinzugefügten Kategorien
 
-            Gib deine Antwort ausschließlich als JSON-Objekt zurück:
+            Antworte ausschließlich mit einem JSON-Objekt:
             {{
                 "category": "Name der Hauptkategorie",
                 "subcategories": ["Liste", "der", "Subkategorien"],
@@ -2599,9 +2838,9 @@ class InductiveCoder:
         self.batch_results = []   # Speichert Batch-Ergebnisse für Analyse
         
         # Qualitätsschwellen
-        self.MIN_CONFIDENCE = 0.7
-        self.MIN_EXAMPLES = 3
-        self.MIN_DEFINITION_WORDS = 15
+        self.MIN_CONFIDENCE = 0.6
+        self.MIN_EXAMPLES = 2
+        self.MIN_DEFINITION_WORDS = 10
 
         # Batch processing configuration
         self.BATCH_SIZE = 5  # Number of segments to process at once
@@ -2635,7 +2874,15 @@ class InductiveCoder:
         ]
        
     async def develop_category_system(self, segments: List[str]) -> Dict[str, CategoryDefinition]:
-        """Kategorienentwicklung mit integrierter Historie."""
+        """
+        Entwickelt induktiv neue Kategorien aus den Textsegmenten.
+        
+        Args:
+            segments: Liste der zu analysierenden Textsegmente
+            
+        Returns:
+            Dict[str, CategoryDefinition]: Neue Kategorien
+        """
         try:
             start_time = time.time()
             
@@ -2650,31 +2897,54 @@ class InductiveCoder:
             # Stapel von Segmenten erstellen
             batches = self._create_batches(relevant_segments)
             
-            # Jede Charge verarbeiten
+            # Kategorien extrahieren
             categories = {}
             for batch_idx, batch in enumerate(batches):
-                # Extract new categories
-                batch_categories = await self._extract_categories_from_batch(batch)
-                
-                # Validate categories
-                valid_categories = self._validate_categories(batch_categories)
-                
-                # Integrate into existing system
-                categories = self._integrate_categories(categories, valid_categories)
-                
-                # Document development
-                self.history.log_category_development(
-                    phase=f"batch_{batch_idx + 1}",
-                    new_categories=len(batch_categories),
-                    valid_categories=len(valid_categories),
-                    total_categories=len(categories)
-                )
+                try:
+                    # Extract new categories
+                    batch_categories = await self._extract_categories_from_batch(batch)
+                    if not batch_categories:
+                        continue
+
+                    # Validate categories
+                    valid_categories = self._validate_categories(batch_categories)
+                    if not valid_categories:
+                        continue
+
+                    # Integrate into existing system
+                    for cat in valid_categories:
+                        # Erstelle CategoryDefinition Objekt
+                        cat_def = CategoryDefinition(
+                            name=cat['name'],
+                            definition=cat['definition'],
+                            examples=[cat['example']] if 'example' in cat else [],
+                            rules=[],  # Regeln werden später entwickelt
+                            subcategories={sub: "" for sub in cat.get('new_subcategories', [])},
+                            added_date=datetime.now().strftime("%Y-%m-%d"),
+                            modified_date=datetime.now().strftime("%Y-%m-%d")
+                        )
+                        categories[cat['name']] = cat_def
+
+                    # Document development
+                    self.history.log_category_development(
+                        phase=f"batch_{batch_idx + 1}",
+                        new_categories=len(batch_categories),
+                        valid_categories=len(valid_categories),
+                        total_categories=len(categories)
+                    )
+
+                except Exception as e:
+                    print(f"Fehler bei Batch {batch_idx}: {str(e)}")
+                    continue
             
             return categories
-            
+                
         except Exception as e:
             self.history.log_error("category_development_error", str(e))
-            raise
+            print(f"Fehler bei Kategorienentwicklung: {str(e)}")
+            print("Details:")
+            traceback.print_exc()
+            return {}
 
     async def _prefilter_segments(self, segments: List[str]) -> List[str]:
         """
@@ -2744,14 +3014,18 @@ class InductiveCoder:
     async def _extract_categories_from_batch(self, batch: List[str]) -> List[Dict]:
         """
         Extrahiert Kategorien aus einem Batch von Segmenten.
-        Optimiert für parallele Verarbeitung.
+        
+        Args:
+            batch: Zu analysierende Textsegmente
+            
+        Returns:
+            List[Dict]: Extrahierte Kategorien
         """
         async def process_segment(segment: str) -> List[Dict]:
             prompt = self._get_category_extraction_prompt(segment)
             
             try:
-                input_tokens = estimate_tokens(prompt)
-                
+                print("\nSende Anfrage an API...")
                 response = await self.client.chat.completions.create(
                     model=self.model_name,
                     messages=[
@@ -2762,143 +3036,420 @@ class InductiveCoder:
                     response_format={"type": "json_object"}
                 )
                 
-                result = json.loads(response.choices[0].message.content)
+                raw_response = response.choices[0].message.content
 
                 output_tokens = estimate_tokens(response.choices[0].message.content)
-                token_counter.add_tokens(input_tokens, output_tokens)
-                
-                return result if isinstance(result, list) else [result]
-                
+                token_counter.add_tokens(output_tokens)
+                print("\nAPI-Antwort erhalten:")
+                print(raw_response)
+
+                try:
+                    result = json.loads(raw_response)
+                    print("\nJSON erfolgreich geparst:")
+                    print(json.dumps(result, indent=2, ensure_ascii=False))
+                    
+                    # Suche nach Kategorien in verschiedenen Formaten
+                    categories = []
+                    
+                    # Fall 1: Direkte Liste von Kategorien
+                    if isinstance(result, list):
+                        categories = result
+                        
+                    # Fall 2: Verschachtelte Liste unter "new_categories"
+                    elif isinstance(result, dict) and 'new_categories' in result:
+                        categories = result['new_categories']
+                        
+                    # Fall 3: Einzelne Kategorie als Objekt
+                    elif isinstance(result, dict) and 'name' in result:
+                        categories = [result]
+                        
+                    # Fall 4: Andere verschachtelte Arrays suchen
+                    elif isinstance(result, dict):
+                        for key, value in result.items():
+                            if isinstance(value, list) and value and isinstance(value[0], dict):
+                                if 'name' in value[0]:  # Prüfe ob es wie eine Kategorie aussieht
+                                    categories = value
+                                    print(f"Kategorien unter Schlüssel '{key}' gefunden")
+                                    break
+                    
+                    if not categories:
+                        print("Keine Kategorien in der Antwort gefunden")
+                        return []
+                    
+                    # Validiere jede gefundene Kategorie
+                    validated_categories = []
+                    for cat in categories:
+                        if isinstance(cat, dict):
+                            # Stelle sicher, dass alle erforderlichen Felder vorhanden sind
+                            required_fields = {
+                                'name': str,
+                                'definition': str,
+                                'example': str,
+                                'new_subcategories': list,
+                                'justification': str,
+                                'confidence': dict
+                            }
+                            
+                            valid = True
+                            # Erstelle eine Kopie der Kategorie für Modifikationen
+                            processed_cat = cat.copy()
+                            
+                            for field, field_type in required_fields.items():
+                                if field not in processed_cat:
+                                    print(f"Fehlendes Feld '{field}' - Versuche Standard")
+                                    # Setze Standardwerte für fehlende Felder
+                                    if field == 'example':
+                                        processed_cat[field] = ""
+                                    elif field == 'new_subcategories':
+                                        processed_cat[field] = []
+                                    elif field == 'confidence':
+                                        processed_cat[field] = {'category': 0.7, 'subcategories': 0.7}
+                                    else:
+                                        print(f"Kritisches Feld '{field}' fehlt")
+                                        valid = False
+                                        break
+                                elif not isinstance(processed_cat[field], field_type):
+                                    print(f"Falscher Typ für Feld '{field}': {type(processed_cat[field])} statt {field_type}")
+                                    valid = False
+                                    break
+                            
+                            if valid:
+                                validated_categories.append(processed_cat)
+                                print(f"✓ Kategorie '{processed_cat['name']}' validiert")
+                    
+                    return validated_categories
+                    
+                except json.JSONDecodeError as e:
+                    print(f"Fehler beim JSON-Parsing: {str(e)}")
+                    print("Ungültige Antwort:", raw_response)
+                    return []
+                    
             except Exception as e:
-                print(f"Error processing segment: {str(e)}")
+                print(f"Fehler bei API-Anfrage: {str(e)}")
+                print("Details:")
+                traceback.print_exc()
                 return []
         
         # Parallele Verarbeitung der Segmente
+        print(f"\nVerarbeite {len(batch)} Segmente...")
         tasks = [process_segment(seg) for seg in batch]
-        results = await asyncio.gather(*tasks)
+        try:
+            results = await asyncio.gather(*tasks)
+            
+            # Kombiniere und bereinige Ergebnisse
+            all_categories = []
+            for categories in results:
+                if categories and isinstance(categories, list):
+                    all_categories.extend(categories)
+            
+            if all_categories:
+                print(f"\n✓ {len(all_categories)} neue Kategorien gefunden")
+                for cat in all_categories:
+                    print(f"\n🆕 Neue Kategorie: {cat['name']}")
+                    print(f"   Definition: {cat['definition'][:100]}...")
+                    if cat['new_subcategories']:
+                        print(f"   Subkategorien:")
+                        for sub in cat['new_subcategories']:
+                            print(f"   - {sub}")
+            else:
+                print("\n⚠ Keine neuen Kategorien gefunden")
+                
+            return all_categories
+            
+        except Exception as e:
+            print(f"Fehler bei Batch-Verarbeitung: {str(e)}")
+            print("Details:")
+            traceback.print_exc()
+            return []
         
-        # Kombiniere und bereinige Ergebnisse
-        all_categories = []
-        for categories in results:
-            all_categories.extend(categories)
-        
-        return all_categories
+        # Parallele Verarbeitung der Segmente
+        print(f"\nVerarbeite {len(batch)} Segmente...")
+        tasks = [process_segment(seg) for seg in batch]
+        try:
+            results = await asyncio.gather(*tasks)
+            
+            # Kombiniere und bereinige Ergebnisse
+            all_categories = []
+            for categories in results:
+                if categories and isinstance(categories, list):
+                    all_categories.extend(categories)
+            
+            if all_categories:
+                print(f"\n✓ {len(all_categories)} neue Kategorien gefunden")
+            else:
+                print("\n⚠ Keine neuen Kategorien gefunden")
+                
+            return all_categories
+            
+        except Exception as e:
+            print(f"Fehler bei Batch-Verarbeitung: {str(e)}")
+            print("Details:")
+            traceback.print_exc()
+            return []
 
     def _get_system_prompt(self) -> str:
         """
-        Liefert den System-Prompt mit Caching.
+        Systemkontext für die induktive Kategorienentwicklung.
         """
-        if not self._cached_system_prompt:
-            self._cached_system_prompt = """
-            Du bist ein Experte für qualitative Inhaltsanalyse nach Mayring.
-            Deine Aufgabe ist die systematische Entwicklung von Kategorien aus Textmaterial.
-            
-            Wichtige Prinzipien:
-            1. Kategorien müssen klar definiert und abgrenzbar sein
-            2. Angemessenes Abstraktionsniveau
-            3. Regelgeleitetes Vorgehen
-            4. Intersubjektive Nachvollziehbarkeit
-            """
-        return self._cached_system_prompt
+        return """Du bist ein Experte für qualitative Inhaltsanalyse nach Mayring.
+        Deine Aufgabe ist die systematische Entwicklung von Kategorien aus Textmaterial.
+        
+        Zentrale Prinzipien:
+        1. Nähe zum Material - Kategorien direkt aus dem Text ableiten
+        2. Präzise Definitionen - klar, verständlich, abgrenzbar
+        3. Angemessenes Abstraktionsniveau - nicht zu spezifisch, nicht zu allgemein
+        4. Systematische Subkategorienbildung - erschöpfend aber trennscharf
+        5. Regelgeleitetes Vorgehen - nachvollziehbare Begründungen"""
 
     def _get_category_extraction_prompt(self, segment: str) -> str:
         """
-        Erstellt den detaillierten Prompt für die Kategorienextraktion.
-        Kombiniert den ursprünglichen spezifischen Prompt mit optimierter Struktur.
+        Detaillierter Prompt für die Kategorienentwicklung.
         """
-        return f"""
-        Analysiere das folgende Textsegment nach Mayrings qualitativer Inhaltsanalyse.
-        Fokussiere dabei auf die induktive Kategorienbildung und die Relevanz für die Forschungsfrage:
-        "{FORSCHUNGSFRAGE}"
+        return f"""Analysiere das folgende Textsegment für die Entwicklung induktiver Kategorien.
+        Forschungsfrage: "{FORSCHUNGSFRAGE}"
 
-        WICHTIG - KATEGORIENSTRUKTUR UND HIERARCHIE:
-        1. Unterscheide klar zwischen Haupt- und Subkategorien:
+        ANFORDERUNGEN AN NEUE KATEGORIEN:
 
-        HAUPTKATEGORIEN müssen:
-        - übergeordnete Themenkomplexe abdecken
-        - mehrere Subkategorien bündeln
-        - sich gegenseitig ausschließen
-        - maximal 4-6 Hauptkategorien insgesamt
-        Beispiele: "Forschungsstrukturen", "Personalentwicklung"
+        1. KATEGORIENAME
+        - Prägnant und aussagekräftig (2-4 Wörter)
+        - Fachsprachlich korrekt
+        - Ausschließlich deutsche Begriffe
+        
+        GUTE BEISPIELE:
+        - "Strategische Hochschulentwicklung"
+        - "Digitale Lehrinnovationen"
+        - "Qualitätssicherungsprozesse"
+        
+        SCHLECHTE BEISPIELE:
+        - "Management" (zu allgemein)
+        - "Digital Teaching" (englische Begriffe)
+        - "Prozesse der strategischen Entwicklung im Hochschulkontext" (zu lang)
 
-        SUBKATEGORIEN müssen:
-        - spezifische Aspekte einer Hauptkategorie beschreiben
-        - sich eindeutig zuordnen lassen
-        - konkrete Phänomene erfassen
-        - 2-5 Subkategorien pro Hauptkategorie
-        Beispiele: "Forschungsprofil", "Beruflicher Werdegang"
+        2. DEFINITION
+        Muss enthalten:
+        - Zentrale Merkmale des Phänomens
+        - Abgrenzung zu anderen Kategorien
+        - Bedingungen und Kontext
+        - Mindestens drei Sätze
+        
+        BEISPIEL GUTER DEFINITION:
+        "Strategische Hochschulentwicklung umfasst alle systematischen Prozesse und Maßnahmen 
+        zur langfristigen Positionierung und Profilbildung einer Hochschule. Dies beinhaltet 
+        die Formulierung von Entwicklungszielen, die Implementierung von Steuerungsinstrumenten 
+        und die kontinuierliche Anpassung an sich verändernde Rahmenbedingungen. Im Gegensatz 
+        zum operativen Management fokussiert sie auf längerfristige Entwicklungsperspektiven 
+        und grundlegende Weichenstellungen."
 
-        WICHTIG - DEUTSCHE KATEGORIENBILDUNG:
-        1. Kategorienamen MÜSSEN auf Deutsch sein - KEINE AUSNAHMEN!
-        2. Übersetze englische Konzepte IMMER ins Deutsche
-        3. Nutze etablierte deutsche Fachbegriffe
-        4. Vermeide englische Wörter, Anglizismen oder Fachbegriffe
-        5. Kategorienname sollte prägnant sein (2-4 Wörter)
+        3. SUBKATEGORIEN
+        - 2-4 Subkategorien pro Hauptkategorie
+        - Logisch zusammengehörend
+        - Sich gegenseitig ausschließend
+        - Mit kurzer Erläuterung (1 Satz)
+        
+        BEISPIEL GUTER SUBKATEGORIEN:
+        - "Strategieentwicklung": Prozesse der Zielformulierung und Maßnahmenplanung
+        - "Strategieumsetzung": Konkrete Implementierung der beschlossenen Maßnahmen
+        - "Strategieevaluation": Überprüfung der Zielerreichung und Wirksamkeit
 
-        WICHTIGE REGELN FÜR NEUE KATEGORIEN:
-        1. VORRANG DEDUKTIVER KATEGORIEN:
-        - Prüfe IMMER ZUERST, ob der Inhalt zu einer bestehenden deduktiven Kategorie passt
-        - Neue Hauptkategorien NUR wenn keine bestehende Kategorie passt
-        - Bevorzuge das Hinzufügen von Subkategorien zu bestehenden Hauptkategorien
-
-        2. HIERARCHIE BEACHTEN:
-        - Maximal 8-10 Hauptkategorien insgesamt
-        - Neue Hauptkategorien müssen sich deutlich von bestehenden unterscheiden
-        - Ähnliche Konzepte als Subkategorien einordnen
-
-        TEXT:
-        {segment}
+        4. BEGRÜNDUNG
+        Muss zeigen:
+        - Welche Textstellen die Kategorie belegen
+        - Warum eine neue Kategorie nötig ist
+        - Wie sie sich von bestehenden unterscheidet
 
         BESTEHENDES KATEGORIENSYSTEM:
         {json.dumps(DEDUKTIVE_KATEGORIEN, indent=2, ensure_ascii=False)}
 
-        Prüfe bei jedem neuen Konzept:
-        1. Passt es in eine bestehende Hauptkategorie?
-        2. Könnte es als Subkategorie eingeordnet werden?
-        3. Ist eine neue Hauptkategorie WIRKLICH notwendig?
+        TEXT:
+        {segment}
 
-        Antworte nur mit einem JSON-Array von NEUEN Kategorien:
+        Antworte ausschließlich mit einem JSON-Array von neuen Kategorien:
         [
             {{
-                "name": "Name der neuen Hauptkategorie (ZWINGEND DEUTSCH!)",
-                "definition": "Präzise Definition der Hauptkategorie",
-                "example": "Relevante Textstelle als Beispiel",
-                "existing_subcategories": [],
+                "name": "Name der Kategorie",
+                "definition": "Ausführliche Definition",
+                "example": "Konkrete Textstelle als Beleg",
                 "new_subcategories": [
-                    "Subkategorie 1 (präzise, spezifisch)",
-                    "Subkategorie 2 (präzise, spezifisch)"
+                    "Erste Subkategorie: Kurze Erläuterung",
+                    "Zweite Subkategorie: Kurze Erläuterung"
                 ],
-                "justification": "Prägnante Paraphrase der relevanten Textaspekte und ihre Bedeutung für die Kategorienzuordnung",
+                "justification": "Detaillierte Begründung mit Textbezug",
                 "confidence": {{
-                    "category": 0.9,
-                    "subcategories": 0.8
+                    "category": 0.85,
+                    "subcategories": 0.75
                 }}
             }}
-        ]
+        ]"""
 
-        WICHTIG FÜR DIE BEGRÜNDUNG (justification):
-        - Knappe Paraphrase der relevanten Textinhalte ohne einleitende Phrasen
-        - Fokus auf spezifische Informationen für Kategorienzuordnung
-        - Vermeide Redundanzen und allgemeine Beschreibungen
-        - Erkläre, warum eine neue Hauptkategorie nötig ist
+    def _get_definition_enhancement_prompt(self, category: Dict) -> str:
         """
+        Prompt zur Verbesserung unzureichender Definitionen.
+        """
+        return f"""Erweitere die folgende Kategoriendefinition zu einer vollständigen Definition.
 
-    def _validate_categories(self, categories: List[Dict]) -> List[Dict]:
+        KATEGORIE: {category['name']}
+        AKTUELLE DEFINITION: {category['definition']}
+        BEISPIEL: {category.get('example', '')}
+        
+        ANFORDERUNGEN:
+        1. Zentrale Merkmale klar benennen
+        2. Anwendungsbereich definieren
+        3. Abgrenzung zu ähnlichen Konzepten
+        4. Mindestens drei vollständige Sätze
+        5. Fachsprachlich präzise
+
+        BEISPIEL GUTER DEFINITION:
+        "Qualitätssicherungsprozesse umfassen alle systematischen Verfahren und Maßnahmen zur 
+        Überprüfung und Gewährleistung definierter Qualitätsstandards in der Hochschule. Sie 
+        beinhalten sowohl interne Evaluationen und Audits als auch externe Begutachtungen und 
+        Akkreditierungen. Im Gegensatz zum allgemeinen Qualitätsmanagement fokussieren sie 
+        sich auf die konkrete Durchführung und Dokumentation von qualitätssichernden 
+        Maßnahmen."
+
+        Antworte nur mit der erweiterten Definition."""
+
+    def _get_subcategory_generation_prompt(self, category: Dict) -> str:
         """
-        Validiert extrahierte Kategorien mit verbesserten Qualitätskriterien.
+        Prompt zur Generierung fehlender Subkategorien.
+        """
+        return f"""Entwickle passende Subkategorien für die folgende Hauptkategorie.
+
+        HAUPTKATEGORIE: {category['name']}
+        DEFINITION: {category['definition']}
+        BEISPIEL: {category.get('example', '')}
+
+        ANFORDERUNGEN AN SUBKATEGORIEN:
+        1. 2-4 logisch zusammengehörende Aspekte
+        2. Eindeutig der Hauptkategorie zuordenbar
+        3. Sich gegenseitig ausschließend
+        4. Mit kurzer Erläuterung (1 Satz)
+        5. Relevant für die Forschungsfrage: {FORSCHUNGSFRAGE}
+
+        BEISPIEL GUTER SUBKATEGORIEN:
+        "Qualitätssicherungsprozesse":
+        - "Interne Evaluation": Systematische Selbstbewertung durch die Hochschule
+        - "Externe Begutachtung": Qualitätsprüfung durch unabhängige Gutachter
+        - "Akkreditierung": Formale Anerkennung durch Akkreditierungsagenturen
+
+        Antworte nur mit einem JSON-Array von Subkategorien:
+        ["Subkategorie 1: Erläuterung", "Subkategorie 2: Erläuterung", ...]"""
+
+    def _validate_basic_requirements(self, category: dict) -> bool:
+        """
+        Grundlegende Validierung einer Kategorie.
+        
+        Args:
+            category: Zu validierende Kategorie
+            
+        Returns:
+            bool: True wenn Grundanforderungen erfüllt
+        """
+        try:
+            # Zeige Kategorienamen in der Warnung
+            category_name = category.get('name', 'UNBENANNTE KATEGORIE')
+            
+            # Pflichtfelder prüfen
+            required_fields = {
+                'name': str,
+                'definition': str
+            }
+            
+            for field, field_type in required_fields.items():
+                if field not in category:
+                    print(f"Fehlendes Pflichtfeld '{field}' in Kategorie '{category_name}'")
+                    return False
+                if not isinstance(category[field], field_type):
+                    print(f"Falscher Datentyp für '{field}' in Kategorie '{category_name}': "
+                        f"Erwartet {field_type.__name__}, erhalten {type(category[field]).__name__}")
+                    return False
+            
+            # Name validieren
+            name = category['name'].strip()
+            if len(name) < 3:
+                print(f"Kategoriename '{name}' zu kurz (min. 3 Zeichen)")
+                return False
+            if len(name) > 50:
+                print(f"Kategoriename '{name}' zu lang (max. 50 Zeichen)")
+                return False
+                
+            # Prüfe auf englische Wörter im Namen
+            english_indicators = {'research', 'development', 'management', 
+                                'system', 'process', 'analysis'}
+            if any(word.lower() in english_indicators 
+                for word in name.split()):
+                print(f"Englische Begriffe im Namen '{name}' gefunden")
+                return False
+                
+            # Optionale Felder initialisieren
+            if 'example' not in category:
+                print(f"Initialisiere fehlendes Beispiel für '{category_name}'")
+                category['example'] = ""
+                
+            if 'new_subcategories' not in category:
+                print(f"Initialisiere fehlende Subkategorien für '{category_name}'")
+                category['new_subcategories'] = []
+                
+            if 'confidence' not in category:
+                print(f"Initialisiere fehlende Konfidenzwerte für '{category_name}'")
+                category['confidence'] = {
+                    'category': 0.7,
+                    'subcategories': 0.7
+                }
+            
+            print(f"✓ Grundanforderungen erfüllt für Kategorie '{category_name}'")
+            return True
+            
+        except Exception as e:
+            print(f"Fehler bei Grundvalidierung: {str(e)}")
+            print("Details:")
+            traceback.print_exc()
+            return False
+
+    def _validate_categories(self, categories: List[dict]) -> List[dict]:
+        """
+        Validiert extrahierte Kategorien.
+        
+        Args:
+            categories: Liste der zu validierenden Kategorien
+            
+        Returns:
+            List[dict]: Liste der validierten Kategorien
         """
         valid_categories = []
         
         for category in categories:
-            if not self._validate_category(category):
-                continue
+            try:
+                category_name = category.get('name', 'UNBENANNTE KATEGORIE')
                 
-            # Zusätzliche Qualitätsprüfungen
-            definition_quality = self._assess_definition_quality(category)
-            if definition_quality < self.MIN_CONFIDENCE:
-                continue
+                # Grundlegende Validierung
+                if not self._validate_basic_requirements(category):
+                    print(f"Grundanforderungen nicht erfüllt für '{category_name}'")
+                    continue
                 
-            valid_categories.append(category)
+                # Definition prüfen
+                definition = category.get('definition', '')
+                if len(definition.split()) < self.MIN_DEFINITION_WORDS:
+                    print(f"Definition zu kurz für '{category_name}' - Versuche Erweiterung")
+                    enhanced_def = self._enhance_category_definition(category)
+                    if enhanced_def:
+                        category['definition'] = enhanced_def
+                    else:
+                        continue
+                
+                # Subkategorien prüfen
+                if not category.get('new_subcategories'):
+                    print(f"Keine Subkategorien für '{category_name}' - Versuche Generierung")
+                    if not self._generate_subcategories(category):
+                        category['new_subcategories'] = []  # Leere Liste statt None
+                
+                valid_categories.append(category)
+                print(f"✓ Kategorie '{category_name}' vollständig validiert")
+                
+            except Exception as e:
+                print(f"Fehler bei Validierung von '{category.get('name', 'UNBEKANNT')}': {str(e)}")
+                print("Details:")
+                traceback.print_exc()
+                continue
         
         return valid_categories
 
@@ -4397,7 +4948,7 @@ class ResultsExporter:
         return attribut1, attribut2
 
     def _export_frequency_analysis(self, writer, df_coded: pd.DataFrame, attribut1_label: str, attribut2_label: str) -> None:
-        """Exportiert die Häufigkeitsanalysen mit korrekter Formatierung"""
+        """Exportiert die Häufigkeitsanalysen mit verbesserter Formatierung"""
         try:
             if 'Häufigkeitsanalysen' not in writer.sheets:
                 writer.book.create_sheet('Häufigkeitsanalysen')
@@ -4412,13 +4963,22 @@ class ResultsExporter:
             header_font = Font(bold=True)
             subheader_font = Font(bold=True, size=11)
             title_font = Font(bold=True, size=12)
+            total_font = Font(bold=True)
+            
+            # Rahmenlinien definieren
+            thin_border = Border(
+                left=Side(style='thin'),
+                right=Side(style='thin'),
+                top=Side(style='thin'),
+                bottom=Side(style='thin')
+            )
             
             # 1. Hauptkategorien nach Dokumenten
             cell = worksheet.cell(row=current_row, column=1, value="1. Verteilung der Hauptkategorien")
             cell.font = title_font
             current_row += 2
 
-            # Erstelle Pivot-Tabelle für Hauptkategorien
+            # Pivot-Tabelle für Hauptkategorien
             pivot_main = pd.pivot_table(
                 df_coded,
                 index=['Hauptkategorie'],
@@ -4430,31 +4990,38 @@ class ResultsExporter:
                 fill_value=0
             )
 
-            # Formatiere die Spaltenbezeichnungen
+            # Formatierte Spaltenbezeichnungen
             formatted_columns = []
             for col in pivot_main.columns:
                 if isinstance(col, tuple):
-                    # Entferne leere Strings und None-Werte
                     col_parts = [str(part) for part in col if part and part != '']
                     formatted_columns.append(' - '.join(col_parts))
                 else:
                     formatted_columns.append(str(col))
 
-            # Schreibe Header
+            # Header mit Rahmen
             header_row = current_row
             headers = ['Hauptkategorie'] + formatted_columns
             for col, header in enumerate(headers, 1):
                 cell = worksheet.cell(row=header_row, column=col, value=header)
                 cell.font = header_font
+                cell.border = thin_border
             current_row += 1
 
-            # Schreibe Daten inkl. Randsummen
+            # Daten mit Rahmen und fetten Randsummen
             for idx, row in pivot_main.iterrows():
-                worksheet.cell(row=current_row, column=1, value=str(idx)).font = Font(bold=(idx == 'Gesamt'))
+                is_total = idx == 'Gesamt'
+                cell = worksheet.cell(row=current_row, column=1, value=str(idx))
+                cell.border = thin_border
+                if is_total:
+                    cell.font = total_font
+                
                 for col, value in enumerate(row, 2):
                     cell = worksheet.cell(row=current_row, column=col, value=value)
-                    if idx == 'Gesamt' or col == len(row) + 2:
-                        cell.font = header_font
+                    cell.border = thin_border
+                    if is_total or col == len(row) + 2:  # Randsummen
+                        cell.font = total_font
+                
                 current_row += 1
 
             current_row += 2
@@ -4464,7 +5031,7 @@ class ResultsExporter:
             cell.font = title_font
             current_row += 2
 
-            # Erstelle Pivot für Subkategorien
+            # Pivot für Subkategorien
             df_sub = df_coded.copy()
             df_sub['Subkategorie'] = df_sub['Subkategorien'].str.split(', ')
             df_sub = df_sub.explode('Subkategorie')
@@ -4480,48 +5047,50 @@ class ResultsExporter:
                 fill_value=0
             )
 
-            # Formatiere die Spaltenbezeichnungen für Subkategorien
-            formatted_sub_columns = []
-            for col in pivot_sub.columns:
-                if isinstance(col, tuple):
-                    col_parts = [str(part) for part in col if part and part != '']
-                    formatted_sub_columns.append(' - '.join(col_parts))
-                else:
-                    formatted_sub_columns.append(str(col))
-
-            # Schreibe Header
+            # Header für Subkategorien
             header_row = current_row
-            headers = ['Hauptkategorie', 'Subkategorie'] + formatted_sub_columns
+            headers = ['Hauptkategorie', 'Subkategorie'] + formatted_columns
             for col, header in enumerate(headers, 1):
                 cell = worksheet.cell(row=header_row, column=col, value=header)
                 cell.font = header_font
+                cell.border = thin_border
             current_row += 1
 
-            # Schreibe Daten mit hierarchischer Struktur
+            # Daten mit hierarchischer Struktur und Formatierung
             current_main_cat = None
             for index, row in pivot_sub.iterrows():
-                if isinstance(index, tuple):  # Normale Zeile
+                is_total = isinstance(index, str) and index == 'Gesamt'
+                
+                if isinstance(index, tuple):
                     main_cat, sub_cat = index
                     if main_cat != current_main_cat:
-                        # Neue Hauptkategorie - füge Zwischenüberschrift ein
                         current_row += 1
                         cell = worksheet.cell(row=current_row, column=1, value=main_cat)
                         cell.font = subheader_font
+                        cell.border = thin_border
                         current_row += 1
                         current_main_cat = main_cat
                     
-                    # Schreibe Subkategorie und Werte
-                    worksheet.cell(row=current_row, column=2, value=sub_cat)
+                    # Subkategorie-Zeile
+                    worksheet.cell(row=current_row, column=1, value=main_cat).border = thin_border
+                    cell = worksheet.cell(row=current_row, column=2, value=sub_cat)
+                    cell.border = thin_border
+                    
                     for col, value in enumerate(row, 3):
                         cell = worksheet.cell(row=current_row, column=col, value=value)
-                else:  # Randsummenzeile
-                    worksheet.cell(row=current_row, column=1, value=index).font = header_font
+                        cell.border = thin_border
+                else:
+                    # Randsummen-Zeile
+                    cell = worksheet.cell(row=current_row, column=1, value=index)
+                    cell.font = total_font
+                    cell.border = thin_border
+                    
                     for col, value in enumerate(row, 3):
                         cell = worksheet.cell(row=current_row, column=col, value=value)
-                        cell.font = header_font
+                        cell.font = total_font
+                        cell.border = thin_border
+                
                 current_row += 1
-
-            current_row += 2
 
             # 3. Attribut-Analysen
             cell = worksheet.cell(row=current_row, column=1, value="3. Verteilung nach Attributen")
@@ -4533,6 +5102,7 @@ class ResultsExporter:
             cell.font = subheader_font
             current_row += 1
 
+            # Analyse für Attribut 1
             attr1_counts = df_coded[attribut1_label].value_counts()
             attr1_counts['Gesamt'] = attr1_counts.sum()
 
@@ -4541,16 +5111,23 @@ class ResultsExporter:
             for col, header in enumerate(headers, 1):
                 cell = worksheet.cell(row=current_row, column=col, value=header)
                 cell.font = header_font
+                cell.border = thin_border
             current_row += 1
 
-            # Daten
+            # Daten für Attribut 1
             for idx, value in attr1_counts.items():
+                # Wert-Zelle
                 cell = worksheet.cell(row=current_row, column=1, value=idx)
+                cell.border = thin_border
                 if idx == 'Gesamt':
-                    cell.font = header_font
+                    cell.font = total_font
+                
+                # Anzahl-Zelle
                 cell = worksheet.cell(row=current_row, column=2, value=value)
+                cell.border = thin_border
                 if idx == 'Gesamt':
-                    cell.font = header_font
+                    cell.font = total_font
+                
                 current_row += 1
 
             current_row += 2
@@ -4560,6 +5137,7 @@ class ResultsExporter:
             cell.font = subheader_font
             current_row += 1
 
+            # Analyse für Attribut 2
             attr2_counts = df_coded[attribut2_label].value_counts()
             attr2_counts['Gesamt'] = attr2_counts.sum()
 
@@ -4568,16 +5146,23 @@ class ResultsExporter:
             for col, header in enumerate(headers, 1):
                 cell = worksheet.cell(row=current_row, column=col, value=header)
                 cell.font = header_font
+                cell.border = thin_border
             current_row += 1
 
-            # Daten
+            # Daten für Attribut 2
             for idx, value in attr2_counts.items():
+                # Wert-Zelle
                 cell = worksheet.cell(row=current_row, column=1, value=idx)
+                cell.border = thin_border
                 if idx == 'Gesamt':
-                    cell.font = header_font
+                    cell.font = total_font
+                
+                # Anzahl-Zelle
                 cell = worksheet.cell(row=current_row, column=2, value=value)
+                cell.border = thin_border
                 if idx == 'Gesamt':
-                    cell.font = header_font
+                    cell.font = total_font
+                
                 current_row += 1
 
             current_row += 2
@@ -4595,22 +5180,30 @@ class ResultsExporter:
                 margins_name='Gesamt'
             )
 
-            # Header
+            # Header für Kreuztabelle
             headers = [attribut1_label] + list(cross_tab.columns)
             for col, header in enumerate(headers, 1):
                 cell = worksheet.cell(row=current_row, column=col, value=header)
                 cell.font = header_font
+                cell.border = thin_border
             current_row += 1
 
-            # Daten
+            # Daten für Kreuztabelle
             for idx, row in cross_tab.iterrows():
+                # Index-Zelle
                 cell = worksheet.cell(row=current_row, column=1, value=idx)
+                cell.border = thin_border
                 if idx == 'Gesamt':
-                    cell.font = header_font
+                    cell.font = total_font
+                
+                # Datenzellen
                 for col, value in enumerate(row, 2):
                     cell = worksheet.cell(row=current_row, column=col, value=value)
+                    cell.border = thin_border
+                    # Fettdruck für Randsummen (letzte Zeile oder letzte Spalte)
                     if idx == 'Gesamt' or col == len(row) + 2:
-                        cell.font = header_font
+                        cell.font = total_font
+                
                 current_row += 1
 
             # Passe Spaltenbreiten an
@@ -4622,7 +5215,7 @@ class ResultsExporter:
                             max_length = len(str(cell.value))
                     except:
                         pass
-                worksheet.column_dimensions[col[0].column_letter].width = min(max_length + 2, 40)
+                    worksheet.column_dimensions[col[0].column_letter].width = min(max_length + 2, 40)
 
             print("Häufigkeitsanalysen erfolgreich exportiert")
             
@@ -6055,48 +6648,160 @@ class CategoryRevisionManager:
                 # Zeige Kategorienamen in der Warnung
                 category_name = category.get('name', 'UNBENANNTE KATEGORIE')
                 
-                # Prüfe ob alle erforderlichen Felder vorhanden sind
-                missing_fields = [field for field in required_fields if field not in category]
-                if missing_fields:
-                    print(f"Warnung: Fehlende Felder in Kategorie '{category_name}': {', '.join(missing_fields)}")
+                # Grundlegende Validierung
+                if not self._validate_basic_requirements(category):
                     continue
                 
-                # Prüfe Datentypen
-                invalid_types = []
-                for field, expected_type in required_fields.items():
-                    if not isinstance(category[field], expected_type):
-                        actual_type = type(category[field]).__name__
-                        invalid_types.append(f"{field} (ist {actual_type}, erwartet {expected_type.__name__})")
+                # Prüfe Definition
+                definition = category.get('definition', '')
+                if len(definition.split()) < self.MIN_DEFINITION_WORDS:
+                    print(f"Warnung: Definition zu kurz für '{category_name}' "
+                          f"({len(definition.split())} Wörter)")
+                    # Versuche Definition zu erweitern statt sie abzulehnen
+                    enhanced_def = self._enhance_category_definition(category)
+                    if enhanced_def:
+                        category['definition'] = enhanced_def
+                    else:
+                        continue
                 
-                if invalid_types:
-                    print(f"Warnung: Ungültige Datentypen in Kategorie '{category_name}': {', '.join(invalid_types)}")
-                    continue
+                # Prüfe Subkategorien
+                subcats = (category.get('existing_subcategories', []) + 
+                          category.get('new_subcategories', []))
+                if not subcats:
+                    print(f"Warnung: Keine Subkategorien für '{category_name}'")
+                    # Versuche Subkategorien zu generieren
+                    if self._generate_subcategories(category):
+                        subcats = (category.get('existing_subcategories', []) + 
+                                 category.get('new_subcategories', []))
+                    else:
+                        continue
                 
-                # Prüfe ob Subkategorien vorhanden sind
-                has_subcategories = (
-                    len(category['existing_subcategories']) > 0 or 
-                    len(category['new_subcategories']) > 0
-                )
-                if not has_subcategories:
-                    print(f"Warnung: Keine Subkategorien für Kategorie '{category_name}'")
-                    continue
+                # Prüfe Konfidenz
+                confidence = category.get('confidence', {})
+                if not all(0 <= confidence.get(k, 0) <= 1 for k in ['category', 'subcategories']):
+                    print(f"Warnung: Ungültige Konfidenzwerte für '{category_name}'")
+                    # Setze Standard-Konfidenzwerte
+                    category['confidence'] = {'category': 0.7, 'subcategories': 0.7}
                 
-                # Weitere Qualitätsprüfungen...
                 valid_categories.append(category)
+                print(f"✓ Kategorie '{category_name}' validiert")
                 
             except Exception as e:
-                print(f"Fehler bei Kategorienvalidierung von '{category.get('name', 'UNBENANNTE KATEGORIE')}': {str(e)}")
+                print(f"Fehler bei Validierung von '{category_name}': {str(e)}")
                 continue
-        
-        # Zusammenfassung
-        if len(valid_categories) < len(categories):
-            print(f"\nValidierungszusammenfassung:")
-            print(f"- Eingereichte Kategorien: {len(categories)}")
-            print(f"- Valide Kategorien: {len(valid_categories)}")
-            print(f"- Zurückgewiesene Kategorien: {len(categories) - len(valid_categories)}")
         
         return valid_categories
 
+    async def _enhance_category_definition(self, category: dict) -> Optional[str]:
+        """
+        Erweitert eine zu kurze Kategoriendefinition.
+        Nutzt den _get_definition_enhancement_prompt.
+        
+        Args:
+            category: Kategorie mit unzureichender Definition
+            
+        Returns:
+            Optional[str]: Erweiterte Definition oder None bei Fehler
+        """
+        try:
+            # Hole den spezialisierten Prompt für Definitionsverbesserung
+            prompt = self._get_definition_enhancement_prompt(category)
+            
+            input_tokens = estimate_tokens(prompt)
+
+            # Sende Anfrage an GPT
+            response = await self.client.chat.completions.create(
+                model=self.model_name,
+                messages=[
+                    {"role": "system", "content": "Du bist ein Experte für Kategorienentwicklung."},
+                    {"role": "user", "content": prompt}
+                ],
+                temperature=0.7
+            )
+
+            enhanced_def = response.choices[0].message.content.strip()
+            
+            output_tokens = estimate_tokens(response.choices[0].message.content)
+            token_counter.add_tokens(input_tokens, output_tokens)
+
+            # Prüfe ob die neue Definition besser ist
+            if len(enhanced_def.split()) >= self.MIN_DEFINITION_WORDS:
+                print(f"Definition erfolgreich erweitert von {len(category['definition'].split())} "
+                    f"auf {len(enhanced_def.split())} Wörter")
+                return enhanced_def
+            else:
+                print(f"Warnung: Erweiterte Definition immer noch zu kurz")
+                return None
+
+        except Exception as e:
+            print(f"Fehler bei Definitionserweiterung: {str(e)}")
+            print("Details:")
+            traceback.print_exc()
+            return None
+
+    async def _generate_subcategories(self, category: dict) -> bool:
+        """
+        Generiert Subkategorien für eine Kategorie ohne solche.
+        Nutzt den _get_subcategory_generation_prompt.
+        
+        Args:
+            category: Kategorie ohne Subkategorien
+            
+        Returns:
+            bool: True wenn Subkategorien erfolgreich generiert wurden
+        """
+        try:
+            # Hole den spezialisierten Prompt für Subkategoriengenerierung
+            prompt = self._get_subcategory_generation_prompt(category)
+            
+            input_tokens = estimate_tokens(prompt)
+
+            # Sende Anfrage an GPT
+            response = await self.client.chat.completions.create(
+                model=self.model_name,
+                messages=[
+                    {"role": "system", "content": "Du bist ein Experte für Kategorienentwicklung."},
+                    {"role": "user", "content": prompt}
+                ],
+                temperature=0.7,
+                response_format={"type": "json_object"}
+            )
+
+            # Parse das Ergebnis
+            result = json.loads(response.choices[0].message.content)
+            
+            output_tokens = estimate_tokens(response.choices[0].message.content)
+            token_counter.add_tokens(input_tokens, output_tokens)
+
+            # Stelle sicher dass wir eine Liste haben
+            if isinstance(result, str):
+                subcats = [result]
+            elif isinstance(result, list):
+                subcats = result
+            else:
+                print(f"Warnung: Unerwartetes Format für Subkategorien: {type(result)}")
+                return False
+
+            # Validiere die generierten Subkategorien
+            if len(subcats) >= 2:
+                # Füge die neuen Subkategorien zur Kategorie hinzu
+                category['new_subcategories'] = subcats
+                print(f"Subkategorien erfolgreich generiert:")
+                for subcat in subcats:
+                    print(f"- {subcat}")
+                return True
+            else:
+                print(f"Warnung: Zu wenige Subkategorien generiert ({len(subcats)})")
+                return False
+
+        except json.JSONDecodeError:
+            print("Fehler: Ungültiges JSON in der Antwort")
+            return False
+        except Exception as e:
+            print(f"Fehler bei Subkategoriengenerierung: {str(e)}")
+            print("Details:")
+            traceback.print_exc()
+            return False
 
     def _validate_category_system(self, categories: Dict[str, CategoryDefinition]) -> bool:
         """
@@ -6790,7 +7495,7 @@ def estimate_tokens(text: str) -> int:
 
 def get_input_with_timeout(prompt: str, timeout: int = 30) -> str:
     """
-    Fragt nach Benutzereingabe mit Timeout und verbesserter Benutzerführung.
+    Fragt nach Benutzereingabe mit Timeout.
     
     Args:
         prompt: Anzuzeigender Text
@@ -6800,42 +7505,53 @@ def get_input_with_timeout(prompt: str, timeout: int = 30) -> str:
         str: Benutzereingabe oder 'n' bei Timeout
     """
     import threading
-    import time
     import sys
+    import time
     from threading import Event
     
+    # Plattformspezifische Imports
+    if sys.platform == 'win32':
+        import msvcrt
+    else:
+        import select
+
     answer = {'value': None}
     stop_event = Event()
     
-    def get_input():
+    def input_thread():
         try:
-            while not stop_event.is_set():
-                if sys.stdin.isatty():  # Prüfe ob wir in einer interaktiven Konsole sind
-                    sys.stdout.write('\r' + prompt)  # Schreibe den Prompt
-                    sys.stdout.flush()
-                    
-                    # Zeige Countdown
-                    for remaining in range(timeout, 0, -1):
-                        if stop_event.is_set():
-                            return
-                        #sys.stdout.write(f'\r{prompt} ({remaining}s verbleibend): ')
-                        #sys.stdout.flush()
-                        time.sleep(1)
-                        
-                    # Bei Timeout
-                    sys.stdout.write('\n')
-                    return
+            # Zeige Countdown
+            remaining_time = timeout
+            while remaining_time > 0 and not stop_event.is_set():
+                sys.stdout.write(f'\r{prompt} ({remaining_time}s): ')
+                sys.stdout.flush()
+                
+                # Plattformspezifische Eingabeprüfung
+                if sys.platform == 'win32':
+                    if msvcrt.kbhit():
+                        answer['value'] = msvcrt.getche().decode().strip().lower()
+                        sys.stdout.write('\n')
+                        stop_event.set()
+                        return
                 else:
-                    # Nicht-interaktive Umgebung
-                    answer['value'] = input(prompt)
-                    return
-                    
+                    if select.select([sys.stdin], [], [], 1)[0]:
+                        answer['value'] = sys.stdin.readline().strip().lower()
+                        stop_event.set()
+                        return
+                
+                time.sleep(1)
+                remaining_time -= 1
+            
+            # Bei Timeout
+            if not stop_event.is_set():
+                sys.stdout.write('\n')
+                sys.stdout.flush()
+                
         except (KeyboardInterrupt, EOFError):
             stop_event.set()
-            return
     
     # Starte Input-Thread
-    thread = threading.Thread(target=get_input)
+    thread = threading.Thread(target=input_thread)
     thread.daemon = True
     thread.start()
     
@@ -6843,14 +7559,11 @@ def get_input_with_timeout(prompt: str, timeout: int = 30) -> str:
     thread.join(timeout)
     stop_event.set()
     
-    if thread.is_alive():
-        print("\nKeine Eingabe innerhalb der Zeitbegrenzung - fahre fort mit 'n'")
-        return 'n'
-        
     if answer['value'] is None:
+        print(f"\nKeine Eingabe innerhalb von {timeout} Sekunden - verwende 'n'")
         return 'n'
         
-    return answer['value'].lower()
+    return answer['value']
 
 async def perform_manual_coding(chunks, categories, manual_coders):
     """Führt die manuelle Kodierung durch"""
@@ -6944,15 +7657,15 @@ async def main() -> None:
         print("Automatische Fortführung in 10 Sekunden...")
         skip_inductive = False
         user_input = get_input_with_timeout(
-            "\nMöchten Sie die induktive Kodierung überspringen und nur deduktiv arbeiten? (j/N): ",
+            "\nMöchten Sie die induktive Kodierung überspringen und nur deduktiv arbeiten? (j/n)",
             timeout=10
         )
         
         if user_input.lower() == 'j':
             skip_inductive = True
-            print("ℹ Induktive Kodierung wird übersprungen - Nur deduktive Kategorien werden verwendet")
+            print("\nℹ Induktive Kodierung wird übersprungen - Nur deduktive Kategorien werden verwendet")
         else:
-            print("ℹ Vollständige Analyse mit deduktiven und induktiven Kategorien")
+            print("\nℹ Vollständige Analyse mit deduktiven und induktiven Kategorien")
 
         # 5. Kodierer konfigurieren
         print("\n4. Konfiguriere Kodierer...")
@@ -6971,12 +7684,14 @@ async def main() -> None:
         print("Drücken Sie 'j' für manuelle Kodierung oder 'n' zum Überspringen.")
 
         manual_coders = []
-        user_response = get_input_with_timeout("\nMöchten Sie manuell kodieren? (j/n): ", timeout=10)
-
-        if user_response == 'j':
+        user_input = get_input_with_timeout(
+            "\nMöchten Sie manuell kodieren? (j/N)",
+            timeout=10
+        )
+        
+        if user_input.lower() == 'j':
             manual_coders.append(ManualCoder(coder_id="human_1"))
             print("\n✓ Manueller Kodierer wurde hinzugefügt")
-            print("Sie können nun mit der manuellen Kodierung beginnen.")
         else:
             print("\nℹ Keine manuelle Kodierung - nur automatische Kodierung wird durchgeführt")
 
