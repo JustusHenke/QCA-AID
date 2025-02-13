@@ -2,7 +2,7 @@
 
 # QCA-AID: Qualitative Content Analysis with AI Support - Deductive Coding
 
-Dieses Python-Skript implementiert Mayrings Methode der Qualitativen Inhaltsanalyse mit KI-Unterstützung durch die OpenAI API. Es kombiniert traditionelle qualitative Forschungsmethoden mit modernen KI-Fähigkeiten, um Forschende bei der Analyse von Dokumenten- und Interviewdaten zu unterstützen. Das Ziel dieses Tools ist nicht, die menschliche Arbeit der Inhaltsanalyse zu ersetzen, sondern neue Möglichkeiten zu eröffnen, mehr Zeit für die Analyse und Reflexion bereits vorstrukturierter Textdaten zu gewinnen. 
+Dieses Python-Skript implementiert Mayrings Methode der deduktiven Qualitativen Inhaltsanalyse mit induktiver Erweiterung mit KI-Unterstützung durch die OpenAI API. Es kombiniert traditionelle qualitative Forschungsmethoden mit modernen KI-Fähigkeiten, um Forschende bei der Analyse von Dokumenten- und Interviewdaten zu unterstützen. Das Ziel dieses Tools ist nicht, die menschliche Arbeit der Inhaltsanalyse zu ersetzen, sondern neue Möglichkeiten zu eröffnen, mehr Zeit für die Analyse und Reflexion bereits vorstrukturierter Textdaten zu gewinnen. 
 
 Chancen:
 - Es ermöglicht mehr Dokumente in einer Untersuchung zu berücksichtigen als in herkömmlichen Verfahren, bei denen Personalkapazitäten stark begrenzt sind.    
@@ -18,13 +18,14 @@ Zu beachten ist aber:
 
 - Automatisierte Textvorverarbeitung und Chunking
 - Deduktive Anwendung von Kategorien
-- Induktive Kategorienentwicklung
+- Induktive Kategorienentwicklung (kann übersprungen werden)
 - Multi-Coder-Unterstützung (AI und Mensch)
 - Fähigkeiten zur Zusammenführung und Aufteilung von Kategorien
 - Berechnung der Intercoder-Zuverlässigkeit
 - Überarbeitung und Optimierung des Kategoriesystems
 - Iterativer Analyseprozess mit Sättigungsprüfungen
 - Umfassender Analyseexport
+- Export des erweiterten Codebooks
 - Attributbasierte Analyse für demografische oder kontextbezogene Faktoren
 - Konfigurierbare Analyseparameter und Schwellenwerte
 - Detaillierte Dokumentation des Kodierungsprozesses
@@ -45,7 +46,7 @@ Die KI-gestützte Datenverarbeitung nutzt die Schnittstelle von OpenAI. Auch wen
 ## Weitere Hinweise zur aktuellen Version 
 
 - Die Sättigungsprüfung der induktiven Kodierung nimmt aktuell relativ viel Zeit in Anspruch. Hier wird künftig ein effizienteres Verfahren angestrebt, damit auch längere Texte (>15 Seiten) zügiger verarbeitet werden. Man kann die Größe der Textsegmente mittels `CHUNK_SIZE` erhöhen (aktuell 800 Zeichen), um weniger Segmente im Stapel zu verarbeiten.  
-- Die induktive Kodierung ist aktuell relativ großzügig, was Redundanzen und eher mehr als weniger Subcodes zulässt. Regulieren Sie ggf. den CONFIG-Wert 'Temperature' herunter (z.B. auf '0.1')
+- Die induktive Kodierung ist aktuell relativ großzügig, was Redundanzen und eher mehr als weniger Subcodes zulässt. Regulieren Sie ggf. den CONFIG-Wert `Temperature` herunter (z.B. auf '0.1')
 - Momentan wird nur Konsensentscheidung der Kodierer zugelassen, Mehrheitsvoting (bei n>2 Kodierern) ist noch nicht implementiert
 
 ## Installation
