@@ -237,10 +237,12 @@ DEDUKTIVE_KATEGORIEN = {
 # ------------------------
 # Konfigurationskonstanten
 # ------------------------
+
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 CONFIG = {
     'MODEL_NAME': 'gpt-4o-mini',
-    'DATA_DIR': os.path.join(os.getcwd(), 'output'),
-    'OUTPUT_DIR': os.path.join(os.getcwd(), 'output'),
+    'DATA_DIR': os.path.join(SCRIPT_DIR, 'output'),
+    'OUTPUT_DIR': os.path.join(SCRIPT_DIR, 'output'),
     'CHUNK_SIZE': 800,
     'CHUNK_OVERLAP': 80,
     'ATTRIBUTE_LABELS': {
@@ -469,7 +471,8 @@ class ConfigLoader:
             for key, value in config.items():
                 # Verzeichnispfade relativ zum aktuellen Arbeitsverzeichnis
                 if key in ['DATA_DIR', 'OUTPUT_DIR']:
-                    sanitized[key] = os.path.join(os.getcwd(), str(value))
+                    script_dir = os.path.dirname(os.path.abspath(__file__))
+                    sanitized[key] = os.path.join(script_dir, str(value))
                 
                 # Numerische Werte für Chunking
                 elif key in ['CHUNK_SIZE', 'CHUNK_OVERLAP']:
@@ -2019,35 +2022,38 @@ class IntegratedAnalysisManager:
             return original
 
     def _validate_and_integrate_categories(self, 
-                                        existing_categories: Dict[str, CategoryDefinition],
-                                        new_categories: Dict[str, CategoryDefinition]) -> Dict[str, CategoryDefinition]:
+                                    existing_categories: Dict[str, CategoryDefinition],
+                                    new_categories: Dict[str, CategoryDefinition]) -> Dict[str, CategoryDefinition]:
         """
         Validiert neue induktive Kategorien und integriert sie ins bestehende System.
-        
-        Args:
-            existing_categories: Bestehendes Kategoriensystem
-            new_categories: Neu entwickelte induktive Kategorien
-            
-        Returns:
-            Dict[str, CategoryDefinition]: Integriertes Kategoriensystem
         """
         integrated = existing_categories.copy()
         
         for name, category in new_categories.items():
-            # Prüfe auf Ähnlichkeit mit bestehenden Kategorien
-            similar_category = self._find_similar_category(category, existing_categories)
+            try:
+                # Prüfe auf Ähnlichkeit mit bestehenden Kategorien
+                similar_category = self._find_similar_category(category, existing_categories)
+                
+                if similar_category:
+                    # Erweitere bestehende Kategorie
+                    integrated[similar_category] = self._merge_category_definitions(
+                        integrated[similar_category], 
+                        category
+                    )
+                    print(f"Induktive Kategorie '{name}' in bestehende Kategorie '{similar_category}' integriert")
+                else:
+                    # Füge als neue Kategorie hinzu
+                    integrated[name] = category
+                    print(f"Neue induktive Kategorie '{name}' hinzugefügt")
+                    
+                    # Debug-Ausgabe
+                    print(f"Details der neuen Kategorie:")
+                    print(f"- Definition: {category.definition[:100]}...")
+                    print(f"- Subkategorien: {list(category.subcategories.keys())}")
             
-            if similar_category:
-                # Erweitere bestehende Kategorie
-                integrated[similar_category] = self._merge_category_definitions(
-                    integrated[similar_category], 
-                    category
-                )
-                print(f"Induktive Kategorie '{name}' in bestehende Kategorie '{similar_category}' integriert")
-            else:
-                # Füge als neue Kategorie hinzu
-                integrated[name] = category
-                print(f"Neue induktive Kategorie '{name}' hinzugefügt")
+            except Exception as e:
+                print(f"Fehler bei Integration von Kategorie '{name}': {str(e)}")
+                continue
         
         return integrated
 
@@ -3024,6 +3030,8 @@ class InductiveCoder:
         async def process_segment(segment: str) -> List[Dict]:
             prompt = self._get_category_extraction_prompt(segment)
             
+            input_tokens = estimate_tokens(prompt)
+
             try:
                 print("\nSende Anfrage an API...")
                 response = await self.client.chat.completions.create(
@@ -4814,15 +4822,6 @@ class ResultsExporter:
     def _prepare_coding_for_export(self, coding: dict, chunk: str, chunk_id: int, doc_name: str) -> dict:
         """
         Bereitet eine Kodierung für den Export vor.
-        
-        Args:
-            coding: Kodierungsergebnis
-            chunk: Textabschnitt
-            chunk_id: ID des Chunks
-            doc_name: Name des Dokuments
-            
-        Returns:
-            dict: Aufbereitete Kodierungsdaten für Export
         """
         try:
             # Extrahiere Attribute aus dem Dateinamen
@@ -4832,25 +4831,17 @@ class ResultsExporter:
             category = coding.get('category', '')
             
             # Bestimme den Kategorietyp (deduktiv/induktiv)
+            # Wichtig: Vergleiche mit den ursprünglichen deduktiven Kategorien
             if category in DEDUKTIVE_KATEGORIEN:
                 kategorie_typ = "deduktiv"
             else:
                 kategorie_typ = "induktiv"
+                print(f"Induktive Kategorie gefunden: {category}")  # Debug-Ausgabe
                 
             # Setze Kodiert-Status basierend auf Kategorie
             is_coded = 'Ja' if category and category != "Nicht kodiert" else 'Nein'
             
-            # Formatiere Konfidenz-Werte
-            confidence = coding.get('confidence', {})
-            if isinstance(confidence, dict):
-                formatted_confidence = (
-                    f"Kategorie: {confidence.get('category', 0):.2f}\n"
-                    f"Subkategorien: {confidence.get('subcategories', 0):.2f}"
-                )
-            else:
-                formatted_confidence = f"{float(confidence):.2f}"
-            
-            # Erstelle Export-Dictionary mit allen erforderlichen Feldern
+            # Export-Dictionary mit allen erforderlichen Feldern
             export_data = {
                 'Dokument': doc_name,
                 self.attribute_labels['attribut1']: attribut1,
@@ -4862,33 +4853,14 @@ class ResultsExporter:
                 'Kategorietyp': kategorie_typ,  # Hier wird der korrekte Typ gesetzt
                 'Subkategorien': ', '.join(coding.get('subcategories', [])),
                 'Begründung': coding.get('justification', ''),
-                'Konfidenz': formatted_confidence,
+                'Konfidenz': self._format_confidence(coding.get('confidence', {})),
                 'Mehrfachkodierung': 'Ja' if len(coding.get('subcategories', [])) > 1 else 'Nein'
             }
             
-            # Füge Relevanzinformationen hinzu
-            segment_id = f"{doc_name}_chunk_{chunk_id}"
-            if hasattr(self.analysis_manager, 'relevance_details') and segment_id in self.analysis_manager.relevance_details:
-                relevance_info = self.analysis_manager.relevance_details[segment_id]
-                export_data.update({
-                    'Relevant': 'Ja' if relevance_info['is_relevant'] else 'Nein',
-                    'Relevanz-Konfidenz': f"{relevance_info['confidence']:.2f}",
-                    'Relevanz-Begründung': relevance_info['justification'],
-                    'Relevante Aspekte': '\n'.join(f"- {aspect}" for aspect in relevance_info['key_aspects'])
-                })
-            else:
-                export_data.update({
-                    'Relevant': 'Unbekannt',
-                    'Relevanz-Konfidenz': '',
-                    'Relevanz-Begründung': '',
-                    'Relevante Aspekte': ''
-                })
-
             return export_data
             
         except Exception as e:
             print(f"Fehler bei der Exportvorbereitung für Chunk {chunk_id}: {str(e)}")
-            # Rückgabe eines Minimal-Datensatzes im Fehlerfall
             return {
                 'Dokument': doc_name,
                 'Chunk_Nr': chunk_id,
@@ -4898,6 +4870,18 @@ class ResultsExporter:
                 'Kategorietyp': 'unbekannt',
                 'Begründung': f'Fehler: {str(e)}'
             }
+
+    def _format_confidence(self, confidence: dict) -> str:
+        """Formatiert die Konfidenz-Werte"""
+        if isinstance(confidence, dict):
+            return (
+                f"Kategorie: {confidence.get('category', 0):.2f}\n"
+                f"Subkategorien: {confidence.get('subcategories', 0):.2f}"
+            )
+        elif isinstance(confidence, (int, float)):
+            return f"{float(confidence):.2f}"
+        else:
+            return "0.00"
 
     def _validate_export_data(self, export_data: List[dict]) -> bool:
         """
@@ -7475,7 +7459,14 @@ class TokenCounter:
         self.input_tokens = 0
         self.output_tokens = 0
 
-    def add_tokens(self, input_tokens, output_tokens):
+    def add_tokens(self, input_tokens: int, output_tokens: int = 0):
+        """
+        Zählt Input- und Output-Tokens.
+        
+        Args:
+            input_tokens: Anzahl der Input-Tokens
+            output_tokens: Anzahl der Output-Tokens (optional, Standard 0)
+        """
         self.input_tokens += input_tokens
         self.output_tokens += output_tokens
 
@@ -7488,9 +7479,12 @@ class TokenCounter:
 token_counter = TokenCounter()
 
 
+
 # --- Hilfsfunktionen ---
 
+# Hilfsfunktion zur Token-Schätzung
 def estimate_tokens(text: str) -> int:
+    """Schätzt die Anzahl der Tokens in einem Text."""
     return len(text.split())
 
 def get_input_with_timeout(prompt: str, timeout: int = 30) -> str:
