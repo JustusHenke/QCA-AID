@@ -553,9 +553,9 @@ class MaterialLoader:
             chunk_size (int): Ungefähre Anzahl der Zeichen pro Chunk
             chunk_overlap (int): Überlappung zwischen Chunks in Zeichen
         """
-        self.data_dir: str = data_dir
-        self.chunk_size: int = chunk_size
-        self.chunk_overlap: int = chunk_overlap
+        self.data_dir = data_dir
+        self.chunk_size = chunk_size
+        self.chunk_overlap = chunk_overlap
         
         # Lade das deutsche Sprachmodell für spaCy
         try:
@@ -7691,7 +7691,11 @@ async def main() -> None:
 
         # 6. Material vorbereiten
         print("\n5. Bereite Material vor...")
-        loader = MaterialLoader()
+        loader = MaterialLoader(
+            data_dir=CONFIG['DATA_DIR'],
+            chunk_size=CONFIG['CHUNK_SIZE'],
+            chunk_overlap=CONFIG['CHUNK_OVERLAP']
+        )
         chunks = {}
         for doc_name, doc_text in documents.items():
             chunks[doc_name] = loader.chunk_text(doc_text)
