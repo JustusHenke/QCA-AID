@@ -234,6 +234,27 @@ DEDUKTIVE_KATEGORIEN = {
     }
 }
 
+VALIDATION_THRESHOLDS = {
+    'MIN_DEFINITION_WORDS': 15,
+    'MIN_EXAMPLES': 2,
+    'SIMILARITY_THRESHOLD': 0.7,
+    'MIN_SUBCATEGORIES': 2,
+    'MAX_NAME_LENGTH': 50,
+    'MIN_NAME_LENGTH': 3
+}
+
+ENGLISH_WORDS = {
+    'research', 'development', 'management', 
+    'system', 'process', 'analysis'
+}
+
+VALIDATION_MESSAGES = {
+    'short_definition': "Definition zu kurz (min. {min_words} Wörter)",
+    'few_examples': "Zu wenige Beispiele (min. {min_examples})",
+    'english_terms': "Name enthält englische Begriffe",
+    'name_length': "Name muss zwischen {min_len} und {max_len} Zeichen sein"
+}
+
 # ------------------------
 # Konfigurationskonstanten
 # ------------------------
@@ -280,10 +301,54 @@ class CategoryDefinition:
     name: str
     definition: str
     examples: List[str]
-    rules: List[str]  # Explizit als List[str] definiert
+    rules: List[str]
     subcategories: Dict[str, str]
     added_date: str
     modified_date: str
+
+    def replace(self, **changes) -> 'CategoryDefinition':
+        """
+        Erstellt eine neue Instanz mit aktualisierten Werten.
+        Ähnlich wie _replace bei namedtuples.
+        """
+        new_values = {
+            'name': self.name,
+            'definition': self.definition,
+            'examples': self.examples.copy(),
+            'rules': self.rules.copy(),
+            'subcategories': self.subcategories.copy(),
+            'added_date': self.added_date,
+            'modified_date': datetime.now().strftime("%Y-%m-%d")
+        }
+        new_values.update(changes)
+        return CategoryDefinition(**new_values)
+
+    def update_examples(self, new_examples: List[str]) -> None:
+        """Fügt neue Beispiele hinzu ohne Duplikate."""
+        self.examples = list(set(self.examples + new_examples))
+        self.modified_date = datetime.now().strftime("%Y-%m-%d")
+
+    def update_rules(self, new_rules: List[str]) -> None:
+        """Fügt neue Kodierregeln hinzu ohne Duplikate."""
+        self.rules = list(set(self.rules + new_rules))
+        self.modified_date = datetime.now().strftime("%Y-%m-%d")
+
+    def add_subcategories(self, new_subcats: Dict[str, str]) -> None:
+        """Fügt neue Subkategorien hinzu."""
+        self.subcategories.update(new_subcats)
+        self.modified_date = datetime.now().strftime("%Y-%m-%d")
+
+    def to_dict(self) -> Dict:
+        """Konvertiert die Kategorie in ein Dictionary."""
+        return {
+            'name': self.name,
+            'definition': self.definition,
+            'examples': self.examples,
+            'rules': self.rules,
+            'subcategories': self.subcategories,
+            'added_date': self.added_date,
+            'modified_date': self.modified_date
+        }
 
 @dataclass(frozen=True)  # Macht die Klasse immutable und hashable
 class CodingResult:
@@ -389,17 +454,27 @@ class ConfigLoader:
     def _load_deduktive_kategorien(self, wb):
         if 'DEDUKTIVE_KATEGORIEN' in wb.sheetnames:
             df = pd.read_excel(self.excel_path, sheet_name='DEDUKTIVE_KATEGORIEN')
-            # print(f"Geladene deduktive Kategorien:\n{df.head()}")  # Debug-Ausgabe
+            print(f"Geladene deduktive Kategorien - Rohdaten:\n{df.head()}")  # Debug-Ausgabe
+            
             self.config['DEDUKTIVE_KATEGORIEN'] = {}
             
             current_category = None
+            
             for _, row in df.iterrows():
                 key = row['Key']
                 sub_key = row['Sub-Key']
                 sub_sub_key = row['Sub-Sub-Key']
                 value = row['Value']
 
-                if pd.notna(key):  # Neue Hauptkategorie
+                # Debug-Ausgabe für jede Zeile
+                print(f"Verarbeite Zeile: Key={key}, Sub-Key={sub_key}, Sub-Sub-Key={sub_sub_key}, Value={value}")
+
+                # Null-Werte behandeln
+                if pd.isna(key):
+                    continue
+
+                # Neue Hauptkategorie
+                if pd.notna(key) and pd.isna(sub_key):
                     current_category = key
                     self.config['DEDUKTIVE_KATEGORIEN'][current_category] = {
                         'definition': '',
@@ -407,16 +482,58 @@ class ConfigLoader:
                         'examples': [],
                         'subcategories': {}
                     }
+                    print(f"Neue Hauptkategorie: {current_category}")
 
                 if current_category is not None:
+                    # Definiere Prioritätsreihenfolge für Sub-Keys
                     if sub_key == 'definition':
-                        self.config['DEDUKTIVE_KATEGORIEN'][current_category]['definition'] = value
-                    elif sub_key == 'rules':
-                        self.config['DEDUKTIVE_KATEGORIEN'][current_category]['rules'].append(value)
-                    elif sub_key == 'examples':
-                        self.config['DEDUKTIVE_KATEGORIEN'][current_category]['examples'].append(value)
-                    elif sub_key == 'subcategories' and pd.notna(sub_sub_key):
-                        self.config['DEDUKTIVE_KATEGORIEN'][current_category]['subcategories'][sub_sub_key] = value
+                        self.config['DEDUKTIVE_KATEGORIEN'][current_category]['definition'] = str(value) if pd.notna(value) else ''
+                    elif sub_key == 'rules' and pd.notna(value):
+                        self.config['DEDUKTIVE_KATEGORIEN'][current_category]['rules'].append(str(value))
+                    elif sub_key == 'examples' and pd.notna(value):
+                        self.config['DEDUKTIVE_KATEGORIEN'][current_category]['examples'].append(str(value))
+                    elif sub_key == 'subcategories' and pd.notna(sub_sub_key) and pd.notna(value):
+                        self.config['DEDUKTIVE_KATEGORIEN'][current_category]['subcategories'][sub_sub_key] = str(value)
+
+            # Finale Debug-Ausgabe
+            print("\nFinal geladene DEDUKTIVE_KATEGORIEN:")
+            for cat, details in self.config['DEDUKTIVE_KATEGORIEN'].items():
+                print(f"\n{cat}:")
+                for key, val in details.items():
+                    print(f"  {key}: {val}")
+
+    def _load_validation_config(self, wb):
+        """Lädt die Validierungskonfiguration aus dem Codebook."""
+        if 'CONFIG' not in wb.sheetnames:
+            return {}
+            
+        validation_config = {
+            'thresholds': {},
+            'english_words': set(),
+            'messages': {}
+        }
+        
+        df = pd.read_excel(self.excel_path, sheet_name='CONFIG')
+        validation_rows = df[df['Key'] == 'VALIDATION']
+        
+        for _, row in validation_rows.iterrows():
+            sub_key = row['Sub-Key']
+            sub_sub_key = row['Sub-Sub-Key']
+            value = row['Value']
+            
+            if sub_key == 'ENGLISH_WORDS':
+                if value == 'true':
+                    validation_config['english_words'].add(sub_sub_key)
+            elif sub_key == 'MESSAGES':
+                validation_config['messages'][sub_sub_key] = value
+            else:
+                # Numerische Schwellenwerte
+                try:
+                    validation_config['thresholds'][sub_key] = float(value)
+                except (ValueError, TypeError):
+                    print(f"Warnung: Ungültiger Schwellenwert für {sub_key}: {value}")
+        
+        return validation_config
 
     def _load_config(self, wb):
         if 'CONFIG' in wb.sheetnames:
@@ -520,21 +637,103 @@ class ConfigLoader:
     def get_config(self):
         return self.config
 
+    def _load_deduktive_kategorien(self, wb):
+        if 'DEDUKTIVE_KATEGORIEN' in wb.sheetnames:
+            df = pd.read_excel(self.excel_path, sheet_name='DEDUKTIVE_KATEGORIEN')
+            
+            # Stelle sicher, dass die Kategorien in der Konfiguration existieren
+            if 'DEDUKTIVE_KATEGORIEN' not in self.config:
+                self.config['DEDUKTIVE_KATEGORIEN'] = {}
+            
+            current_category = None
+            
+            for _, row in df.iterrows():
+                key = row['Key']
+                sub_key = row['Sub-Key']
+                sub_sub_key = row['Sub-Sub-Key']
+                value = row['Value']
+
+                # Überspringe leere Zeilen
+                if pd.isna(key) and pd.isna(sub_key):
+                    continue
+
+                # Neue Hauptkategorie
+                if pd.notna(key) and pd.isna(sub_key):
+                    current_category = key
+                    if current_category not in self.config['DEDUKTIVE_KATEGORIEN']:
+                        self.config['DEDUKTIVE_KATEGORIEN'][current_category] = {
+                            'definition': '',
+                            'rules': [],
+                            'examples': [],
+                            'subcategories': {}
+                        }
+
+                # Stell sicher, dass wir eine aktuelle Kategorie haben
+                if current_category is None:
+                    continue
+
+                # Verarbeite Unterkategorien
+                if current_category in self.config['DEDUKTIVE_KATEGORIEN']:
+                    if sub_key == 'definition' and pd.notna(value):
+                        self.config['DEDUKTIVE_KATEGORIEN'][current_category]['definition'] = str(value)
+                    elif sub_key == 'rules' and pd.notna(value):
+                        self.config['DEDUKTIVE_KATEGORIEN'][current_category]['rules'].append(str(value))
+                    elif sub_key == 'examples' and pd.notna(value):
+                        self.config['DEDUKTIVE_KATEGORIEN'][current_category]['examples'].append(str(value))
+                    elif sub_key == 'subcategories' and pd.notna(sub_sub_key) and pd.notna(value):
+                        self.config['DEDUKTIVE_KATEGORIEN'][current_category]['subcategories'][str(sub_sub_key)] = str(value)
+
+            # Debug-Ausgabe
+            # print("\nGeladene DEDUKTIVE_KATEGORIEN:")
+            # for cat, details in self.config['DEDUKTIVE_KATEGORIEN'].items():
+            #     print(f"\n{cat}:")
+            #     for key, val in details.items():
+            #         print(f"  {key}: {val}")
+
     def update_script_globals(self, globals_dict):
+
+        # Stelle sicher, dass DEDUKTIVE_KATEGORIEN existiert und nicht leer ist
+        if 'DEDUKTIVE_KATEGORIEN' in self.config and self.config['DEDUKTIVE_KATEGORIEN']:
+            globals_dict['DEDUKTIVE_KATEGORIEN'] = self.config['DEDUKTIVE_KATEGORIEN']
+        
+        # Aktualisiere andere Konfigurationsparameter
         for key, value in self.config.items():
-            if key in globals_dict:
+            if key != 'DEDUKTIVE_KATEGORIEN' and key in globals_dict:
                 if isinstance(globals_dict[key], dict) and isinstance(value, dict):
-                    globals_dict[key].clear()  # Löschen Sie zuerst den bestehenden Inhalt
+                    globals_dict[key].clear()
                     globals_dict[key].update(value)
                 else:
                     globals_dict[key] = value
         
-        if 'DEDUKTIVE_KATEGORIEN' in self.config:
-            global DEDUKTIVE_KATEGORIEN
-            DEDUKTIVE_KATEGORIEN = self.config['DEDUKTIVE_KATEGORIEN']
+        # Validierungskonstanten aktualisieren
+        if 'validation_config' in self.config:
+            validation_thresholds = self.config['validation_config']['thresholds']
+            english_words = self.config['validation_config']['english_words']
+            validation_messages = self.config['validation_config']['messages']
+            
+            # Aktualisiere CategoryValidator
+            if 'CategoryValidator' in globals_dict:
+                validator_class = globals_dict['CategoryValidator']
+                validator_class.MIN_DEFINITION_WORDS = validation_thresholds.get('MIN_DEFINITION_WORDS', 15)
+                validator_class.MIN_EXAMPLES = validation_thresholds.get('MIN_EXAMPLES', 2)
+                validator_class.SIMILARITY_THRESHOLD = validation_thresholds.get('SIMILARITY_THRESHOLD', 0.7)
+                validator_class.MIN_SUBCATEGORIES = validation_thresholds.get('MIN_SUBCATEGORIES', 2)
+                validator_class.MAX_NAME_LENGTH = validation_thresholds.get('MAX_NAME_LENGTH', 50)
+                validator_class.MIN_NAME_LENGTH = validation_thresholds.get('MIN_NAME_LENGTH', 3)
+                validator_class.ENGLISH_WORDS = english_words
+                validator_class.VALIDATION_MESSAGES = validation_messages
+
+
+        # Debug-Ausgabe
+        print("\nDEDUKTIVE_KATEGORIEN nach der Aktualisierung:")
+        if 'DEDUKTIVE_KATEGORIEN' in globals_dict:
+            for cat, details in globals_dict['DEDUKTIVE_KATEGORIEN'].items():
+                print(f"{cat}:")
+                for key, val in details.items():
+                    print(f"  {key}: {val}")
+        else:
+            print("KEINE KATEGORIEN GEFUNDEN!")
         
-        print("DEDUKTIVE_KATEGORIEN nach der Aktualisierung:")
-        print(DEDUKTIVE_KATEGORIEN)
 
 # --- Klasse: MaterialLoader ---
 # Aufgabe: Laden und Vorbereiten des Analysematerials (Textdokumente, output)
@@ -908,6 +1107,390 @@ class DevelopmentHistory:
                 report.append(f"- {error['type']}: {error['message']}")
         
         return "\n".join(report)
+
+
+class CategoryValidator:
+    """
+    Zentrale Klasse für alle Kategorievalidierungen mit Caching der Ergebnisse.
+    """
+    
+    def __init__(self, config: Dict = None):
+        """
+        Initialisiert den Validator mit Konfiguration.
+        
+        Args:
+            config: Konfigurationsdictionary aus dem Codebook (optional)
+        """
+        try:
+            # Standardwerte
+            validation_entries = {}
+            
+            # Hole VALIDATION-Einträge aus der Config, falls vorhanden
+            if config and 'CONFIG' in config:
+                # Durchsuche CONFIG nach VALIDATION-Einträgen
+                for row in config['CONFIG']:
+                    if isinstance(row, dict) and row.get('Key') == 'VALIDATION':
+                        sub_key = row.get('Sub-Key')
+                        value = row.get('Value')
+                        if sub_key and value is not None:
+                            validation_entries[sub_key] = value
+
+            # Setze Schwellenwerte mit Fallback-Werten
+            self.MIN_DEFINITION_WORDS = self._get_numeric_value(validation_entries, 'MIN_DEFINITION_WORDS', 15)
+            self.MIN_EXAMPLES = self._get_numeric_value(validation_entries, 'MIN_EXAMPLES', 2)
+            self.SIMILARITY_THRESHOLD = self._get_numeric_value(validation_entries, 'SIMILARITY_THRESHOLD', 0.7)
+            self.MIN_SUBCATEGORIES = self._get_numeric_value(validation_entries, 'MIN_SUBCATEGORIES', 2)
+            self.MAX_NAME_LENGTH = self._get_numeric_value(validation_entries, 'MAX_NAME_LENGTH', 50)
+            self.MIN_NAME_LENGTH = self._get_numeric_value(validation_entries, 'MIN_NAME_LENGTH', 3)
+            
+            # Hole verbotene englische Begriffe
+            self.ENGLISH_WORDS = set()
+            if config and 'CONFIG' in config:
+                for row in config['CONFIG']:
+                    if (isinstance(row, dict) and 
+                        row.get('Key') == 'VALIDATION' and 
+                        row.get('Sub-Key') == 'ENGLISH_WORDS' and 
+                        row.get('Sub-Sub-Key')):
+                        self.ENGLISH_WORDS.add(row['Sub-Sub-Key'].lower())
+            
+            if not self.ENGLISH_WORDS:  # Fallback wenn keine Begriffe in Config
+                self.ENGLISH_WORDS = {'research', 'development', 'management', 
+                                    'system', 'process', 'analysis'}
+            
+            # Hole Fehlermeldungen
+            self.messages = {}
+            if config and 'CONFIG' in config:
+                for row in config['CONFIG']:
+                    if (isinstance(row, dict) and
+                        row.get('Key') == 'VALIDATION' and 
+                        row.get('Sub-Key') == 'MESSAGES' and 
+                        row.get('Sub-Sub-Key')):
+                        self.messages[row['Sub-Sub-Key']] = row['Value']
+            
+            # Cache und Statistiken
+            self.validation_cache = {}
+            self.similarity_cache = {} 
+            self.validation_stats = {
+                'cache_hits': 0,
+                'cache_misses': 0,
+                'total_validations': 0,
+                'similarity_calculations': 0
+            }
+            
+            print("\nKategorie-Validator initialisiert:")
+            print(f"- Min. Wörter Definition: {self.MIN_DEFINITION_WORDS}")
+            print(f"- Min. Beispiele: {self.MIN_EXAMPLES}")
+            print(f"- Ähnlichkeitsschwelle: {self.SIMILARITY_THRESHOLD}")
+            print(f"- Verbotene Begriffe: {len(self.ENGLISH_WORDS)}")
+
+        except Exception as e:
+            print(f"Fehler bei Validator-Initialisierung: {str(e)}")
+            print("Details:")
+            traceback.print_exc()
+            print("\nVerwende Standard-Schwellenwerte")
+            # Setze Standard-Schwellenwerte
+            self.MIN_DEFINITION_WORDS = 15
+            self.MIN_EXAMPLES = 2
+            self.SIMILARITY_THRESHOLD = 0.7
+            self.MIN_SUBCATEGORIES = 2
+            self.MAX_NAME_LENGTH = 50
+            self.MIN_NAME_LENGTH = 3
+            self.ENGLISH_WORDS = {'research', 'development', 'management', 'system', 'process', 'analysis'}
+            self.messages = {}
+            self.validation_cache = {}
+            self.validation_stats = {'cache_hits': 0, 'cache_misses': 0, 'total_validations': 0}
+
+    def _get_numeric_value(self, entries: Dict, key: str, default: float) -> float:
+        """Hilft beim sicheren Extrahieren numerischer Werte."""
+        try:
+            value = entries.get(key)
+            if value is not None:
+                return float(value)
+        except (ValueError, TypeError):
+            print(f"Warnung: Ungültiger Wert für {key}, verwende Standard: {default}")
+        return default
+
+    def _calculate_text_similarity(self, text1: str, text2: str) -> float:
+        """Berechnet die Ähnlichkeit zwischen zwei Texten."""
+        cache_key = f"{hash(text1)}_{hash(text2)}"
+        
+        if cache_key in self.similarity_cache:
+            return self.similarity_cache[cache_key]
+            
+        # Konvertiere Texte zu Sets von Wörtern
+        words1 = set(text1.lower().split())
+        words2 = set(text2.lower().split())
+        
+        # Berechne Jaccard-Ähnlichkeit
+        intersection = len(words1.intersection(words2))
+        union = len(words1.union(words2))
+        
+        similarity = intersection / union if union > 0 else 0.0
+        
+        # Cache das Ergebnis
+        self.similarity_cache[cache_key] = similarity
+        return similarity
+
+    def validate_category(self, category: CategoryDefinition) -> Tuple[bool, List[str]]:
+        """
+        Validiert eine einzelne Kategorie und cached das Ergebnis.
+        
+        Args:
+            category: Zu validierende Kategorie
+            
+        Returns:
+            Tuple[bool, List[str]]: (is_valid, list_of_issues)
+        """
+        # Generiere Cache-Key
+        cache_key = (
+            category.name,
+            category.definition,
+            tuple(category.examples),
+            tuple(category.rules),
+            tuple(sorted(category.subcategories.items()))
+        )
+        
+        # Prüfe Cache
+        if cache_key in self.validation_cache:
+            self.validation_stats['cache_hits'] += 1
+            return self.validation_cache[cache_key]
+            
+        self.validation_stats['cache_misses'] += 1
+        self.validation_stats['total_validations'] += 1
+        
+        issues = []
+        
+        # 1. Name-Validierung
+        if len(category.name) < 3:
+            issues.append("Name zu kurz (min. 3 Zeichen)")
+        if len(category.name) > 50:
+            issues.append("Name zu lang (max. 50 Zeichen)")
+            
+        # Prüfe auf englische Wörter
+        english_words = {'research', 'development', 'management', 'system', 'process', 'analysis'}
+        if any(word.lower() in english_words for word in category.name.split()):
+            issues.append("Name enthält englische Begriffe")
+        
+        # 2. Definition-Validierung
+        word_count = len(category.definition.split())
+        if word_count < self.MIN_DEFINITION_WORDS:
+            issues.append(f"Definition zu kurz ({word_count} Wörter, min. {self.MIN_DEFINITION_WORDS})")
+            
+        # 3. Beispiel-Validierung
+        if len(category.examples) < self.MIN_EXAMPLES:
+            issues.append(f"Zu wenige Beispiele ({len(category.examples)}, min. {self.MIN_EXAMPLES})")
+            
+        # 4. Regeln-Validierung
+        if not category.rules:
+            issues.append("Keine Kodierregeln definiert")
+            
+        # 5. Subkategorien-Validierung
+        if len(category.subcategories) < self.MIN_SUBCATEGORIES:
+            issues.append(f"Zu wenige Subkategorien ({len(category.subcategories)}, min. {self.MIN_SUBCATEGORIES})")
+            
+        # Cache und Return
+        result = (len(issues) == 0, issues)
+        self.validation_cache[cache_key] = result
+        return result
+
+    def validate_category_system(self, 
+                               categories: Dict[str, CategoryDefinition]) -> Tuple[bool, Dict[str, List[str]]]:
+        """
+        Validiert das gesamte Kategoriensystem.
+        
+        Args:
+            categories: Zu validierendes Kategoriensystem
+            
+        Returns:
+            Tuple[bool, Dict[str, List[str]]]: (is_valid, {category_name: issues})
+        """
+        if not categories:
+            return False, {"system": ["Leeres Kategoriensystem"]}
+            
+        system_issues = {}
+        
+        # 1. Validiere einzelne Kategorien
+        for name, category in categories.items():
+            is_valid, issues = self.validate_category(category)
+            if not is_valid:
+                system_issues[name] = issues
+
+        # 2. Prüfe auf Überlappungen zwischen Kategorien
+        for name1, cat1 in categories.items():
+            for name2, cat2 in categories.items():
+                if name1 >= name2:
+                    continue
+                    
+                similarity = self._calculate_text_similarity(
+                    cat1.definition,
+                    cat2.definition
+                )
+                
+                if similarity > self.SIMILARITY_THRESHOLD:
+                    issue = f"Hohe Ähnlichkeit ({similarity:.2f}) mit {name2}"
+                    if name1 in system_issues:
+                        system_issues[name1].append(issue)
+                    else:
+                        system_issues[name1] = [issue]
+
+        # 3. Prüfe Hierarchie und Struktur
+        has_root_categories = any(not cat.subcategories for cat in categories.values())
+        if not has_root_categories:
+            system_issues["system"] = system_issues.get("system", []) + ["Keine Hauptkategorien gefunden"]
+        
+        # Validierungsergebnis
+        is_valid = len(system_issues) == 0
+        return is_valid, system_issues
+
+    def _auto_enhance_category(self, category: CategoryDefinition) -> CategoryDefinition:
+        """Versucht automatisch, eine unvollständige Kategorie zu verbessern."""
+        try:
+            enhanced = category
+
+            # 1. Generiere fehlende Beispiele falls nötig
+            if len(enhanced.examples) < self.MIN_EXAMPLES:
+                # Extrahiere potenzielle Beispiele aus der Definition
+                sentences = enhanced.definition.split('.')
+                potential_examples = [s.strip() for s in sentences if 'z.B.' in s or 'beispielsweise' in s]
+                
+                # Füge gefundene Beispiele hinzu
+                if potential_examples:
+                    enhanced = enhanced.replace(
+                        examples=list(set(enhanced.examples + potential_examples))
+                    )
+
+            # 2. Generiere grundlegende Kodierregeln falls keine vorhanden
+            if not enhanced.rules:
+                enhanced = enhanced.replace(rules=[
+                    f"Kodiere Textstellen, die sich auf {enhanced.name} beziehen",
+                    "Berücksichtige den Kontext der Aussage",
+                    "Bei Unsicherheit dokumentiere die Gründe"
+                ])
+
+            # 3. Generiere Subkategorien aus der Definition falls keine vorhanden
+            if len(enhanced.subcategories) < self.MIN_SUBCATEGORIES:
+                # Suche nach Aufzählungen in der Definition
+                potential_subcats = {}
+                
+                # Suche nach "wie" oder "beispielsweise" Aufzählungen
+                for marker in ['wie', 'beispielsweise', 'etwa', 'insbesondere']:
+                    if marker in enhanced.definition.lower():
+                        parts = enhanced.definition.split(marker)[1].split('.')
+                        if parts:
+                            items = parts[0].split(',')
+                            for item in items:
+                                # Teile auch bei "und" oder "oder"
+                                subitems = [x.strip() for x in item.split(' und ')]
+                                subitems.extend([x.strip() for x in item.split(' oder ')])
+                                
+                                for subitem in subitems:
+                                    # Bereinige und normalisiere
+                                    cleaned = subitem.strip().strip('.')
+                                    if len(cleaned) > 3 and not any(x in cleaned.lower() for x in ['z.b', 'etc', 'usw']):
+                                        # Erstelle aussagekräftige Definition
+                                        subcat_def = f"Aspekte bezüglich {cleaned} im Kontext von {enhanced.name}"
+                                        potential_subcats[cleaned] = subcat_def
+
+                if potential_subcats:
+                    enhanced = enhanced.replace(
+                        subcategories={**enhanced.subcategories, **potential_subcats}
+                    )
+                else:
+                    # Fallback: Erstelle grundlegende Subkategorien
+                    basic_subcats = {
+                        f"Strukturelle {enhanced.name}": f"Strukturelle Aspekte von {enhanced.name}",
+                        f"Prozessuale {enhanced.name}": f"Prozessbezogene Aspekte von {enhanced.name}",
+                        f"Personelle {enhanced.name}": f"Personalbezogene Aspekte von {enhanced.name}"
+                    }
+                    enhanced = enhanced.replace(
+                        subcategories={**enhanced.subcategories, **basic_subcats}
+                    )
+
+            print(f"\nKategorie '{enhanced.name}' automatisch verbessert:")
+            if len(enhanced.examples) > len(category.examples):
+                print(f"- {len(enhanced.examples) - len(category.examples)} neue Beispiele")
+            if len(enhanced.rules) > len(category.rules):
+                print(f"- {len(enhanced.rules) - len(category.rules)} neue Kodierregeln")
+            if len(enhanced.subcategories) > len(category.subcategories):
+                print(f"- {len(enhanced.subcategories) - len(category.subcategories)} neue Subkategorien")
+
+            return enhanced
+
+        except Exception as e:
+            print(f"Fehler bei automatischer Kategorienverbesserung: {str(e)}")
+            print("Details:")
+            traceback.print_exc()
+            return category
+        
+    def get_validation_stats(self) -> Dict:
+        """Gibt Statistiken zur Validierung zurück."""
+        if self.validation_stats['total_validations'] > 0:
+            cache_hit_rate = (
+                self.validation_stats['cache_hits'] / 
+                self.validation_stats['total_validations']
+            )
+        else:
+            cache_hit_rate = 0.0
+            
+        return {
+            'cache_hit_rate': cache_hit_rate,
+            'total_validations': self.validation_stats['total_validations'],
+            'cache_size': len(self.validation_cache)
+        }
+    
+    def validate_category(self, category: CategoryDefinition) -> Tuple[bool, List[str]]:
+        """Validiert eine einzelne Kategorie und cached das Ergebnis."""
+        # Generiere Cache-Key
+        cache_key = (
+            category.name,
+            category.definition,
+            tuple(category.examples),
+            tuple(category.rules),
+            tuple(sorted(category.subcategories.items()))
+        )
+        
+        # Prüfe Cache
+        if cache_key in self.validation_cache:
+            self.validation_stats['cache_hits'] += 1
+            return self.validation_cache[cache_key]
+            
+        self.validation_stats['cache_misses'] += 1
+        self.validation_stats['total_validations'] += 1
+        
+        # Versuche zuerst die Kategorie zu verbessern
+        enhanced_category = self._auto_enhance_category(category)
+        
+        issues = []
+        
+        # Validiere die verbesserte Kategorie
+        if len(enhanced_category.name) < self.MIN_NAME_LENGTH:
+            issues.append(f"Name zu kurz (min. {self.MIN_NAME_LENGTH} Zeichen)")
+        if len(enhanced_category.name) > self.MAX_NAME_LENGTH:
+            issues.append(f"Name zu lang (max. {self.MAX_NAME_LENGTH} Zeichen)")
+            
+        if len(enhanced_category.definition.split()) < self.MIN_DEFINITION_WORDS:
+            issues.append(f"Definition zu kurz ({len(enhanced_category.definition.split())} Wörter, min. {self.MIN_DEFINITION_WORDS})")
+            
+        if len(enhanced_category.examples) < self.MIN_EXAMPLES:
+            issues.append(f"Zu wenige Beispiele ({len(enhanced_category.examples)}, min. {self.MIN_EXAMPLES})")
+            
+        if not enhanced_category.rules:
+            issues.append("Keine Kodierregeln definiert")
+            
+        if len(enhanced_category.subcategories) < self.MIN_SUBCATEGORIES:
+            issues.append(f"Zu wenige Subkategorien ({len(enhanced_category.subcategories)}, min. {self.MIN_SUBCATEGORIES})")
+        
+        # Cache und Return
+        result = (len(issues) == 0, issues)
+        self.validation_cache[cache_key] = result
+        return result
+    
+    def clear_cache(self):
+        """Leert den Validierungs-Cache."""
+        self.validation_cache.clear()
+        self.similarity_cache.clear()
+        print("Validierungs-Cache geleert")
+
 # --- Klasse: CategoryManager ---
 class CategoryManager:
     """Verwaltet das Speichern und Laden von Kategorien"""
@@ -1007,46 +1590,129 @@ class CategoryManager:
             return None
     
     def save_codebook(self, 
-                    categories: Dict[str, CategoryDefinition], 
-                    filename: str = "codebook_inductive.json") -> None:
-        """Speichert das vollständige Codebook inkl. deduktiver und induktiver Kategorien"""
-        try:
-            codebook_data = {
-                "metadata": {
-                    "created": datetime.now().isoformat(),
-                    "version": "2.0",
-                    "total_categories": len(categories),
-                    "research_question": FORSCHUNGSFRAGE
-                },
-                "categories": {}
-            }
-            
-            for name, category in categories.items():
-                codebook_data["categories"][name] = {
-                    "definition": category.definition,
-                    "examples": category.examples,
-                    "rules": category.rules,
-                    "subcategories": category.subcategories,
-                    "development_type": "deductive" if name in DEDUKTIVE_KATEGORIEN else "inductive",
-                    "added_date": category.added_date,
-                    "last_modified": category.modified_date
+                        categories: Dict[str, CategoryDefinition], 
+                        filename: str = "codebook_inductive.json") -> None:
+            """Speichert das vollständige Codebook inkl. deduktiver und induktiver Kategorien"""
+            try:
+                codebook_data = {
+                    "metadata": {
+                        "created": datetime.now().isoformat(),
+                        "version": "2.0",
+                        "total_categories": len(categories),
+                        "research_question": FORSCHUNGSFRAGE
+                    },
+                    "categories": {}
                 }
-            
-            output_path = os.path.join(self.output_dir, filename)
-            with open(output_path, 'w', encoding='utf-8') as f:
-                json.dump(codebook_data, f, indent=2, ensure_ascii=False)
                 
-            print(f"\nInduktiv erweitertes Codebook gespeichert unter: {output_path}")
-            
-        except Exception as e:
-            print(f"Fehler beim Speichern des Codebooks: {str(e)}")
+                for name, category in categories.items():
+                    codebook_data["categories"][name] = {
+                        "definition": category.definition,
+                        # Wandle examples in eine Liste um, falls es ein Set ist
+                        "examples": list(category.examples) if isinstance(category.examples, set) else category.examples,
+                        # Wandle rules in eine Liste um, falls es ein Set ist
+                        "rules": list(category.rules) if isinstance(category.rules, set) else category.rules,
+                        # Wandle subcategories in ein Dictionary um, falls nötig
+                        "subcategories": dict(category.subcategories) if isinstance(category.subcategories, set) else category.subcategories,
+                        "development_type": "deductive" if name in DEDUKTIVE_KATEGORIEN else "inductive",
+                        "added_date": category.added_date,
+                        "last_modified": category.modified_date
+                    }
+                
+                output_path = os.path.join(self.output_dir, filename)
+                with open(output_path, 'w', encoding='utf-8') as f:
+                    json.dump(codebook_data, f, indent=2, ensure_ascii=False)
+                    
+                print(f"\nInduktiv erweitertes Codebook gespeichert unter: {output_path}")
+                
+            except Exception as e:
+                print(f"Fehler beim Speichern des Codebooks: {str(e)}")
+                # Zusätzliche Fehlerdiagnose
+                import traceback
+                traceback.print_exc()
 
+
+class CategoryCleaner:
+    """Helferklasse zum Bereinigen problematischer Kategorien."""
+    
+    def __init__(self, validator: CategoryValidator):
+        self.validator = validator
+
+    async def clean_categories(self, 
+                             categories: Dict[str, CategoryDefinition],
+                             issues: Dict[str, List[str]]) -> Dict[str, CategoryDefinition]:
+        """
+        Versucht Validierungsprobleme automatisch zu beheben.
+        
+        Args:
+            categories: Problematische Kategorien
+            issues: Gefundene Probleme pro Kategorie
+            
+        Returns:
+            Dict[str, CategoryDefinition]: Bereinigte Kategorien
+        """
+        cleaned = categories.copy()
+        
+        for category_name, category_issues in issues.items():
+            if category_name == "system":
+                continue  # Systemweite Probleme werden separat behandelt
+                
+            category = cleaned.get(category_name)
+            if not category:
+                continue
+                
+            # Behandle verschiedene Problemtypen
+            for issue in category_issues:
+                if "Definition zu kurz" in issue:
+                    cleaned[category_name] = await self._enhance_definition(category)
+                elif "englische Begriffe" in issue:
+                    cleaned[category_name] = self._translate_category(category)
+                elif "Hohe Ähnlichkeit" in issue:
+                    # Extrahiere Namen der ähnlichen Kategorie
+                    similar_to = issue.split("mit ")[-1]
+                    if similar_to in cleaned:
+                        cleaned = self._merge_similar_categories(
+                            cleaned, 
+                            category_name, 
+                            similar_to
+                        )
+                # Weitere Problemtypen hier behandeln...
+                
+        return cleaned
+
+    async def _enhance_definition(self, category: CategoryDefinition) -> CategoryDefinition:
+        """Verbessert zu kurze Definitionen."""
+        # Hier würde die Logik zur Definition-Verbesserung kommen
+        # Könnte z.B. einen API-Call an GPT machen
+        return category
+
+    def _translate_category(self, category: CategoryDefinition) -> CategoryDefinition:
+        """Übersetzt englische Begriffe ins Deutsche."""
+        # Hier würde die Übersetzungslogik kommen
+        return category
+
+    def _merge_similar_categories(self,
+                                categories: Dict[str, CategoryDefinition],
+                                cat1: str,
+                                cat2: str) -> Dict[str, CategoryDefinition]:
+        """Führt ähnliche Kategorien zusammen."""
+        # Hier würde die Merge-Logik kommen
+        return categories
+    
 # Klasse: CategoryMerger
 # ----------------------
 class CategoryMerger:
-    def __init__(self, similarity_threshold: float = 0.8):
-        self.similarity_threshold = similarity_threshold
+    def __init__(self, config: Dict = None):
+        # Hole Schwellenwerte aus Config oder verwende Standardwerte
+        if config and 'validation_config' in config:
+            validation_config = config['validation_config']
+            thresholds = validation_config.get('thresholds', {})
+            self.similarity_threshold = thresholds.get('SIMILARITY_THRESHOLD', 0.8)
+        else:
+            self.similarity_threshold = 0.8  # Standardwert
+            
         self.merge_log = []
+        
+        print(f"CategoryMerger initialisiert (Ähnlichkeitsschwelle: {self.similarity_threshold})")
 
     def _calculate_semantic_similarity(self, name1: str, name2: str) -> float:
         """Berechnet die semantische Ähnlichkeit zwischen zwei Kategorienamen"""
@@ -1281,28 +1947,175 @@ class Analyzer:
             if chunk_id.startswith(doc_name)
         }
 
+class RelevanceChecker:
+    """
+    Zentrale Klasse für Relevanzprüfungen mit Caching und Batch-Verarbeitung.
+    Reduziert API-Calls durch Zusammenfassung mehrerer Segmente.
+    """
+    
+    def __init__(self, model_name: str, batch_size: int = 5):
+        self.model_name = model_name
+        self.batch_size = batch_size
+        self.client = AsyncOpenAI()
+        
+        # Cache für Relevanzprüfungen
+        self.relevance_cache = {}
+        self.relevance_details = {}
+        
+        # Tracking-Metriken
+        self.total_segments = 0
+        self.relevant_segments = 0
+        self.api_calls = 0
+
+    async def check_relevance_batch(self, segments: List[Tuple[str, str]]) -> Dict[str, bool]:
+        """
+        Prüft die Relevanz mehrerer Segmente in einem API-Call.
+        
+        Args:
+            segments: Liste von (segment_id, text) Tupeln
+            
+        Returns:
+            Dict[str, bool]: Mapping von segment_id zu Relevanz
+        """
+        # Filtere bereits gecachte Segmente
+        uncached_segments = [
+            (sid, text) for sid, text in segments 
+            if sid not in self.relevance_cache
+        ]
+        
+        if not uncached_segments:
+            return {sid: self.relevance_cache[sid] for sid, _ in segments}
+
+        try:
+            # Erstelle formatierten Text für Batch-Verarbeitung
+            segments_text = "\n\n=== SEGMENT BREAK ===\n\n".join(
+                f"SEGMENT {i + 1}:\n{text}" 
+                for i, (_, text) in enumerate(uncached_segments)
+            )
+
+            prompt = f"""
+            Analysiere die Relevanz mehrerer Textsegmente für die Forschungsfrage:
+            "{FORSCHUNGSFRAGE}"
+            
+            Analysiere ALLE Segmente systematisch nach diesen Kriterien:
+            1. Inhaltlicher Bezug zur Forschungsfrage
+            2. Aussagekraft und Substanz
+            3. Expliziter vs. impliziter Bezug
+            
+            TEXTSEGMENTE:
+            {segments_text}
+            
+            Antworte NUR mit einem JSON-Objekt:
+            {{
+                "segment_results": [
+                    {{
+                        "segment_number": 1,
+                        "is_relevant": true/false,
+                        "confidence": 0.0-1.0,
+                        "key_aspects": ["relevante", "Aspekte"]
+                    }},
+                    ...
+                ]
+            }}
+            """
+
+            # Ein API-Call für alle Segmente
+            self.api_calls += 1
+            response = await self.client.chat.completions.create(
+                model=self.model_name,
+                messages=[
+                    {"role": "system", "content": "Du bist ein Experte für qualitative Inhaltsanalyse."},
+                    {"role": "user", "content": prompt}
+                ],
+                temperature=0.3,
+                response_format={"type": "json_object"}
+            )
+
+            results = json.loads(response.choices[0].message.content)
+            
+            # Verarbeite Ergebnisse und aktualisiere Cache
+            relevance_results = {}
+            for i, (segment_id, _) in enumerate(uncached_segments):
+                segment_result = results['segment_results'][i]
+                is_relevant = segment_result['is_relevant']
+                
+                # Cache-Aktualisierung
+                self.relevance_cache[segment_id] = is_relevant
+                self.relevance_details[segment_id] = {
+                    'confidence': segment_result['confidence'],
+                    'key_aspects': segment_result['key_aspects']
+                }
+                
+                relevance_results[segment_id] = is_relevant
+                
+                # Tracking-Aktualisierung
+                self.total_segments += 1
+                if is_relevant:
+                    self.relevant_segments += 1
+
+            # Kombiniere Cache und neue Ergebnisse
+            return {
+                sid: self.relevance_cache[sid] 
+                for sid, _ in segments
+            }
+
+        except Exception as e:
+            print(f"Fehler bei Batch-Relevanzprüfung: {str(e)}")
+            # Fallback: Markiere alle als relevant bei Fehler
+            return {sid: True for sid, _ in segments}
+
+    def get_relevance_details(self, segment_id: str) -> Optional[Dict]:
+        """Gibt detaillierte Relevanzinformationen für ein Segment zurück."""
+        return self.relevance_details.get(segment_id)
+
+    def get_statistics(self) -> Dict:
+        """Gibt Statistiken zur Relevanzprüfung zurück."""
+        return {
+            'total_segments': self.total_segments,
+            'relevant_segments': self.relevant_segments,
+            'relevance_rate': self.relevant_segments / max(1, self.total_segments),
+            'api_calls': self.api_calls,
+            'cache_size': len(self.relevance_cache)
+        }
+
+    async def is_relevant(self, segment_id: str, text: str) -> bool:
+        """
+        Einzelne Relevanzprüfung mit Cache-Nutzung.
+        """
+        if segment_id in self.relevance_cache:
+            return self.relevance_cache[segment_id]
+            
+        result = await self.check_relevance_batch([(segment_id, text)])
+        return result[segment_id]
+    
 # --- Klasse: IntegratedAnalysisManager ---
 # Aufgabe: Integriert die verschiedenen Analysephasen in einem zusammenhängenden Prozess
 class IntegratedAnalysisManager:
     def __init__(self, config: Dict):
-        """Initialisiert den Manager mit Zeitstempeln"""
+        # Bestehende Initialisierung
         self.config = config
         self.history = DevelopmentHistory(config['OUTPUT_DIR'])
+
+        # Zentrale Validierung hinzufügen
+        self.validator = CategoryValidator(config)
+        self.cleaner = CategoryCleaner(self.validator)
+
+        # Initialize merge handling with config
+        self.category_merger = CategoryMerger(config)
         
-        # Zeitstempel
-        self.start_time = None
-        self.end_time = None
+        # Zentrale Relevanzprüfung
+        self.relevance_checker = RelevanceChecker(
+            model_name=config['MODEL_NAME'],
+            batch_size=5  # Kann über config angepasst werden
+        )
         
-        # Analyse-Komponenten
         self.saturation_checker = SaturationChecker(config, self.history)
         self.inductive_coder = InductiveCoder(
             model_name=config['MODEL_NAME'],
             history=self.history,
             output_dir=config['OUTPUT_DIR']
         )
-        self.category_merger = CategoryMerger(similarity_threshold=0.8)
-        
-        # Kodierer
+
         self.deductive_coders = [
             DeductiveCoder(
                 config['MODEL_NAME'], 
@@ -1313,339 +2126,19 @@ class IntegratedAnalysisManager:
         ]
         
         # Tracking-Variablen
-        self.coding_results = []
         self.processed_segments = set()
-        self.relevant_segments = set()  
-        self.relevance_details = {}  # Speichert detaillierte Relevanzinfos pro Segment 
+        self.coding_results = []
+        self.analysis_log = [] 
         self.performance_metrics = {
             'batch_processing_times': [],
             'coding_times': [],
             'category_changes': []
         }
-        
-        # Analysis Log initialisieren
-        self.analysis_log = []
-        
-        print("\nAnalyse-Manager initialisiert:")
-        print(f"- Anzahl Kodierer: {len(self.deductive_coders)}")
-        print(f"- Modell: {config['MODEL_NAME']}")
-
-    async def _check_segment_relevance(self, segment_id: str, text: str) -> bool:
-        """
-        Prüft die Relevanz eines Segments für die Forschungsfrage.
-        Wird nur einmal pro Segment durchgeführt.
-        """
-        # Wenn das Segment bereits geprüft wurde, verwende das gespeicherte Ergebnis
-        if segment_id in self.processed_segments:
-            return segment_id in self.relevant_segments
-            
-        try:
-            prompt = f"""
-            Analysiere sorgfältig die Relevanz des folgenden Texts für die Forschungsfrage:
-            "{FORSCHUNGSFRAGE}"
-            
-            TEXT:
-            {text}
-            
-            Prüfe systematisch:
-            1. Inhaltlicher Bezug: Behandelt der Text explizit Aspekte der Forschungsfrage?
-            2. Aussagekraft: Enthält der Text konkrete, analysierbare Aussagen?
-            3. Substanz: Geht der Text über oberflächliche/beiläufige Erwähnungen hinaus?
-            4. Kontext: Ist der Bezug zur Forschungsfrage eindeutig und nicht nur implizit?
-
-            Antworte NUR mit einem JSON-Objekt:
-            {{
-                "is_relevant": true/false,
-                "confidence": 0.0-1.0,
-                "justification": "Kurze Begründung der Entscheidung",
-                "key_aspects": ["Liste", "relevanter", "Aspekte"]
-            }}
-            """
-
-            input_tokens = estimate_tokens(prompt + text)
-
-            # Verwende den ersten Auto-Coder für die Relevanzprüfung
-            response = await self.deductive_coders[0].client.chat.completions.create(
-                model=self.deductive_coders[0].model_name,
-                messages=[
-                    {"role": "system", "content": "Du bist ein Experte für qualitative Inhaltsanalyse."},
-                    {"role": "user", "content": prompt}
-                ],
-                temperature=0.3,
-                response_format={"type": "json_object"}
-            )
-
-            result = json.loads(response.choices[0].message.content)
-            is_relevant = result.get('is_relevant', False)
-            
-            output_tokens = estimate_tokens(response.choices[0].message.content)
-            token_counter.add_tokens(input_tokens, output_tokens)
-
-            # Speichere detaillierte Relevanzinformationen
-            self.relevance_details[segment_id] = {
-                'is_relevant': is_relevant,
-                'confidence': result.get('confidence', 0),
-                'justification': result.get('justification', ''),
-                'key_aspects': result.get('key_aspects', [])
-            }
-
-            # Konsolenausgabe
-            if is_relevant:
-                print(f"✓ Segment relevant (Konfidenz: {result.get('confidence', 0):.2f})")
-                if result.get('key_aspects'):
-                    print(f"  Auszug: '{text[:100]}...'")
-                    print("  Relevante Aspekte:")
-                    for aspect in result['key_aspects']:
-                        print(f"  - {aspect}")
-            else:
-                print(f"❌ Segment nicht relevant: {result.get('justification', 'Keine Begründung')}")
-            
-            # Speichere Relevanzstatus
-            self.processed_segments.add(segment_id)
-            if is_relevant:
-                self.relevant_segments.add(segment_id)
-            
-            return is_relevant
-
-        except Exception as e:
-            print(f"Fehler bei der Relevanzprüfung: {str(e)}")
-            return True 
-    
-    async def _code_batch_deductively(self,
-                                    batch: List[Tuple[str, str]],
-                                    categories: Dict[str, CategoryDefinition]) -> List[Dict]:
-        """
-        Führt die deduktive Kodierung eines Batches durch.
-        """
-        batch_results = []
-        
-        for segment_id, text in batch:
-            print(f"\nVerarbeite Segment {segment_id}")
-            
-            # Prüfe Relevanz nur einmal pro Segment
-            if not await self._check_segment_relevance(segment_id, text):
-                print("Segment wird aufgrund mangelnder Relevanz übersprungen")
-                # Erstelle "Nicht kodiert" Ergebnis für nicht-relevante Segmente
-                for coder in self.deductive_coders:
-                    result = {
-                        'segment_id': segment_id,
-                        'coder_id': coder.coder_id,
-                        'category': "Nicht kodiert",
-                        'subcategories': [],
-                        'confidence': {'total': 1.0, 'category': 1.0, 'subcategories': 1.0},
-                        'justification': "Nicht relevant für Forschungsfrage",
-                        'text': text
-                    }
-                    batch_results.append(result)
-                    print(f"  ✓ Segment als nicht relevant markiert für {coder.coder_id}")
-                continue
-
-            # Verarbeite relevante Segmente mit allen Codierern
-            print(f"Kodiere relevantes Segment mit {len(self.deductive_coders)} Codierern")
-            for coder in self.deductive_coders:
-                try:
-                    coding = await coder.code_chunk(text, categories)
-                    
-                    if coding and isinstance(coding, CodingResult):
-                        result = {
-                            'segment_id': segment_id,
-                            'coder_id': coder.coder_id,
-                            'category': coding.category,
-                            'subcategories': list(coding.subcategories),
-                            'confidence': coding.confidence,
-                            'justification': coding.justification,
-                            'text': text
-                        }
-                        print(f"  ✓ Kodierung von {coder.coder_id}: {result['category']}")
-                        batch_results.append(result)
-                    else:
-                        print(f"  ✗ Keine gültige Kodierung von {coder.coder_id}")
-                        
-                except Exception as e:
-                    print(f"  ✗ Fehler bei Kodierer {coder.coder_id}: {str(e)}")
-                    continue
-
-            self.processed_segments.add(segment_id)
-            
-        return batch_results
-
-    async def analyze_material(self, 
-                                    chunks: Dict[str, List[str]], 
-                                    initial_categories: Dict,
-                                    skip_inductive: bool = False) -> Tuple[Dict, List]:
-        """
-        Hauptanalyse mit verbesserter Integration induktiver Kategorien.
-
-        Args:
-            chunks: Dictionary mit Text-Chunks pro Dokument
-            initial_categories: Initiales Kategoriensystem
-            skip_inductive: Flag zum Überspringen der induktiven Kodierung
-            
-        Returns:
-            Tuple[Dict, List]: (Finales Kategoriensystem, Kodierungsergebnisse)
-        """
-        try:
-            self.start_time = datetime.now()
-            print(f"\nAnalyse gestartet um {self.start_time.strftime('%H:%M:%S')}")
-            
-            current_categories = initial_categories.copy()
-            all_segments = self._prepare_segments(chunks)
-            total_segments = len(all_segments)
-            
-            # Reset Tracking-Variablen
-            self.coding_results = []
-            self.processed_segments = set()
-            self.relevant_segments = set()
-            
-            print(f"Verarbeite {total_segments} Segmente...")
-            self.history.log_analysis_start(total_segments, len(initial_categories))
-            
-            batch_size_percentage = 0.1
-            total_batches = 0
-            
-            while True:
-                batch = await self._get_next_batch(all_segments, batch_size_percentage)
-                if not batch:
-                    break
-                
-                total_batches += 1
-                print(f"\nBatch {total_batches}: {len(batch)} Segmente")
-                
-                batch_start = time.time()
-                
-                try:
-                    # Prüfe Relevanz der Segmente
-                    relevant_segments_in_batch = 0
-                    for segment_id, text in batch:
-                        is_relevant = await self._check_segment_relevance(segment_id, text)
-                        if is_relevant:
-                            self.relevant_segments.add(segment_id)
-                            relevant_segments_in_batch += 1
-                        self.processed_segments.add(segment_id)
-                    
-                    print(f"Relevanzprüfung: {relevant_segments_in_batch} von {len(batch)} Segmenten relevant")
-
-                    # Relevante Segmente für induktive Analyse
-                    relevant_batch = [
-                        (segment_id, text) for segment_id, text in batch 
-                        if segment_id in self.relevant_segments
-                    ]
-                    
-                    # Induktive Analyse wenn nicht übersprungen
-                    if not skip_inductive and relevant_batch:
-                        print(f"\nStarte induktive Analyse für {len(relevant_batch)} relevante Segmente...")
-                        new_categories = await self._process_batch_inductively(relevant_batch, current_categories)
-                        
-                        if new_categories:
-                            # Validiere und integriere neue Kategorien
-                            current_categories = self._validate_and_integrate_categories(
-                                current_categories, 
-                                new_categories
-                            )
-                            
-                            # Aktualisiere Kategoriensystem für alle Kodierer
-                            for coder in self.deductive_coders:
-                                await coder.update_category_system(current_categories)
-                                
-                            print(f"Kategoriensystem erweitert auf {len(current_categories)} Kategorien")
-                    
-                    # Deduktive Kodierung für alle Segmente
-                    print("\nStarte deduktive Kodierung...")
-                    batch_results = await self._code_batch_deductively(batch, current_categories)
-                    self.coding_results.extend(batch_results)
-                    
-                    # Performance-Tracking
-                    batch_time = time.time() - batch_start
-                    self.performance_metrics['batch_processing_times'].append(batch_time)
-                    avg_time_per_segment = batch_time / len(batch)
-                    self.performance_metrics['coding_times'].append(avg_time_per_segment)
-                    
-                    # Fortschritt
-                    material_percentage = (len(self.processed_segments) / total_segments) * 100
-                    print(f"\nFortschritt: {material_percentage:.1f}%")
-                    print(f"Kodierungen gesamt: {len(self.coding_results)}")
-                    print(f"Durchschnittliche Zeit pro Segment: {avg_time_per_segment:.2f}s")
-                    
-                    # Sättigungsprüfung nur bei aktivierter induktiver Analyse
-                    if not skip_inductive:
-                        saturation_reached, metrics = self.saturation_checker.check_saturation(
-                            current_categories,
-                            self.coding_results,
-                            material_percentage
-                        )
-                        if saturation_reached:
-                            print("\nSättigung erreicht!")
-                            if metrics:
-                                print("Sättigungsmetriken:")
-                                for key, value in metrics.items():
-                                    print(f"- {key}: {value}")
-                            break
-                    
-                    # Status-Update für History
-                    self._log_iteration_status(
-                        material_percentage=material_percentage,
-                        saturation_metrics=metrics if not skip_inductive else None,
-                        num_results=len(batch_results)
-                    )
-                    
-                except Exception as e:
-                    print(f"Fehler bei der Verarbeitung von Batch {total_batches}: {str(e)}")
-                    print("Details:")
-                    traceback.print_exc()
-                    continue
-            
-            # Finaler Analysebericht
-            final_metrics = self._finalize_analysis(
-                final_categories=current_categories,
-                initial_categories=initial_categories
-            )
-            
-            # Abschluss
-            self.end_time = datetime.now()
-            processing_time = (self.end_time - self.start_time).total_seconds()
-            
-            print(f"\nAnalyse abgeschlossen:")
-            print(f"- {len(self.processed_segments)} Segmente verarbeitet")
-            print(f"- {len(self.relevant_segments)} relevante Segmente identifiziert")
-            print(f"- {len(self.coding_results)} Kodierungen erstellt")
-            print(f"- {processing_time:.1f} Sekunden Verarbeitungszeit")
-            print(f"- Durchschnittliche Zeit pro Segment: {processing_time/total_segments:.2f}s")
-            
-            if not skip_inductive:
-                print(f"- Kategorienentwicklung:")
-                print(f"  • Initial: {len(initial_categories)} Kategorien")
-                print(f"  • Final: {len(current_categories)} Kategorien")
-                print(f"  • Neu entwickelt: {len(current_categories) - len(initial_categories)} Kategorien")
-            
-            # Dokumentiere Abschluss
-            self.history.log_analysis_completion(
-                final_categories=current_categories,
-                total_time=processing_time,
-                total_codings=len(self.coding_results)
-            )
-            
-            return current_categories, self.coding_results
-                
-        except Exception as e:
-            self.end_time = datetime.now()
-            print(f"Fehler in der Analyse: {str(e)}")
-            print("Details:")
-            traceback.print_exc()
-            raise
 
     async def _get_next_batch(self, 
                            segments: List[Tuple[str, str]], 
                            batch_size_percentage: float) -> List[Tuple[str, str]]:
-        """
-        Bestimmt den nächsten zu analysierenden Batch.
-        
-        Args:
-            segments: Liste aller Segmente
-            batch_size_percentage: Batch-Größe als Prozentsatz
-            
-        Returns:
-            List[Tuple[str, str]]: Nächster Batch von Segmenten
-        """
+        """Bestimmt den nächsten zu analysierenden Batch."""
         remaining_segments = [
             seg for seg in segments 
             if seg[0] not in self.processed_segments
@@ -1656,51 +2149,22 @@ class IntegratedAnalysisManager:
             
         batch_size = max(1, int(len(segments) * batch_size_percentage))
         return remaining_segments[:batch_size]
-
-    def _prepare_segments(self, chunks: Dict[str, List[str]]) -> List[Tuple[str, str]]:
-        """
-        Bereitet die Segmente für die Analyse vor.
-        
-        Args:
-            chunks: Dictionary mit Dokumenten-Chunks
-            
-        Returns:
-            List[Tuple[str, str]]: Liste von (segment_id, text) Tupeln
-        """
-        segments = []
-        for doc_name, doc_chunks in chunks.items():
-            for chunk_idx, chunk in enumerate(doc_chunks):
-                segment_id = f"{doc_name}_chunk_{chunk_idx}"
-                segments.append((segment_id, chunk))
-        return segments
-
+    
     async def _process_batch_inductively(self,
-                                        batch: List[Tuple[str, str]],
-                                        current_categories: Dict) -> Dict:
-        """
-        Führt die induktive Analyse eines Batches durch.
-        
-        Args:
-            batch: Zu analysierende Segmente
-            current_categories: Aktuelles Kategoriensystem
-            
-        Returns:
-            Dict: Neue/aktualisierte Kategorien
-        """
+                                     batch: List[Tuple[str, str]],
+                                     current_categories: Dict) -> Dict:
+        """Verarbeitet einen Batch induktiv mit optimierter Relevanzprüfung."""
         try:
             print(f"\nInduktive Analyse von {len(batch)} Segmenten...")
             
-            # Sammle nur relevante Segmente
-            relevant_texts = []
-            for segment_id, text in batch:
-                # Nutze die bereits durchgeführte Relevanzprüfung
-                if segment_id in self.relevant_segments:
-                    relevant_texts.append(text)
-                else:
-                    # Führe Relevanzprüfung durch, falls noch nicht geschehen
-                    if segment_id not in self.processed_segments:
-                        if await self._check_segment_relevance(segment_id, text):
-                            relevant_texts.append(text)
+            # Prüfe Relevanz für ganzen Batch
+            relevance_results = await self.relevance_checker.check_relevance_batch(batch)
+            
+            # Filtere relevante Texte
+            relevant_texts = [
+                text for segment_id, text in batch 
+                if relevance_results.get(segment_id, False)
+            ]
 
             if not relevant_texts:
                 print("   ℹ️ Keine relevanten Segmente für induktive Analyse")
@@ -1762,24 +2226,24 @@ class IntegratedAnalysisManager:
         except Exception as e:
             print(f"Fehler bei induktiver Analyse: {str(e)}")
             return {}
-    
-
+        
     async def _code_batch_deductively(self,
                                     batch: List[Tuple[str, str]],
                                     categories: Dict[str, CategoryDefinition]) -> List[Dict]:
-        """
-        Führt die deduktive Kodierung eines Batches durch.
-        Berücksichtigt nur bereits als relevant markierte Segmente.
-        """
+        """Führt die deduktive Kodierung mit optimierter Relevanzprüfung durch."""
         batch_results = []
+        
+        # Prüfe Relevanz für ganzen Batch
+        relevance_results = await self.relevance_checker.check_relevance_batch(batch)
         
         for segment_id, text in batch:
             print(f"\nVerarbeite Segment {segment_id}")
             
-            # Nutze die bereits durchgeführte Relevanzprüfung
-            if segment_id not in self.relevant_segments:
+            # Nutze gespeicherte Relevanzprüfung
+            if not relevance_results.get(segment_id, False):
                 print(f"Segment wurde als nicht relevant markiert - wird übersprungen")
-                # Erstelle "Nicht kodiert" Ergebnis für nicht-relevante Segmente
+                
+                # Erstelle "Nicht kodiert" Ergebnis
                 for coder in self.deductive_coders:
                     result = {
                         'segment_id': segment_id,
@@ -1791,7 +2255,6 @@ class IntegratedAnalysisManager:
                         'text': text
                     }
                     batch_results.append(result)
-                    print(f"  ✓ Segment als nicht relevant markiert für {coder.coder_id}")
                 continue
 
             # Verarbeite relevante Segmente mit allen Codierern
@@ -1822,6 +2285,220 @@ class IntegratedAnalysisManager:
             self.processed_segments.add(segment_id)
             
         return batch_results
+
+    async def analyze_material(self, 
+                        chunks: Dict[str, List[str]], 
+                        initial_categories: Dict,
+                        skip_inductive: bool = False) -> Tuple[Dict, List]:
+        """
+        Hauptanalyse mit optimierter Relevanzprüfung.
+        
+        Args:
+            chunks: Dictionary mit Text-Chunks
+            initial_categories: Initiales Kategoriensystem
+            skip_inductive: Flag zum Überspringen der induktiven Kodierung
+            
+        Returns:
+            Tuple[Dict, List]: (Finales Kategoriensystem, Kodierungsergebnisse)
+        """
+        try:
+            self.start_time = datetime.now()
+            print(f"\nAnalyse gestartet um {self.start_time.strftime('%H:%M:%S')}")
+            
+            current_categories = initial_categories.copy()
+            all_segments = self._prepare_segments(chunks)
+            total_segments = len(all_segments)
+            
+            # Reset Tracking-Variablen
+            self.coding_results = []
+            self.processed_segments = set()
+            
+            print(f"Verarbeite {total_segments} Segmente...")
+            self.history.log_analysis_start(total_segments, len(initial_categories))
+            
+            batch_size = 5
+            total_batches = 0
+            
+            while True:
+                batch = await self._get_next_batch(all_segments, batch_size)
+                if not batch:
+                    break
+                
+                total_batches += 1
+                print(f"\nBatch {total_batches}: {len(batch)} Segmente")
+                
+                batch_start = time.time()
+                
+                try:
+                    # Prüfe Relevanz für ganzen Batch
+                    relevance_results = await self.relevance_checker.check_relevance_batch(batch)
+                    
+                    # Aktualisiere Tracking
+                    self.processed_segments.update(sid for sid, _ in batch)
+                    
+                    # Relevante Segmente für induktive Analyse
+                    relevant_batch = [
+                        (segment_id, text) for segment_id, text in batch 
+                        if relevance_results.get(segment_id, False)
+                    ]
+                    
+                    print(f"Relevanzprüfung: {len(relevant_batch)} von {len(batch)} Segmenten relevant")
+                    
+                    # Induktive Analyse wenn nicht übersprungen
+                    if not skip_inductive and relevant_batch:
+                        print(f"\nStarte induktive Analyse für {len(relevant_batch)} relevante Segmente...")
+                        new_categories = await self._process_batch_inductively(relevant_batch, current_categories)
+                        
+                        if new_categories:
+                            # Validiere und integriere neue Kategorien
+                            current_categories = self._validate_and_integrate_categories(
+                                current_categories, 
+                                new_categories
+                            )
+                            
+                            # Aktualisiere Kategoriensystem für alle Kodierer
+                            for coder in self.deductive_coders:
+                                await coder.update_category_system(current_categories)
+                                
+                            print(f"Kategoriensystem erweitert auf {len(current_categories)} Kategorien")
+                    
+                    # Deduktive Kodierung für alle Segmente
+                    print("\nStarte deduktive Kodierung...")
+                    batch_results = await self._code_batch_deductively(batch, current_categories)
+                    self.coding_results.extend(batch_results)
+                    
+                    # Performance-Tracking
+                    batch_time = time.time() - batch_start
+                    self.performance_metrics['batch_processing_times'].append(batch_time)
+                    avg_time_per_segment = batch_time / len(batch)
+                    self.performance_metrics['coding_times'].append(avg_time_per_segment)
+                    
+                    # Fortschritt
+                    material_percentage = (len(self.processed_segments) / total_segments) * 100
+                    print(f"\nFortschritt: {material_percentage:.1f}%")
+                    print(f"Kodierungen gesamt: {len(self.coding_results)}")
+                    print(f"Durchschnittliche Zeit pro Segment: {avg_time_per_segment:.2f}s")
+                    
+                    # Relevanzstatistiken
+                    relevance_stats = self.relevance_checker.get_statistics()
+                    print("\nRelevanzstatistiken:")
+                    print(f"- Relevante Segmente: {relevance_stats['relevant_segments']}/{relevance_stats['total_segments']}")
+                    print(f"- Relevanzrate: {relevance_stats['relevance_rate']*100:.1f}%")
+                    print(f"- API-Calls: {relevance_stats['api_calls']}")
+                    
+                    # Sättigungsprüfung nur bei aktivierter induktiver Analyse
+                    if not skip_inductive:
+                        saturation_reached, metrics = self.saturation_checker.check_saturation(
+                            current_categories,
+                            self.coding_results,
+                            material_percentage
+                        )
+                        if saturation_reached:
+                            print("\nSättigung erreicht!")
+                            if metrics:
+                                print("Sättigungsmetriken:")
+                                for key, value in metrics.items():
+                                    print(f"- {key}: {value}")
+                            break
+                    
+                    # Status-Update für History
+                    self._log_iteration_status(
+                        material_percentage=material_percentage,
+                        saturation_metrics=metrics if not skip_inductive else None,
+                        num_results=len(batch_results)
+                    )
+                    
+                except Exception as e:
+                    print(f"Fehler bei der Verarbeitung von Batch {total_batches}: {str(e)}")
+                    print("Details:")
+                    traceback.print_exc()
+                    continue
+            
+            # Finaler Analysebericht
+            final_metrics = self._finalize_analysis(
+                final_categories=current_categories,
+                initial_categories=initial_categories
+            )
+            
+            # Abschluss
+            self.end_time = datetime.now()
+            processing_time = (self.end_time - self.start_time).total_seconds()
+            
+            print(f"\nAnalyse abgeschlossen:")
+            print(f"- {len(self.processed_segments)} Segmente verarbeitet")
+            print(f"- {len(self.coding_results)} Kodierungen erstellt")
+            print(f"- {processing_time:.1f} Sekunden Verarbeitungszeit")
+            print(f"- Durchschnittliche Zeit pro Segment: {processing_time/total_segments:.2f}s")
+            
+            if not skip_inductive:
+                print(f"- Kategorienentwicklung:")
+                print(f"  • Initial: {len(initial_categories)} Kategorien")
+                print(f"  • Final: {len(current_categories)} Kategorien")
+                print(f"  • Neu entwickelt: {len(current_categories) - len(initial_categories)} Kategorien")
+            
+            # Dokumentiere Abschluss
+            self.history.log_analysis_completion(
+                final_categories=current_categories,
+                total_time=processing_time,
+                total_codings=len(self.coding_results)
+            )
+            
+            # Abschließende Relevanzstatistiken
+            final_stats = self.relevance_checker.get_statistics()
+            print("\nFinale Relevanzstatistiken:")
+            print(f"- API-Calls gespart: {total_segments - final_stats['api_calls']}")
+            print(f"- Cache-Nutzung: {final_stats['cache_size']} Einträge")
+            
+            return current_categories, self.coding_results
+                
+        except Exception as e:
+            self.end_time = datetime.now()
+            print(f"Fehler in der Analyse: {str(e)}")
+            print("Details:")
+            traceback.print_exc()
+            raise
+
+    async def _get_next_batch(self, 
+                           segments: List[Tuple[str, str]], 
+                           batch_size: float) -> List[Tuple[str, str]]:
+        """
+        Bestimmt den nächsten zu analysierenden Batch.
+        
+        Args:
+            segments: Liste aller Segmente
+            batch_size_percentage: Batch-Größe als Prozentsatz
+            
+        Returns:
+            List[Tuple[str, str]]: Nächster Batch von Segmenten
+        """
+        remaining_segments = [
+            seg for seg in segments 
+            if seg[0] not in self.processed_segments
+        ]
+        
+        if not remaining_segments:
+            return []
+            
+        batch_size = max(1, batch_size)
+        return remaining_segments[:batch_size]
+
+    def _prepare_segments(self, chunks: Dict[str, List[str]]) -> List[Tuple[str, str]]:
+        """
+        Bereitet die Segmente für die Analyse vor.
+        
+        Args:
+            chunks: Dictionary mit Dokumenten-Chunks
+            
+        Returns:
+            List[Tuple[str, str]]: Liste von (segment_id, text) Tupeln
+        """
+        segments = []
+        for doc_name, doc_chunks in chunks.items():
+            for chunk_idx, chunk in enumerate(doc_chunks):
+                segment_id = f"{doc_name}_chunk_{chunk_idx}"
+                segments.append((segment_id, chunk))
+        return segments
+
 
     async def _merge_categories(self,
                             current_cats: Dict,
@@ -1935,31 +2612,83 @@ class IntegratedAnalysisManager:
             return None
 
     def _calculate_text_similarity(self, text1: str, text2: str) -> float:
-        """
-        Berechnet die Ähnlichkeit zwischen zwei Texten.
+        """Berechnet die Ähnlichkeit zwischen zwei Texten mit Caching."""
+        cache_key = f"{hash(text1)}_{hash(text2)}"
         
-        Args:
-            text1: Erster Text
-            text2: Zweiter Text
+        if cache_key in self.similarity_cache:
+            return self.similarity_cache[cache_key]
             
-        Returns:
-            float: Ähnlichkeitswert zwischen 0 und 1
-        """
-        try:
-            # Bereinige und tokenisiere Texte
-            words1 = set(self._normalize_text(text1).split())
-            words2 = set(self._normalize_text(text2).split())
-            
-            # Berechne Jaccard-Ähnlichkeit
-            intersection = len(words1 & words2)
-            union = len(words1 | words2)
-            
-            return intersection / union if union > 0 else 0.0
-            
-        except Exception as e:
-            print(f"Fehler bei Textähnlichkeitsberechnung: {str(e)}")
-            return 0.0
+        # Konvertiere Texte zu Sets von Wörtern
+        words1 = set(text1.lower().split())
+        words2 = set(text2.lower().split())
+        
+        # Berechne Jaccard-Ähnlichkeit
+        intersection = len(words1.intersection(words2))
+        union = len(words1.union(words2))
+        
+        similarity = intersection / union if union > 0 else 0.0
+        
+        # Cache das Ergebnis
+        self.similarity_cache[cache_key] = similarity
+        self.validation_stats['similarity_calculations'] += 1
+        
+        return similarity
 
+    def _auto_enhance_category(self, category: CategoryDefinition) -> CategoryDefinition:
+        """Versucht automatisch, eine unvollständige Kategorie zu verbessern."""
+        try:
+            enhanced = category
+
+            # 1. Generiere fehlende Beispiele falls nötig
+            if len(enhanced.examples) < self.MIN_EXAMPLES:
+                # Extrahiere potenzielle Beispiele aus der Definition
+                sentences = enhanced.definition.split('.')
+                potential_examples = [s.strip() for s in sentences if 'z.B.' in s or 'beispielsweise' in s]
+                
+                # Füge gefundene Beispiele hinzu
+                if potential_examples:
+                    enhanced = enhanced._replace(
+                        examples=list(set(enhanced.examples + potential_examples))
+                    )
+
+            # 2. Generiere grundlegende Kodierregeln falls keine vorhanden
+            if not enhanced.rules:
+                enhanced = enhanced._replace(rules=[
+                    f"Kodiere Textstellen, die sich auf {enhanced.name} beziehen",
+                    "Berücksichtige den Kontext der Aussage",
+                    "Bei Unsicherheit dokumentiere die Gründe"
+                ])
+
+            # 3. Generiere Subkategorien aus der Definition falls keine vorhanden
+            if len(enhanced.subcategories) < self.MIN_SUBCATEGORIES:
+                # Suche nach Aufzählungen in der Definition
+                if 'wie' in enhanced.definition:
+                    parts = enhanced.definition.split('wie')[1].split(',')
+                    potential_subcats = []
+                    for part in parts:
+                        if 'und' in part:
+                            potential_subcats.extend(part.split('und'))
+                        else:
+                            potential_subcats.append(part)
+                    
+                    # Bereinige und füge Subkategorien hinzu
+                    cleaned_subcats = {
+                        subcat.strip().strip('.'): ""
+                        for subcat in potential_subcats
+                        if len(subcat.strip()) > 3
+                    }
+                    
+                    if cleaned_subcats:
+                        enhanced = enhanced._replace(
+                            subcategories={**enhanced.subcategories, **cleaned_subcats}
+                        )
+
+            return enhanced
+
+        except Exception as e:
+            print(f"Fehler bei automatischer Kategorienverbesserung: {str(e)}")
+            return category
+        
     def _normalize_text(self, text: str) -> str:
         """
         Normalisiert Text für Vergleiche.
@@ -2022,40 +2751,47 @@ class IntegratedAnalysisManager:
             return original
 
     def _validate_and_integrate_categories(self, 
-                                    existing_categories: Dict[str, CategoryDefinition],
-                                    new_categories: Dict[str, CategoryDefinition]) -> Dict[str, CategoryDefinition]:
-        """
-        Validiert neue induktive Kategorien und integriert sie ins bestehende System.
-        """
-        integrated = existing_categories.copy()
-        
-        for name, category in new_categories.items():
-            try:
-                # Prüfe auf Ähnlichkeit mit bestehenden Kategorien
-                similar_category = self._find_similar_category(category, existing_categories)
-                
-                if similar_category:
-                    # Erweitere bestehende Kategorie
-                    integrated[similar_category] = self._merge_category_definitions(
-                        integrated[similar_category], 
-                        category
-                    )
-                    print(f"Induktive Kategorie '{name}' in bestehende Kategorie '{similar_category}' integriert")
+                                         existing_categories: Dict[str, CategoryDefinition],
+                                         new_categories: Dict[str, CategoryDefinition]) -> Dict[str, CategoryDefinition]:
+        """Verbesserte Validierung und Integration von Kategorien."""
+        try:
+            # Validiere neue Kategorien einzeln
+            valid_new_categories = {}
+            for name, category in new_categories.items():
+                is_valid, issues = self.validator.validate_category(category)
+                if is_valid:
+                    valid_new_categories[name] = category
                 else:
-                    # Füge als neue Kategorie hinzu
-                    integrated[name] = category
-                    print(f"Neue induktive Kategorie '{name}' hinzugefügt")
-                    
-                    # Debug-Ausgabe
-                    print(f"Details der neuen Kategorie:")
-                    print(f"- Definition: {category.definition[:100]}...")
-                    print(f"- Subkategorien: {list(category.subcategories.keys())}")
-            
-            except Exception as e:
-                print(f"Fehler bei Integration von Kategorie '{name}': {str(e)}")
-                continue
-        
-        return integrated
+                    print(f"\nKategorie '{name}' nicht valide:")
+                    for issue in issues:
+                        print(f"- {issue}")
+
+            # Integriere valide neue Kategorien
+            integrated = existing_categories.copy()
+            integrated.update(valid_new_categories)
+
+            # Validiere Gesamtsystem
+            is_valid, system_issues = self.validator.validate_category_system(integrated)
+            if not is_valid:
+                print("\nProbleme nach Integration:")
+                for category, issues in system_issues.items():
+                    print(f"\n{category}:")
+                    for issue in issues:
+                        print(f"- {issue}")
+                
+                # Hier könnte zusätzliche Bereinigungslogik folgen...
+
+            # Zeige Validierungsstatistiken
+            stats = self.validator.get_validation_stats()
+            print("\nValidierungsstatistiken:")
+            print(f"- Cache-Trefferrate: {stats['cache_hit_rate']*100:.1f}%")
+            print(f"- Validierungen gesamt: {stats['total_validations']}")
+
+            return integrated
+
+        except Exception as e:
+            print(f"Fehler bei Kategorienintegration: {str(e)}")
+            return existing_categories
 
     def _prepare_segments(self, chunks: Dict[str, List[str]]) -> List[Tuple[str, str]]:
         """
@@ -2105,26 +2841,31 @@ class IntegratedAnalysisManager:
             saturation_metrics: Metriken der Sättigungsprüfung
             num_results: Anzahl der Kodierungen
         """
-        status = {
-            'timestamp': datetime.now().isoformat(),
-            'material_processed': material_percentage,
-            'saturation_metrics': saturation_metrics,
-            'results_count': num_results,
-            'processing_time': self.performance_metrics['batch_processing_times'][-1]
-        }
-        
-        # Füge Status zum Log hinzu
-        self.analysis_log.append(status)
-        
-        # Debug-Ausgabe für wichtige Metriken
-        print("\nIterations-Status:")
-        print(f"- Material verarbeitet: {material_percentage:.1f}%")
-        print(f"- Neue Kodierungen: {num_results}")
-        print(f"- Verarbeitungszeit: {status['processing_time']:.2f}s")
-        if saturation_metrics:
-            print("- Sättigungsmetriken:")
-            for key, value in saturation_metrics.items():
-                print(f"  • {key}: {value}")
+        try:
+            # Erstelle Status-Dictionary
+            status = {
+                'timestamp': datetime.now().isoformat(),
+                'material_processed': material_percentage,
+                'saturation_metrics': saturation_metrics,
+                'results_count': num_results,
+                'processing_time': self.performance_metrics['batch_processing_times'][-1] if self.performance_metrics['batch_processing_times'] else 0
+            }
+            
+            # Füge Status zum Log hinzu
+            self.analysis_log.append(status)
+            
+            # Debug-Ausgabe für wichtige Metriken
+            print("\nIterations-Status:")
+            print(f"- Material verarbeitet: {material_percentage:.1f}%")
+            print(f"- Neue Kodierungen: {num_results}")
+            print(f"- Verarbeitungszeit: {status['processing_time']:.2f}s")
+            if saturation_metrics:
+                print("- Sättigungsmetriken:")
+                for key, value in saturation_metrics.items():
+                    print(f"  • {key}: {value}")
+        except Exception as e:
+            print(f"Warnung: Fehler beim Logging des Iterationsstatus: {str(e)}")
+            # Fehler beim Logging sollte die Hauptanalyse nicht unterbrechen
 
     def _finalize_analysis(self,
                           final_categories: Dict,
@@ -2833,7 +3574,7 @@ class InductiveCoder:
     Optimiert für Performance und Integration mit SaturationChecker.
     """
     
-    def __init__(self, model_name: str, history: DevelopmentHistory, output_dir: str = None):
+    def __init__(self, model_name: str, history: DevelopmentHistory, output_dir: str = None, config: dict = None):
         # OpenAI Konfiguration
         self.model_name = model_name
         self.client = openai.AsyncOpenAI()
@@ -2842,11 +3583,14 @@ class InductiveCoder:
         # Performance-Optimierung
         self.category_cache = {}  # Cache für häufig verwendete Kategorien
         self.batch_results = []   # Speichert Batch-Ergebnisse für Analyse
+        self.analysis_cache = {}  # Cache für Kategorienanalysen
         
         # Qualitätsschwellen
-        self.MIN_CONFIDENCE = 0.6
-        self.MIN_EXAMPLES = 2
-        self.MIN_DEFINITION_WORDS = 10
+        validation_config = CONFIG.get('validation_config', {})
+        thresholds = validation_config.get('thresholds', {})
+        self.MIN_CONFIDENCE = thresholds.get('MIN_CONFIDENCE', 0.6)
+        self.MIN_EXAMPLES = thresholds.get('MIN_EXAMPLES', 2)
+        self.MIN_DEFINITION_WORDS = thresholds.get('MIN_DEFINITION_WORDS', 15)
 
         # Batch processing configuration
         self.BATCH_SIZE = 5  # Number of segments to process at once
@@ -2856,9 +3600,18 @@ class InductiveCoder:
         self.history = history
         self.development_history = []
         self.last_analysis_time = None
+
+         # Verwende zentrale Validierung
+        self.validator = CategoryValidator(config)
         
         # System-Prompt-Cache
         self._cached_system_prompt = None
+
+        print("\nInduktiveCoder initialisiert:")
+        print(f"- Model: {model_name}")
+        print(f"- Batch-Größe: {self.BATCH_SIZE}")
+        print(f"- Max Retries: {self.MAX_RETRIES}")
+        print(f"- Cache aktiviert: Ja")
 
     def _create_batches(self, segments: List[str], batch_size: int = None) -> List[List[str]]:
         """
@@ -2880,78 +3633,199 @@ class InductiveCoder:
         ]
        
     async def develop_category_system(self, segments: List[str]) -> Dict[str, CategoryDefinition]:
-        """
-        Entwickelt induktiv neue Kategorien aus den Textsegmenten.
-        
-        Args:
-            segments: Liste der zu analysierenden Textsegmente
-            
-        Returns:
-            Dict[str, CategoryDefinition]: Neue Kategorien
-        """
+        """Entwickelt induktiv neue Kategorien aus den Textsegmenten."""
         try:
-            start_time = time.time()
-            
-            # Voranalyse
+            # Voranalyse und Filterung der Segmente...
             relevant_segments = await self._prefilter_segments(segments)
-            self.history.log_category_development(
-                phase="prefiltering",
-                total_segments=len(segments),
-                relevant_segments=len(relevant_segments)
-            )
             
-            # Stapel von Segmenten erstellen
+            # Erstelle Batches für Analyse
             batches = self._create_batches(relevant_segments)
             
-            # Kategorien extrahieren
             categories = {}
             for batch_idx, batch in enumerate(batches):
-                try:
-                    # Extract new categories
-                    batch_categories = await self._extract_categories_from_batch(batch)
-                    if not batch_categories:
-                        continue
-
-                    # Validate categories
-                    valid_categories = self._validate_categories(batch_categories)
-                    if not valid_categories:
-                        continue
-
-                    # Integrate into existing system
-                    for cat in valid_categories:
-                        # Erstelle CategoryDefinition Objekt
-                        cat_def = CategoryDefinition(
-                            name=cat['name'],
-                            definition=cat['definition'],
-                            examples=[cat['example']] if 'example' in cat else [],
-                            rules=[],  # Regeln werden später entwickelt
-                            subcategories={sub: "" for sub in cat.get('new_subcategories', [])},
-                            added_date=datetime.now().strftime("%Y-%m-%d"),
-                            modified_date=datetime.now().strftime("%Y-%m-%d")
-                        )
-                        categories[cat['name']] = cat_def
-
-                    # Document development
-                    self.history.log_category_development(
-                        phase=f"batch_{batch_idx + 1}",
-                        new_categories=len(batch_categories),
-                        valid_categories=len(valid_categories),
-                        total_categories=len(categories)
-                    )
-
-                except Exception as e:
-                    print(f"Fehler bei Batch {batch_idx}: {str(e)}")
+                print(f"\nAnalysiere Batch {batch_idx + 1}/{len(batches)}...")
+                
+                # Nutze die neue Batch-Analyse
+                batch_analysis = await self.analyze_category_batch(
+                    # Übergebe vorhandene Kategorien als Kontext
+                    category=categories,
+                    segments=batch
+                )
+                
+                if not batch_analysis:
                     continue
+                    
+                # Verarbeite Analyseergebnisse
+                if 'definition' in batch_analysis:
+                    # Verarbeite Definitionsvorschläge
+                    for cat_name, changes in batch_analysis['definition'].items():
+                        if changes['confidence'] > 0.7:  # Nur hochwertige Änderungen
+                            if cat_name in categories:
+                                # Update bestehende Kategorie
+                                categories[cat_name] = categories[cat_name]._replace(
+                                    definition=changes['suggestion']
+                                )
+                                print(f"✓ Definition aktualisiert für '{cat_name}'")
+                
+                # Verarbeite neue Subkategorien
+                if 'subcategories' in batch_analysis and batch_analysis['subcategories'].get('new'):
+                    for new_sub in batch_analysis['subcategories']['new']:
+                        cat_name = new_sub['name']
+                        if cat_name not in categories:
+                            # Erstelle neue Kategorie
+                            categories[cat_name] = CategoryDefinition(
+                                name=cat_name,
+                                definition=new_sub['definition'],
+                                examples=[new_sub['evidence'][0]] if new_sub['evidence'] else [],
+                                rules=[],  # Regeln werden später entwickelt
+                                subcategories={},
+                                added_date=datetime.now().strftime("%Y-%m-%d"),
+                                modified_date=datetime.now().strftime("%Y-%m-%d")
+                            )
+                            print(f"✓ Neue Kategorie erstellt: '{cat_name}'")
+                
+                # Dokumentiere Entwicklung
+                self.history.log_category_development(
+                    phase=f"batch_{batch_idx + 1}",
+                    new_categories=len(batch_analysis.get('subcategories', {}).get('new', [])),
+                    modified_categories=len(batch_analysis.get('definition', {}))
+                )
             
             return categories
-                
+            
         except Exception as e:
-            self.history.log_error("category_development_error", str(e))
             print(f"Fehler bei Kategorienentwicklung: {str(e)}")
             print("Details:")
             traceback.print_exc()
             return {}
 
+    async def analyze_category_batch(self, category: Dict[str, Any], segments: List[str]) -> Dict[str, Any]:
+        """
+        Kombinierte Kategorienanalyse in einem API-Call.
+        
+        Args:
+            category: Aktuelles Kategoriensystem oder zu analysierende Kategorie
+            segments: Relevante Textsegmente
+            
+        Returns:
+            Dict: Analyseergebnisse
+        """
+        try:
+            # Cache-Key erstellen
+            cache_key = (
+                frozenset(category.items()) if isinstance(category, dict) else str(category),
+                tuple(segments)
+            )
+            
+            # Prüfe Cache
+            if cache_key in self.analysis_cache:
+                print("Nutze gecachte Analyse")
+                return self.analysis_cache[cache_key]
+
+            prompt = f"""
+            Führe eine vollständige Kategorienanalyse basierend auf den Textsegmenten durch.
+            
+            AKTUELLES KATEGORIENSYSTEM:
+            {json.dumps(category, indent=2, ensure_ascii=False)}
+            
+            TEXTSEGMENTE:
+            {json.dumps(segments, indent=2, ensure_ascii=False)}
+            
+            FORSCHUNGSFRAGE:
+            {FORSCHUNGSFRAGE}
+            
+            Analysiere systematisch:
+            1. DEFINITION UND ABGRENZUNG
+            - Prüfe die Definitionen auf Klarheit und Präzision
+            - Schlage konkrete Verbesserungen vor
+            - Identifiziere potenzielle Überschneidungen
+            
+            2. SUBKATEGORIEN
+            - Validiere bestehende Subkategorien
+            - Identifiziere neue thematische Aspekte
+            - Stelle Trennschärfe zwischen Subkategorien sicher
+            
+            3. BEGRÜNDUNG UND EVIDENZ
+            - Belege Änderungsvorschläge mit Textstellen
+            - Dokumentiere Entscheidungsgründe
+            - Gib Konfidenzwerte für Vorschläge an
+
+            Antworte NUR mit einem JSON-Objekt:
+            {{
+                "definition": {{
+                    "kategorie_name": {{
+                        "current": "Aktuelle Definition",
+                        "suggestion": "Verbesserte Definition",
+                        "changes": ["Liste der Änderungen"],
+                        "justification": "Begründung",
+                        "confidence": 0.0-1.0
+                    }}
+                }},
+                "subcategories": {{
+                    "existing": {{
+                        "valid": ["Liste validierter Subkategorien"],
+                        "remove": ["Zu entfernende Subkategorien"],
+                        "modify": [{{
+                            "name": "Name",
+                            "current": "Aktuelle Definition",
+                            "suggestion": "Verbesserte Definition"
+                        }}]
+                    }},
+                    "new": [{{
+                        "name": "Name",
+                        "definition": "Definition",
+                        "justification": "Begründung",
+                        "evidence": ["Textbelege"],
+                        "confidence": 0.0-1.0
+                    }}]
+                }},
+                "boundaries": {{
+                    "distinctions": ["Abgrenzungsmerkmale"],
+                    "potential_overlaps": ["Mögliche Überschneidungen"],
+                    "recommendations": ["Empfehlungen"]
+                }}
+            }}
+            """
+
+            response = await self.client.chat.completions.create(
+                model=self.model_name,
+                messages=[
+                    {"role": "system", "content": "Du bist ein Experte für qualitative Inhaltsanalyse."},
+                    {"role": "user", "content": prompt}
+                ],
+                temperature=0.3,
+                response_format={"type": "json_object"}
+            )
+
+            result = json.loads(response.choices[0].message.content)
+            
+            # Cache das Ergebnis
+            self.analysis_cache[cache_key] = result
+            
+            # Debug-Ausgaben
+            print("\nAnalyseergebnisse:")
+            if 'definition' in result:
+                for cat_name, changes in result['definition'].items():
+                    print(f"\nKategorie '{cat_name}':")
+                    print(f"- Konfidenz: {changes['confidence']:.2f}")
+                    if changes['changes']:
+                        print("- Änderungen:")
+                        for change in changes['changes']:
+                            print(f"  • {change}")
+                            
+            if 'subcategories' in result and result['subcategories'].get('new'):
+                print("\nNeue Subkategorien:")
+                for new_sub in result['subcategories']['new']:
+                    print(f"- {new_sub['name']} (Konfidenz: {new_sub['confidence']:.2f})")
+
+            return result
+
+        except Exception as e:
+            print(f"Fehler bei Kategorienanalyse: {str(e)}")
+            print("Details:")
+            traceback.print_exc()
+            return None
+        
     async def _prefilter_segments(self, segments: List[str]) -> List[str]:
         """
         Filtert Segmente nach Relevanz für Kategorienentwicklung.
@@ -3211,83 +4085,89 @@ class InductiveCoder:
 
     def _get_category_extraction_prompt(self, segment: str) -> str:
         """
-        Detaillierter Prompt für die Kategorienentwicklung.
+        Detaillierter Prompt für die Kategorienentwicklung mit Fokus auf 
+        hierarchische Einordnung und Vermeidung zu spezifischer Hauptkategorien.
         """
         return f"""Analysiere das folgende Textsegment für die Entwicklung induktiver Kategorien.
         Forschungsfrage: "{FORSCHUNGSFRAGE}"
 
-        ANFORDERUNGEN AN NEUE KATEGORIEN:
-
-        1. KATEGORIENAME
-        - Prägnant und aussagekräftig (2-4 Wörter)
-        - Fachsprachlich korrekt
-        - Ausschließlich deutsche Begriffe
+        WICHTIG - HIERARCHISCHE EINORDNUNG:
         
-        GUTE BEISPIELE:
-        - "Strategische Hochschulentwicklung"
-        - "Digitale Lehrinnovationen"
-        - "Qualitätssicherungsprozesse"
-        
-        SCHLECHTE BEISPIELE:
-        - "Management" (zu allgemein)
-        - "Digital Teaching" (englische Begriffe)
-        - "Prozesse der strategischen Entwicklung im Hochschulkontext" (zu lang)
-
-        2. DEFINITION
-        Muss enthalten:
-        - Zentrale Merkmale des Phänomens
-        - Abgrenzung zu anderen Kategorien
-        - Bedingungen und Kontext
-        - Mindestens drei Sätze
-        
-        BEISPIEL GUTER DEFINITION:
-        "Strategische Hochschulentwicklung umfasst alle systematischen Prozesse und Maßnahmen 
-        zur langfristigen Positionierung und Profilbildung einer Hochschule. Dies beinhaltet 
-        die Formulierung von Entwicklungszielen, die Implementierung von Steuerungsinstrumenten 
-        und die kontinuierliche Anpassung an sich verändernde Rahmenbedingungen. Im Gegensatz 
-        zum operativen Management fokussiert sie auf längerfristige Entwicklungsperspektiven 
-        und grundlegende Weichenstellungen."
-
-        3. SUBKATEGORIEN
-        - 2-4 Subkategorien pro Hauptkategorie
-        - Logisch zusammengehörend
-        - Sich gegenseitig ausschließend
-        - Mit kurzer Erläuterung (1 Satz)
-        
-        BEISPIEL GUTER SUBKATEGORIEN:
-        - "Strategieentwicklung": Prozesse der Zielformulierung und Maßnahmenplanung
-        - "Strategieumsetzung": Konkrete Implementierung der beschlossenen Maßnahmen
-        - "Strategieevaluation": Überprüfung der Zielerreichung und Wirksamkeit
-
-        4. BEGRÜNDUNG
-        Muss zeigen:
-        - Welche Textstellen die Kategorie belegen
-        - Warum eine neue Kategorie nötig ist
-        - Wie sie sich von bestehenden unterscheidet
-
-        BESTEHENDES KATEGORIENSYSTEM:
+        1. PRÜFE ZUERST EINORDNUNG IN BESTEHENDE HAUPTKATEGORIEN
+        Aktuelle Hauptkategorien:
         {json.dumps(DEDUKTIVE_KATEGORIEN, indent=2, ensure_ascii=False)}
+
+        2. ENTSCHEIDUNGSREGELN FÜR KATEGORIENEBENE:
+
+        HAUPTKATEGORIEN (nur wenn wirklich nötig):
+        - Beschreiben übergeordnete Themenkomplexe oder Handlungsfelder
+        - Umfassen mehrere verwandte Aspekte unter einem konzeptionellen Dach
+        - Sind abstrakt genug für verschiedene Unterthemen
+        
+        GUTE BEISPIELE für Hauptkategorien:
+        - "Wissenschaftlicher Nachwuchs" (übergeordneter Themenkomplex)
+        - "Wissenschaftliches Personal" (breites Handlungsfeld)
+        - "Berufungsstrategien" (strategische Ebene)
+        
+        SCHLECHTE BEISPIELE für Hauptkategorien:
+        - "Promotion in Unternehmen" (→ besser als Subkategorie unter "Wissenschaftlicher Nachwuchs")
+        - "Rolle wissenschaftlicher Mitarbeiter" (→ besser als Subkategorie unter "Wissenschaftliches Personal")
+        - "Forschungsinteresse bei Berufungen" (→ besser als Subkategorie unter "Berufungsstrategien")
+
+        SUBKATEGORIEN (bevorzugt):
+        - Beschreiben spezifische Aspekte einer Hauptkategorie
+        - Konkretisieren einzelne Phänomene oder Handlungen
+        - Sind empirisch direkt beobachtbar
+
+        3. ENTWICKLUNGSSCHRITTE:
+        a) Prüfe ZUERST, ob der Inhalt als Subkategorie in bestehende Hauptkategorien passt
+        b) Entwickle neue Subkategorien für bestehende Hauptkategorien
+        c) NUR WENN NÖTIG: Schlage neue Hauptkategorie vor, wenn wirklich neuer Themenkomplex
 
         TEXT:
         {segment}
 
-        Antworte ausschließlich mit einem JSON-Array von neuen Kategorien:
-        [
-            {{
-                "name": "Name der Kategorie",
-                "definition": "Ausführliche Definition",
-                "example": "Konkrete Textstelle als Beleg",
+        Antworte ausschließlich mit einem JSON-Objekt:
+        {{
+            "categorization_type": "subcategory_extension" | "new_main_category",
+            "analysis": {{
+                "existing_main_category": "Name der passenden Hauptkategorie oder null",
+                "justification": "Begründung der hierarchischen Einordnung"
+            }},
+            "suggested_changes": {{
                 "new_subcategories": [
-                    "Erste Subkategorie: Kurze Erläuterung",
-                    "Zweite Subkategorie: Kurze Erläuterung"
+                    {{
+                        "name": "Name der Subkategorie",
+                        "definition": "Definition",
+                        "example": "Textstelle als Beleg"
+                    }}
                 ],
-                "justification": "Detaillierte Begründung mit Textbezug",
-                "confidence": {{
-                    "category": 0.85,
-                    "subcategories": 0.75
+                "new_main_category": null | {{  // nur wenn wirklich nötig
+                    "name": "Name der neuen Hauptkategorie",
+                    "definition": "Definition",
+                    "justification": "Ausführliche Begründung, warum neue Hauptkategorie nötig",
+                    "initial_subcategories": [
+                        {{
+                            "name": "Name der Subkategorie",
+                            "definition": "Definition"
+                        }}
+                    ]
                 }}
+            }},
+            "confidence": {{
+                "hierarchy_level": 0.0-1.0,
+                "categorization": 0.0-1.0
             }}
-        ]"""
+        }}
+
+        WICHTIG:
+        - Bevorzuge IMMER die Entwicklung von Subkategorien
+        - Neue Hauptkategorien nur bei wirklich übergeordneten Themenkomplexen
+        - Prüfe genau die konzeptionelle Ebene der Kategorisierung
+        - Achte auf angemessenes Abstraktionsniveau
+        """
+
+
 
     def _get_definition_enhancement_prompt(self, category: Dict) -> str:
         """
@@ -3415,50 +4295,46 @@ class InductiveCoder:
 
     def _validate_categories(self, categories: List[dict]) -> List[dict]:
         """
-        Validiert extrahierte Kategorien.
-        
-        Args:
-            categories: Liste der zu validierenden Kategorien
-            
-        Returns:
-            List[dict]: Liste der validierten Kategorien
+        Validiert extrahierte Kategorien mit zentraler Validierung.
         """
         valid_categories = []
         
         for category in categories:
             try:
-                category_name = category.get('name', 'UNBENANNTE KATEGORIE')
+                # Konvertiere dict zu CategoryDefinition
+                cat_def = CategoryDefinition(
+                    name=category.get('name', ''),
+                    definition=category.get('definition', ''),
+                    examples=category.get('examples', []),
+                    rules=category.get('rules', []),
+                    subcategories=category.get('subcategories', {}),
+                    added_date=datetime.now().strftime("%Y-%m-%d"),
+                    modified_date=datetime.now().strftime("%Y-%m-%d")
+                )
                 
-                # Grundlegende Validierung
-                if not self._validate_basic_requirements(category):
-                    print(f"Grundanforderungen nicht erfüllt für '{category_name}'")
-                    continue
+                # Nutze zentrale Validierung
+                is_valid, issues = self.validator.validate_category(cat_def)
                 
-                # Definition prüfen
-                definition = category.get('definition', '')
-                if len(definition.split()) < self.MIN_DEFINITION_WORDS:
-                    print(f"Definition zu kurz für '{category_name}' - Versuche Erweiterung")
-                    enhanced_def = self._enhance_category_definition(category)
-                    if enhanced_def:
-                        category['definition'] = enhanced_def
-                    else:
-                        continue
-                
-                # Subkategorien prüfen
-                if not category.get('new_subcategories'):
-                    print(f"Keine Subkategorien für '{category_name}' - Versuche Generierung")
-                    if not self._generate_subcategories(category):
-                        category['new_subcategories'] = []  # Leere Liste statt None
-                
-                valid_categories.append(category)
-                print(f"✓ Kategorie '{category_name}' vollständig validiert")
-                
+                if is_valid:
+                    valid_categories.append(category)
+                    print(f"✓ Kategorie '{category.get('name', '')}' validiert")
+                else:
+                    print(f"\nValidierungsprobleme für '{category.get('name', '')}':")
+                    for issue in issues:
+                        print(f"- {issue}")
+                    
+                    # Versuche Kategorie zu verbessern
+                    if 'definition zu kurz' in ' '.join(issues):
+                        enhanced_def = self._enhance_category_definition(category)
+                        if enhanced_def:
+                            category['definition'] = enhanced_def
+                            valid_categories.append(category)
+                            print(f"✓ Kategorie nach Verbesserung validiert")
+                            
             except Exception as e:
-                print(f"Fehler bei Validierung von '{category.get('name', 'UNBEKANNT')}': {str(e)}")
-                print("Details:")
-                traceback.print_exc()
+                print(f"Fehler bei Validierung: {str(e)}")
                 continue
-        
+                
         return valid_categories
 
     def _validate_category(self, category: Dict) -> bool:
@@ -3657,65 +4533,24 @@ class InductiveCoder:
             return categories
 
     def _validate_category_system(self, categories: Dict[str, CategoryDefinition]) -> bool:
-        """
-        Validates the coherence and quality of the entire category system.
+        """Validiert das gesamte Kategoriensystem mit zentraler Validierung."""
+        is_valid, issues = self.validator.validate_category_system(categories)
         
-        Checks:
-        - Mutual exclusiveness of categories
-        - Completeness of the system
-        - Consistency of abstraction levels
-        - Quality of definitions and examples
-        
-        Args:
-            categories: Category system to validate
-            
-        Returns:
-            bool: True if system meets all quality criteria
-        """
-        try:
-            validation_results = []
-            
-            # Check category definitions
-            for name, category in categories.items():
-                # Definition quality
-                if len(category.definition.split()) < 15:  # Mindestens 15 Wörter
-                    print(f"Warnung: Definition für '{name}' zu kurz")
-                    validation_results.append(False)
-                
-                # Example quality
-                if len(category.examples) < 2:  # Mindestens 2 Beispiele
-                    print(f"Warnung: Zu wenige Beispiele für '{name}'")
-                    validation_results.append(False)
-                
-                # Rules presence
-                if not category.rules:
-                    print(f"Warnung: Keine Kodierregeln für '{name}'")
-                    validation_results.append(False)
-            
-            # Check category relationships
-            for name1, cat1 in categories.items():
-                for name2, cat2 in categories.items():
-                    if name1 >= name2:
-                        continue
+        if not is_valid:
+            print("\nProbleme im Kategoriensystem:")
+            for category, category_issues in issues.items():
+                print(f"\n{category}:")
+                for issue in category_issues:
+                    print(f"- {issue}")
                     
-                    # Check for overlapping definitions
-                    similarity = self._calculate_text_similarity(
-                        cat1.definition,
-                        cat2.definition
-                    )
-                    if similarity > 0.7:  # 70% Ähnlichkeitsschwelle
-                        print(f"Warnung: Hohe Ähnlichkeit zwischen '{name1}' und '{name2}'")
-                        validation_results.append(False)
-            
-            # Final validation result
-            if not validation_results:
-                return True  # Wenn keine Prüfungen fehlgeschlagen sind
-            
-            return all(validation_results)  # True nur wenn alle Prüfungen bestanden wurden
-            
-        except Exception as e:
-            print(f"Fehler bei der Kategoriesystem-Validierung: {str(e)}")
-            return False
+        # Zeige Validierungsstatistiken
+        stats = self.validator.get_validation_stats()
+        print("\nValidierungsstatistiken:")
+        print(f"- Cache-Trefferrate: {stats['cache_hit_rate']*100:.1f}%")
+        print(f"- Validierungen gesamt: {stats['total_validations']}")
+        print(f"- Cache-Größe: {stats['cache_size']} Einträge")
+        
+        return is_valid
         
     def _optimize_category_system(self, categories: Dict[str, CategoryDefinition]) -> Dict[str, CategoryDefinition]:
         """
@@ -4469,13 +5304,17 @@ class SaturationChecker:
         """
         # Store history reference
         self._history = history  # Use protected attribute to avoid conflicts
+
+        # Thresholds aus Config
+        validation_config = config.get('validation_config', {})
+        thresholds = validation_config.get('thresholds', {})
         
-        # Configuration parameters
-        self.MIN_MATERIAL_PERCENTAGE = 70
-        self.STABILITY_THRESHOLD = 3
-        self.MAX_ITERATIONS = 10
-        self.INITIAL_BATCH_SIZE = 0.05  # Start with 5% of material
-        self.MAX_BATCH_SIZE = 0.2       # Maximum batch size 20%
+        # Konfigurierbare Schwellenwerte
+        self.MIN_MATERIAL_PERCENTAGE = thresholds.get('MIN_MATERIAL_PERCENTAGE', 70)
+        self.STABILITY_THRESHOLD = thresholds.get('STABILITY_THRESHOLD', 3)
+        self.MAX_ITERATIONS = thresholds.get('MAX_ITERATIONS', 10)
+        self.INITIAL_BATCH_SIZE = thresholds.get('INITIAL_BATCH_SIZE', 0.05)
+        self.MAX_BATCH_SIZE = thresholds.get('MAX_BATCH_SIZE', 0.2)
         
         # Tracking variables
         self.processed_percentage = 0
@@ -6178,96 +7017,182 @@ class CategoryRevisionManager:
     methodological quality standards throughout the analysis process.
     """
     
-    def __init__(self, output_dir: str):
+    def __init__(self, output_dir: str, config: Dict):
         """
         Initializes the CategoryRevisionManager with necessary tracking mechanisms.
         
         Args:
             output_dir (str): Directory for storing revision documentation
         """
+        self.config = config
         self.output_dir = output_dir
         self.changes: List[CategoryChange] = []
         self.revision_log_path = os.path.join(output_dir, "category_revisions.json")
         
         # Define quality thresholds for category system
-        self.SIMILARITY_THRESHOLD = 0.7
-        self.MIN_EXAMPLES_PER_CATEGORY = 3
-        self.MIN_DEFINITION_WORDS = 15
-        
+        self.validator = CategoryValidator(config)
+
         # Load existing revision history if available
         self._load_revision_history()
 
     def revise_category_system(self, 
-                             categories: Dict[str, CategoryDefinition],
-                             coded_segments: List[CodingResult],
-                             material_percentage: float) -> Dict[str, CategoryDefinition]:
+                                categories: Dict[str, CategoryDefinition],
+                                coded_segments: List[CodingResult],
+                                material_percentage: float) -> Dict[str, CategoryDefinition]:
         """
-        Implements a comprehensive category revision process following Mayring's methodology.
-        
-        This method systematically reviews and refines the category system based on:
-        - Category distinctiveness
-        - Definition clarity
-        - Coding reliability
-        - Category saturation
-        - Abstraction level appropriateness
+        Implementiert eine umfassende Kategorienrevision nach Mayring.
         
         Args:
-            categories: Current category system
-            coded_segments: Previously coded text segments
-            material_percentage: Percentage of material processed
+            categories: Aktuelles Kategoriensystem
+            coded_segments: Bisher kodierte Textsegmente
+            material_percentage: Prozentsatz des verarbeiteten Materials
             
         Returns:
-            Dict[str, CategoryDefinition]: Revised category system
+            Dict[str, CategoryDefinition]: Überarbeitetes Kategoriensystem
         """
         try:
-            print(f"\nStarting category system revision at {material_percentage:.1f}% of material")
+            print(f"\nStarte Kategorienrevision bei {material_percentage:.1f}% des Materials")
             revised_categories = categories.copy()
             
-            # Step 1: Analyze current category usage and effectiveness
-            category_statistics = self._analyze_category_usage(
-                categories,
-                coded_segments
-            )
+            # 1. Analyse des aktuellen Kategoriensystems
+            print("\nAnalysiere aktuelles Kategoriensystem...")
+            is_valid, system_issues = self.validator.validate_category_system(revised_categories)
             
-            # Step 2: Check for problematic categories
-            problematic_categories = self._identify_problematic_categories(
-                category_statistics,
-                revised_categories
-            )
-            
-            if problematic_categories:
-                print(f"\nFound {len(problematic_categories)} categories requiring attention:")
-                for cat_name, issues in problematic_categories.items():
-                    print(f"- {cat_name}: {', '.join(issues)}")
-            
-            # Step 3: Apply necessary revisions
-            for cat_name, issues in problematic_categories.items():
-                revised_categories = self._apply_category_revisions(
-                    cat_name,
-                    issues,
-                    revised_categories,
-                    category_statistics
+            if not is_valid:
+                print("\nProbleme im Kategoriensystem gefunden:")
+                for category, issues in system_issues.items():
+                    print(f"\n{category}:")
+                    for issue in issues:
+                        print(f"- {issue}")
+                
+                # Versuche automatische Bereinigung
+                print("\nStarte automatische Bereinigung...")
+                revised_categories =  self.cleaner.clean_categories(
+                    revised_categories, 
+                    system_issues
                 )
+                
+                # Prüfe Ergebnis der Bereinigung
+                is_valid, remaining_issues = self.validator.validate_category_system(revised_categories)
+                if not is_valid:
+                    print("\nNach Bereinigung verbleibende Probleme:")
+                    for category, issues in remaining_issues.items():
+                        print(f"\n{category}:")
+                        for issue in issues:
+                            print(f"- {issue}")
             
-            # Step 4: Check category system coherence
-            if not self._validate_category_system(revised_categories):
-                print("Warning: Category system validation revealed issues")
-                self._document_validation_issues(revised_categories)
+            # 2. Analyse der Kategoriennutzung
+            print("\nAnalysiere Kategoriennutzung...")
+            usage_metrics = self._analyze_category_usage(coded_segments)
             
-            # Step 5: Update revision history
-            self._document_revision(
-                original=categories,
-                revised=revised_categories,
-                material_percentage=material_percentage
-            )
+            # Identifiziere problematische Kategorien basierend auf Nutzung
+            problematic_categories = set()
+            for category_name, metrics in usage_metrics.items():
+                if metrics['frequency'] < 2:  # Wenig genutzte Kategorien
+                    problematic_categories.add(category_name)
+                    print(f"- '{category_name}': Selten verwendet ({metrics['frequency']} mal)")
+                elif metrics['avg_confidence'] < 0.7:  # Niedrige Kodierungssicherheit
+                    problematic_categories.add(category_name)
+                    print(f"- '{category_name}': Niedrige Kodiersicherheit ({metrics['avg_confidence']:.2f})")
+            
+            # 3. Kategorienanpassungen
+            if problematic_categories:
+                print(f"\nBearbeite {len(problematic_categories)} problematische Kategorien...")
+                
+                for category_name in problematic_categories:
+                    # Dokumentiere den Ausgangszustand
+                    old_category = revised_categories[category_name]
+                    
+                    if category_name in revised_categories:
+                        metrics = usage_metrics[category_name]
+                        
+                        # Entscheidung über Maßnahmen
+                        if metrics['frequency'] < 2:
+                            # Prüfe auf ähnliche Kategorien
+                            similar_category = self._find_similar_category(
+                                revised_categories[category_name],
+                                revised_categories,
+                                usage_metrics
+                            )
+                            if similar_category:
+                                # Kategorien zusammenführen
+                                revised_categories = self._merge_categories(
+                                    category_name,
+                                    similar_category,
+                                    revised_categories
+                                )
+                                
+                                # Dokumentiere Zusammenführung
+                                self.changes.append(CategoryChange(
+                                    category_name=category_name,
+                                    change_type='merge',
+                                    description=f"Mit '{similar_category}' zusammengeführt bei {material_percentage:.1f}% des Materials",
+                                    timestamp=datetime.now().isoformat(),
+                                    old_value=old_category.__dict__,
+                                    justification=f"Selten verwendet ({metrics['frequency']} mal) und Ähnlichkeit zu '{similar_category}'"
+                                ))
+                            else:
+                                # Kategorie entfernen
+                                del revised_categories[category_name]
+                                
+                                # Dokumentiere Löschung
+                                self.changes.append(CategoryChange(
+                                    category_name=category_name,
+                                    change_type='delete',
+                                    description=f"Kategorie entfernt bei {material_percentage:.1f}% des Materials",
+                                    timestamp=datetime.now().isoformat(),
+                                    old_value=old_category.__dict__,
+                                    justification=f"Zu selten verwendet ({metrics['frequency']} mal)"
+                                ))
+                                
+                        elif metrics['avg_confidence'] < 0.7:
+                            # Verbessere Kategoriendefinition
+                            enhanced_definition = self._enhance_category_definition(
+                                revised_categories[category_name],
+                                metrics['example_segments']
+                            )
+                            
+                            if enhanced_definition:
+                                # Aktualisiere Kategorie
+                                revised_categories[category_name] = revised_categories[category_name]._replace(
+                                    definition=enhanced_definition,
+                                    modified_date=datetime.now().strftime("%Y-%m-%d")
+                                )
+                                
+                                # Dokumentiere Verbesserung
+                                self.changes.append(CategoryChange(
+                                    category_name=category_name,
+                                    change_type='modify',
+                                    description=f"Definition verbessert bei {material_percentage:.1f}% des Materials",
+                                    timestamp=datetime.now().isoformat(),
+                                    old_value=old_category.__dict__,
+                                    new_value=revised_categories[category_name].__dict__,
+                                    justification=f"Niedrige Kodiersicherheit ({metrics['avg_confidence']:.2f})"
+                                ))
+            
+            # 4. Finale Validierung
+            final_valid, final_issues = self.validator.validate_category_system(revised_categories)
+            
+            # Zeige Revisionsstatistiken
+            print("\nRevisionsstatistiken:")
+            print(f"- Kategorien ursprünglich: {len(categories)}")
+            print(f"- Kategorien final: {len(revised_categories)}")
+            print(f"- Problematische Kategorien behandelt: {len(problematic_categories)}")
+            print(f"- System valide nach Revision: {'Ja' if final_valid else 'Nein'}")
+            
+            # Validierungsstatistiken
+            val_stats = self.validator.get_validation_stats()
+            print("\nValidierungsstatistiken:")
+            print(f"- Cache-Trefferrate: {val_stats['cache_hit_rate']*100:.1f}%")
+            print(f"- Validierungen gesamt: {val_stats['total_validations']}")
             
             return revised_categories
             
         except Exception as e:
-            print(f"Error during category revision: {str(e)}")
-            import traceback
+            print(f"Fehler bei der Kategorienrevision: {str(e)}")
+            print("Details:")
             traceback.print_exc()
-            return categories
+            return categories  # Im Fehlerfall ursprüngliche Kategorien zurückgeben
 
     def _analyze_category_usage(self, 
                               categories: Dict[str, CategoryDefinition],
@@ -6340,107 +7265,38 @@ class CategoryRevisionManager:
 
     def validate_category_changes(self, categories: Dict[str, CategoryDefinition]) -> bool:
         """
-        Validates the methodological integrity of categories and their changes according to Mayring's criteria.
-        
-        This method implements a comprehensive validation process that checks:
-        1. Category completeness and definition quality
-        2. Mutual exclusivity between categories
-        3. Logical consistency of the revision history
-        4. Proper documentation of changes
-        
-        Args:
-            categories: Current category system to validate
-            
-        Returns:
-            bool: True if the category system meets all quality criteria
+        Validiert die methodologische Integrität der Kategorien.
+        Nutzt die zentrale Validierungsklasse.
         """
-        try:
-            print("\nValidating category system...")
-            validation_issues = []
-
-            # 1. Check basic category requirements
-            for name, category in categories.items():
-                # Validate definition completeness
-                if len(category.definition.split()) < self.MIN_DEFINITION_WORDS:
-                    validation_issues.append(
-                        f"Category '{name}' has insufficient definition length"
-                    )
-
-                # Validate example presence
-                if len(category.examples) < self.MIN_EXAMPLES_PER_CATEGORY:
-                    validation_issues.append(
-                        f"Category '{name}' needs more examples (has {len(category.examples)}, needs {self.MIN_EXAMPLES_PER_CATEGORY})"
-                    )
-
-                # Validate coding rules
-                if not category.rules:
-                    validation_issues.append(
-                        f"Category '{name}' lacks coding rules"
-                    )
-
-            # 2. Check for category overlap
-            for cat1_name, cat1 in categories.items():
-                for cat2_name, cat2 in categories.items():
-                    if cat1_name >= cat2_name:  # Skip self-comparison and duplicates
-                        continue
-                        
-                    similarity = self._calculate_text_similarity(
-                        cat1.definition,
-                        cat2.definition
-                    )
-                    if similarity > self.SIMILARITY_THRESHOLD:
-                        validation_issues.append(
-                            f"High similarity ({similarity:.2f}) between '{cat1_name}' and '{cat2_name}'"
-                        )
-
-            # 3. Validate revision history consistency
-            if self.changes:
-                # Check chronological order
-                timestamps = [change.timestamp for change in self.changes]
-                if timestamps != sorted(timestamps):
-                    validation_issues.append(
-                        "Revision history is not in chronological order"
-                    )
-
-                # Track category lifecycle
-                active_categories = set()
-                for change in self.changes:
-                    if change.change_type == 'add':
-                        if change.category_name in active_categories:
-                            validation_issues.append(
-                                f"Category '{change.category_name}' added multiple times"
-                            )
-                        active_categories.add(change.category_name)
-                    elif change.change_type == 'delete':
-                        if change.category_name not in active_categories:
-                            validation_issues.append(
-                                f"Attempt to delete non-existent category '{change.category_name}'"
-                            )
-                        active_categories.remove(change.category_name)
-
-                # Verify all current categories have proper history
-                for category_name in categories:
-                    if category_name not in active_categories:
-                        validation_issues.append(
-                            f"Category '{category_name}' lacks proper revision history"
-                        )
-
-            # Report validation results
-            if validation_issues:
-                print("\nCategory system validation found issues:")
-                for issue in validation_issues:
+        is_valid, issues = self.validator.validate_category_system(categories)
+        
+        if not is_valid:
+            print("\nValidierungsprobleme gefunden:")
+            for category, category_issues in issues.items():
+                print(f"\n{category}:")
+                for issue in category_issues:
                     print(f"- {issue}")
-                return False
+                    
+            # Dokumentiere Validierungsprobleme
+            self._document_validation_issues(issues)
+            
+        return is_valid
 
-            print("Category system validation successful")
-            return True
-
-        except Exception as e:
-            print(f"Error during category validation: {str(e)}")
-            import traceback
-            traceback.print_exc()
-            return False
-
+    def _document_validation_issues(self, issues: Dict[str, List[str]]):
+        """Dokumentiert gefundene Validierungsprobleme."""
+        timestamp = datetime.now().isoformat()
+        
+        for category, category_issues in issues.items():
+            self.changes.append(CategoryChange(
+                category_name=category,
+                change_type='validation_issue',
+                description=f"Validierungsprobleme gefunden: {', '.join(category_issues)}",
+                timestamp=timestamp,
+                justification="Automatische Validierung"
+            ))
+            
+        self._save_revision_history()
+        
     def _calculate_text_similarity(self, text1: str, text2: str) -> float:
         """
         Calculates the similarity between two text strings using a simple but effective approach.
@@ -7613,19 +8469,24 @@ async def main() -> None:
         config_loader = ConfigLoader(script_dir)
         
         if config_loader.load_config():
+            config = config_loader.get_config() 
             config_loader.update_script_globals(globals())
             print("\nKonfiguration erfolgreich geladen")
         else:
             print("Verwende Standard-Konfiguration")
+            config = CONFIG
 
         # 2. Kategoriensystem initialisieren
         print("\n1. Initialisiere Kategoriensystem...")
         category_builder = DeductiveCategoryBuilder()
         initial_categories = category_builder.load_theoretical_categories()
         
-        # 3. DevelopmentHistory und Revision Manager initialisieren
+        # 3. Manager und History initialisieren
         development_history = DevelopmentHistory(CONFIG['OUTPUT_DIR'])
-        revision_manager = CategoryRevisionManager(CONFIG['OUTPUT_DIR'])
+        revision_manager = CategoryRevisionManager(
+            output_dir=CONFIG['OUTPUT_DIR'],
+            config=config
+        )
         
         # Initiale Kategorien dokumentieren
         for category_name in initial_categories.keys():
@@ -7646,7 +8507,7 @@ async def main() -> None:
             print("\nKeine Dokumente zum Analysieren gefunden.")
             return
 
-        # 4b. Abfrage zum Überspringen der induktiven Kodierung
+        # 4b. Abfrage zur induktiven Kodierung
         print("\n3. Induktive Kodierung konfigurieren...")
         print("Automatische Fortführung in 10 Sekunden...")
         skip_inductive = False
@@ -7663,16 +8524,17 @@ async def main() -> None:
 
         # 5. Kodierer konfigurieren
         print("\n4. Konfiguriere Kodierer...")
+        # Automatische Kodierer
         auto_coders = [
             DeductiveCoder(
                 model_name=CONFIG['MODEL_NAME'],
-                temperature=config["temperature"],
-                coder_id=config["coder_id"]
+                temperature=coder_config['temperature'],
+                coder_id=coder_config['coder_id']
             )
-            for config in CONFIG['CODER_SETTINGS']
+            for coder_config in CONFIG['CODER_SETTINGS']
         ]
 
-        # Optional: Manuellen Kodierer hinzufügen
+        # Manuelle Kodierung konfigurieren
         print("\nKonfiguriere manuelle Kodierung...")
         print("Sie haben 10 Sekunden Zeit für die Eingabe.")
         print("Drücken Sie 'j' für manuelle Kodierung oder 'n' zum Überspringen.")
@@ -7701,7 +8563,7 @@ async def main() -> None:
             chunks[doc_name] = loader.chunk_text(doc_text)
             print(f"- {doc_name}: {len(chunks[doc_name])} Chunks erstellt")
 
-        # 7. Manuelle Kodierung (falls gewählt)
+        # 7. Manuelle Kodierung durchführen
         manual_codings = []
         if manual_coders:
             print("\n6. Starte manuelle Kodierung...")
@@ -7716,78 +8578,78 @@ async def main() -> None:
             manual_codings = manual_coding_result
             print(f"Manuelle Kodierung abgeschlossen: {len(manual_codings)} Kodierungen")
 
-        # Integrierte Analyse
+        # 8. Integrierte Analyse starten
         print("\n7. Starte integrierte Analyse...")
         analysis_manager = IntegratedAnalysisManager(CONFIG)
-        final_categories, auto_codings = await analysis_manager.analyze_material(
-            chunks=chunks,
-            initial_categories=initial_categories,
-            skip_inductive=skip_inductive 
+
+        # Initialisiere Fortschrittsüberwachung
+        progress_task = asyncio.create_task(
+            monitor_progress(analysis_manager)
         )
 
-        # Kombiniere alle Kodierungen
-        all_codings = []
-        
-        # Füge automatische Kodierungen hinzu
-        if auto_codings and len(auto_codings) > 0:
-            print(f"\nFüge {len(auto_codings)} automatische Kodierungen hinzu")
-            for coding in auto_codings:
-                if isinstance(coding, dict) and 'segment_id' in coding:
-                    all_codings.append(coding)
-                else:
-                    print(f"Überspringe ungültige Kodierung: {coding}")
-        
-        # Füge manuelle Kodierungen hinzu
-        if manual_codings and len(manual_codings) > 0:
-            print(f"Füge {len(manual_codings)} manuelle Kodierungen hinzu")
-            all_codings.extend(manual_codings)
-        
-        print(f"\nGesamtzahl Kodierungen: {len(all_codings)}")
-
-        # Speichere induktiv erweitertes Codebook
-        if final_categories:
-            # Initialisiere CategoryManager
-            category_manager = CategoryManager(CONFIG['OUTPUT_DIR'])
-            
-            # Speichere induktiv erweitertes Codebook
-            category_manager.save_codebook(
-                categories=final_categories,
-                filename="codebook_inductive.json"
+        try:
+            # Starte die Hauptanalyse
+            final_categories, coding_results = await analysis_manager.analyze_material(
+                chunks=chunks,
+                initial_categories=initial_categories,
+                skip_inductive=skip_inductive
             )
 
-        # Berechne Intercoder-Reliabilität falls Kodierungen vorhanden
-        if all_codings:
-            print("\n7. Berechne Intercoder-Reliabilität...")
-            reliability_calculator = InductiveCoder(
-                model_name=CONFIG['MODEL_NAME'],
-                history=development_history,  # Übergebe die bereits initialisierte history
-                output_dir=CONFIG['OUTPUT_DIR']
-            )
-            reliability = reliability_calculator._calculate_reliability(all_codings)
-            print(f"Reliabilität (Krippendorffs Alpha): {reliability:.3f}")
-        else:
-            print("\nKeine Kodierungen für Reliabilitätsberechnung")
-            reliability = 0.0
+            # Beende Fortschrittsüberwachung
+            progress_task.cancel()
+            await progress_task
 
-        # Export der Ergebnisse
-        print("\n8. Exportiere Ergebnisse...")
-        if all_codings:
-            exporter = ResultsExporter(
-                output_dir=CONFIG['OUTPUT_DIR'],
-                attribute_labels=CONFIG['ATTRIBUTE_LABELS'],
-                analysis_manager=analysis_manager,
-                inductive_coder=reliability_calculator  # Übergebe den initialisierten InductiveCoder
-            )
+            # Kombiniere alle Kodierungen
+            all_codings = []
             
-            # Debug-Ausgabe vor Export
-            print(f"Exportiere {len(all_codings)} Kodierungen:")
-            for i, coding in enumerate(all_codings[:3], 1):
-                print(f"  Kodierung {i}: {coding.get('category', 'Keine Kategorie')} "
-                      f"für Segment {coding.get('segment_id', 'Unbekannt')}")
-            if len(all_codings) > 3:
-                print(f"  ... und {len(all_codings) - 3} weitere")
+            # Füge automatische Kodierungen hinzu
+            if coding_results and len(coding_results) > 0:
+                print(f"\nFüge {len(coding_results)} automatische Kodierungen hinzu")
+                for coding in coding_results:
+                    if isinstance(coding, dict) and 'segment_id' in coding:
+                        all_codings.append(coding)
+                    else:
+                        print(f"Überspringe ungültige Kodierung: {coding}")
             
-            try:
+            # Füge manuelle Kodierungen hinzu
+            if manual_codings and len(manual_codings) > 0:
+                print(f"Füge {len(manual_codings)} manuelle Kodierungen hinzu")
+                all_codings.extend(manual_codings)
+            
+            print(f"\nGesamtzahl Kodierungen: {len(all_codings)}")
+
+            # 9. Berechne Intercoder-Reliabilität
+            if all_codings:
+                print("\n8. Berechne Intercoder-Reliabilität...")
+                reliability_calculator = InductiveCoder(
+                    model_name=CONFIG['MODEL_NAME'],
+                    history=development_history,
+                    output_dir=CONFIG['OUTPUT_DIR']
+                )
+                reliability = reliability_calculator._calculate_reliability(all_codings)
+                print(f"Reliabilität (Krippendorffs Alpha): {reliability:.3f}")
+            else:
+                print("\nKeine Kodierungen für Reliabilitätsberechnung")
+                reliability = 0.0
+
+            # 10. Speichere induktiv erweitertes Codebook
+            if final_categories:
+                category_manager = CategoryManager(CONFIG['OUTPUT_DIR'])
+                category_manager.save_codebook(
+                    categories=final_categories,
+                    filename="codebook_inductive.json"
+                )
+
+            # 11. Export der Ergebnisse
+            print("\n9. Exportiere Ergebnisse...")
+            if all_codings:
+                exporter = ResultsExporter(
+                    output_dir=CONFIG['OUTPUT_DIR'],
+                    attribute_labels=CONFIG['ATTRIBUTE_LABELS'],
+                    analysis_manager=analysis_manager,
+                    inductive_coder=reliability_calculator
+                )
+                
                 await exporter.export_results(
                     codings=all_codings,
                     reliability=reliability,
@@ -7799,18 +8661,37 @@ async def main() -> None:
                     merge_log=analysis_manager.category_merger.merge_log,
                     inductive_coder=reliability_calculator
                 )
-                print("Export erfolgreich")
-            except Exception as e:
-                print(f"Fehler beim Export: {str(e)}")
-                traceback.print_exc()
-        else:
-            print("Keine Kodierungen zum Exportieren vorhanden")
+                print("Export erfolgreich abgeschlossen")
+            else:
+                print("Keine Kodierungen zum Exportieren vorhanden")
 
-        # Abschlussstatistiken
-        print("\nAnalyse abgeschlossen:")
-        print(analysis_manager.get_analysis_report())
-        print("\nToken-Nutzung:")
-        print(token_counter.get_report())
+            # 12. Zeige finale Statistiken
+            print("\nAnalyse abgeschlossen:")
+            print(analysis_manager.get_analysis_report())
+            
+            # Token-Statistiken
+            print("\nToken-Nutzung:")
+            print(token_counter.get_report())
+            
+            # Relevanz-Statistiken
+            relevance_stats = analysis_manager.relevance_checker.get_statistics()
+            print("\nRelevanz-Statistiken:")
+            print(f"- Segmente analysiert: {relevance_stats['total_segments']}")
+            print(f"- Relevante Segmente: {relevance_stats['relevant_segments']}")
+            print(f"- Relevanzrate: {relevance_stats['relevance_rate']*100:.1f}%")
+            print(f"- API-Calls gespart: {relevance_stats['total_segments'] - relevance_stats['api_calls']}")
+            print(f"- Cache-Nutzung: {relevance_stats['cache_size']} Einträge")
+
+        except asyncio.CancelledError:
+            print("\nAnalyse wurde abgebrochen.")
+        finally:
+            # Stelle sicher, dass die Fortschrittsüberwachung beendet wird
+            if not progress_task.done():
+                progress_task.cancel()
+                try:
+                    await progress_task
+                except asyncio.CancelledError:
+                    pass
 
     except Exception as e:
         print(f"Fehler in der Hauptausführung: {str(e)}")
