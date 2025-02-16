@@ -1927,17 +1927,51 @@ class RelevanceChecker:
             )
 
             prompt = f"""
-            Analysiere die Relevanz mehrerer Textsegmente für die Forschungsfrage:
+            Analysiere die Relevanz der folgenden Textsegmente für die Forschungsfrage:
             "{FORSCHUNGSFRAGE}"
-            
-            Analysiere ALLE Segmente systematisch nach diesen Kriterien:
-            1. Inhaltlicher Bezug zur Forschungsfrage
-            2. Aussagekraft und Substanz
-            3. Expliziter vs. impliziter Bezug
-            
+
+            WICHTIG: Berücksichtige bei der Relevanzprüfung die spezifischen Merkmale verschiedener Textsorten:
+
+            1. INHALTLICHE RELEVANZ - Nach Textsorte:
+
+            INTERVIEWS/GESPRÄCHE:
+            - Direkte Erfahrungsberichte und Schilderungen
+            - Persönliche Einschätzungen und Bewertungen
+            - Konkrete Beispiele aus der Praxis
+            - Auch implizites Erfahrungswissen beachten
+
+            DOKUMENTE/BERICHTE:
+            - Faktische Informationen und Beschreibungen
+            - Formale Regelungen und Vorgaben
+            - Dokumentierte Abläufe und Prozesse
+            - Strukturelle Rahmenbedingungen
+
+            PROTOKOLLE/NOTIZEN:
+            - Beobachtete Handlungen und Interaktionen
+            - Situationsbeschreibungen
+            - Dokumentierte Entscheidungen
+            - Kontextinformationen zu Ereignissen
+
+            2. QUALITÄTSKRITERIEN:
+
+            AUSSAGEKRAFT:
+            - Enthält das Segment konkrete, gehaltvolle Information?
+            - Geht es über Allgemeinplätze hinaus?
+            - Ist die Information präzise genug für die Analyse?
+
+            ANWENDBARKEIT:
+            - Lässt sich die Information auf die Forschungsfrage beziehen?
+            - Ermöglicht sie Erkenntnisse zu den Kernaspekten?
+            - Trägt sie zum Verständnis relevanter Zusammenhänge bei?
+
+            KONTEXTBEDEUTUNG:
+            - Ist der Kontext wichtig für das Verständnis?
+            - Hilft er bei der Interpretation anderer Informationen?
+            - Ist er notwendig für die Einordnung der Aussagen?
+
             TEXTSEGMENTE:
             {segments_text}
-            
+
             Antworte NUR mit einem JSON-Objekt:
             {{
                 "segment_results": [
@@ -1945,11 +1979,21 @@ class RelevanceChecker:
                         "segment_number": 1,
                         "is_relevant": true/false,
                         "confidence": 0.0-1.0,
-                        "key_aspects": ["relevante", "Aspekte"]
+                        "text_type": "interview|dokument|protokoll|andere",
+                        "key_aspects": ["konkrete", "für", "die", "Forschungsfrage", "relevante", "Aspekte"],
+                        "justification": "Begründung unter Berücksichtigung der Textsorte"
                     }},
                     ...
                 ]
             }}
+
+            WICHTIGE HINWEISE:
+            - Berücksichtige die spezifischen Merkmale der jeweiligen Textsorte
+            - Beachte unterschiedliche Formen relevanter Information (explizit/implizit)
+            - Prüfe den Informationsgehalt im Kontext der Textsorte
+            - Bewerte die Relevanz entsprechend der textsortentypischen Merkmale
+            - Bei Unsicherheit (confidence < 0.7) als nicht relevant markieren
+            - Dokumentiere die Begründung mit Bezug zur Textsorte
             """
 
             # Ein API-Call für alle Segmente
@@ -3001,7 +3045,7 @@ class DeductiveCoder:
     Nutzt GPT-4-Mini für die qualitative Inhaltsanalyse nach Mayring.
     """
     
-    def __init__(self, model_name: str, temperature: str, coder_id: str):
+    def __init__(self, model_name: str, temperature: str, coder_id: str, skip_inductive: bool = False):
         """
         Initializes the DeductiveCoder with configuration for the GPT model.
         
@@ -3015,6 +3059,7 @@ class DeductiveCoder:
         self.model_name = model_name
         self.temperature = temperature
         self.coder_id = coder_id
+        self.skip_inductive = skip_inductive
         
         # Lade API Key aus .env Datei
         env_path = os.path.join(os.path.expanduser("~"), '.renviron.env')
@@ -3205,46 +3250,48 @@ class DeductiveCoder:
                     'subcategories': dict(cat.subcategories) if isinstance(cat.subcategories, set) else cat.subcategories
                 } for name, cat in categories.items()
             }
-
+            
             prompt = f"""
-                Analysiere folgenden Text im Kontext der Forschungsfrage:
-                "{FORSCHUNGSFRAGE}"
-                
-                TEXT:
-                {chunk}
+            Analysiere folgenden Text im Kontext der Forschungsfrage:
+            "{FORSCHUNGSFRAGE}"
+            
+            TEXT:
+            {chunk}
 
-                KATEGORIENSYSTEM:
-                {json.dumps(categories_dict, indent=2, ensure_ascii=False)}
+            KATEGORIENSYSTEM:
+            {json.dumps(categories_dict, indent=2, ensure_ascii=False)}
 
-                KODIERREGELN:
-                {json.dumps(KODIERREGELN, indent=2, ensure_ascii=False)}
+            KODIERREGELN:
+            {json.dumps(KODIERREGELN, indent=2, ensure_ascii=False)}
 
-                Führe folgende Schritte durch:
-                1. Erstelle eine prägnante Paraphrase des Texts (max. 40 Wörter)
-                - Fokussiere auf forschungsrelevante Aspekte
-                - Vermeide Füllwörter
-                - Nutze präzise Formulierungen
-                
-                2. Ordne den Text einer Kategorie zu unter Beachtung:
-                - Die Zuordnung muss eindeutig begründbar sein
-                - Der inhaltliche Beitrag muss substanziell sein
-                - Berücksichtige den Kontext der Aussage
-                - Prüfe auch die neu hinzugefügten Kategorien
+            Deine Aufgabe ist die präzise Anwendung des bestehenden Kategoriensystems:
 
-                Antworte ausschließlich mit einem JSON-Objekt:
-                {{
-                    "paraphrase": "Deine prägnante Paraphrase hier",
-                    "category": "Name der Hauptkategorie",
-                    "subcategories": ["Liste", "der", "Subkategorien"],
-                    "justification": "Begründung der Zuordnung",
-                    "confidence": {{
-                        "total": 0.85,
-                        "category": 0.9,
-                        "subcategories": 0.8
-                    }},
-                    "text_references": ["Relevante", "Textstellen"]
-                }}
-                """
+            1. Erstelle eine prägnante Paraphrase des Texts (max. 40 Wörter)
+            - Fokussiere auf forschungsrelevante Aspekte
+            - Vermeide Füllwörter
+            - Nutze präzise Formulierungen
+            
+            2. Ordne den Text einer vorhandenen Hauptkategorie und passenden Subkategorien zu:
+            - Verwende NUR die definierten Kategorien und Subkategorien
+            - Die Zuordnung muss eindeutig begründbar sein
+            - Die Zuordnung muss den Kodierregeln entsprechen
+            - Der inhaltliche Beitrag muss substanziell sein
+            - Berücksichtige den Kontext der Aussage
+
+            Antworte ausschließlich mit einem JSON-Objekt:
+            {{
+                "paraphrase": "Deine prägnante Paraphrase hier",
+                "category": "Name der Hauptkategorie",
+                "subcategories": ["Liste", "existierender", "Subkategorien"],
+                "justification": "Begründung der Zuordnung",
+                "confidence": {{
+                    "total": 0.85,
+                    "category": 0.9,
+                    "subcategories": 0.8
+                }},
+                "text_references": ["Relevante", "Textstellen"]
+            }}
+            """
 
             input_tokens = estimate_tokens(prompt + chunk)
 
@@ -5568,7 +5615,6 @@ class ResultsExporter:
         return attribut1, attribut2
 
     def _export_frequency_analysis(self, writer, df_coded: pd.DataFrame, attribut1_label: str, attribut2_label: str) -> None:
-        """Exportiert die Häufigkeitsanalysen mit verbesserter Formatierung"""
         try:
             if 'Häufigkeitsanalysen' not in writer.sheets:
                 writer.book.create_sheet('Häufigkeitsanalysen')
@@ -5592,59 +5638,6 @@ class ResultsExporter:
                 top=Side(style='thin'),
                 bottom=Side(style='thin')
             )
-            
-            # 1. Hauptkategorien nach Dokumenten
-            cell = worksheet.cell(row=current_row, column=1, value="1. Verteilung der Hauptkategorien")
-            cell.font = title_font
-            current_row += 2
-
-            # Pivot-Tabelle für Hauptkategorien
-            pivot_main = pd.pivot_table(
-                df_coded,
-                index=['Hauptkategorie'],
-                columns=[attribut1_label, attribut2_label],
-                values='Chunk_Nr',
-                aggfunc='count',
-                margins=True,
-                margins_name='Gesamt',
-                fill_value=0
-            )
-
-            # Formatierte Spaltenbezeichnungen
-            formatted_columns = []
-            for col in pivot_main.columns:
-                if isinstance(col, tuple):
-                    col_parts = [str(part) for part in col if part and part != '']
-                    formatted_columns.append(' - '.join(col_parts))
-                else:
-                    formatted_columns.append(str(col))
-
-            # Header mit Rahmen
-            header_row = current_row
-            headers = ['Hauptkategorie'] + formatted_columns
-            for col, header in enumerate(headers, 1):
-                cell = worksheet.cell(row=header_row, column=col, value=header)
-                cell.font = header_font
-                cell.border = thin_border
-            current_row += 1
-
-            # Daten mit Rahmen und fetten Randsummen
-            for idx, row in pivot_main.iterrows():
-                is_total = idx == 'Gesamt'
-                cell = worksheet.cell(row=current_row, column=1, value=str(idx))
-                cell.border = thin_border
-                if is_total:
-                    cell.font = total_font
-                
-                for col, value in enumerate(row, 2):
-                    cell = worksheet.cell(row=current_row, column=col, value=value)
-                    cell.border = thin_border
-                    if is_total or col == len(row) + 2:  # Randsummen
-                        cell.font = total_font
-                
-                current_row += 1
-
-            current_row += 2
 
             # 2. Subkategorien-Hierarchie
             cell = worksheet.cell(row=current_row, column=1, value="2. Subkategorien nach Hauptkategorien")
@@ -5656,6 +5649,7 @@ class ResultsExporter:
             df_sub['Subkategorie'] = df_sub['Subkategorien'].str.split(', ')
             df_sub = df_sub.explode('Subkategorie')
             
+            # Erstelle Pivot-Tabelle mit korrekten Spalten-Labels
             pivot_sub = pd.pivot_table(
                 df_sub,
                 index=['Hauptkategorie', 'Subkategorie'],
@@ -5667,14 +5661,24 @@ class ResultsExporter:
                 fill_value=0
             )
 
-            # Header für Subkategorien
+            # Formatierte Spaltenbezeichnungen
+            formatted_columns = []
+            for col in pivot_sub.columns:
+                if isinstance(col, tuple):
+                    # Extrahiere die Metadaten aus dem Dateinamen
+                    col_parts = [str(part) for part in col if part and part != '']
+                    formatted_columns.append(' - '.join(col_parts))
+                else:
+                    formatted_columns.append(str(col))
+
+            # Header mit Rahmen
             header_row = current_row
             headers = ['Hauptkategorie', 'Subkategorie'] + formatted_columns
             for col, header in enumerate(headers, 1):
                 cell = worksheet.cell(row=header_row, column=col, value=header)
                 cell.font = header_font
                 cell.border = thin_border
-            # current_row += 1
+            current_row += 1
 
             # Daten mit hierarchischer Struktur und Formatierung
             current_main_cat = None
@@ -5683,19 +5687,12 @@ class ResultsExporter:
                 
                 if isinstance(index, tuple):
                     main_cat, sub_cat = index
-                    if main_cat != current_main_cat:
-                        # current_row += 1
-                        cell = worksheet.cell(row=current_row, column=1, value=main_cat)
-                        cell.font = subheader_font
-                        cell.border = thin_border
-                        # current_row += 1
-                        # current_main_cat = main_cat
-                    
-                    # Subkategorie-Zeile
+                    # Hauptkategorie-Zeile
                     worksheet.cell(row=current_row, column=1, value=main_cat).border = thin_border
                     cell = worksheet.cell(row=current_row, column=2, value=sub_cat)
                     cell.border = thin_border
                     
+                    # Datenzellen
                     for col, value in enumerate(row, 3):
                         cell = worksheet.cell(row=current_row, column=col, value=value)
                         cell.border = thin_border
@@ -5705,12 +5702,17 @@ class ResultsExporter:
                     cell.font = total_font
                     cell.border = thin_border
                     
+                    # Leere Zelle für Subkategorie-Spalte
+                    worksheet.cell(row=current_row, column=2, value='').border = thin_border
+                    
+                    # Datenzellen für Randsummen
                     for col, value in enumerate(row, 3):
                         cell = worksheet.cell(row=current_row, column=col, value=value)
                         cell.font = total_font
                         cell.border = thin_border
                 
                 current_row += 1
+
 
             # 3. Attribut-Analysen
             cell = worksheet.cell(row=current_row, column=1, value="3. Verteilung nach Attributen")
