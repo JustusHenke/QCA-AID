@@ -360,6 +360,7 @@ class CodingResult:
     confidence: Dict[str, Union[float, Tuple[str, ...]]]  # Ändere List zu Tuple
     text_references: Tuple[str, ...]  # Änderung von List zu Tuple
     uncertainties: Optional[Tuple[str, ...]] = None  # Änderung von List zu Tuple
+    paraphrase: str = "" 
 
     def __post_init__(self):
         # Konvertiere Listen zu Tupeln, falls nötig
@@ -386,7 +387,8 @@ class CodingResult:
             'justification': self.justification,
             'confidence': self.confidence,
             'text_references': list(self.text_references),  # Zurück zu Liste
-            'uncertainties': list(self.uncertainties) if self.uncertainties else None
+            'uncertainties': list(self.uncertainties) if self.uncertainties else None,
+            'paraphrase': self.paraphrase 
         }
 
 @dataclass
@@ -619,14 +621,14 @@ class ConfigLoader:
                         if not isinstance(config[key], dict):
                             config[key] = {}
                         if pd.isna(sub_sub_key):
-                            if sub_key == 'BATCH_SIZE':
+                            if key == 'BATCH_SIZE' or sub_key == 'BATCH_SIZE':
                                 try:
-                                    config[key] = int(value)
+                                    value = int(value)
+                                    print(f"BATCH_SIZE aus Codebook geladen: {value}")
                                 except (ValueError, TypeError):
-                                    print(f"Warnung: Ungültiger BATCH_SIZE Wert: {value}, verwende Standard: 5")
-                                    config[key] = 5
-                            else:
-                                config[key][sub_key] = value
+                                    value = 5  # Standardwert
+                                    print(f"Warnung: Ungültiger BATCH_SIZE Wert, verwende Standard: {value}")
+                            config[key][sub_key] = value
                         else:
                             if sub_key not in config[key]:
                                 config[key][sub_key] = {}
@@ -691,7 +693,28 @@ class ConfigLoader:
                 # Alle anderen Werte unverändert übernehmen
                 else:
                     sanitized[key] = value
-                    
+           
+            if 'BATCH_SIZE' in config:
+                try:
+                    batch_size = int(config['BATCH_SIZE'])
+                    if batch_size < 1:
+                        print("Warnung: BATCH_SIZE muss mindestens 1 sein")
+                        batch_size = 5
+                    elif batch_size > 20:
+                        print("Warnung: BATCH_SIZE > 20 könnte Performance-Probleme verursachen")
+                    sanitized['BATCH_SIZE'] = batch_size
+                    print(f"Finale BATCH_SIZE: {batch_size}")
+                except (ValueError, TypeError):
+                    print("Warnung: Ungültiger BATCH_SIZE Wert")
+                    sanitized['BATCH_SIZE'] = 5
+            else:
+                print("BATCH_SIZE nicht in Codebook gefunden, verwende Standard: 5")
+                sanitized['BATCH_SIZE'] = 5
+
+            for key, value in config.items():
+                if key == 'BATCH_SIZE':
+                    continue
+
             # Stelle sicher, dass CHUNK_OVERLAP kleiner als CHUNK_SIZE ist
             if 'CHUNK_SIZE' in sanitized and 'CHUNK_OVERLAP' in sanitized:
                 if sanitized['CHUNK_OVERLAP'] >= sanitized['CHUNK_SIZE']:
@@ -2146,7 +2169,8 @@ class IntegratedAnalysisManager:
                             'subcategories': list(coding.subcategories),
                             'confidence': coding.confidence,
                             'justification': coding.justification,
-                            'text': text
+                            'text': text,
+                            'paraphrase': coding.paraphrase
                         }
                         print(f"  ✓ Kodierung von {coder.coder_id}: {result['category']}")
                         batch_results.append(result)
@@ -3183,37 +3207,44 @@ class DeductiveCoder:
             }
 
             prompt = f"""
-            Analysiere folgenden Text im Kontext der Forschungsfrage:
-            "{FORSCHUNGSFRAGE}"
-            
-            TEXT:
-            {chunk}
+                Analysiere folgenden Text im Kontext der Forschungsfrage:
+                "{FORSCHUNGSFRAGE}"
+                
+                TEXT:
+                {chunk}
 
-            KATEGORIENSYSTEM:
-            {json.dumps(categories_dict, indent=2, ensure_ascii=False)}
+                KATEGORIENSYSTEM:
+                {json.dumps(categories_dict, indent=2, ensure_ascii=False)}
 
-            KODIERREGELN:
-            {json.dumps(KODIERREGELN, indent=2, ensure_ascii=False)}
+                KODIERREGELN:
+                {json.dumps(KODIERREGELN, indent=2, ensure_ascii=False)}
 
-            Beachte:
-            1. Die Zuordnung zu einer Kategorie muss eindeutig begründbar sein
-            2. Der inhaltliche Beitrag muss substanziell sein
-            3. Berücksichtige den Kontext der Aussage
-            4. Prüfe auch die neu hinzugefügten Kategorien
+                Führe folgende Schritte durch:
+                1. Erstelle eine prägnante Paraphrase des Texts (max. 40 Wörter)
+                - Fokussiere auf forschungsrelevante Aspekte
+                - Vermeide Füllwörter
+                - Nutze präzise Formulierungen
+                
+                2. Ordne den Text einer Kategorie zu unter Beachtung:
+                - Die Zuordnung muss eindeutig begründbar sein
+                - Der inhaltliche Beitrag muss substanziell sein
+                - Berücksichtige den Kontext der Aussage
+                - Prüfe auch die neu hinzugefügten Kategorien
 
-            Antworte ausschließlich mit einem JSON-Objekt:
-            {{
-                "category": "Name der Hauptkategorie",
-                "subcategories": ["Liste", "der", "Subkategorien"],
-                "justification": "Begründung der Zuordnung",
-                "confidence": {{
-                    "total": 0.85,
-                    "category": 0.9,
-                    "subcategories": 0.8
-                }},
-                "text_references": ["Relevante", "Textstellen"]
-            }}
-            """
+                Antworte ausschließlich mit einem JSON-Objekt:
+                {{
+                    "paraphrase": "Deine prägnante Paraphrase hier",
+                    "category": "Name der Hauptkategorie",
+                    "subcategories": ["Liste", "der", "Subkategorien"],
+                    "justification": "Begründung der Zuordnung",
+                    "confidence": {{
+                        "total": 0.85,
+                        "category": 0.9,
+                        "subcategories": 0.8
+                    }},
+                    "text_references": ["Relevante", "Textstellen"]
+                }}
+                """
 
             input_tokens = estimate_tokens(prompt + chunk)
 
@@ -3236,13 +3267,22 @@ class DeductiveCoder:
             if result.get('category'):
                 print(f"  ✓ Kodierung erstellt: {result['category']} "
                     f"(Konfidenz: {result.get('confidence', {}).get('total', 0):.2f})")
+                
+                # Debug-Ausgabe für Paraphrase
+                paraphrase = result.get('paraphrase', '')
+                if paraphrase:
+                    print(f"  ✓ Paraphrase erstellt: {paraphrase}")
+                else:
+                    print("  ⚠ Keine Paraphrase in API-Antwort")
+
                 return CodingResult(
                     category=result['category'],
                     subcategories=tuple(result.get('subcategories', [])),
                     justification=result.get('justification', ''),
                     confidence=result.get('confidence', {'total': 0.0, 'category': 0.0, 'subcategories': 0.0}),
                     text_references=tuple([chunk[:100]]),
-                    uncertainties=None
+                    uncertainties=None,
+                    paraphrase=paraphrase   # Neue Paraphrase hinzufügen
                 )
             else:
                 print("  ✗ Keine passende Kategorie gefunden")
@@ -5442,6 +5482,7 @@ class ResultsExporter:
                 self.attribute_labels['attribut2']: attribut2,
                 'Chunk_Nr': chunk_id,
                 'Text': chunk,
+                'Paraphrase': coding.get('paraphrase', ''), 
                 'Kodiert': is_coded,
                 'Hauptkategorie': category,
                 'Kategorietyp': kategorie_typ,  # Hier wird der korrekte Typ gesetzt
@@ -5459,6 +5500,7 @@ class ResultsExporter:
                 'Dokument': doc_name,
                 'Chunk_Nr': chunk_id,
                 'Text': chunk,
+                'Paraphrase': '',
                 'Kodiert': 'Nein',
                 'Hauptkategorie': 'Fehler bei Verarbeitung',
                 'Kategorietyp': 'unbekannt',
@@ -6429,14 +6471,15 @@ class ResultsExporter:
                 'B': 15,  # Attribut1
                 'C': 15,  # Attribut2
                 'D': 5,   # Chunk_Nr
-                'E': 30,  # Text
-                'F': 5,   # Kodiert
-                'G': 20,  # Hauptkategorie
-                'H': 15,  # Kategorietyp
-                'I': 40,  # Subkategorien
-                'J': 40,  # Begründung
-                'K': 15,  # Konfidenz
-                'L': 15   # Mehrfachkodierung
+                'E': 60,  # Text
+                'F': 40,  # Paraphrase (neue Spalte)
+                'G': 5,   # Kodiert
+                'H': 20,  # Hauptkategorie
+                'I': 15,  # Kategorietyp
+                'J': 40,  # Subkategorien
+                'K': 40,  # Begründung
+                'L': 15,  # Konfidenz
+                'M': 15   # Mehrfachkodierung
             }
             
             for col, width in column_widths.items():
