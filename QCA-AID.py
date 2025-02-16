@@ -7,7 +7,7 @@ enhanced with AI capabilities through the OpenAI API.
 
 Version:
 --------
-0.9.5 (2025-02-13)
+0.9.5.2 (2025-02-16)
 
 Description:
 -----------
@@ -3484,8 +3484,7 @@ class InductiveCoder:
         Returns:
             List[List[str]]: List of segment batches
         """
-        if batch_size is None:
-            batch_size = self.BATCH_SIZE
+        batch_size = batch_size or self.batch_size
             
         return [
             segments[i:i + batch_size] 
@@ -5419,42 +5418,103 @@ class ResultsExporter:
 
     def _get_consensus_coding(self, segment_codes: List[Dict]) -> Optional[Dict]:
         """
-        Determines the consensus coding for a segment based on multiple codings.
+        Ermittelt die Konsens-Kodierung für ein Segment basierend auf einem mehrstufigen Prozess.
+        Berücksichtigt Hauptkategorien, Subkategorien und verschiedene Qualitätskriterien.
         
         Args:
-            segment_codes (List[Dict]): List of coding results for a single segment
+            segment_codes: Liste der Kodierungen für ein Segment von verschiedenen Kodierern
                 
         Returns:
-            Optional[Dict]: The consensus coding or None if no consensus can be reached
+            Optional[Dict]: Konsens-Kodierung oder None wenn kein Konsens erreicht
         """
         if not segment_codes:
             return None
 
-        # Count occurrences of each category
+        # 1. Analyse der Hauptkategorien
         category_counts = Counter(coding['category'] for coding in segment_codes)
+        total_coders = len(segment_codes)
         
-        # Find the most common category
-        most_common_category, count = category_counts.most_common(1)[0]
+        # Finde häufigste Hauptkategorie(n)
+        max_count = max(category_counts.values())
+        majority_categories = [
+            category for category, count in category_counts.items()
+            if count == max_count
+        ]
         
-        # Check if there's a clear consensus (more than 50% agreement)
-        if count > len(segment_codes) / 2:
-            # Find the coding with the highest confidence for this category
-            matching_codings = [
-                coding for coding in segment_codes 
-                if coding['category'] == most_common_category
+        # Prüfe ob es eine klare Mehrheit gibt (>50%)
+        if max_count <= total_coders / 2:
+            print(f"Keine Mehrheit für Hauptkategorie gefunden: {dict(category_counts)}")
+            return None
+
+        # 2. Wenn es mehrere gleichhäufige Hauptkategorien gibt, verwende Tie-Breaking
+        if len(majority_categories) > 1:
+            print(f"Gleichstand zwischen Kategorien: {majority_categories}")
+            # Sammle alle Kodierungen für die Mehrheitskategorien
+            candidate_codings = [
+                coding for coding in segment_codes
+                if coding['category'] in majority_categories
             ]
             
-            # Sort by confidence and take the one with highest confidence
-            consensus_coding = max(
-                matching_codings,
-                key=lambda x: float(x['confidence']) if isinstance(x['confidence'], (int, float)) 
-                else float(x['confidence'].get('total', 0))
+            # Wähle basierend auf höchster durchschnittlicher Konfidenz
+            majority_category = max(
+                majority_categories,
+                key=lambda cat: sum(
+                    float(coding['confidence'].get('total', 0))
+                    for coding in candidate_codings
+                    if coding['category'] == cat
+                ) / len([c for c in candidate_codings if c['category'] == cat])
             )
-            
-            return consensus_coding
+            print(f"Kategorie '{majority_category}' durch höchste Konfidenz gewählt")
         else:
-            # No clear consensus
-            return None
+            majority_category = majority_categories[0]
+
+        # 3. Analyse der Subkategorien für die Mehrheitskategorie
+        matching_codings = [
+            coding for coding in segment_codes
+            if coding['category'] == majority_category
+        ]
+        
+        # Sammle alle verwendeten Subkategorien
+        all_subcategories = []
+        for coding in matching_codings:
+            subcats = coding.get('subcategories', [])
+            if isinstance(subcats, (list, tuple)):
+                all_subcategories.extend(subcats)
+        
+        # Zähle Häufigkeit der Subkategorien
+        subcat_counts = Counter(all_subcategories)
+        
+        # Wähle Subkategorien die von mindestens 50% der Kodierer verwendet wurden
+        consensus_subcats = [
+            subcat for subcat, count in subcat_counts.items()
+            if count >= len(matching_codings) / 2
+        ]
+        
+        # 4. Wähle die beste Basiskodierung aus
+        base_coding = max(
+            matching_codings,
+            key=lambda x: self._calculate_coding_quality(x, consensus_subcats)
+        )
+        
+        # 5. Erstelle finale Konsens-Kodierung
+        consensus_coding = base_coding.copy()
+        consensus_coding['subcategories'] = consensus_subcats
+        
+        # Dokumentiere den Konsensprozess
+        consensus_coding['consensus_info'] = {
+            'total_coders': total_coders,
+            'category_agreement': max_count / total_coders,
+            'subcategory_agreement': len(consensus_subcats) / len(all_subcategories) if all_subcategories else 1.0,
+            'source_codings': len(matching_codings)
+        }
+        
+        print(f"\nKonsens-Kodierung erstellt:")
+        print(f"- Hauptkategorie: {consensus_coding['category']} ({max_count}/{total_coders} Kodierer)")
+        print(f"- Subkategorien: {len(consensus_subcats)} im Konsens")
+        print(f"- Übereinstimmung: {(max_count/total_coders)*100:.1f}%")
+        
+        return consensus_coding
+
     
     def _get_majority_coding(self, segment_codes: List[Dict]) -> Optional[Dict]:
         # Implementierung ähnlich wie _get_consensus_coding, aber mit einfacher Mehrheit
@@ -5463,6 +5523,48 @@ class ResultsExporter:
     def _get_manual_priority_coding(self, segment_codes: List[Dict]) -> Optional[Dict]:
         # Implementierung für manuelle Priorisierung
         pass
+
+    def _calculate_coding_quality(self, coding: Dict, consensus_subcats: List[str]) -> float:
+        """
+        Berechnet einen Qualitätsscore für eine Kodierung.
+        Berücksichtigt mehrere Faktoren:
+        - Konfidenz der Kodierung
+        - Übereinstimmung mit Konsens-Subkategorien
+        - Qualität der Begründung
+        
+        Args:
+            coding: Einzelne Kodierung
+            consensus_subcats: Liste der Konsens-Subkategorien
+            
+        Returns:
+            float: Qualitätsscore zwischen 0 und 1
+        """
+        # Hole Konfidenzwert (gesamt oder Hauptkategorie)
+        if isinstance(coding.get('confidence'), dict):
+            confidence = float(coding['confidence'].get('total', 0))
+        else:
+            confidence = float(coding.get('confidence', 0))
+        
+        # Berechne Übereinstimmung mit Konsens-Subkategorien
+        coding_subcats = set(coding.get('subcategories', []))
+        consensus_subcats_set = set(consensus_subcats)
+        if consensus_subcats_set:
+            subcat_overlap = len(coding_subcats & consensus_subcats_set) / len(consensus_subcats_set)
+        else:
+            subcat_overlap = 1.0  # Volle Punktzahl wenn keine Konsens-Subkategorien
+        
+        # Bewerte Qualität der Begründung
+        justification = coding.get('justification', '')
+        justification_score = min(len(justification.split()) / 20, 1.0)  # Max bei 20 Wörtern
+        
+        # Gewichtete Kombination der Faktoren
+        quality_score = (
+            confidence * 0.5 +          # 50% Konfidenz
+            subcat_overlap * 0.3 +      # 30% Subkategorien-Übereinstimmung
+            justification_score * 0.2    # 20% Begründungsqualität
+        )
+        
+        return quality_score
     
     def export_merge_analysis(self, original_categories: Dict[str, CategoryDefinition], 
                             merged_categories: Dict[str, CategoryDefinition],
@@ -5658,12 +5760,15 @@ class ResultsExporter:
 
             # Formatierte Spaltenbezeichnungen
             formatted_columns = []
-            for col in pivot_main.columns:
-                if isinstance(col, tuple):
-                    col_parts = [str(part) for part in col if part and part != '']
-                    formatted_columns.append(' - '.join(col_parts))
+            for col in pivot_sub.columns:
+                if col == 'Gesamt':
+                    formatted_columns.append(col)
                 else:
-                    formatted_columns.append(str(col))
+                    # Kürze Dokumentennamen falls nötig
+                    doc_name = str(col)
+                    if len(doc_name) > 40:
+                        doc_name = doc_name[:37] + "..."
+                    formatted_columns.append(doc_name)
 
             # Header mit Rahmen
             header_row = current_row
@@ -5706,7 +5811,7 @@ class ResultsExporter:
             pivot_sub = pd.pivot_table(
                 df_sub,
                 index=['Hauptkategorie', 'Subkategorie'],
-                columns=[attribut1_label, attribut2_label],
+                columns='Dokument',
                 values='Chunk_Nr',
                 aggfunc='count',
                 margins=True,
