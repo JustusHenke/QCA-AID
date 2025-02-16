@@ -1857,150 +1857,6 @@ class CategoryMerger:
 
     
 
-# --- Klasse: Analyzer ---
-# Aufgabe: Festlegung der Analyseeinheiten (Auswertungs-, Kodiereinheit, Kontexteinheit)
-class Analyzer:
-    """
-    Legt fest, welche Einheiten in der Analyse von Interviewdaten verwendet werden.
-    Implementiert die Festlegung der Analyseeinheiten nach Mayring für die deduktive Kategorienanwendung.
-    """
-    
-    def __init__(self, chunked_docs: dict = None):
-        """
-        Initialisiert den Analyzer mit den zu analysierenden Dokumenten.
-        
-        Args:
-            chunked_docs (dict): Dictionary mit den in Chunks zerlegten Dokumenten
-        """
-        self.chunked_docs = chunked_docs or {}
-        self.coded_data = {}  # Speichert die kodierten Daten
-        self.current_position = {
-            'doc_name': None,
-            'chunk_index': 0
-        }
-        
-        # Definition der Analyseeinheiten
-        self.units = {
-            'coding_unit': {
-                'type': 'statement',  # Einzelne Aussage als kleinste Einheit
-                'description': 'Inhaltlich zusammenhängende Aussage zu einem Thema'
-            },
-            'context_unit': {
-                'type': 'chunk',  # Textabschnitt als Kontexteinheit
-                'description': 'Umgebender Textabschnitt zur Interpretation der Aussage'
-            },
-            'analysis_unit': {
-                'type': 'interview',  # Interview als Auswertungseinheit
-                'description': 'Vollständiges Interview als Basis der Analyse'
-            }
-        }
-        
-    def set_current_document(self, doc_name: str) -> bool:
-        """
-        Setzt das aktuelle Dokument für die Analyse.
-        
-        Args:
-            doc_name (str): Name des zu analysierenden Dokuments
-            
-        Returns:
-            bool: True wenn erfolgreich, False wenn Dokument nicht gefunden
-        """
-        if doc_name in self.chunked_docs:
-            self.current_position['doc_name'] = doc_name
-            self.current_position['chunk_index'] = 0
-            return True
-        return False
-        
-    def get_current_chunk(self) -> tuple:
-        """
-        Gibt den aktuellen Chunk und seinen Kontext zurück.
-        
-        Returns:
-            tuple: (chunk_text, context_info) oder (None, None) wenn kein Chunk verfügbar
-        """
-        doc_name = self.current_position['doc_name']
-        chunk_index = self.current_position['chunk_index']
-        
-        if not doc_name or doc_name not in self.chunked_docs:
-            return None, None
-            
-        chunks = self.chunked_docs[doc_name]
-        if chunk_index >= len(chunks):
-            return None, None
-            
-        chunk_text = chunks[chunk_index]
-        
-        # Erstelle Kontextinformationen
-        context_info = {
-            'document': doc_name,
-            'chunk_index': chunk_index,
-            'total_chunks': len(chunks),
-            'previous_chunk': chunks[chunk_index - 1] if chunk_index > 0 else None,
-            'next_chunk': chunks[chunk_index + 1] if chunk_index < len(chunks) - 1 else None
-        }
-        
-        return chunk_text, context_info
-        
-    def next_chunk(self) -> bool:
-        """
-        Geht zum nächsten Chunk im aktuellen Dokument.
-        
-        Returns:
-            bool: True wenn erfolgreich, False wenn kein weiterer Chunk verfügbar
-        """
-        doc_name = self.current_position['doc_name']
-        if not doc_name or doc_name not in self.chunked_docs:
-            return False
-            
-        next_index = self.current_position['chunk_index'] + 1
-        if next_index < len(self.chunked_docs[doc_name]):
-            self.current_position['chunk_index'] = next_index
-            return True
-        return False
-        
-    def add_coding(self, chunk_id: str, coding_data: dict) -> bool:
-        """
-        Fügt eine Kodierung für einen Chunk hinzu.
-        
-        Args:
-            chunk_id (str): ID des Chunks
-            coding_data (dict): Kodierungsdaten (Kategorie, Subkategorien, etc.)
-            
-        Returns:
-            bool: True wenn erfolgreich, False bei Fehler
-        """
-        try:
-            self.coded_data[chunk_id] = coding_data
-            return True
-        except Exception as e:
-            print(f"Fehler beim Hinzufügen der Kodierung: {str(e)}")
-            return False
-            
-    def get_coded_data(self) -> dict:
-        """
-        Gibt alle kodierten Daten zurück.
-        
-        Returns:
-            dict: Dictionary mit allen Kodierungen
-        """
-        return self.coded_data
-        
-    def get_document_codings(self, doc_name: str) -> dict:
-        """
-        Gibt alle Kodierungen für ein bestimmtes Dokument zurück.
-        
-        Args:
-            doc_name (str): Name des Dokuments
-            
-        Returns:
-            dict: Kodierungen für das angegebene Dokument
-        """
-        return {
-            chunk_id: coding 
-            for chunk_id, coding in self.coded_data.items() 
-            if chunk_id.startswith(doc_name)
-        }
-
 class RelevanceChecker:
     """
     Zentrale Klasse für Relevanzprüfungen mit Caching und Batch-Verarbeitung.
@@ -2132,15 +1988,6 @@ class RelevanceChecker:
             'cache_size': len(self.relevance_cache)
         }
 
-    async def is_relevant(self, segment_id: str, text: str) -> bool:
-        """
-        Einzelne Relevanzprüfung mit Cache-Nutzung.
-        """
-        if segment_id in self.relevance_cache:
-            return self.relevance_cache[segment_id]
-            
-        result = await self.check_relevance_batch([(segment_id, text)])
-        return result[segment_id]
     
 # --- Klasse: IntegratedAnalysisManager ---
 # Aufgabe: Integriert die verschiedenen Analysephasen in einem zusammenhängenden Prozess
@@ -2209,23 +2056,19 @@ class IntegratedAnalysisManager:
         return remaining_segments[:batch_size]
     
     async def _process_batch_inductively(self, 
-                                        batch: List[Tuple[str, str]], 
-                                        current_categories: Dict[str, CategoryDefinition]) -> Dict[str, CategoryDefinition]:
+                                    batch: List[Tuple[str, str]], 
+                                    current_categories: Dict[str, CategoryDefinition]) -> Dict[str, CategoryDefinition]:
         """
         Entwickelt neue Kategorien aus relevanten Textsegmenten.
-        
-        Args:
-            batch: Liste von (segment_id, text) Tupeln
-            current_categories: Aktuelles Kategoriensystem
-            
-        Returns:
-            Dict[str, CategoryDefinition]: Neue oder aktualisierte Kategorien
         """
         try:
-            # Prüfe Relevanz für ganzen Batch
+            # Prüfe Relevanz für ganzen Batch auf einmal
+            relevance_results = await self.relevance_checker.check_relevance_batch(batch)
+
+            # Filtere relevante Segmente
             relevant_segments = [
-                text for segment_id, text in batch 
-                if await self.relevance_checker.is_relevant(segment_id, text)
+                text for (segment_id, text) in batch 
+                if relevance_results.get(segment_id, False)
             ]
 
             if not relevant_segments:
@@ -2233,6 +2076,7 @@ class IntegratedAnalysisManager:
                 return {}
 
             print(f"\nEntwickle Kategorien aus {len(relevant_segments)} relevanten Segmenten")
+            
             
             # Induktive Kategorienentwicklung
             new_categories = await self.inductive_coder.develop_category_system(relevant_segments)
@@ -2243,10 +2087,10 @@ class IntegratedAnalysisManager:
                 for cat_name, category in new_categories.items():
                     print(f"\n🆕 Neue Hauptkategorie: {cat_name}")
                     print(f"   Definition: {category.definition[:100]}...")
-                    if category.subcategories:
-                        print(f"   Subkategorien:")
-                        for sub_name in category.subcategories:
-                            print(f"   - {sub_name}")
+                    # if category.subcategories:
+                    #     print(f"   Subkategorien:")
+                    #     for sub_name in category.subcategories:
+                    #         print(f"   - {sub_name}")
             else:
                 print("   ℹ️ Keine neuen Kategorien in diesem Batch identifiziert")
             
@@ -2385,14 +2229,14 @@ class IntegratedAnalysisManager:
                             )
                             
                             # Debug-Ausgabe des aktualisierten Systems
-                            print("\nAktuelles Kategoriensystem:")
-                            for name, cat in current_categories.items():
-                                print(f"\n- {name}:")
-                                print(f"  Definition: {cat.definition[:100]}...")
-                                if cat.subcategories:
-                                    print("  Subkategorien:")
-                                    for sub_name in cat.subcategories:
-                                        print(f"    • {sub_name}")
+                            # print("\nAktuelles Kategoriensystem:")
+                            # for name, cat in current_categories.items():
+                            #     print(f"\n- {name}:")
+                            #     print(f"  Definition: {cat.definition[:100]}...")
+                            #     if cat.subcategories:
+                            #         print("  Subkategorien:")
+                            #         for sub_name in cat.subcategories:
+                            #             print(f"    • {sub_name}")
                             
                             # Aktualisiere ALLE Kodierer mit dem neuen System
                             for coder in self.deductive_coders:
@@ -2425,23 +2269,25 @@ class IntegratedAnalysisManager:
                     
                     # Sättigungsprüfung nur bei aktivierter induktiver Analyse
                     if not skip_inductive:
-                        saturation_reached, metrics = self.saturation_checker.check_saturation(
-                            current_categories,
-                            self.coding_results,
-                            material_percentage
+                        # Hole Sättigungsmetriken vom SaturationChecker
+                        is_saturated, saturation_metrics = self.saturation_checker.check_saturation(
+                            current_categories=current_categories,
+                            coded_segments=self.coding_results,
+                            material_percentage=material_percentage
                         )
-                        if saturation_reached:
+                        
+                        if is_saturated:
                             print("\nSättigung erreicht!")
-                            if metrics:
+                            if saturation_metrics:
                                 print("Sättigungsmetriken:")
-                                for key, value in metrics.items():
+                                for key, value in saturation_metrics.items():
                                     print(f"- {key}: {value}")
                             break
-                    
+
                     # Status-Update für History
                     self._log_iteration_status(
                         material_percentage=material_percentage,
-                        saturation_metrics=metrics if not skip_inductive else None,
+                        saturation_metrics=saturation_metrics if not skip_inductive else None,
                         num_results=len(batch_results)
                     )
                     
@@ -3121,181 +2967,7 @@ class DeductiveCategoryBuilder:
             print("Kategorie-Daten:", json.dumps(data, indent=2, ensure_ascii=False))
             raise
 
-# --- Klasse: CodingGuide ---
-# Aufgabe: Erstellung und Dokumentation des Kodierleitfadens
-class CodingGuide:
-    """
-    Erstellt und verwaltet einen Kodierleitfaden für die deduktive Kategorienanwendung.
-    Der Leitfaden enthält Hauptkategorien mit Definitionen, Ankerbeispielen und Kodierregeln.
-    """
-    
-    def __init__(self):
-        """
-        Initialisiert den CodingGuide mit einer leeren Kategorienstruktur.
-        """
-        self.categories = {}
-        self.last_modified = None
-        self.version = "1.0"
-        
-    def add_category(self, name: str, definition: str, examples: list = None, 
-                    rules: list = None, subcategories: dict = None) -> bool:
-        """
-        Fügt eine neue Kategorie zum Kodierleitfaden hinzu.
-        
-        Args:
-            name (str): Name der Kategorie
-            definition (str): Definition der Kategorie
-            examples (list): Liste von Ankerbeispielen
-            rules (list): Liste von Kodierregeln
-            subcategories (dict): Dictionary mit Subkategorien
-            
-        Returns:
-            bool: True wenn erfolgreich, False bei Fehler
-        """
-        try:
-            self.categories[name] = {
-                'definition': definition,
-                'examples': examples or [],
-                'subcategories': subcategories or {},
-                'added_date': datetime.now().strftime("%Y-%m-%d"),
-                'modified_date': datetime.now().strftime("%Y-%m-%d")
-            }
-            self.last_modified = datetime.now()
-            return True
-        except Exception as e:
-            print(f"Fehler beim Hinzufügen der Kategorie: {str(e)}")
-            return False
-            
-    def update_category(self, name: str, updates: dict) -> bool:
-        """
-        Aktualisiert eine bestehende Kategorie.
-        
-        Args:
-            name (str): Name der Kategorie
-            updates (dict): Zu aktualisierende Felder und Werte
-            
-        Returns:
-            bool: True wenn erfolgreich, False bei Fehler
-        """
-        if name not in self.categories:
-            return False
-            
-        try:
-            for key, value in updates.items():
-                if key in self.categories[name]:
-                    self.categories[name][key] = value
-            
-            self.categories[name]['modified_date'] = datetime.now().strftime("%Y-%m-%d")
-            self.last_modified = datetime.now()
-            return True
-        except Exception as e:
-            print(f"Fehler beim Aktualisieren der Kategorie: {str(e)}")
-            return False
-            
-    def generate_coding_guide(self, output_path: str = None, format: str = 'markdown') -> str:
-        """
-        Generiert den Kodierleitfaden im gewünschten Format.
-        
-        Args:
-            output_path (str): Pfad für die Ausgabedatei (optional)
-            format (str): Ausgabeformat ('markdown' oder 'html')
-            
-        Returns:
-            str: Generierter Kodierleitfaden als String
-        """
-        try:
-            # Header erstellen
-            content = [
-                "# Kodierleitfaden für die qualitative Inhaltsanalyse",
-                f"Version: {self.version}",
-                f"Letzte Aktualisierung: {self.last_modified.strftime('%Y-%m-%d %H:%M')}\n",
-                "## Kategorienübersicht\n"
-            ]
-            
-            # Kategorien sortiert ausgeben
-            for cat_name in sorted(self.categories.keys()):
-                cat = self.categories[cat_name]
-                content.extend([
-                    f"### {cat_name}",
-                    f"\n**Definition:**\n{cat['definition']}",
-                    "\n**Ankerbeispiele:**"
-                ])
-                
-                # Ankerbeispiele
-                for example in cat['examples']:
-                    content.append(f"- {example}")
-                    
-                        
-                # Subkategorien
-                if cat['subcategories']:
-                    content.append("\n**Subkategorien:**")
-                    for subcat, subdef in cat['subcategories'].items():
-                        content.append(f"- {subcat}: {subdef}")
-                
-                content.append("\n---\n")
-            
-            # Zusammenführen und Formatierung
-            guide_content = '\n'.join(content)
-            
-            # HTML Konvertierung falls gewünscht
-            if format == 'html':
-                guide_content = markdown.markdown(guide_content)
-            
-            # In Datei speichern falls Pfad angegeben
-            if output_path:
-                with open(output_path, 'w', encoding='utf-8') as f:
-                    f.write(guide_content)
-                print(f"Kodierleitfaden gespeichert unter: {output_path}")
-            
-            return guide_content
-            
-        except Exception as e:
-            print(f"Fehler bei der Generierung des Kodierleitfadens: {str(e)}")
-            return ""
-            
-    def export_to_excel(self, output_path: str) -> bool:
-        try:
-            data = []
-            for cat_name, cat in self.categories.items():
-                # Ensure rules exists with a default empty list
-                rules = cat.get('rules', [])
-                if isinstance(rules, str):
-                    rules = [rules]
-                elif not isinstance(rules, list):
-                    rules = []
-                    
-                row = {
-                    'Kategorie': cat_name,
-                    'Typ': 'Hauptkategorie',
-                    'Definition': cat.get('definition', ''),
-                    'Ankerbeispiele': '\n'.join(cat.get('examples', [])),
-                    'Kodierregeln': '\n'.join(rules),
-                    'Letzte Änderung': cat.get('modified_date', '')
-                }
-                data.append(row)
-                
-                # Handle subcategories
-                for subcat, subdef in cat.get('subcategories', {}).items():
-                    row = {
-                        'Kategorie': subcat,
-                        'Typ': 'Subkategorie',
-                        'Definition': subdef,
-                        'Übergeordnete Kategorie': cat_name,
-                        'Letzte Änderung': cat.get('modified_date', '')
-                    }
-                    data.append(row)
-            
-            # Create DataFrame and export
-            df = pd.DataFrame(data)
-            df.to_excel(output_path, index=False)
-            print(f"Kodierleitfaden als Excel exportiert: {output_path}")
-            return True
-        
-        except Exception as e:
-            print(f"Fehler beim Excel-Export: {str(e)}")
-            import traceback
-            traceback.print_exc()
-            return False
+
 
 # --- Klasse: DeductiveCoder ---
 # Aufgabe: Automatisches deduktives Codieren von Text-Chunks anhand des Leitfadens
@@ -3701,6 +3373,9 @@ class InductiveCoder:
 
          # Verwende zentrale Validierung
         self.validator = CategoryValidator(config)
+
+        # Initialisiere SaturationChecker
+        self.saturation_checker = SaturationChecker(config, history)
         
         # System-Prompt-Cache
         self._cached_system_prompt = None
@@ -3744,11 +3419,15 @@ class InductiveCoder:
             
             for batch_idx, batch in enumerate(batches):
                 print(f"\nAnalysiere Batch {batch_idx + 1}/{len(batches)}...")
+
+                # Berechne Material-Prozentsatz
+                material_percentage = ((batch_idx + 1) * len(batch) / len(segments)) * 100
                 
                 # Übergebe aktuelles System an Batch-Analyse
                 batch_analysis = await self.analyze_category_batch(
                     category=extended_categories,  # Wichtig: Übergebe bisheriges System
-                    segments=batch
+                    segments=batch,
+                    material_percentage=material_percentage 
                 )
                 
                 if batch_analysis:
@@ -3805,6 +3484,18 @@ class InductiveCoder:
                                 )
                                 print(f"✓ Neue Kategorie erstellt: '{cat_name}'")
                     
+                    # Prüfe Sättigung
+                    is_saturated, metrics = self.saturation_checker.check_saturation(
+                        current_categories=extended_categories,
+                        coded_segments=self.batch_results,
+                        material_percentage=material_percentage
+                    )
+                    
+                    if is_saturated:
+                        print(f"\nSättigung erreicht bei {material_percentage:.1f}% des Materials")
+                        print(f"Begründung: {metrics.get('justification', 'Keine Begründung verfügbar')}")
+                        break
+
                     # Dokumentiere Entwicklung
                     self.history.log_category_development(
                         phase=f"batch_{batch_idx + 1}",
@@ -3825,7 +3516,10 @@ class InductiveCoder:
             traceback.print_exc()
             return {}
 
-    async def analyze_category_batch(self, category: Dict[str, Any], segments: List[str]) -> Dict[str, Any]:
+    async def analyze_category_batch(self, 
+                                category: Dict[str, Any], 
+                                segments: List[str],
+                                material_percentage: float) -> Dict[str, Any]:  
         """
         Verbesserte Batch-Analyse mit Berücksichtigung des aktuellen Kategoriensystems.
         """
@@ -3881,6 +3575,11 @@ class InductiveCoder:
             - Dokumentiere Entscheidungsgründe
             - Gib Konfidenzwerte für Vorschläge an
 
+            4. SÄTTIGUNGSANALYSE
+            - Bewerte ob neue inhaltliche Aspekte gefunden wurden
+            - Prüfe ob bestehende Kategorien ausreichen
+            - Beurteile ob weitere Kategorienentwicklung nötig ist
+
             Antworte NUR mit einem JSON-Objekt:
             {{
                 "existing_categories": {{
@@ -3913,8 +3612,14 @@ class InductiveCoder:
                         "evidence": ["Textbelege"],
                         "confidence": 0.0-1.0,
                         "justification": "Begründung"
-                    }}
-                ]
+                    }},
+                ],
+                "saturation_metrics": {{
+                    "new_aspects_found": true/false,
+                    "categories_sufficient": true/false,
+                    "theoretical_coverage": 0.0-1.0,
+                    "justification": "Begründung der Sättigungseinschätzung"
+                }}
             }}
             """
 
@@ -3935,7 +3640,31 @@ class InductiveCoder:
             
             # Debug-Ausgaben
             print("\nAnalyseergebnisse:")
+
+            # Sättigungsmetriken extrahieren und speichern
+            if 'saturation_metrics' in result:
+
+                # Übergebe Metriken an SaturationChecker
+                self.saturation_checker.add_saturation_metrics(result['saturation_metrics'])
             
+                saturation_info = result['saturation_metrics']
+
+                # Speichere Metriken in der History
+                self.history.log_saturation_check(
+                    material_percentage=material_percentage,
+                    result="saturated" if saturation_info['categories_sufficient'] else "not_saturated",
+                    metrics=saturation_info
+                )
+                
+                # Gebe Sättigungsinfo in Konsole aus
+                if saturation_info['categories_sufficient']:
+                    print("\nSättigungsanalyse:")
+                    print(f"- Neue Aspekte gefunden: {'Ja' if saturation_info['new_aspects_found'] else 'Nein'}")
+                    print(f"- Theoretische Abdeckung: {saturation_info['theoretical_coverage']:.2f}")
+                    print(f"- Begründung: {saturation_info['justification']}")
+
+            return result
+                
             # Zeige Erweiterungen bestehender Kategorien
             if 'existing_categories' in result:
                 for cat_name, updates in result['existing_categories'].items():
@@ -5292,15 +5021,36 @@ class ManualCoder:
             return
             
         self.category_listbox.delete(0, tk.END)
-        for i, (cat_name, cat_def) in enumerate(self.categories.items(), 1):
+        # Speichere die Original-Kategorienamen für spätere Referenz
+        self.category_map = {}  # Dictionary zum Mapping von Listbox-Index zu echtem Kategorienamen
+        
+        current_index = 0
+        for cat_name, cat_def in self.categories.items():
             # Hauptkategorie
-            self.category_listbox.insert(tk.END, f"{i}. {cat_name}")
+            display_text = f"{current_index + 1}. {cat_name}"
+            self.category_listbox.insert(tk.END, display_text)
+            self.category_map[current_index] = {'type': 'main', 'name': cat_name}
+            current_index += 1
+            
             # Subkategorien
-            for j, sub in enumerate(cat_def.subcategories.keys(), 1):
-                self.category_listbox.insert(tk.END, f"   {i}.{j} {sub}")
+            for sub_name in cat_def.subcategories.keys():
+                display_text = f"   {current_index + 1}. {sub_name}"
+                self.category_listbox.insert(tk.END, display_text)
+                self.category_map[current_index] = {
+                    'type': 'sub',
+                    'main_category': cat_name,
+                    'name': sub_name
+                }
+                current_index += 1
 
         # Scrolle zum Anfang der Liste
         self.category_listbox.see(0)
+        print("Kategorieliste aktualisiert:")
+        for idx, mapping in self.category_map.items():
+            if mapping['type'] == 'main':
+                print(f"Index {idx}: Hauptkategorie '{mapping['name']}'")
+            else:
+                print(f"Index {idx}: Subkategorie '{mapping['name']}' von '{mapping['main_category']}'")
 
     def on_closing(self):
         """Sicheres Schließen des Fensters"""
@@ -5317,7 +5067,7 @@ class ManualCoder:
             pass
 
     def _safe_code_selection(self):
-        """Thread-sichere Kodierungsauswahl mit bereinigter Kategorieauswahl"""
+        """Thread-sichere Kodierungsauswahl mit korrekter Kategoriezuordnung"""
         if not self._is_processing:
             try:
                 selection = self.category_listbox.curselection()
@@ -5326,53 +5076,32 @@ class ManualCoder:
                     return
                 
                 index = selection[0]
-                selected_item = self.category_listbox.get(index)
                 
-                print(f"Debug - Ausgewähltes Item: '{selected_item}'")  # Debug-Ausgabe
-                
-                # Bereinige die Kategorieauswahl von Nummerierungen
-                if '.' in selected_item:
-                    # Für Subkategorien (Format: "   1.1 Subkategorie")
-                    parts = selected_item.split('.')
-                    if len(parts) >= 2:
-                        # Extrahiere Hauptkategorie aus dem ersten Teil
-                        main_part = parts[0].strip()
-                        if ' ' in main_part:
-                            main_cat = ' '.join(main_part.split(' ')[1:])  # Entferne nur die erste Nummer
-                        else:
-                            main_cat = main_part
-                        
-                        # Extrahiere Subkategorie aus dem zweiten Teil
-                        sub_part = parts[1].strip()
-                        if ' ' in sub_part:
-                            sub_cat = ' '.join(sub_part.split(' ')[1:])  # Entferne nur die Nummer
-                        else:
-                            sub_cat = sub_part
-                    else:
-                        raise ValueError("Ungültiges Subkategorie-Format")
-                else:
-                    # Für Hauptkategorien (Format: "1. Hauptkategorie")
-                    if '. ' in selected_item:
-                        main_cat = selected_item.split('. ', 1)[1]  # Teile beim ersten '. '
-                    else:
-                        main_cat = ' '.join(selected_item.split(' ')[1:])  # Entferne nur die erste Nummer
-                    sub_cat = None
-                
-                print(f"Debug - Extrahierte Hauptkategorie: '{main_cat}'")  # Debug-Ausgabe
-                if sub_cat:
-                    print(f"Debug - Extrahierte Subkategorie: '{sub_cat}'")  # Debug-Ausgabe
+                # Hole die tatsächliche Kategorie aus dem Mapping
+                if index not in self.category_map:
+                    messagebox.showerror("Fehler", "Ungültiger Kategorieindex")
+                    return
                     
-                # Verifiziere, dass die bereinigte Hauptkategorie tatsächlich existiert
+                category_info = self.category_map[index]
+                print(f"Debug - Ausgewählte Kategorie: {category_info}")  # Debug-Ausgabe
+                
+                if category_info['type'] == 'main':
+                    main_cat = category_info['name']
+                    sub_cat = None
+                else:
+                    main_cat = category_info['main_category']
+                    sub_cat = category_info['name']
+                
+                # Verifiziere die Kategorien
                 if main_cat not in self.categories:
                     messagebox.showerror("Fehler", 
-                        f"Kategorie '{main_cat}' nicht im Kategoriensystem gefunden.\n"
+                        f"Hauptkategorie '{main_cat}' nicht gefunden.\n"
                         f"Verfügbare Kategorien: {', '.join(self.categories.keys())}")
                     return
                     
-                # Verifiziere die Subkategorie, falls vorhanden
                 if sub_cat and sub_cat not in self.categories[main_cat].subcategories:
                     messagebox.showerror("Fehler", 
-                        f"Subkategorie '{sub_cat}' nicht in Kategorie '{main_cat}' gefunden.\n"
+                        f"Subkategorie '{sub_cat}' nicht in '{main_cat}' gefunden.\n"
                         f"Verfügbare Subkategorien: {', '.join(self.categories[main_cat].subcategories.keys())}")
                     return
 
@@ -5399,6 +5128,7 @@ class ManualCoder:
                 print("Details:")
                 import traceback
                 traceback.print_exc()
+                
 
     def _safe_abort_coding(self):
         """Thread-sicheres Abbrechen"""
@@ -5474,84 +5204,63 @@ class ManualCoder:
 class SaturationChecker:
     """
     Zentrale Klasse für die Sättigungsprüfung nach Mayring.
-    Implementiert ein effizientes, adaptives Verfahren zur Bestimmung der Sättigung.
+    Verarbeitet die Sättigungsmetriken aus der induktiven Kategorienentwicklung.
     """
     
     def __init__(self, config: dict, history: DevelopmentHistory):
         """
-        Initialize the SaturationChecker with configuration and history tracking.
+        Initialisiert den SaturationChecker mit Konfiguration und History-Tracking.
         
         Args:
-            config: Configuration dictionary
-            history: DevelopmentHistory instance for logging
+            config: Konfigurationsdictionary
+            history: DevelopmentHistory Instanz für Logging
         """
-        # Store history reference
-        self._history = history  # Use protected attribute to avoid conflicts
+        self._history = history
 
-        # Thresholds aus Config
+         # Robustere Konfigurationsverarbeitung
+        if config is None:
+            config = {}
+        
+        # Konfigurierbare Schwellenwerte
         validation_config = config.get('validation_config', {})
         thresholds = validation_config.get('thresholds', {})
         
-        # Konfigurierbare Schwellenwerte
         self.MIN_MATERIAL_PERCENTAGE = thresholds.get('MIN_MATERIAL_PERCENTAGE', 70)
         self.STABILITY_THRESHOLD = thresholds.get('STABILITY_THRESHOLD', 3)
-        self.MAX_ITERATIONS = thresholds.get('MAX_ITERATIONS', 10)
-        self.INITIAL_BATCH_SIZE = thresholds.get('INITIAL_BATCH_SIZE', 0.05)
-        self.MAX_BATCH_SIZE = thresholds.get('MAX_BATCH_SIZE', 0.2)
         
-        # Tracking variables
+        # Tracking-Variablen
         self.processed_percentage = 0
         self.stable_iterations = 0
-        self.current_batch_size = self.INITIAL_BATCH_SIZE
-        self.last_changes = []
-        self.category_metrics = {}
-        
-        # Performance metrics
-        self.processing_times = []
-        self.change_rates = []
+        self.current_batch_size = 0
+        self.saturation_history = []
         
         print("\nInitialisierung von SaturationChecker:")
-        print(f"- Initiale batch size: {self.INITIAL_BATCH_SIZE * 100}%")
         print(f"- Stabilitätsschwelle: {self.STABILITY_THRESHOLD} Iterationen")
         print(f"- Minimale Materialmenge: {self.MIN_MATERIAL_PERCENTAGE}%")
-    
-    def update_batch_size(self, changes: List[Dict]) -> float:
-        """Adjust batch size based on change rate and performance."""
-        if not self.change_rates:
-            return self.current_batch_size
-            
-        change_rate = len(changes) / self.current_batch_size
-        avg_change_rate = sum(self.change_rates) / len(self.change_rates)
-        
-        # Increase batch size if few changes
-        if change_rate < avg_change_rate * 0.5:
-            new_size = min(self.current_batch_size * 1.5, self.MAX_BATCH_SIZE)
-        # Decrease batch size if many changes
-        elif change_rate > avg_change_rate * 1.5:
-            new_size = max(self.current_batch_size * 0.7, self.INITIAL_BATCH_SIZE)
-        else:
-            new_size = self.current_batch_size
-            
-        self.change_rates.append(change_rate)
-        return new_size
 
     def check_saturation(self, 
                         current_categories: Dict[str, CategoryDefinition],
                         coded_segments: List[CodingResult],
                         material_percentage: float) -> Tuple[bool, Dict]:
         """
-        Check if theoretical saturation has been reached.
+        Prüft ob theoretische Sättigung erreicht wurde.
         
         Args:
-            current_categories: Current category system
-            coded_segments: Previously coded segments
-            material_percentage: Percentage of material processed
+            current_categories: Aktuelles Kategoriensystem
+            coded_segments: Bisher kodierte Segmente
+            material_percentage: Prozentsatz des verarbeiteten Materials
             
         Returns:
             Tuple[bool, Dict]: (is_saturated, metrics)
         """
         try:
-            # 1. Quick pre-check
+            # Aktualisiere Batch-Größe basierend auf den neuen Segmenten
+            new_segments = len(coded_segments) - self.current_batch_size
+            if new_segments > 0:
+                self.current_batch_size = new_segments
+                print(f"Batch-Größe aktualisiert: {self.current_batch_size} Segmente")
+
+            # 1. Schnellprüfung der Mindestmenge
             if material_percentage < self.MIN_MATERIAL_PERCENTAGE:
                 self._history.log_saturation_check(
                     material_percentage=material_percentage,
@@ -5560,185 +5269,48 @@ class SaturationChecker:
                 )
                 return False, {"reason": "insufficient_material"}
             
-            # 2. Analyze categories
-            category_metrics = self._analyze_categories(current_categories)
+            # 2. Prüfe letzte Sättigungsmetriken
+            if len(self.saturation_history) < 1:
+                return False, {"reason": "insufficient_history"}
+                
+            latest_metrics = self.saturation_history[-1]
             
-            # 3. Analyze codings
-            coding_metrics = self._analyze_coding_results(coded_segments)
-            
-            # 4. Combined metrics
-            metrics = {
-                'category_stability': category_metrics['stability'],
-                'coding_consistency': coding_metrics['consistency'],
-                'coverage': coding_metrics['coverage']
-            }
-            
-            # 5. Check saturation
-            is_saturated = all(metrics.values())
-            if is_saturated:
+            # 3. Prüfe Stabilitätskriterien
+            if latest_metrics['categories_sufficient']:
                 self.stable_iterations += 1
             else:
                 self.stable_iterations = 0
             
-            # 6. Log results
+            is_saturated = (
+                self.stable_iterations >= self.STABILITY_THRESHOLD and
+                latest_metrics['theoretical_coverage'] > 0.8
+            )
+            
+            # 4. Dokumentiere Status
             self._history.log_saturation_check(
                 material_percentage=material_percentage,
                 result="saturated" if is_saturated else "not_saturated",
                 metrics={
-                    **metrics,
+                    **latest_metrics,
                     'stable_iterations': self.stable_iterations
                 }
             )
             
             self.processed_percentage = material_percentage
-            return (self.stable_iterations >= self.STABILITY_THRESHOLD), metrics
+            return is_saturated, latest_metrics
             
         except Exception as e:
             self._history.log_error("saturation_check_error", str(e))
             raise
 
-    def _analyze_categories(self, categories: Dict[str, CategoryDefinition]) -> Dict:
-        """Analyze the current state of the category system."""
-        analysis = {
-            'stability': True,
-            'metrics': {}
-        }
+    def add_saturation_metrics(self, metrics: Dict) -> None:
+        """
+        Fügt neue Sättigungsmetriken zur Historie hinzu.
         
-        # Simple category analysis
-        if len(self.last_changes) >= 3:
-            changes_rate = len(self.last_changes[-3:]) / 3
-            analysis['stability'] = changes_rate < 0.2
-            
-        return analysis
-
-    def _analyze_coding_results(self, coded_segments: List[Dict]) -> Dict:
-        """Analyze the coding results for consistency and coverage."""
-        try:
-            # Initialize metrics
-            consistency = 0.0
-            coverage = 0.0
-            
-            if coded_segments:
-                # Calculate coding consistency
-                segment_categories = {}
-                for coding in coded_segments:
-                    segment_id = coding.get('segment_id', '')
-                    if segment_id not in segment_categories:
-                        segment_categories[segment_id] = set()
-                    segment_categories[segment_id].add(coding.get('category', ''))
-                
-                # Calculate average agreement
-                agreements = sum(1 for cats in segment_categories.values() if len(cats) == 1)
-                consistency = agreements / len(segment_categories) if segment_categories else 0
-                
-                # Calculate category coverage
-                used_categories = set()
-                possible_categories = set()
-                for coding in coded_segments:
-                    if coding.get('category'):
-                        used_categories.add(coding['category'])
-                        
-                coverage = len(used_categories) / len(possible_categories) if possible_categories else 1
-            
-            return {
-                'consistency': consistency,
-                'coverage': coverage
-            }
-            
-        except Exception as e:
-            self._history.log_error("coding_analysis_error", str(e))
-            return {
-                'consistency': 0.0,
-                'coverage': 0.0
-            }
-
-    def _is_coding_consistent(self, codings: List[Dict]) -> bool:
+        Args:
+            metrics: Sättigungsmetriken aus der Kategorienentwicklung
         """
-        Prüft die Konsistenz mehrerer Kodierungen eines Segments.
-        """
-        if not codings:
-            return False
-        
-        try:
-            # Extract categories using dictionary access
-            categories = {coding['category'] for coding in codings if 'category' in coding}
-            
-            # Get subcategories using dictionary access
-            subcategories = set()
-            for coding in codings:
-                if 'subcategories' in coding:
-                    subs = coding['subcategories']
-                    if isinstance(subs, list):
-                        subcategories.update(subs)
-                    elif isinstance(subs, str):
-                        subcategories.add(subs)
-            
-            # Consistent if only one main category or at most 2 subcategories
-            return len(categories) <= 1 or len(subcategories) <= 2
-            
-        except Exception as e:
-            print(f"Warning: Error in consistency check: {str(e)}")
-            return False
-
-
-
-
-    def _has_significant_changes(self, 
-                               category: CategoryDefinition,
-                               previous_metrics: Dict) -> bool:
-        """
-        Prüft auf signifikante Änderungen einer Kategorie.
-        Optimiert für schnelle Vergleiche.
-        """
-        current_metrics = self._extract_category_metrics(category)
-        
-        if not previous_metrics:
-            return True
-            
-        # Schnelle Vergleiche mit vorberechneten Hashes
-        return (
-            current_metrics['definition_hash'] != previous_metrics['definition_hash'] or
-            current_metrics['examples_hash'] != previous_metrics['examples_hash'] or
-            current_metrics['rules_hash'] != previous_metrics['rules_hash']
-        )
-
-    def _extract_category_metrics(self, category: CategoryDefinition) -> Dict:
-        """
-        Extrahiert und cached wichtige Kategorie-Metriken.
-        """
-        import hashlib
-        
-        def quick_hash(text: str) -> str:
-            return hashlib.md5(text.encode()).hexdigest()
-        
-        return {
-            'definition_hash': quick_hash(category.definition),
-            'examples_hash': quick_hash(''.join(category.examples)),
-            'rules_hash': quick_hash(''.join(category.rules)),
-            'subcategory_count': len(category.subcategories)
-        }
-
-    def _is_coding_consistent(self, codings: List[CodingResult]) -> bool:
-        """
-        Prüft die Konsistenz mehrerer Kodierungen eines Segments.
-        """
-        if not codings:
-            return False
-            
-        # Prüfe Hauptkategorien
-        categories = {coding.category for coding in codings}
-        if len(categories) > 1:
-            return False
-            
-        # Prüfe Subkategorien
-        subcategories = {
-            subcat 
-            for coding in codings 
-            for subcat in coding.subcategories
-        }
-        
-        # Konsistent wenn weniger als 3 verschiedene Subkategorien
-        return len(subcategories) <= 2
+        self.saturation_history.append(metrics)
 
 
 
@@ -6071,9 +5643,9 @@ class ResultsExporter:
                     main_cat, sub_cat = index
                     if main_cat != current_main_cat:
                         # current_row += 1
-                        # cell = worksheet.cell(row=current_row, column=1, value=main_cat)
+                        cell = worksheet.cell(row=current_row, column=1, value=main_cat)
                         cell.font = subheader_font
-                        # cell.border = thin_border
+                        cell.border = thin_border
                         # current_row += 1
                         # current_main_cat = main_cat
                     
