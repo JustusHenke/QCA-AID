@@ -5326,34 +5326,69 @@ class ManualCoder:
                     return
                 
                 index = selection[0]
-                category = self.category_listbox.get(index)
+                selected_item = self.category_listbox.get(index)
+                
+                print(f"Debug - Ausgewähltes Item: '{selected_item}'")  # Debug-Ausgabe
                 
                 # Bereinige die Kategorieauswahl von Nummerierungen
-                if '.' in category:
+                if '.' in selected_item:
                     # Für Subkategorien (Format: "   1.1 Subkategorie")
-                    parts = category.split('.')
+                    parts = selected_item.split('.')
                     if len(parts) >= 2:
-                        # Entferne Nummerierung von der Hauptkategorie
-                        main_cat = parts[0].split('. ', 1)[-1] if '. ' in parts[0] else parts[0]
-                        main_cat = main_cat.strip()  # Entferne führende Leerzeichen
-                        # Entferne Nummerierung von der Subkategorie
-                        sub_cat = parts[-1].split(' ', 1)[-1].strip()
+                        # Extrahiere Hauptkategorie aus dem ersten Teil
+                        main_part = parts[0].strip()
+                        if ' ' in main_part:
+                            main_cat = ' '.join(main_part.split(' ')[1:])  # Entferne nur die erste Nummer
+                        else:
+                            main_cat = main_part
+                        
+                        # Extrahiere Subkategorie aus dem zweiten Teil
+                        sub_part = parts[1].strip()
+                        if ' ' in sub_part:
+                            sub_cat = ' '.join(sub_part.split(' ')[1:])  # Entferne nur die Nummer
+                        else:
+                            sub_cat = sub_part
                     else:
                         raise ValueError("Ungültiges Subkategorie-Format")
                 else:
                     # Für Hauptkategorien (Format: "1. Hauptkategorie")
-                    main_cat = category.split('. ', 1)[-1] if '. ' in category else category
-                    main_cat = main_cat.strip()
+                    if '. ' in selected_item:
+                        main_cat = selected_item.split('. ', 1)[1]  # Teile beim ersten '. '
+                    else:
+                        main_cat = ' '.join(selected_item.split(' ')[1:])  # Entferne nur die erste Nummer
                     sub_cat = None
+                
+                print(f"Debug - Extrahierte Hauptkategorie: '{main_cat}'")  # Debug-Ausgabe
+                if sub_cat:
+                    print(f"Debug - Extrahierte Subkategorie: '{sub_cat}'")  # Debug-Ausgabe
+                    
+                # Verifiziere, dass die bereinigte Hauptkategorie tatsächlich existiert
+                if main_cat not in self.categories:
+                    messagebox.showerror("Fehler", 
+                        f"Kategorie '{main_cat}' nicht im Kategoriensystem gefunden.\n"
+                        f"Verfügbare Kategorien: {', '.join(self.categories.keys())}")
+                    return
+                    
+                # Verifiziere die Subkategorie, falls vorhanden
+                if sub_cat and sub_cat not in self.categories[main_cat].subcategories:
+                    messagebox.showerror("Fehler", 
+                        f"Subkategorie '{sub_cat}' nicht in Kategorie '{main_cat}' gefunden.\n"
+                        f"Verfügbare Subkategorien: {', '.join(self.categories[main_cat].subcategories.keys())}")
+                    return
 
                 # Erstelle bereinigte Kodierung
                 self.current_coding = CodingResult(
                     category=main_cat,
-                    subcategories=[sub_cat] if sub_cat else [],
+                    subcategories=(sub_cat,) if sub_cat else tuple(),
                     justification="Manuelle Kodierung",
                     confidence={'total': 1.0, 'category': 1.0, 'subcategories': 1.0},
-                    text_references=[self.text_chunk.get("1.0", tk.END)[:100]]
+                    text_references=(self.text_chunk.get("1.0", tk.END)[:100],)
                 )
+                
+                print(f"Manuelle Kodierung erstellt:")
+                print(f"- Hauptkategorie: {main_cat}")
+                if sub_cat:
+                    print(f"- Subkategorie: {sub_cat}")
                 
                 self._is_processing = False
                 self.root.quit()
@@ -5361,6 +5396,9 @@ class ManualCoder:
             except Exception as e:
                 messagebox.showerror("Fehler", f"Fehler bei der Kategorieauswahl: {str(e)}")
                 print(f"Fehler bei der Kategorieauswahl: {str(e)}")
+                print("Details:")
+                import traceback
+                traceback.print_exc()
 
     def _safe_abort_coding(self):
         """Thread-sicheres Abbrechen"""
@@ -6016,12 +6054,12 @@ class ResultsExporter:
             )
 
             # Header für Subkategorien
-            # header_row = current_row
-            # headers = ['Hauptkategorie', 'Subkategorie'] + formatted_columns
-            # for col, header in enumerate(headers, 1):
-            #     cell = worksheet.cell(row=header_row, column=col, value=header)
-            #     cell.font = header_font
-            #     cell.border = thin_border
+            header_row = current_row
+            headers = ['Hauptkategorie', 'Subkategorie'] + formatted_columns
+            for col, header in enumerate(headers, 1):
+                cell = worksheet.cell(row=header_row, column=col, value=header)
+                cell.font = header_font
+                cell.border = thin_border
             # current_row += 1
 
             # Daten mit hierarchischer Struktur und Formatierung
@@ -6032,12 +6070,12 @@ class ResultsExporter:
                 if isinstance(index, tuple):
                     main_cat, sub_cat = index
                     if main_cat != current_main_cat:
-                        current_row += 1
-                        cell = worksheet.cell(row=current_row, column=1, value=main_cat)
+                        # current_row += 1
+                        # cell = worksheet.cell(row=current_row, column=1, value=main_cat)
                         cell.font = subheader_font
-                        cell.border = thin_border
-                        current_row += 1
-                        current_main_cat = main_cat
+                        # cell.border = thin_border
+                        # current_row += 1
+                        # current_main_cat = main_cat
                     
                     # Subkategorie-Zeile
                     worksheet.cell(row=current_row, column=1, value=main_cat).border = thin_border
@@ -8654,18 +8692,58 @@ async def main() -> None:
 
         # 4b. Abfrage zur induktiven Kodierung
         print("\n3. Induktive Kodierung konfigurieren...")
-        print("Automatische Fortführung in 10 Sekunden...")
+
+        # Prüfe ob ein induktives Codebook existiert
+        codebook_path = os.path.join(CONFIG['OUTPUT_DIR'], "codebook_inductive.json")
         skip_inductive = False
-        user_input = get_input_with_timeout(
-            "\nMöchten Sie die induktive Kodierung überspringen und nur deduktiv arbeiten? (j/n)",
-            timeout=10
-        )
-        
-        if user_input.lower() == 'j':
-            skip_inductive = True
-            print("\nℹ Induktive Kodierung wird übersprungen - Nur deduktive Kategorien werden verwendet")
-        else:
-            print("\nℹ Vollständige Analyse mit deduktiven und induktiven Kategorien")
+
+        if os.path.exists(codebook_path):
+            print("\nGespeichertes induktives Codebook gefunden.")
+            print("Automatische Fortführung in 10 Sekunden...")
+            
+            use_saved = get_input_with_timeout(
+                "\nMöchten Sie das gespeicherte erweiterte Kodesystem laden? (j/N)",
+                timeout=10
+            )
+            
+            if use_saved.lower() == 'j':
+                try:
+                    with open(codebook_path, 'r', encoding='utf-8') as f:
+                        saved_categories = json.load(f)
+                        
+                    if 'categories' in saved_categories:
+                        # Konvertiere JSON zurück in CategoryDefinition Objekte
+                        for name, cat_data in saved_categories['categories'].items():
+                            initial_categories[name] = CategoryDefinition(
+                                name=name,
+                                definition=cat_data['definition'],
+                                examples=cat_data.get('examples', []),
+                                rules=cat_data.get('rules', []),
+                                subcategories=cat_data.get('subcategories', {}),
+                                added_date=cat_data.get('added_date', datetime.now().strftime("%Y-%m-%d")),
+                                modified_date=cat_data.get('modified_date', datetime.now().strftime("%Y-%m-%d"))
+                            )
+                        print(f"\n✓ {len(saved_categories['categories'])} Kategorien aus Codebook geladen")
+                        skip_inductive = True
+                    else:
+                        print("\nWarnung: Ungültiges Codebook-Format")
+                        
+                except Exception as e:
+                    print(f"\nFehler beim Laden des Codebooks: {str(e)}")
+                    print("Fahre mit Standard-Kategorien fort")
+
+        if not skip_inductive:
+            print("\nAutomatische Fortführung in 10 Sekunden...")
+            user_input = get_input_with_timeout(
+                "\nMöchten Sie die induktive Kodierung überspringen und nur deduktiv arbeiten? (j/n)",
+                timeout=10
+            )
+            
+            if user_input.lower() == 'j':
+                skip_inductive = True
+                print("\nℹ Induktive Kodierung wird übersprungen - Nur deduktive Kategorien werden verwendet")
+            else:
+                print("\nℹ Vollständige Analyse mit deduktiven und induktiven Kategorien")
 
         # 5. Kodierer konfigurieren
         print("\n4. Konfiguriere Kodierer...")
