@@ -2249,7 +2249,7 @@ class IntegratedAnalysisManager:
             self.processed_segments = set()
             
             if batch_size is None:
-                batch_size = 5
+                batch_size = CONFIG.get('BATCH_SIZE', 5) 
             total_batches = 0
             
             print(f"Verarbeite {total_segments} Segmente mit Batch-Größe {batch_size}...")
@@ -5750,7 +5750,7 @@ class ResultsExporter:
             pivot_main = pd.pivot_table(
                 df_coded,
                 index=['Hauptkategorie'],
-                columns=[attribut1_label, attribut2_label],
+                columns='Dokument',
                 values='Chunk_Nr',
                 aggfunc='count',
                 margins=True,
@@ -5758,9 +5758,10 @@ class ResultsExporter:
                 fill_value=0
             )
 
+         
             # Formatierte Spaltenbezeichnungen
             formatted_columns = []
-            for col in pivot_sub.columns:
+            for col in pivot_main.columns:
                 if col == 'Gesamt':
                     formatted_columns.append(col)
                 else:
