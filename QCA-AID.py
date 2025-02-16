@@ -7,7 +7,7 @@ enhanced with AI capabilities through the OpenAI API.
 
 Version:
 --------
-0.9.4 (2025-02-13)
+0.9.5 (2025-02-13)
 
 Description:
 -----------
@@ -262,10 +262,11 @@ VALIDATION_MESSAGES = {
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 CONFIG = {
     'MODEL_NAME': 'gpt-4o-mini',
-    'DATA_DIR': os.path.join(SCRIPT_DIR, 'output'),
+    'DATA_DIR': os.path.join(SCRIPT_DIR, 'input'),
     'OUTPUT_DIR': os.path.join(SCRIPT_DIR, 'output'),
     'CHUNK_SIZE': 800,
     'CHUNK_OVERLAP': 80,
+    'BATCH_SIZE': 5,
     'ATTRIBUTE_LABELS': {
         'attribut1': 'Hochschulprofil',
         'attribut2': 'Akteur'
@@ -412,26 +413,57 @@ class ConfigLoader:
             'DEDUKTIVE_KATEGORIEN': {},
             'CONFIG': {}
         }
-
-
-    def load_config(self):
+        
+    def load_codebook(self):
         print(f"Versuche Konfiguration zu laden von: {self.excel_path}")
         if not os.path.exists(self.excel_path):
             print(f"Excel-Datei nicht gefunden: {self.excel_path}")
             return False
 
         try:
+            # Öffne die Excel-Datei mit ausführlicher Fehlerbehandlung
+            print("\nÖffne Excel-Datei...")
             wb = load_workbook(self.excel_path, read_only=True, data_only=True)
             print(f"Excel-Datei erfolgreich geladen. Verfügbare Sheets: {wb.sheetnames}")
             
+            # Prüfe DEDUKTIVE_KATEGORIEN Sheet
+            if 'DEDUKTIVE_KATEGORIEN' in wb.sheetnames:
+                print("\nLese DEDUKTIVE_KATEGORIEN Sheet...")
+                sheet = wb['DEDUKTIVE_KATEGORIEN']
+            
+            
+            # Lade die verschiedenen Komponenten
             self._load_research_question(wb)
             self._load_coding_rules(wb)
-            self._load_deduktive_kategorien(wb)
             self._load_config(wb)
+            
+            # Debug-Ausgabe vor dem Laden der Kategorien
+            print("\nStarte Laden der deduktiven Kategorien...")
+            kategorien = self._load_deduktive_kategorien(wb)
+            
+            # Prüfe das Ergebnis
+            if kategorien:
+                print("\nGeladene Kategorien:")
+                for name, data in kategorien.items():
+                    print(f"\n{name}:")
+                    print(f"- Definition: {len(data['definition'])} Zeichen")
+                    print(f"- Beispiele: {len(data['examples'])}")
+                    print(f"- Regeln: {len(data['rules'])}")
+                    print(f"- Subkategorien: {len(data['subcategories'])}")
+                
+                # Speichere in Config
+                self.config['DEDUKTIVE_KATEGORIEN'] = kategorien
+                print("\nKategorien erfolgreich in Config gespeichert")
+                return True
+            else:
+                print("\nKeine Kategorien geladen!")
+                return False
 
-            return True
         except Exception as e:
             print(f"Fehler beim Lesen der Excel-Datei: {str(e)}")
+            print("Details:")
+            import traceback
+            traceback.print_exc()
             return False
 
     def _load_research_question(self, wb):
@@ -452,13 +484,116 @@ class ConfigLoader:
             }
 
     def _load_deduktive_kategorien(self, wb):
-        if 'DEDUKTIVE_KATEGORIEN' in wb.sheetnames:
-            df = pd.read_excel(self.excel_path, sheet_name='DEDUKTIVE_KATEGORIEN')
-            print(f"Geladene deduktive Kategorien - Rohdaten:\n{df.head()}")  # Debug-Ausgabe
+        try:
+            if 'DEDUKTIVE_KATEGORIEN' not in wb.sheetnames:
+                print("Warnung: Sheet 'DEDUKTIVE_KATEGORIEN' nicht gefunden")
+                return {}
+
+            print("\nLade deduktive Kategorien...")
+            sheet = wb['DEDUKTIVE_KATEGORIEN']
             
-            self.config['DEDUKTIVE_KATEGORIEN'] = {}
-            
+            # Initialisiere Kategorien
+            kategorien = {}
             current_category = None
+            
+            # Hole Header-Zeile
+            headers = []
+            for cell in sheet[1]:
+                headers.append(cell.value)
+            print(f"Gefundene Spalten: {headers}")
+            
+            # Indizes für Spalten finden
+            key_idx = headers.index('Key') if 'Key' in headers else None
+            sub_key_idx = headers.index('Sub-Key') if 'Sub-Key' in headers else None
+            sub_sub_key_idx = headers.index('Sub-Sub-Key') if 'Sub-Sub-Key' in headers else None
+            value_idx = headers.index('Value') if 'Value' in headers else None
+            
+            if None in [key_idx, sub_key_idx, value_idx]:
+                print("Fehler: Erforderliche Spalten fehlen!")
+                return {}
+                
+            # Verarbeite Zeilen
+            for row_idx, row in enumerate(sheet.iter_rows(min_row=2), 2):
+                try:
+                    key = row[key_idx].value
+                    sub_key = row[sub_key_idx].value if row[sub_key_idx].value else None
+                    sub_sub_key = row[sub_sub_key_idx].value if sub_sub_key_idx is not None and row[sub_sub_key_idx].value else None
+                    value = row[value_idx].value if row[value_idx].value else None
+                    
+                    
+                    # Neue Hauptkategorie
+                    if key and isinstance(key, str):
+                        key = key.strip()
+                        if key not in kategorien:
+                            print(f"\nNeue Hauptkategorie: {key}")
+                            current_category = key
+                            kategorien[key] = {
+                                'definition': '',
+                                'rules': [],
+                                'examples': [],
+                                'subcategories': {}
+                            }
+                    
+                    # Verarbeite Unterkategorien und Werte
+                    if current_category and sub_key:
+                        sub_key = sub_key.strip()
+                        if isinstance(value, str):
+                            value = value.strip()
+                            
+                        if sub_key == 'definition':
+                            kategorien[current_category]['definition'] = value
+                            print(f"  Definition hinzugefügt: {len(value)} Zeichen")
+                            
+                        elif sub_key == 'rules':
+                            if value:
+                                kategorien[current_category]['rules'].append(value)
+                                print(f"  Regel hinzugefügt: {value[:50]}...")
+                                
+                        elif sub_key == 'examples':
+                            if value:
+                                kategorien[current_category]['examples'].append(value)
+                                print(f"  Beispiel hinzugefügt: {value[:50]}...")
+                                
+                        elif sub_key == 'subcategories' and sub_sub_key:
+                            kategorien[current_category]['subcategories'][sub_sub_key] = value
+                            print(f"  Subkategorie hinzugefügt: {sub_sub_key}")
+                                
+                except Exception as e:
+                    print(f"Fehler in Zeile {row_idx}: {str(e)}")
+                    continue
+
+            # Validierung der geladenen Daten
+            print("\nValidiere geladene Kategorien:")
+            for name, kat in kategorien.items():
+                print(f"\nKategorie: {name}")
+                print(f"- Definition: {len(kat['definition'])} Zeichen")
+                if not kat['definition']:
+                    print("  WARNUNG: Keine Definition!")
+                print(f"- Regeln: {len(kat['rules'])}")
+                print(f"- Beispiele: {len(kat['examples'])}")
+                print(f"- Subkategorien: {len(kat['subcategories'])}")
+                for sub_name, sub_def in kat['subcategories'].items():
+                    print(f"  • {sub_name}: {sub_def[:50]}...")
+
+            # Ergebnis
+            if kategorien:
+                print(f"\nErfolgreich {len(kategorien)} Kategorien geladen")
+                return kategorien
+            else:
+                print("\nKeine Kategorien gefunden!")
+                return {}
+
+        except Exception as e:
+            print(f"Fehler beim Laden der Kategorien: {str(e)}")
+            print("Details:")
+            import traceback
+            traceback.print_exc()
+            return {}
+        
+    def _load_config(self, wb):
+        if 'CONFIG' in wb.sheetnames:
+            df = pd.read_excel(self.excel_path, sheet_name='CONFIG')
+            config = {}
             
             for _, row in df.iterrows():
                 key = row['Key']
@@ -466,41 +601,154 @@ class ConfigLoader:
                 sub_sub_key = row['Sub-Sub-Key']
                 value = row['Value']
 
-                # Debug-Ausgabe für jede Zeile
-                print(f"Verarbeite Zeile: Key={key}, Sub-Key={sub_key}, Sub-Sub-Key={sub_sub_key}, Value={value}")
+                if key not in config:
+                    config[key] = value if pd.isna(sub_key) else {}
 
-                # Null-Werte behandeln
-                if pd.isna(key):
-                    continue
+                if not pd.isna(sub_key):
+                    if sub_key.startswith('['):  # Für Listen wie CODER_SETTINGS
+                        if not isinstance(config[key], list):
+                            config[key] = []
+                        index = int(sub_key.strip('[]'))
+                        while len(config[key]) <= index:
+                            config[key].append({})
+                        if pd.isna(sub_sub_key):
+                            config[key][index] = value
+                        else:
+                            config[key][index][sub_sub_key] = value
+                    else:  # Für verschachtelte Dicts wie ATTRIBUTE_LABELS
+                        if not isinstance(config[key], dict):
+                            config[key] = {}
+                        if pd.isna(sub_sub_key):
+                            if sub_key == 'BATCH_SIZE':
+                                try:
+                                    config[key] = int(value)
+                                except (ValueError, TypeError):
+                                    print(f"Warnung: Ungültiger BATCH_SIZE Wert: {value}, verwende Standard: 5")
+                                    config[key] = 5
+                            else:
+                                config[key][sub_key] = value
+                        else:
+                            if sub_key not in config[key]:
+                                config[key][sub_key] = {}
+                            config[key][sub_key][sub_sub_key] = value
 
-                # Neue Hauptkategorie
-                if pd.notna(key) and pd.isna(sub_key):
-                    current_category = key
-                    self.config['DEDUKTIVE_KATEGORIEN'][current_category] = {
-                        'definition': '',
-                        'rules': [],
-                        'examples': [],
-                        'subcategories': {}
-                    }
-                    print(f"Neue Hauptkategorie: {current_category}")
+            self.config['CONFIG'] = self._sanitize_config(config)
+            return True  # Explizite Rückgabe von True
+        return False
 
-                if current_category is not None:
-                    # Definiere Prioritätsreihenfolge für Sub-Keys
-                    if sub_key == 'definition':
-                        self.config['DEDUKTIVE_KATEGORIEN'][current_category]['definition'] = str(value) if pd.notna(value) else ''
-                    elif sub_key == 'rules' and pd.notna(value):
-                        self.config['DEDUKTIVE_KATEGORIEN'][current_category]['rules'].append(str(value))
-                    elif sub_key == 'examples' and pd.notna(value):
-                        self.config['DEDUKTIVE_KATEGORIEN'][current_category]['examples'].append(str(value))
-                    elif sub_key == 'subcategories' and pd.notna(sub_sub_key) and pd.notna(value):
-                        self.config['DEDUKTIVE_KATEGORIEN'][current_category]['subcategories'][sub_sub_key] = str(value)
+    def _sanitize_config(self, config):
+        """
+        Bereinigt und validiert die Konfigurationswerte.
+        Überschreibt Standardwerte mit Werten aus dem Codebook.
+        
+        Args:
+            config: Dictionary mit rohen Konfigurationswerten
+            
+        Returns:
+            dict: Bereinigtes Konfigurations-Dictionary
+        """
+        try:
+            sanitized = {}
+            script_dir = os.path.dirname(os.path.abspath(__file__))
+            
+            # Stelle sicher, dass OUTPUT_DIR immer gesetzt wird
+            sanitized['OUTPUT_DIR'] = os.path.join(script_dir, 'output')
+            os.makedirs(sanitized['OUTPUT_DIR'], exist_ok=True)
+            print(f"Standard-Ausgabeverzeichnis gesichert: {sanitized['OUTPUT_DIR']}")
+            
+            for key, value in config.items():
+                # Verzeichnispfade relativ zum aktuellen Arbeitsverzeichnis
+                if key in ['DATA_DIR', 'OUTPUT_DIR']:
+                    sanitized[key] = os.path.join(script_dir, str(value))
+                    # Stelle sicher, dass Verzeichnis existiert
+                    os.makedirs(sanitized[key], exist_ok=True)
+                    print(f"Verzeichnis gesichert: {sanitized[key]}")
+                
+                # Numerische Werte für Chunking
+                elif key in ['CHUNK_SIZE', 'CHUNK_OVERLAP']:
+                    try:
+                        # Konvertiere zu Integer und stelle sicher, dass die Werte positiv sind
+                        sanitized[key] = max(1, int(value))
+                        print(f"Übernehme {key} aus Codebook: {sanitized[key]}")
+                    except (ValueError, TypeError):
+                        # Wenn Konvertierung fehlschlägt, behalte Standardwert
+                        default_value = CONFIG[key]
+                        print(f"Warnung: Ungültiger Wert für {key}, verwende Standard: {default_value}")
+                        sanitized[key] = default_value
+                
+                # Coder-Einstellungen mit Typkonvertierung
+                elif key == 'CODER_SETTINGS':
+                    sanitized[key] = [
+                        {
+                            'temperature': float(coder['temperature']) 
+                                if isinstance(coder.get('temperature'), (int, float, str)) 
+                                else 0.3,
+                            'coder_id': str(coder.get('coder_id', f'auto_{i}'))
+                        }
+                        for i, coder in enumerate(value)
+                    ]
+                
+                # Alle anderen Werte unverändert übernehmen
+                else:
+                    sanitized[key] = value
+                    
+            # Stelle sicher, dass CHUNK_OVERLAP kleiner als CHUNK_SIZE ist
+            if 'CHUNK_SIZE' in sanitized and 'CHUNK_OVERLAP' in sanitized:
+                if sanitized['CHUNK_OVERLAP'] >= sanitized['CHUNK_SIZE']:
+                    print(f"Warnung: CHUNK_OVERLAP ({sanitized['CHUNK_OVERLAP']}) muss kleiner sein als CHUNK_SIZE ({sanitized['CHUNK_SIZE']})")
+                    sanitized['CHUNK_OVERLAP'] = sanitized['CHUNK_SIZE'] // 10  # 10% als Standardwert
+                    
+            return sanitized
+            
+        except Exception as e:
+            print(f"Fehler bei der Konfigurationsbereinigung: {str(e)}")
+            import traceback
+            traceback.print_exc()
+            # Verwende im Fehlerfall die Standard-Konfiguration
+            return CONFIG
+        
+    def update_script_globals(self, globals_dict):
+        """
+        Aktualisiert die globalen Variablen mit den Werten aus der Config.
+        """
+        try:
+            print("\nAktualisiere globale Variablen...")
+            
+            # Update DEDUKTIVE_KATEGORIEN
+            if 'DEDUKTIVE_KATEGORIEN' in self.config:
+                deduktive_kat = self.config['DEDUKTIVE_KATEGORIEN']
+                if deduktive_kat and isinstance(deduktive_kat, dict):
+                    globals_dict['DEDUKTIVE_KATEGORIEN'] = deduktive_kat
+                    print(f"\nDEDUKTIVE_KATEGORIEN aktualisiert:")
+                    for name in deduktive_kat.keys():
+                        print(f"- {name}")
+                else:
+                    print("Warnung: Keine gültigen DEDUKTIVE_KATEGORIEN in Config")
+            
+            # Update andere Konfigurationswerte
+            for key, value in self.config.items():
+                if key != 'DEDUKTIVE_KATEGORIEN' and key in globals_dict:
+                    if isinstance(value, dict) and isinstance(globals_dict[key], dict):
+                        globals_dict[key].clear()
+                        globals_dict[key].update(value)
+                        print(f"Dict {key} aktualisiert")
+                    else:
+                        globals_dict[key] = value
+                        print(f"Variable {key} aktualisiert")
 
-            # Finale Debug-Ausgabe
-            print("\nFinal geladene DEDUKTIVE_KATEGORIEN:")
-            for cat, details in self.config['DEDUKTIVE_KATEGORIEN'].items():
-                print(f"\n{cat}:")
-                for key, val in details.items():
-                    print(f"  {key}: {val}")
+            # Validiere Update
+            if 'DEDUKTIVE_KATEGORIEN' in globals_dict:
+                kat_count = len(globals_dict['DEDUKTIVE_KATEGORIEN'])
+                print(f"\nFinale Validierung: {kat_count} Kategorien in globalem Namespace")
+                if kat_count == 0:
+                    print("Warnung: Keine Kategorien im globalen Namespace!")
+            else:
+                print("Fehler: DEDUKTIVE_KATEGORIEN nicht im globalen Namespace!")
+
+        except Exception as e:
+            print(f"Fehler beim Update der globalen Variablen: {str(e)}")
+            import traceback
+            traceback.print_exc()
 
     def _load_validation_config(self, wb):
         """Lädt die Validierungskonfiguration aus dem Codebook."""
@@ -535,204 +783,10 @@ class ConfigLoader:
         
         return validation_config
 
-    def _load_config(self, wb):
-        if 'CONFIG' in wb.sheetnames:
-            df = pd.read_excel(self.excel_path, sheet_name='CONFIG')
-            config = {}
-            
-            for _, row in df.iterrows():
-                key = row['Key']
-                sub_key = row['Sub-Key']
-                sub_sub_key = row['Sub-Sub-Key']
-                value = row['Value']
-
-                if key not in config:
-                    config[key] = value if pd.isna(sub_key) else {}
-
-                if not pd.isna(sub_key):
-                    if sub_key.startswith('['):  # Für Listen wie CODER_SETTINGS
-                        if not isinstance(config[key], list):
-                            config[key] = []
-                        index = int(sub_key.strip('[]'))
-                        while len(config[key]) <= index:
-                            config[key].append({})
-                        if pd.isna(sub_sub_key):
-                            config[key][index] = value
-                        else:
-                            config[key][index][sub_sub_key] = value
-                    else:  # Für verschachtelte Dicts wie ATTRIBUTE_LABELS
-                        if not isinstance(config[key], dict):
-                            config[key] = {}
-                        if pd.isna(sub_sub_key):
-                            config[key][sub_key] = value
-                        else:
-                            if sub_key not in config[key]:
-                                config[key][sub_key] = {}
-                            config[key][sub_key][sub_sub_key] = value
-
-            self.config['CONFIG'] = self._sanitize_config(config)
-
-    def _sanitize_config(self, config):
-        """
-        Bereinigt und validiert die Konfigurationswerte.
-        Überschreibt Standardwerte mit Werten aus dem Codebook.
-        
-        Args:
-            config: Dictionary mit rohen Konfigurationswerten
-            
-        Returns:
-            dict: Bereinigtes Konfigurations-Dictionary
-        """
-        try:
-            sanitized = {}
-            for key, value in config.items():
-                # Verzeichnispfade relativ zum aktuellen Arbeitsverzeichnis
-                if key in ['DATA_DIR', 'OUTPUT_DIR']:
-                    script_dir = os.path.dirname(os.path.abspath(__file__))
-                    sanitized[key] = os.path.join(script_dir, str(value))
-                
-                # Numerische Werte für Chunking
-                elif key in ['CHUNK_SIZE', 'CHUNK_OVERLAP']:
-                    try:
-                        # Konvertiere zu Integer und stelle sicher, dass die Werte positiv sind
-                        sanitized[key] = max(1, int(value))
-                        print(f"Übernehme {key} aus Codebook: {sanitized[key]}")
-                    except (ValueError, TypeError):
-                        # Wenn Konvertierung fehlschlägt, behalte Standardwert
-                        default_value = CONFIG[key]
-                        print(f"Warnung: Ungültiger Wert für {key}, verwende Standard: {default_value}")
-                        sanitized[key] = default_value
-                
-                # Coder-Einstellungen mit Typkonvertierung
-                elif key == 'CODER_SETTINGS':
-                    sanitized[key] = [
-                        {
-                            'temperature': float(coder['temperature']) 
-                                if isinstance(coder.get('temperature'), (int, float, str)) 
-                                else 0.7,
-                            'coder_id': str(coder.get('coder_id', f'auto_{i}'))
-                        }
-                        for i, coder in enumerate(value)
-                    ]
-                
-                # Alle anderen Werte unverändert übernehmen
-                else:
-                    sanitized[key] = value
-                    
-            # Stelle sicher, dass CHUNK_OVERLAP kleiner als CHUNK_SIZE ist
-            if 'CHUNK_SIZE' in sanitized and 'CHUNK_OVERLAP' in sanitized:
-                if sanitized['CHUNK_OVERLAP'] >= sanitized['CHUNK_SIZE']:
-                    print(f"Warnung: CHUNK_OVERLAP ({sanitized['CHUNK_OVERLAP']}) muss kleiner sein als CHUNK_SIZE ({sanitized['CHUNK_SIZE']})")
-                    sanitized['CHUNK_OVERLAP'] = sanitized['CHUNK_SIZE'] // 10  # 10% als Standardwert
-                    
-            return sanitized
-            
-        except Exception as e:
-            print(f"Fehler bei der Konfigurationsbereinigung: {str(e)}")
-            import traceback
-            traceback.print_exc()
-            # Verwende im Fehlerfall die Standard-Konfiguration
-            return CONFIG
-
     def get_config(self):
         return self.config
 
-    def _load_deduktive_kategorien(self, wb):
-        if 'DEDUKTIVE_KATEGORIEN' in wb.sheetnames:
-            df = pd.read_excel(self.excel_path, sheet_name='DEDUKTIVE_KATEGORIEN')
-            
-            # Stelle sicher, dass die Kategorien in der Konfiguration existieren
-            if 'DEDUKTIVE_KATEGORIEN' not in self.config:
-                self.config['DEDUKTIVE_KATEGORIEN'] = {}
-            
-            current_category = None
-            
-            for _, row in df.iterrows():
-                key = row['Key']
-                sub_key = row['Sub-Key']
-                sub_sub_key = row['Sub-Sub-Key']
-                value = row['Value']
-
-                # Überspringe leere Zeilen
-                if pd.isna(key) and pd.isna(sub_key):
-                    continue
-
-                # Neue Hauptkategorie
-                if pd.notna(key) and pd.isna(sub_key):
-                    current_category = key
-                    if current_category not in self.config['DEDUKTIVE_KATEGORIEN']:
-                        self.config['DEDUKTIVE_KATEGORIEN'][current_category] = {
-                            'definition': '',
-                            'rules': [],
-                            'examples': [],
-                            'subcategories': {}
-                        }
-
-                # Stell sicher, dass wir eine aktuelle Kategorie haben
-                if current_category is None:
-                    continue
-
-                # Verarbeite Unterkategorien
-                if current_category in self.config['DEDUKTIVE_KATEGORIEN']:
-                    if sub_key == 'definition' and pd.notna(value):
-                        self.config['DEDUKTIVE_KATEGORIEN'][current_category]['definition'] = str(value)
-                    elif sub_key == 'rules' and pd.notna(value):
-                        self.config['DEDUKTIVE_KATEGORIEN'][current_category]['rules'].append(str(value))
-                    elif sub_key == 'examples' and pd.notna(value):
-                        self.config['DEDUKTIVE_KATEGORIEN'][current_category]['examples'].append(str(value))
-                    elif sub_key == 'subcategories' and pd.notna(sub_sub_key) and pd.notna(value):
-                        self.config['DEDUKTIVE_KATEGORIEN'][current_category]['subcategories'][str(sub_sub_key)] = str(value)
-
-            # Debug-Ausgabe
-            # print("\nGeladene DEDUKTIVE_KATEGORIEN:")
-            # for cat, details in self.config['DEDUKTIVE_KATEGORIEN'].items():
-            #     print(f"\n{cat}:")
-            #     for key, val in details.items():
-            #         print(f"  {key}: {val}")
-
-    def update_script_globals(self, globals_dict):
-
-        # Stelle sicher, dass DEDUKTIVE_KATEGORIEN existiert und nicht leer ist
-        if 'DEDUKTIVE_KATEGORIEN' in self.config and self.config['DEDUKTIVE_KATEGORIEN']:
-            globals_dict['DEDUKTIVE_KATEGORIEN'] = self.config['DEDUKTIVE_KATEGORIEN']
-        
-        # Aktualisiere andere Konfigurationsparameter
-        for key, value in self.config.items():
-            if key != 'DEDUKTIVE_KATEGORIEN' and key in globals_dict:
-                if isinstance(globals_dict[key], dict) and isinstance(value, dict):
-                    globals_dict[key].clear()
-                    globals_dict[key].update(value)
-                else:
-                    globals_dict[key] = value
-        
-        # Validierungskonstanten aktualisieren
-        if 'validation_config' in self.config:
-            validation_thresholds = self.config['validation_config']['thresholds']
-            english_words = self.config['validation_config']['english_words']
-            validation_messages = self.config['validation_config']['messages']
-            
-            # Aktualisiere CategoryValidator
-            if 'CategoryValidator' in globals_dict:
-                validator_class = globals_dict['CategoryValidator']
-                validator_class.MIN_DEFINITION_WORDS = validation_thresholds.get('MIN_DEFINITION_WORDS', 15)
-                validator_class.MIN_EXAMPLES = validation_thresholds.get('MIN_EXAMPLES', 2)
-                validator_class.SIMILARITY_THRESHOLD = validation_thresholds.get('SIMILARITY_THRESHOLD', 0.7)
-                validator_class.MIN_SUBCATEGORIES = validation_thresholds.get('MIN_SUBCATEGORIES', 2)
-                validator_class.MAX_NAME_LENGTH = validation_thresholds.get('MAX_NAME_LENGTH', 50)
-                validator_class.MIN_NAME_LENGTH = validation_thresholds.get('MIN_NAME_LENGTH', 3)
-                validator_class.ENGLISH_WORDS = english_words
-                validator_class.VALIDATION_MESSAGES = validation_messages
-
-
-        # Debug-Ausgabe
-        print("\nDEDUKTIVE_KATEGORIEN nach der Aktualisierung:")
-        if 'DEDUKTIVE_KATEGORIEN' in globals_dict:
-            for cat, details in globals_dict['DEDUKTIVE_KATEGORIEN'].items():
-                print(f"{cat}:")
-                for key, val in details.items():
-                    print(f"  {key}: {val}")
-        else:
-            print("KEINE KATEGORIEN GEFUNDEN!")
+    
         
 
 # --- Klasse: MaterialLoader ---
@@ -2102,13 +2156,16 @@ class IntegratedAnalysisManager:
 
         # Initialize merge handling with config
         self.category_merger = CategoryMerger(config)
+
+        # Batch Size aus Config
+        self.batch_size = config.get('BATCH_SIZE', 5) 
         
         # Zentrale Relevanzprüfung
         self.relevance_checker = RelevanceChecker(
             model_name=config['MODEL_NAME'],
-            batch_size=5  # Kann über config angepasst werden
+            batch_size=self.batch_size
         )
-        
+    
         self.saturation_checker = SaturationChecker(config, self.history)
         self.inductive_coder = InductiveCoder(
             model_name=config['MODEL_NAME'],
@@ -2147,84 +2204,58 @@ class IntegratedAnalysisManager:
         if not remaining_segments:
             return []
             
-        batch_size = max(1, int(len(segments) * batch_size_percentage))
+        batch_size = batch_size or self.batch_size
+        batch_size = max(1, batch_size)
         return remaining_segments[:batch_size]
     
-    async def _process_batch_inductively(self,
-                                     batch: List[Tuple[str, str]],
-                                     current_categories: Dict) -> Dict:
-        """Verarbeitet einen Batch induktiv mit optimierter Relevanzprüfung."""
+    async def _process_batch_inductively(self, 
+                                        batch: List[Tuple[str, str]], 
+                                        current_categories: Dict[str, CategoryDefinition]) -> Dict[str, CategoryDefinition]:
+        """
+        Entwickelt neue Kategorien aus relevanten Textsegmenten.
+        
+        Args:
+            batch: Liste von (segment_id, text) Tupeln
+            current_categories: Aktuelles Kategoriensystem
+            
+        Returns:
+            Dict[str, CategoryDefinition]: Neue oder aktualisierte Kategorien
+        """
         try:
-            print(f"\nInduktive Analyse von {len(batch)} Segmenten...")
-            
             # Prüfe Relevanz für ganzen Batch
-            relevance_results = await self.relevance_checker.check_relevance_batch(batch)
-            
-            # Filtere relevante Texte
-            relevant_texts = [
+            relevant_segments = [
                 text for segment_id, text in batch 
-                if relevance_results.get(segment_id, False)
+                if await self.relevance_checker.is_relevant(segment_id, text)
             ]
 
-            if not relevant_texts:
-                print("   ℹ️ Keine relevanten Segmente für induktive Analyse")
+            if not relevant_segments:
+                print("   ℹ️ Keine relevanten Segmente für induktive Kategorienentwicklung")
                 return {}
 
-            print(f"   ℹ️ Analysiere {len(relevant_texts)} relevante Segmente")
+            print(f"\nEntwickle Kategorien aus {len(relevant_segments)} relevanten Segmenten")
             
-            try:
-                # Induktive Kategorienentwicklung nur für relevante Texte
-                new_categories = await self.inductive_coder.develop_category_system(relevant_texts)
+            # Induktive Kategorienentwicklung
+            new_categories = await self.inductive_coder.develop_category_system(relevant_segments)
+            
+            if new_categories:
+                print("\nNeue/aktualisierte Kategorien gefunden:")
                 
-                if new_categories:
-                    print("\nNeue Kategorien identifiziert:")
-                    for cat_name, category in new_categories.items():
-                        # Stelle sicher, dass Subkategorien als Dict existieren
-                        if not hasattr(category, 'subcategories'):
-                            category.subcategories = {}
-                            
-                        # Prüfe ob es sich um eine wirklich neue Kategorie handelt
-                        if cat_name not in current_categories:
-                            print(f"\n🆕 Neue Hauptkategorie: {cat_name}")
-                            print(f"   Definition: {category.definition[:100]}...")
-                            if category.subcategories:
-                                print(f"   Subkategorien:")
-                                for sub_name in category.subcategories:
-                                    print(f"   - {sub_name}")
-                        else:
-                            # Zeige neue Subkategorien für bestehende Hauptkategorien
-                            if hasattr(current_categories[cat_name], 'subcategories'):
-                                new_subs = set(category.subcategories.keys()) - set(current_categories[cat_name].subcategories.keys())
-                                if new_subs:
-                                    print(f"\n📑 Neue Subkategorien für {cat_name}:")
-                                    for sub_name in new_subs:
-                                        print(f"   + {sub_name}")
-
-                    # Zusammenführen ähnlicher Kategorien
-                    try:
-                        merged_categories = self.category_merger.merge_categories(new_categories)
-                        
-                        if len(merged_categories) < len(new_categories):
-                            print(f"\n🔄 Kategorien zusammengeführt:")
-                            print(f"   Vorher: {len(new_categories)} Kategorien")
-                            print(f"   Nachher: {len(merged_categories)} Kategorien")
-                        
-                        return merged_categories
-                    except Exception as merge_error:
-                        print(f"Warnung: Fehler beim Zusammenführen der Kategorien: {str(merge_error)}")
-                        return new_categories
-                else:
-                    print("   ℹ️ Keine neuen Kategorien in diesem Batch identifiziert")
-                    return {}
-                    
-            except Exception as e:
-                print(f"Fehler bei induktiver Analyse: {str(e)}")
-                print("Details:")
-                traceback.print_exc()
-                return {}
-                
+                for cat_name, category in new_categories.items():
+                    print(f"\n🆕 Neue Hauptkategorie: {cat_name}")
+                    print(f"   Definition: {category.definition[:100]}...")
+                    if category.subcategories:
+                        print(f"   Subkategorien:")
+                        for sub_name in category.subcategories:
+                            print(f"   - {sub_name}")
+            else:
+                print("   ℹ️ Keine neuen Kategorien in diesem Batch identifiziert")
+            
+            return new_categories
+            
         except Exception as e:
-            print(f"Fehler bei induktiver Analyse: {str(e)}")
+            print(f"Fehler bei induktiver Kategorienentwicklung: {str(e)}")
+            print("Details:")
+            traceback.print_exc()
             return {}
         
     async def _code_batch_deductively(self,
@@ -2287,24 +2318,16 @@ class IntegratedAnalysisManager:
         return batch_results
 
     async def analyze_material(self, 
-                        chunks: Dict[str, List[str]], 
-                        initial_categories: Dict,
-                        skip_inductive: bool = False) -> Tuple[Dict, List]:
-        """
-        Hauptanalyse mit optimierter Relevanzprüfung.
-        
-        Args:
-            chunks: Dictionary mit Text-Chunks
-            initial_categories: Initiales Kategoriensystem
-            skip_inductive: Flag zum Überspringen der induktiven Kodierung
-            
-        Returns:
-            Tuple[Dict, List]: (Finales Kategoriensystem, Kodierungsergebnisse)
-        """
+                                chunks: Dict[str, List[str]], 
+                                initial_categories: Dict,
+                                skip_inductive: bool = False,
+                                batch_size: Optional[int] = None) -> Tuple[Dict, List]:
+        """Verbesserte Hauptanalyse mit expliziter Kategorienintegration."""
         try:
             self.start_time = datetime.now()
             print(f"\nAnalyse gestartet um {self.start_time.strftime('%H:%M:%S')}")
             
+            # Wichtig: Kopie des initialen Systems erstellen
             current_categories = initial_categories.copy()
             all_segments = self._prepare_segments(chunks)
             total_segments = len(all_segments)
@@ -2313,27 +2336,26 @@ class IntegratedAnalysisManager:
             self.coding_results = []
             self.processed_segments = set()
             
-            print(f"Verarbeite {total_segments} Segmente...")
-            self.history.log_analysis_start(total_segments, len(initial_categories))
-            
-            batch_size = 5
+            if batch_size is None:
+                batch_size = 5
             total_batches = 0
+            
+            print(f"Verarbeite {total_segments} Segmente mit Batch-Größe {batch_size}...")
+            self.history.log_analysis_start(total_segments, len(initial_categories))
             
             while True:
                 batch = await self._get_next_batch(all_segments, batch_size)
                 if not batch:
                     break
-                
+                    
                 total_batches += 1
                 print(f"\nBatch {total_batches}: {len(batch)} Segmente")
                 
                 batch_start = time.time()
                 
                 try:
-                    # Prüfe Relevanz für ganzen Batch
+                    # Relevanzprüfung...
                     relevance_results = await self.relevance_checker.check_relevance_batch(batch)
-                    
-                    # Aktualisiere Tracking
                     self.processed_segments.update(sid for sid, _ in batch)
                     
                     # Relevante Segmente für induktive Analyse
@@ -2346,21 +2368,36 @@ class IntegratedAnalysisManager:
                     
                     # Induktive Analyse wenn nicht übersprungen
                     if not skip_inductive and relevant_batch:
-                        print(f"\nStarte induktive Analyse für {len(relevant_batch)} relevante Segmente...")
-                        new_categories = await self._process_batch_inductively(relevant_batch, current_categories)
+                        print(f"\nStarte induktive Kategorienentwicklung für {len(relevant_batch)} relevante Segmente...")
+                        
+                        new_categories = await self._process_batch_inductively(
+                            relevant_batch, 
+                            current_categories
+                        )
                         
                         if new_categories:
-                            # Validiere und integriere neue Kategorien
-                            current_categories = self._validate_and_integrate_categories(
-                                current_categories, 
+                            print("\nNeue/aktualisierte Kategorien gefunden:")
+                            
+                            # Kategorien integrieren
+                            current_categories = self._merge_category_systems(
+                                current_categories,
                                 new_categories
                             )
                             
-                            # Aktualisiere Kategoriensystem für alle Kodierer
+                            # Debug-Ausgabe des aktualisierten Systems
+                            print("\nAktuelles Kategoriensystem:")
+                            for name, cat in current_categories.items():
+                                print(f"\n- {name}:")
+                                print(f"  Definition: {cat.definition[:100]}...")
+                                if cat.subcategories:
+                                    print("  Subkategorien:")
+                                    for sub_name in cat.subcategories:
+                                        print(f"    • {sub_name}")
+                            
+                            # Aktualisiere ALLE Kodierer mit dem neuen System
                             for coder in self.deductive_coders:
                                 await coder.update_category_system(current_categories)
-                                
-                            print(f"Kategoriensystem erweitert auf {len(current_categories)} Kategorien")
+                            print(f"\nAlle Kodierer mit aktuellem System ({len(current_categories)} Kategorien) aktualisiert")
                     
                     # Deduktive Kodierung für alle Segmente
                     print("\nStarte deduktive Kodierung...")
@@ -2457,6 +2494,67 @@ class IntegratedAnalysisManager:
             print("Details:")
             traceback.print_exc()
             raise
+    
+    def _merge_category_systems(self, 
+                                current: Dict[str, CategoryDefinition], 
+                                new: Dict[str, CategoryDefinition]) -> Dict[str, CategoryDefinition]:
+        merged = current.copy()
+        
+        for name, category in new.items():
+            if name not in merged:
+                # Komplett neue Kategorie
+                merged[name] = category
+                print(f"\n🆕 Neue Hauptkategorie hinzugefügt: {name}")
+                print(f"   Definition: {category.definition[:100]}...")
+                if category.subcategories:
+                    print("   Subkategorien:")
+                    for sub_name, sub_def in category.subcategories.items():
+                        print(f"   - {sub_name}")
+            else:
+                # Bestehende Kategorie aktualisieren
+                existing = merged[name]
+                
+                # Sammle Änderungen für Debug-Ausgabe
+                changes = []
+                
+                # Prüfe auf neue/geänderte Definition
+                if category.definition != existing.definition:
+                    changes.append("Definition aktualisiert")
+                
+                # Neue Beispiele - KORRIGIERT: Verwende union() für Sets
+                if isinstance(existing.examples, set) and isinstance(category.examples, set):
+                    new_examples = category.examples - existing.examples
+                else:
+                    # Falls keine Sets, konvertiere zu Sets
+                    existing_set = set(existing.examples)
+                    category_set = set(category.examples)
+                    new_examples = category_set - existing_set
+                
+                if new_examples:
+                    changes.append(f"{len(new_examples)} neue Beispiele")
+                
+                # Neue Subkategorien
+                new_subcats = set(category.subcategories.keys()) - set(existing.subcategories.keys())
+                if new_subcats:
+                    changes.append(f"{len(new_subcats)} neue Subkategorien")
+                
+                # Führe Kategorien zusammen
+                merged[name] = CategoryDefinition(
+                    name=name,
+                    definition=category.definition if len(category.definition) > len(existing.definition) else existing.definition,
+                    examples=list(set(existing.examples) | set(category.examples)),  # KORRIGIERT: Verwende | Operator
+                    rules=list(set(existing.rules) | set(category.rules)),  # KORRIGIERT: Verwende | Operator
+                    subcategories={**existing.subcategories, **category.subcategories},
+                    added_date=existing.added_date,
+                    modified_date=datetime.now().strftime("%Y-%m-%d")
+                )
+                
+                if changes:
+                    print(f"\n📝 Kategorie '{name}' aktualisiert:")
+                    for change in changes:
+                        print(f"   - {change}")
+        
+        return merged
 
     async def _get_next_batch(self, 
                            segments: List[Tuple[str, str]], 
@@ -3344,9 +3442,9 @@ class DeductiveCoder:
             categories_dict = {
                 name: {
                     'definition': cat.definition,
-                    'examples': cat.examples,
-                    'rules': cat.rules,
-                    'subcategories': cat.subcategories
+                    'examples': list(cat.examples) if isinstance(cat.examples, set) else cat.examples,
+                    'rules': list(cat.rules) if isinstance(cat.rules, set) else cat.rules,
+                    'subcategories': dict(cat.subcategories) if isinstance(cat.subcategories, set) else cat.subcategories
                 } for name, cat in categories.items()
             }
 
@@ -3406,9 +3504,9 @@ class DeductiveCoder:
             categories_dict = {
                 name: {
                     'definition': cat.definition,
-                    'examples': cat.examples,
-                    'rules': cat.rules,
-                    'subcategories': cat.subcategories
+                    'examples': list(cat.examples) if isinstance(cat.examples, set) else cat.examples,
+                    'rules': list(cat.rules) if isinstance(cat.rules, set) else cat.rules,
+                    'subcategories': dict(cat.subcategories) if isinstance(cat.subcategories, set) else cat.subcategories
                 } for name, cat in categories.items()
             }
 
@@ -3593,7 +3691,7 @@ class InductiveCoder:
         self.MIN_DEFINITION_WORDS = thresholds.get('MIN_DEFINITION_WORDS', 15)
 
         # Batch processing configuration
-        self.BATCH_SIZE = 5  # Number of segments to process at once
+        self.BATCH_SIZE = CONFIG.get('BATCH_SIZE', 5)  # Number of segments to process at once
         self.MAX_RETRIES = 3 # Maximum number of retries for failed API calls
         
         # Tracking
@@ -3633,66 +3731,94 @@ class InductiveCoder:
         ]
        
     async def develop_category_system(self, segments: List[str]) -> Dict[str, CategoryDefinition]:
-        """Entwickelt induktiv neue Kategorien aus den Textsegmenten."""
+        """Entwickelt induktiv neue Kategorien mit inkrementeller Erweiterung."""
         try:
-            # Voranalyse und Filterung der Segmente...
+            # Voranalyse und Filterung der Segmente
             relevant_segments = await self._prefilter_segments(segments)
             
             # Erstelle Batches für Analyse
             batches = self._create_batches(relevant_segments)
             
-            categories = {}
+            # Initialisiere Dict für das erweiterte Kategoriensystem
+            extended_categories = {}
+            
             for batch_idx, batch in enumerate(batches):
                 print(f"\nAnalysiere Batch {batch_idx + 1}/{len(batches)}...")
                 
-                # Nutze die neue Batch-Analyse
+                # Übergebe aktuelles System an Batch-Analyse
                 batch_analysis = await self.analyze_category_batch(
-                    # Übergebe vorhandene Kategorien als Kontext
-                    category=categories,
+                    category=extended_categories,  # Wichtig: Übergebe bisheriges System
                     segments=batch
                 )
                 
-                if not batch_analysis:
-                    continue
+                if batch_analysis:
+                    # 1. Aktualisiere bestehende Kategorien
+                    if 'existing_categories' in batch_analysis:
+                        for cat_name, updates in batch_analysis['existing_categories'].items():
+                            if cat_name in extended_categories:
+                                current_cat = extended_categories[cat_name]
+                                
+                                # Aktualisiere Definition falls vorhanden
+                                if 'refinements' in updates:
+                                    refinements = updates['refinements']
+                                    if refinements['confidence'] > 0.7:  # Nur bei hoher Konfidenz
+                                        current_cat = current_cat._replace(
+                                            definition=refinements['definition'],
+                                            modified_date=datetime.now().strftime("%Y-%m-%d")
+                                        )
+                                
+                                # Füge neue Subkategorien hinzu
+                                if 'new_subcategories' in updates:
+                                    new_subcats = {
+                                        sub['name']: sub['definition']
+                                        for sub in updates['new_subcategories']
+                                        if sub['confidence'] > 0.7  # Nur bei hoher Konfidenz
+                                    }
+                                    current_cat = current_cat._replace(
+                                        subcategories={**current_cat.subcategories, **new_subcats},
+                                        modified_date=datetime.now().strftime("%Y-%m-%d")
+                                    )
+                                    
+                                extended_categories[cat_name] = current_cat
+                                print(f"✓ Kategorie '{cat_name}' aktualisiert")
                     
-                # Verarbeite Analyseergebnisse
-                if 'definition' in batch_analysis:
-                    # Verarbeite Definitionsvorschläge
-                    for cat_name, changes in batch_analysis['definition'].items():
-                        if changes['confidence'] > 0.7:  # Nur hochwertige Änderungen
-                            if cat_name in categories:
-                                # Update bestehende Kategorie
-                                categories[cat_name] = categories[cat_name]._replace(
-                                    definition=changes['suggestion']
+                    # 2. Füge neue Kategorien hinzu
+                    if 'new_categories' in batch_analysis:
+                        for new_cat in batch_analysis['new_categories']:
+                            if new_cat['confidence'] < 0.7:  # Prüfe Konfidenz
+                                continue
+                                
+                            cat_name = new_cat['name']
+                            if cat_name not in extended_categories:  # Nur wenn wirklich neu
+                                # Erstelle neue CategoryDefinition
+                                extended_categories[cat_name] = CategoryDefinition(
+                                    name=cat_name,
+                                    definition=new_cat['definition'],
+                                    examples=new_cat.get('evidence', []),
+                                    rules=[],  # Regeln werden später entwickelt
+                                    subcategories={
+                                        sub['name']: sub['definition']
+                                        for sub in new_cat.get('subcategories', [])
+                                    },
+                                    added_date=datetime.now().strftime("%Y-%m-%d"),
+                                    modified_date=datetime.now().strftime("%Y-%m-%d")
                                 )
-                                print(f"✓ Definition aktualisiert für '{cat_name}'")
-                
-                # Verarbeite neue Subkategorien
-                if 'subcategories' in batch_analysis and batch_analysis['subcategories'].get('new'):
-                    for new_sub in batch_analysis['subcategories']['new']:
-                        cat_name = new_sub['name']
-                        if cat_name not in categories:
-                            # Erstelle neue Kategorie
-                            categories[cat_name] = CategoryDefinition(
-                                name=cat_name,
-                                definition=new_sub['definition'],
-                                examples=[new_sub['evidence'][0]] if new_sub['evidence'] else [],
-                                rules=[],  # Regeln werden später entwickelt
-                                subcategories={},
-                                added_date=datetime.now().strftime("%Y-%m-%d"),
-                                modified_date=datetime.now().strftime("%Y-%m-%d")
-                            )
-                            print(f"✓ Neue Kategorie erstellt: '{cat_name}'")
-                
-                # Dokumentiere Entwicklung
-                self.history.log_category_development(
-                    phase=f"batch_{batch_idx + 1}",
-                    new_categories=len(batch_analysis.get('subcategories', {}).get('new', [])),
-                    modified_categories=len(batch_analysis.get('definition', {}))
-                )
+                                print(f"✓ Neue Kategorie erstellt: '{cat_name}'")
+                    
+                    # Dokumentiere Entwicklung
+                    self.history.log_category_development(
+                        phase=f"batch_{batch_idx + 1}",
+                        new_categories=len(batch_analysis.get('new_categories', [])),
+                        modified_categories=len(batch_analysis.get('existing_categories', {}))
+                    )
+                    
+                    print(f"\nZwischenstand nach Batch {batch_idx + 1}:")
+                    print(f"- Kategorien gesamt: {len(extended_categories)}")
+                    print(f"- Davon neu in diesem Batch: {len(batch_analysis.get('new_categories', []))}")
+                    print(f"- Aktualisiert in diesem Batch: {len(batch_analysis.get('existing_categories', {}))}")
             
-            return categories
-            
+            return extended_categories
+                
         except Exception as e:
             print(f"Fehler bei Kategorienentwicklung: {str(e)}")
             print("Details:")
@@ -3701,14 +3827,7 @@ class InductiveCoder:
 
     async def analyze_category_batch(self, category: Dict[str, Any], segments: List[str]) -> Dict[str, Any]:
         """
-        Kombinierte Kategorienanalyse in einem API-Call.
-        
-        Args:
-            category: Aktuelles Kategoriensystem oder zu analysierende Kategorie
-            segments: Relevante Textsegmente
-            
-        Returns:
-            Dict: Analyseergebnisse
+        Verbesserte Batch-Analyse mit Berücksichtigung des aktuellen Kategoriensystems.
         """
         try:
             # Cache-Key erstellen
@@ -3722,11 +3841,23 @@ class InductiveCoder:
                 print("Nutze gecachte Analyse")
                 return self.analysis_cache[cache_key]
 
+            # Erstelle formatierten Text der aktuellen Kategorien
+            current_categories_text = ""
+            if category:
+                current_categories_text = "Aktuelle Kategorien:\n"
+                for name, cat in category.items():
+                    current_categories_text += f"\n{name}:\n"
+                    current_categories_text += f"- Definition: {cat.definition}\n"
+                    if cat.subcategories:
+                        current_categories_text += "- Subkategorien:\n"
+                        for sub_name, sub_def in cat.subcategories.items():
+                            current_categories_text += f"  • {sub_name}: {sub_def}\n"
+
             prompt = f"""
             Führe eine vollständige Kategorienanalyse basierend auf den Textsegmenten durch.
+            Berücksichtige dabei das bestehende Kategoriensystem und erweitere es.
             
-            AKTUELLES KATEGORIENSYSTEM:
-            {json.dumps(category, indent=2, ensure_ascii=False)}
+            {current_categories_text}
             
             TEXTSEGMENTE:
             {json.dumps(segments, indent=2, ensure_ascii=False)}
@@ -3735,55 +3866,55 @@ class InductiveCoder:
             {FORSCHUNGSFRAGE}
             
             Analysiere systematisch:
-            1. DEFINITION UND ABGRENZUNG
-            - Prüfe die Definitionen auf Klarheit und Präzision
-            - Schlage konkrete Verbesserungen vor
-            - Identifiziere potenzielle Überschneidungen
+            1. BESTEHENDE KATEGORIEN
+            - Prüfe ob neue Aspekte zu bestehenden Kategorien passen
+            - Schlage Erweiterungen/Verfeinerungen vor
+            - Identifiziere neue Subkategorien für bestehende Hauptkategorien
             
-            2. SUBKATEGORIEN
-            - Validiere bestehende Subkategorien
-            - Identifiziere neue thematische Aspekte
-            - Stelle Trennschärfe zwischen Subkategorien sicher
+            2. NEUE KATEGORIEN
+            - Identifiziere gänzlich neue Aspekte
+            - Entwickle neue Hauptkategorien wenn nötig
+            - Stelle Trennschärfe zu bestehenden Kategorien sicher
             
             3. BEGRÜNDUNG UND EVIDENZ
-            - Belege Änderungsvorschläge mit Textstellen
+            - Belege alle Vorschläge mit Textstellen
             - Dokumentiere Entscheidungsgründe
             - Gib Konfidenzwerte für Vorschläge an
 
             Antworte NUR mit einem JSON-Objekt:
             {{
-                "definition": {{
+                "existing_categories": {{
                     "kategorie_name": {{
-                        "current": "Aktuelle Definition",
-                        "suggestion": "Verbesserte Definition",
-                        "changes": ["Liste der Änderungen"],
-                        "justification": "Begründung",
-                        "confidence": 0.0-1.0
+                        "refinements": {{
+                            "definition": "Erweiterte Definition",
+                            "justification": "Begründung",
+                            "confidence": 0.0-1.0
+                        }},
+                        "new_subcategories": [
+                            {{
+                                "name": "Name",
+                                "definition": "Definition",
+                                "evidence": ["Textbelege"],
+                                "confidence": 0.0-1.0
+                            }}
+                        ]
                     }}
                 }},
-                "subcategories": {{
-                    "existing": {{
-                        "valid": ["Liste validierter Subkategorien"],
-                        "remove": ["Zu entfernende Subkategorien"],
-                        "modify": [{{
-                            "name": "Name",
-                            "current": "Aktuelle Definition",
-                            "suggestion": "Verbesserte Definition"
-                        }}]
-                    }},
-                    "new": [{{
+                "new_categories": [
+                    {{
                         "name": "Name",
                         "definition": "Definition",
-                        "justification": "Begründung",
+                        "subcategories": [
+                            {{
+                                "name": "Name",
+                                "definition": "Definition"
+                            }}
+                        ],
                         "evidence": ["Textbelege"],
-                        "confidence": 0.0-1.0
-                    }}]
-                }},
-                "boundaries": {{
-                    "distinctions": ["Abgrenzungsmerkmale"],
-                    "potential_overlaps": ["Mögliche Überschneidungen"],
-                    "recommendations": ["Empfehlungen"]
-                }}
+                        "confidence": 0.0-1.0,
+                        "justification": "Begründung"
+                    }}
+                ]
             }}
             """
 
@@ -3804,19 +3935,27 @@ class InductiveCoder:
             
             # Debug-Ausgaben
             print("\nAnalyseergebnisse:")
-            if 'definition' in result:
-                for cat_name, changes in result['definition'].items():
-                    print(f"\nKategorie '{cat_name}':")
-                    print(f"- Konfidenz: {changes['confidence']:.2f}")
-                    if changes['changes']:
-                        print("- Änderungen:")
-                        for change in changes['changes']:
-                            print(f"  • {change}")
+            
+            # Zeige Erweiterungen bestehender Kategorien
+            if 'existing_categories' in result:
+                for cat_name, updates in result['existing_categories'].items():
+                    print(f"\nAktualisierung für '{cat_name}':")
+                    if 'refinements' in updates:
+                        print(f"- Definition erweitert (Konfidenz: {updates['refinements']['confidence']:.2f})")
+                    if 'new_subcategories' in updates:
+                        print("- Neue Subkategorien:")
+                        for sub in updates['new_subcategories']:
+                            print(f"  • {sub['name']} (Konfidenz: {sub['confidence']:.2f})")
                             
-            if 'subcategories' in result and result['subcategories'].get('new'):
-                print("\nNeue Subkategorien:")
-                for new_sub in result['subcategories']['new']:
-                    print(f"- {new_sub['name']} (Konfidenz: {new_sub['confidence']:.2f})")
+            # Zeige neue Kategorien
+            if 'new_categories' in result:
+                print("\nNeue Hauptkategorien:")
+                for new_cat in result['new_categories']:
+                    print(f"- {new_cat['name']} (Konfidenz: {new_cat['confidence']:.2f})")
+                    if 'subcategories' in new_cat:
+                        print("  Subkategorien:")
+                        for sub in new_cat['subcategories']:
+                            print(f"  • {sub['name']}")
 
             return result
 
@@ -4994,9 +5133,9 @@ class InductiveCoder:
             report.extend([
                 "\n## Detailed Analysis",
                 "### Interpretation of Krippendorff's Alpha",
-                "- **> 0.800**: Excellent reliability",
-                "- **0.667 - 0.800**: Acceptable reliability",
-                "- **< 0.667**: Poor reliability",
+                "- > 0.800: Excellent reliability",
+                "- 0.667 - 0.800: Acceptable reliability",
+                "- < 0.667: Poor reliability",
                 "\n### Category Usage Analysis",
                 "- Most frequently used category: " + max(category_frequencies.items(), key=lambda x: x[1])[0],
                 "- Least frequently used category: " + min(category_frequencies.items(), key=lambda x: x[1])[0],
@@ -5178,7 +5317,7 @@ class ManualCoder:
             pass
 
     def _safe_code_selection(self):
-        """Thread-sichere Kodierungsauswahl"""
+        """Thread-sichere Kodierungsauswahl mit bereinigter Kategorieauswahl"""
         if not self._is_processing:
             try:
                 selection = self.category_listbox.curselection()
@@ -5189,19 +5328,25 @@ class ManualCoder:
                 index = selection[0]
                 category = self.category_listbox.get(index)
                 
+                # Bereinige die Kategorieauswahl von Nummerierungen
                 if '.' in category:
-                    # Für Subkategorien
+                    # Für Subkategorien (Format: "   1.1 Subkategorie")
                     parts = category.split('.')
                     if len(parts) >= 2:
+                        # Entferne Nummerierung von der Hauptkategorie
                         main_cat = parts[0].split('. ', 1)[-1] if '. ' in parts[0] else parts[0]
-                        sub_cat = parts[-1].strip()
+                        main_cat = main_cat.strip()  # Entferne führende Leerzeichen
+                        # Entferne Nummerierung von der Subkategorie
+                        sub_cat = parts[-1].split(' ', 1)[-1].strip()
                     else:
                         raise ValueError("Ungültiges Subkategorie-Format")
                 else:
-                    # Für Hauptkategorien
+                    # Für Hauptkategorien (Format: "1. Hauptkategorie")
                     main_cat = category.split('. ', 1)[-1] if '. ' in category else category
+                    main_cat = main_cat.strip()
                     sub_cat = None
 
+                # Erstelle bereinigte Kodierung
                 self.current_coding = CodingResult(
                     category=main_cat,
                     subcategories=[sub_cat] if sub_cat else [],
@@ -5871,13 +6016,13 @@ class ResultsExporter:
             )
 
             # Header für Subkategorien
-            header_row = current_row
-            headers = ['Hauptkategorie', 'Subkategorie'] + formatted_columns
-            for col, header in enumerate(headers, 1):
-                cell = worksheet.cell(row=header_row, column=col, value=header)
-                cell.font = header_font
-                cell.border = thin_border
-            current_row += 1
+            # header_row = current_row
+            # headers = ['Hauptkategorie', 'Subkategorie'] + formatted_columns
+            # for col, header in enumerate(headers, 1):
+            #     cell = worksheet.cell(row=header_row, column=col, value=header)
+            #     cell.font = header_font
+            #     cell.border = thin_border
+            # current_row += 1
 
             # Daten mit hierarchischer Struktur und Formatierung
             current_main_cat = None
@@ -8468,7 +8613,7 @@ async def main() -> None:
         script_dir = os.path.dirname(os.path.abspath(__file__))
         config_loader = ConfigLoader(script_dir)
         
-        if config_loader.load_config():
+        if config_loader.load_codebook():
             config = config_loader.get_config() 
             config_loader.update_script_globals(globals())
             print("\nKonfiguration erfolgreich geladen")
