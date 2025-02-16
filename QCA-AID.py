@@ -3268,8 +3268,8 @@ class DeductiveCoder:
 
             1. Erstelle eine prägnante Paraphrase des Texts (max. 40 Wörter)
             - Fokussiere auf forschungsrelevante Aspekte
-            - Vermeide Füllwörter
-            - Nutze präzise Formulierungen
+            - Vermeide Füllwörter und unnötige Wiederholungen
+            - Nutze präzise Formulierungen, dem Inhalt des Textes treu sind
             
             2. Ordne den Text einer vorhandenen Hauptkategorie und passenden Subkategorien zu:
             - Verwende NUR die definierten Kategorien und Subkategorien
@@ -5639,6 +5639,59 @@ class ResultsExporter:
                 bottom=Side(style='thin')
             )
 
+            # 1. Hauptkategorien nach Dokumenten
+            cell = worksheet.cell(row=current_row, column=1, value="1. Verteilung der Hauptkategorien")
+            cell.font = title_font
+            current_row += 2
+
+            # Pivot-Tabelle für Hauptkategorien
+            pivot_main = pd.pivot_table(
+                df_coded,
+                index=['Hauptkategorie'],
+                columns=[attribut1_label, attribut2_label],
+                values='Chunk_Nr',
+                aggfunc='count',
+                margins=True,
+                margins_name='Gesamt',
+                fill_value=0
+            )
+
+            # Formatierte Spaltenbezeichnungen
+            formatted_columns = []
+            for col in pivot_main.columns:
+                if isinstance(col, tuple):
+                    col_parts = [str(part) for part in col if part and part != '']
+                    formatted_columns.append(' - '.join(col_parts))
+                else:
+                    formatted_columns.append(str(col))
+
+            # Header mit Rahmen
+            header_row = current_row
+            headers = ['Hauptkategorie'] + formatted_columns
+            for col, header in enumerate(headers, 1):
+                cell = worksheet.cell(row=header_row, column=col, value=header)
+                cell.font = header_font
+                cell.border = thin_border
+            current_row += 1
+
+            # Daten mit Rahmen und fetten Randsummen
+            for idx, row in pivot_main.iterrows():
+                is_total = idx == 'Gesamt'
+                cell = worksheet.cell(row=current_row, column=1, value=str(idx))
+                cell.border = thin_border
+                if is_total:
+                    cell.font = total_font
+                
+                for col, value in enumerate(row, 2):
+                    cell = worksheet.cell(row=current_row, column=col, value=value)
+                    cell.border = thin_border
+                    if is_total or col == len(row) + 2:  # Randsummen
+                        cell.font = total_font
+                
+                current_row += 1
+
+            current_row += 2
+
             # 2. Subkategorien-Hierarchie
             cell = worksheet.cell(row=current_row, column=1, value="2. Subkategorien nach Hauptkategorien")
             cell.font = title_font
@@ -6224,6 +6277,7 @@ class ResultsExporter:
                         self.attribute_labels['attribut2']: attribut2,
                         'Chunk_Nr': chunk_id,
                         'Text': chunk_text,
+                        'Paraphrase': coding.get('paraphrase', ''), 
                         'Kodiert': is_coded,
                         'Hauptkategorie': category,
                         'Kategorietyp': coding.get('Kategorietyp', 'unbekannt'),
