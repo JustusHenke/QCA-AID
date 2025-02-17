@@ -118,7 +118,7 @@ Für optimale Ergebnisse empfehlen wir die Verwendung von einfachen Textformaten
 
 **Wichtig**: 
 - Stellen Sie sicher, dass alle Dateien im Eingabeverzeichnis für die Analyse relevant sind, da das Programm versuchen wird, jede unterstützte Datei zu verarbeiten.
-- Andere Dateiformate wie .docx, .csv, .md, .srt oder .vtt werden derzeit nicht unterstützt. Konvertieren Sie diese gegebenenfalls in eines der unterstützten Formate.
+- Andere Dateiformate wie .csv, .md, .srt oder .vtt werden derzeit nicht unterstützt. Konvertieren Sie diese gegebenenfalls in eines der unterstützten Formate.
 
 
 ## Verwendung der Codebook.xlsx
