@@ -360,7 +360,8 @@ class CodingResult:
     confidence: Dict[str, Union[float, Tuple[str, ...]]]  # Ändere List zu Tuple
     text_references: Tuple[str, ...]  # Änderung von List zu Tuple
     uncertainties: Optional[Tuple[str, ...]] = None  # Änderung von List zu Tuple
-    paraphrase: str = "" 
+    paraphrase: str = ""
+    keywords: str = "" 
 
     def __post_init__(self):
         # Konvertiere Listen zu Tupeln, falls nötig
@@ -388,8 +389,8 @@ class CodingResult:
             'confidence': self.confidence,
             'text_references': list(self.text_references),  # Zurück zu Liste
             'uncertainties': list(self.uncertainties) if self.uncertainties else None,
-            'paraphrase': self.paraphrase 
-        }
+            'paraphrase': self.paraphrase ,
+            'keywords': self.keywords         }
 
 @dataclass
 class CategoryChange:
@@ -2214,7 +2215,8 @@ class IntegratedAnalysisManager:
                             'confidence': coding.confidence,
                             'justification': coding.justification,
                             'text': text,
-                            'paraphrase': coding.paraphrase
+                            'paraphrase': coding.paraphrase,
+                            'keywords': coding.keywords
                         }
                         print(f"  ✓ Kodierung von {coder.coder_id}: {result['category']}")
                         batch_results.append(result)
@@ -3278,9 +3280,14 @@ class DeductiveCoder:
             - Der inhaltliche Beitrag muss substanziell sein
             - Berücksichtige den Kontext der Aussage
 
+            3. Erstelle Schlüsselwörter aus dem Textsegment:
+            - Wähle 2-3 textnahe Schlüsselwörter, die zentral für die Aussage sind
+            - Verwende bevorzugt deutsche Begriffe
+
             Antworte ausschließlich mit einem JSON-Objekt:
             {{
                 "paraphrase": "Deine prägnante Paraphrase hier",
+                "keywords": "Deine Schlüsselwörter hier",
                 "category": "Name der Hauptkategorie",
                 "subcategories": ["Liste", "existierender", "Subkategorien"],
                 "justification": "Begründung der Zuordnung",
@@ -3329,7 +3336,8 @@ class DeductiveCoder:
                     confidence=result.get('confidence', {'total': 0.0, 'category': 0.0, 'subcategories': 0.0}),
                     text_references=tuple([chunk[:100]]),
                     uncertainties=None,
-                    paraphrase=paraphrase   # Neue Paraphrase hinzufügen
+                    paraphrase=paraphrase,  
+                    keywords=result.get('keywords', '')
                 )
             else:
                 print("  ✗ Keine passende Kategorie gefunden")
@@ -3484,7 +3492,7 @@ class InductiveCoder:
         Returns:
             List[List[str]]: List of segment batches
         """
-        batch_size = batch_size or self.batch_size
+        batch_size = self.BATCH_SIZE
             
         return [
             segments[i:i + batch_size] 
@@ -5624,6 +5632,9 @@ class ResultsExporter:
             # Setze Kodiert-Status basierend auf Kategorie
             is_coded = 'Ja' if category and category != "Nicht kodiert" else 'Nein'
             
+            raw_keywords = coding.get('keywords', '')
+            formatted_keywords = raw_keywords.replace("[", "").replace("]", "").replace("'", "")
+
             # Export-Dictionary mit allen erforderlichen Feldern
             export_data = {
                 'Dokument': doc_name,
@@ -5636,6 +5647,7 @@ class ResultsExporter:
                 'Hauptkategorie': category,
                 'Kategorietyp': kategorie_typ,  # Hier wird der korrekte Typ gesetzt
                 'Subkategorien': ', '.join(coding.get('subcategories', [])),
+                'Schlüsselwörter': formatted_keywords,
                 'Begründung': coding.get('justification', ''),
                 'Konfidenz': self._format_confidence(coding.get('confidence', {})),
                 'Mehrfachkodierung': 'Ja' if len(coding.get('subcategories', [])) > 1 else 'Nein'
@@ -6388,6 +6400,7 @@ class ResultsExporter:
                         'Hauptkategorie': category,
                         'Kategorietyp': coding.get('Kategorietyp', 'unbekannt'),
                         'Subkategorien': ', '.join(coding.get('subcategories', [])),
+                        'Schlüsselwörter': coding.get('keywords', ''),
                         'Begründung': coding.get('justification', ''),
                         'Konfidenz': formatted_confidence,
                         'Mehrfachkodierung': 'Ja' if len(coding.get('subcategories', [])) > 1 else 'Nein'
@@ -6633,15 +6646,16 @@ class ResultsExporter:
                 'B': 15,  # Attribut1
                 'C': 15,  # Attribut2
                 'D': 5,   # Chunk_Nr
-                'E': 60,  # Text
+                'E': 40,  # Text
                 'F': 40,  # Paraphrase (neue Spalte)
                 'G': 5,   # Kodiert
                 'H': 20,  # Hauptkategorie
                 'I': 15,  # Kategorietyp
                 'J': 40,  # Subkategorien
-                'K': 40,  # Begründung
-                'L': 15,  # Konfidenz
-                'M': 15   # Mehrfachkodierung
+                'K': 40,  # Schlüsselwörter
+                'L': 40,  # Begründung
+                'M': 15,  # Konfidenz
+                'N': 15   # Mehrfachkodierung
             }
             
             for col, width in column_widths.items():
