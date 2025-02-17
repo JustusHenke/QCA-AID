@@ -104,17 +104,14 @@ Das Programm kann bestimmte Dateitypen im Eingabeverzeichnis (DATA_DIR) verarbei
 
 2. **Dokumentformate**:
    - .pdf (Portable Document Format)
-
-3. **Tabellenkalkulationen**:
-   - .xlsx (Microsoft Excel)
+   - .docx (Microsoft Word)
 
 Hinweise zur Verwendung:
 - Stellen Sie sicher, dass Ihre Eingabedateien in einem der oben genannten Formate vorliegen.
 - Das Programm liest alle unterstützten Dateien im Eingabeverzeichnis automatisch ein.
 - Bei der Verwendung von PDF-Dateien wird der Text extrahiert; komplexe Formatierungen oder eingebettete Bilder werden dabei nicht berücksichtigt.
-- Excel-Dateien (.xlsx) sollten strukturierte Daten enthalten, wobei jede Zeile als separater Textabschnitt behandelt wird.
 
-Für optimale Ergebnisse empfehlen wir die Verwendung von einfachen Textformaten (.txt), insbesondere für längere Textpassagen oder Transkripte.
+Für optimale Ergebnisse  wird die Verwendung von einfachen Textformaten (.txt) empfohlen, insbesondere für längere Textpassagen oder Transkripte. Entfernen Sie Literaturverzeichnisse und andere Textteile, die nicht kodiert werden sollen.
 
 **Wichtig**: 
 - Stellen Sie sicher, dass alle Dateien im Eingabeverzeichnis für die Analyse relevant sind, da das Programm versuchen wird, jede unterstützte Datei zu verarbeiten.
