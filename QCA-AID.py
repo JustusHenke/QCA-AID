@@ -5633,7 +5633,11 @@ class ResultsExporter:
             is_coded = 'Ja' if category and category != "Nicht kodiert" else 'Nein'
             
             raw_keywords = coding.get('keywords', '')
-            formatted_keywords = raw_keywords.replace("[", "").replace("]", "").replace("'", "")
+            if isinstance(raw_keywords, list):
+                formatted_keywords = [kw.strip() for kw in raw_keywords]
+            else:
+                formatted_keywords = raw_keywords.replace("[", "").replace("]", "").replace("'", "").split(",")
+                formatted_keywords = [kw.strip() for kw in formatted_keywords]  # Leerzeichen entfernen
 
             # Export-Dictionary mit allen erforderlichen Feldern
             export_data = {
