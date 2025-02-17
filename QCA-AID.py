@@ -5634,10 +5634,13 @@ class ResultsExporter:
             
             raw_keywords = coding.get('keywords', '')
             if isinstance(raw_keywords, list):
-                formatted_keywords = [kw.strip() for kw in raw_keywords]
+                formatted_keywords = [kw.strip() for kw in raw_keywords]  # Leerzeichen entfernen
             else:
                 formatted_keywords = raw_keywords.replace("[", "").replace("]", "").replace("'", "").split(",")
-                formatted_keywords = [kw.strip() for kw in formatted_keywords]  # Leerzeichen entfernen
+                formatted_keywords = [kw.strip() for kw in formatted_keywords]
+
+            # Umwandlung der Liste in einen String
+            formatted_keywords_list = ", ".join(formatted_keywords)
 
             # Export-Dictionary mit allen erforderlichen Feldern
             export_data = {
@@ -5651,7 +5654,7 @@ class ResultsExporter:
                 'Hauptkategorie': category,
                 'Kategorietyp': kategorie_typ,  # Hier wird der korrekte Typ gesetzt
                 'Subkategorien': ', '.join(coding.get('subcategories', [])),
-                'Schlüsselwörter': formatted_keywords,
+                'Schlüsselwörter': formatted_keywords_list,
                 'Begründung': coding.get('justification', ''),
                 'Konfidenz': self._format_confidence(coding.get('confidence', {})),
                 'Mehrfachkodierung': 'Ja' if len(coding.get('subcategories', [])) > 1 else 'Nein'
