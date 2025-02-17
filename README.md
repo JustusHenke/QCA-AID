@@ -129,7 +129,7 @@ Die `Codebook.xlsx` Datei ist ein zentrales Element für die Konfiguration und A
    - CONFIG
 
 2. **FORSCHUNGSFRAGE**: 
-   - Tragen Sie Ihre Forschungsfrage in Zelle A2 ein.
+   - Tragen Sie Ihre Forschungsfrage in Zelle B1 ein.
 
 3. **KODIERREGELN**:
    - Spalte A: Allgemeine Kodierregeln
@@ -158,7 +158,7 @@ Die `Codebook.xlsx` Datei ist ein zentrales Element für die Konfiguration und A
      - OUTPUT_DIR: Verzeichnis für Ausgabedaten
      - CHUNK_SIZE: Größe der Textabschnitte für die Analyse
      - CHUNK_OVERLAP: Überlappung zwischen Textabschnitten
-     - ATTRIBUTE_LABELS: Bezeichnungen für Attribute
+     - ATTRIBUTE_LABELS: Bezeichnungen für Attribute, die aus dem Dateinamen extrahiert werden (z.B. "Part1_Part2_Restname.txt")
      - CODER_SETTINGS: Einstellungen für automatische Kodierer
 
 6. **Aktualisierung**: 
