@@ -145,14 +145,14 @@ Die `Codebook.xlsx` Datei ist ein zentrales Element für die Konfiguration und A
    - Spalte C (Sub-Sub-Key): Nur für Subkategorien relevant
    - Spalte D (Value): Inhalt der jeweiligen Information
    - Beispiel:
-     ```
+   
      | Key       | Sub-Key     | Sub-Sub-Key | Value                        |
      |-----------|-------------|-------------|------------------------------|
      | Akteure   | definition  |             | Erfasst alle handelnden...   |
      | Akteure   | rules       |             | Codiere Aussagen zu: Indi... |
      | Akteure   | examples    | [0]         | Die Arbeitsgruppe trifft...  |
      | Akteure   | subcategories | Individuelle_Akteure | Einzelpersonen und deren... |
-     ```
+  
 
 5. **CONFIG**:
    - Hier können Sie verschiedene Konfigurationsparameter einstellen:
