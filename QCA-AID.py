@@ -2144,8 +2144,17 @@ class IntegratedAnalysisManager:
 
     async def _get_next_batch(self, 
                            segments: List[Tuple[str, str]], 
-                           batch_size_percentage: float) -> List[Tuple[str, str]]:
-        """Bestimmt den nächsten zu analysierenden Batch."""
+                           batch_size: float) -> List[Tuple[str, str]]:
+        """
+        Bestimmt den nächsten zu analysierenden Batch.
+        
+        Args:
+            segments: Liste aller Segmente
+            batch_size_percentage: Batch-Größe als Prozentsatz
+            
+        Returns:
+            List[Tuple[str, str]]: Nächster Batch von Segmenten
+        """
         remaining_segments = [
             seg for seg in segments 
             if seg[0] not in self.processed_segments
@@ -2154,9 +2163,9 @@ class IntegratedAnalysisManager:
         if not remaining_segments:
             return []
             
-        batch_size = batch_size or self.batch_size
         batch_size = max(1, batch_size)
         return remaining_segments[:batch_size]
+    
     
     async def _process_batch_inductively(self, 
                                     batch: List[Tuple[str, str]], 
@@ -2539,29 +2548,7 @@ class IntegratedAnalysisManager:
         
         return merged
 
-    async def _get_next_batch(self, 
-                           segments: List[Tuple[str, str]], 
-                           batch_size: float) -> List[Tuple[str, str]]:
-        """
-        Bestimmt den nächsten zu analysierenden Batch.
-        
-        Args:
-            segments: Liste aller Segmente
-            batch_size_percentage: Batch-Größe als Prozentsatz
-            
-        Returns:
-            List[Tuple[str, str]]: Nächster Batch von Segmenten
-        """
-        remaining_segments = [
-            seg for seg in segments 
-            if seg[0] not in self.processed_segments
-        ]
-        
-        if not remaining_segments:
-            return []
-            
-        batch_size = max(1, batch_size)
-        return remaining_segments[:batch_size]
+    
 
     def _prepare_segments(self, chunks: Dict[str, List[str]]) -> List[Tuple[str, str]]:
         """
