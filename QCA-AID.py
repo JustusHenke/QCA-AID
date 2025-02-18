@@ -1709,7 +1709,6 @@ class CategoryManager:
                 import traceback
                 traceback.print_exc()
 
-
 class CategoryCleaner:
     """Helferklasse zum Bereinigen problematischer Kategorien."""
     
@@ -6095,48 +6094,11 @@ class ResultsExporter:
         
         return pastel_colors
 
-    def _apply_category_color_formatting(self, worksheet, main_categories, pastel_colors):
-        """
-        Wendet Farbformatierung für Hauptkategorien an.
-        
-        Args:
-            worksheet: Excel-Worksheet
-            main_categories: Liste der Hauptkategorien
-            pastel_colors: Liste der Pastellfarben
-        """
-        from openpyxl.styles import PatternFill
-        
-        # Erstelle Mapping von Kategorien zu Farben
-        category_colors = {
-            cat: color 
-            for cat, color in zip(main_categories, pastel_colors)
-        }
-        
-        # Finde Spalten und Zeilen für Hauptkategorien
-        for row in worksheet.iter_rows():
-            for cell in row:
-                # Prüfe ob Zellwert eine Hauptkategorie ist
-                if cell.value in category_colors:
-                    # Setze Hintergrundfarbe
-                    cell.fill = PatternFill(
-                        start_color=category_colors[cell.value],
-                        end_color=category_colors[cell.value],
-                        fill_type='solid'
-                    )
+    
                     
     def _export_frequency_analysis(self, writer, df_coded: pd.DataFrame, attribut1_label: str, attribut2_label: str) -> None:
         try:
-            # Definiere Pastellfarben für Hauptkategorien
-            def generate_pastel_colors(num_colors):
-                import colorsys
-                pastel_colors = []
-                for i in range(num_colors):
-                    hue = i / num_colors
-                    rgb = colorsys.hsv_to_rgb(hue, 0.4, 0.9)
-                    hex_color = f'{int(rgb[0]*255):02x}{int(rgb[1]*255):02x}{int(rgb[2]*255):02x}'
-                    pastel_colors.append(hex_color)
-                return pastel_colors
-
+            
             # Hole eindeutige Hauptkategorien
             main_categories = df_coded['Hauptkategorie'].unique()
             category_colors = {cat: color for cat, color in zip(main_categories, self._generate_pastel_colors(len(main_categories)))}
@@ -6424,198 +6386,11 @@ class ResultsExporter:
             import traceback
             traceback.print_exc()
 
-    def _write_main_category_analysis(self, worksheet, df_coded, attribut1_label, attribut2_label):
-        """Hauptkategorien nach Dokumenten mit Formatierung"""
-        if not df_coded.empty:
-            # Pivot-Tabelle erstellen
-            main_pivot = pd.pivot_table(
-                df_coded,
-                index=['Hauptkategorie'],
-                columns=[attribut1_label, attribut2_label],
-                values='Chunk_Nr',
-                aggfunc='count',
-                fill_value=0
-            )
+    
 
-            # Überschrift
-            worksheet.append(["Hauptkategorien nach Dokumenten"])
-            worksheet.append([])  # Leerzeile
-
-            # Header formatieren - Tuples in Strings umwandeln
-            header = ["Hauptkategorie"]
-            for col in main_pivot.columns:
-                # Kombiniere die Tuple-Werte zu einem String
-                header_text = f"{col[0]}_{col[1]}" if isinstance(col, tuple) else str(col)
-                header.append(header_text)
-            
-            # Schreibe formatierten Header
-            worksheet.append(header)
-
-            # Daten schreiben
-            for index, row in main_pivot.iterrows():
-                worksheet.append([index] + list(row))
-
-            # Formatierung
-            self._apply_table_formatting(worksheet, main_pivot, start_row=3)
-
-    def _write_subcategory_hierarchy(self, worksheet, df_coded, attribut1_label, attribut2_label):
-        """Subkategorien-Hierarchie mit Hauptkategorien"""
-        if not df_coded.empty and 'Subkategorien' in df_coded.columns:
-            # Subkategorien aufspalten
-            df_sub = df_coded.copy()
-            df_sub['Subkategorie'] = df_sub['Subkategorien'].str.split(', ')
-            df_sub = df_sub.explode('Subkategorie')
-
-            # Pivot-Tabelle erstellen
-            sub_pivot = pd.pivot_table(
-                df_sub,
-                index=['Hauptkategorie', 'Subkategorie'],
-                columns=[attribut1_label, attribut2_label],
-                values='Chunk_Nr',
-                aggfunc='count',
-                fill_value=0
-            )
-
-            # Abstand
-            worksheet.append([])
-            worksheet.append(["Subkategorien-Hierarchie"])
-            worksheet.append([])
-
-            # Header formatieren - Tuples in Strings umwandeln
-            header = ["Hauptkategorie", "Subkategorie"]
-            for col in sub_pivot.columns:
-                # Kombiniere die Tuple-Werte zu einem String
-                header_text = f"{col[0]}_{col[1]}" if isinstance(col, tuple) else str(col)
-                header.append(header_text)
-
-            # Schreibe formatierten Header
-            worksheet.append(header)
-
-            # Daten schreiben - Mit Tuple-Handling für MultiIndex
-            for index, row in sub_pivot.iterrows():
-                # Behandle MultiIndex (Hauptkategorie, Subkategorie)
-                if isinstance(index, tuple):
-                    row_data = list(index) + list(row)
-                else:
-                    row_data = [index, ""] + list(row)
-                worksheet.append(row_data)
-
-            # Formatierung
-            self._apply_table_formatting(worksheet, sub_pivot, start_row=worksheet.max_row - len(sub_pivot))
-
-    def _format_column_header(self, column):
-        """Formatiert Spaltenüberschriften für Excel-Export.
+    
         
-        Args:
-            column: Spaltenname (kann String, Tuple oder andere Typen sein)
-            
-        Returns:
-            str: Formatierter Spaltenname
-        """
-        if isinstance(column, tuple):
-            # Verbinde Tuple-Elemente mit Unterstrich
-            return "_".join(str(x) for x in column if x is not None)
-        else:
-            return str(column)
-        
-    def _write_attribute_analysis(self, worksheet, df_coded, attribut1_label, attribut2_label):
-        """Analysen nach Attributen"""
-        # Abstand und Überschrift
-        worksheet.append([])
-        worksheet.append(["Attribut-Analysen"])
-        worksheet.append([])
-        
-        # Attribut 1 Analyse
-        worksheet.append([f"Verteilung nach {attribut1_label}"])
-        worksheet.append([])
-        
-        attr1_pivot = pd.pivot_table(
-            df_coded,
-            index=[attribut1_label],
-            values='Chunk_Nr',
-            aggfunc='count'
-        )
-        
-        # Header und Daten für Attribut 1
-        worksheet.append([attribut1_label, "Anzahl"])
-        for index, value in attr1_pivot.iterrows():
-            worksheet.append([index, int(value.iloc[0])])
-        
-        # Leerzeilen
-        worksheet.append([])
-        worksheet.append([])
-        
-        # Attribut 2 Analyse
-        worksheet.append([f"Verteilung nach {attribut2_label}"])
-        worksheet.append([])
-        
-        attr2_pivot = pd.pivot_table(
-            df_coded,
-            index=[attribut2_label],
-            values='Chunk_Nr',
-            aggfunc='count'
-        )
-        
-        # Header und Daten für Attribut 2
-        worksheet.append([attribut2_label, "Anzahl"])
-        for index, value in attr2_pivot.iterrows():
-            worksheet.append([index, int(value.iloc[0])])
-        
-        # Leerzeilen
-        worksheet.append([])
-        worksheet.append([])
-        
-        # Kreuztabelle beider Attribute
-        worksheet.append(["Kreuztabelle der Attribute"])
-        worksheet.append([])
-        
-        cross_pivot = pd.pivot_table(
-            df_coded,
-            index=[attribut1_label],
-            columns=[attribut2_label],
-            values='Chunk_Nr',
-            aggfunc='count',
-            fill_value=0
-        )
-        
-        # Header für Kreuztabelle
-        header = [attribut1_label]
-        for col in cross_pivot.columns:
-            header.append(self._format_column_header(col))
-        worksheet.append(header)
-        
-        # Daten für Kreuztabelle
-        for index, row in cross_pivot.iterrows():
-            worksheet.append([index] + [int(x) for x in row])
-        
-        # Formatierung der Tabellen
-        self._apply_table_formatting(worksheet, attr1_pivot, start_row=worksheet.max_row - len(attr1_pivot))
-        self._apply_table_formatting(worksheet, attr2_pivot, start_row=worksheet.max_row - len(attr2_pivot))
-        self._apply_table_formatting(worksheet, cross_pivot, start_row=worksheet.max_row - len(cross_pivot))
-
-    def _apply_table_formatting(self, worksheet, pivot_table, start_row):
-        """Wendet Formatierung auf die Pivot-Tabellen an"""
-        # Rahmen
-        border = Border(left=Side(style='thin'), 
-                    right=Side(style='thin'),
-                    top=Side(style='thin'), 
-                    bottom=Side(style='thin'))
-
-        # Zahlenformatierung
-        for row in worksheet.iter_rows(min_row=start_row, max_row=worksheet.max_row):
-            for cell in row[1:]:  # Überspringt die erste Spalte (Kategorienamen)
-                cell.number_format = '0'
-                cell.border = border
-
-        # Bedingte Formatierung
-        color_scale_rule = ColorScaleRule(
-            start_type='min', start_color='FFFFFF',
-            mid_type='percentile', mid_value=50, mid_color='FFD966',
-            end_type='max', end_color='FF8C00'
-        )
-        
-        data_range = f"B{start_row}:{get_column_letter(len(pivot_table.columns)+1)}{worksheet.max_row}"
-        worksheet.conditional_formatting.add(data_range, color_scale_rule)
+    
 
     def _export_reliability_report(self, writer, reliability: float, total_segments: int, 
                                    total_coders: int, category_frequencies: dict):
@@ -6751,101 +6526,7 @@ class ResultsExporter:
             import traceback
             traceback.print_exc()
 
-    def _prepare_export_data(self, codings: List[Dict], chunks: Dict[str, List[str]]) -> List[Dict]:
-        """
-        Bereitet die Kodierungsdaten für den Export vor.
-        
-        Args:
-            codings: Liste der Kodierungsergebnisse
-            chunks: Dictionary mit Dokumenten-Chunks
-            
-        Returns:
-            List[Dict]: Aufbereitete Daten für Export
-        """
-        export_data = []
-        
-        for coding in codings:
-            try:
-                # Extrahiere segment_id und chunk
-                segment_id = coding.get('segment_id', '')
-                if not segment_id:
-                    print(f"Warnung: Überspringe Kodierung ohne segment_id")
-                    continue
-                    
-                try:
-                    doc_name = segment_id.split('_chunk_')[0]
-                    chunk_id = int(segment_id.split('_chunk_')[1])
-                    chunk_text = chunks[doc_name][chunk_id]
-                    
-                    # Extrahiere Attribute aus dem Dateinamen
-                    attribut1, attribut2 = self._extract_metadata(doc_name)
-                    
-                    # Prüfe ob eine gültige Kategorie vorhanden ist
-                    category = coding.get('category', '')
-                    # Setze Kodiert-Status basierend auf Kategorie und deren Gültigkeit
-                    is_coded = 'Ja' if category and category != "Nicht kodiert" else 'Nein'
-                    
-                    # Formatiere Konfidenz-Werte
-                    confidence = coding.get('confidence', {})
-                    if isinstance(confidence, dict):
-                        formatted_confidence = (
-                            f"Kategorie: {confidence.get('category', 0):.2f}\n"
-                            f"Subkategorien: {confidence.get('subcategories', 0):.2f}"
-                        )
-                    else:
-                        formatted_confidence = f"{float(confidence):.2f}"
-                    
-                    # Erstelle Export-Dictionary
-                    export_entry = {
-                        'Dokument': doc_name,
-                        self.attribute_labels['attribut1']: attribut1,
-                        self.attribute_labels['attribut2']: attribut2,
-                        'Chunk_Nr': chunk_id,
-                        'Text': chunk_text,
-                        'Paraphrase': coding.get('paraphrase', ''), 
-                        'Kodiert': is_coded,
-                        'Hauptkategorie': category,
-                        'Kategorietyp': coding.get('Kategorietyp', 'unbekannt'),
-                        'Subkategorien': ', '.join(coding.get('subcategories', [])),
-                        'Schlüsselwörter': coding.get('keywords', ''),
-                        'Begründung': coding.get('justification', ''),
-                        'Konfidenz': formatted_confidence,
-                        'Mehrfachkodierung': 'Ja' if len(coding.get('subcategories', [])) > 1 else 'Nein'
-                    }
-                    
-                    export_data.append(export_entry)
-                    
-                except Exception as e:
-                    print(f"Fehler bei Verarbeitung von Segment {segment_id}: {str(e)}")
-                    continue
-                    
-            except Exception as e:
-                print(f"Fehler bei der Exportvorbereitung: {str(e)}")
-                continue
-        
-        return export_data
-
-    def _extract_metadata(self, filename: str) -> Tuple[str, str]:
-        """
-        Extrahiert Metadaten aus dem Dateinamen.
-        Erwartet Format: attribut1_attribut2.extension
-        
-        Args:
-            filename (str): Name der Datei
-            
-        Returns:
-            Tuple[str, str]: (attribut1, attribut2)
-        """
-        try:
-            name_without_ext = os.path.splitext(filename)[0]
-            parts = name_without_ext.split('_')
-            if len(parts) >= 2:
-                return parts[0], parts[1]
-            else:
-                return name_without_ext, ""
-        except Exception as e:
-            print(f"Fehler beim Extrahieren der Metadaten aus {filename}: {str(e)}")
-            return filename, ""
+   
         
     async def export_results(self,
                           codings: List[Dict],
@@ -7085,7 +6766,7 @@ class ResultsExporter:
                     table_ref = f"A1:{last_col_letter}{last_row}"
                     
                     # AutoFilter aktivieren
-                    worksheet.auto_filter.ref = table_ref
+                    # worksheet.auto_filter.ref = table_ref
                     
                     # Neue Tabelle mit sicherer Namensgebung
                     tab = Table(displayName=safe_table_name, ref=table_ref)
@@ -7118,32 +6799,6 @@ class ResultsExporter:
             traceback.print_exc()
 
 
-    def _format_revision_worksheet(self, worksheet) -> None:
-        """Formatiert das Revisions-Worksheet"""
-        try:
-            column_widths = {
-                'A': 20,  # Datum
-                'B': 25,  # Kategorie
-                'C': 15,  # Art der Änderung
-                'D': 50,  # Beschreibung
-                'E': 50,  # Begründung
-                'F': 40   # Betroffene Kodierungen
-            }
-            
-            for col, width in column_widths.items():
-                worksheet.column_dimensions[col].width = width
-                
-            # Überschriften formatieren
-            from openpyxl.styles import Font, PatternFill
-            header_font = Font(bold=True)
-            header_fill = PatternFill(start_color='EEEEEE', end_color='EEEEEE', fill_type='solid')
-            
-            for cell in worksheet[1]:
-                cell.font = header_font
-                cell.fill = header_fill
-                
-        except Exception as e:
-            print(f"Warnung: Revisions-Formatierung fehlgeschlagen: {str(e)}")
     
     def _export_intercoder_analysis(self, writer, segment_codings: Dict[str, List[Dict]], reliability: float):
         """
