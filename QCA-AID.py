@@ -7,7 +7,7 @@ enhanced with AI capabilities through the OpenAI API.
 
 Version:
 --------
-0.9.5.2 (2025-02-16)
+0.9.6 (2025-02-18)
 
 Description:
 -----------
@@ -108,6 +108,7 @@ from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 from openpyxl.utils import get_column_letter
 from openpyxl.formatting.rule import ColorScaleRule
 from openpyxl.utils.dataframe import dataframe_to_rows
+from openpyxl.worksheet.table import Table, TableStyleInfo
 from openpyxl import load_workbook
 from openpyxl import Workbook
 import tkinter as tk
@@ -1776,111 +1777,141 @@ class CategoryCleaner:
         # Hier würde die Merge-Logik kommen
         return categories
     
-# Klasse: CategoryMerger
+# Klasse: CategoryOptimizer
 # ----------------------
-class CategoryMerger:
+class CategoryOptimizer:
+    """
+    Optionale Klasse für die Optimierung des Kategoriensystems durch:
+    - Identifikation ähnlicher Kategorien
+    - Vorschläge für mögliche Zusammenführungen
+    - Automatische Deduplizierung wenn gewünscht
+    """
+    
     def __init__(self, config: Dict = None):
-        # Hole Schwellenwerte aus Config oder verwende Standardwerte
+        # Konfiguration für Ähnlichkeitsschwellen
         if config and 'validation_config' in config:
             validation_config = config['validation_config']
             thresholds = validation_config.get('thresholds', {})
             self.similarity_threshold = thresholds.get('SIMILARITY_THRESHOLD', 0.8)
         else:
-            self.similarity_threshold = 0.8  # Standardwert
+            self.similarity_threshold = 0.8
             
-        self.merge_log = []
+        self.optimization_log = []
         
-        print(f"CategoryMerger initialisiert (Ähnlichkeitsschwelle: {self.similarity_threshold})")
-
-    def _calculate_semantic_similarity(self, name1: str, name2: str) -> float:
-        """Berechnet die semantische Ähnlichkeit zwischen zwei Kategorienamen"""
-        norm1 = self._normalize_category_name(name1)
-        norm2 = self._normalize_category_name(name2)
+    def suggest_optimizations(self, categories: Dict[str, CategoryDefinition]) -> List[Dict]:
+        """
+        Analysiert das Kategoriensystem und schlägt mögliche Optimierungen vor.
         
-        # Basis-Ähnlichkeit durch Fuzzy String Matching
-        base_similarity = SequenceMatcher(None, norm1, norm2).ratio()
+        Returns:
+            List[Dict]: Liste von Optimierungsvorschlägen mit:
+            - type: 'merge' | 'split' | 'reorganize'
+            - categories: Betroffene Kategorien
+            - similarity: Ähnlichkeitsmaß
+            - recommendation: Textuelle Empfehlung
+        """
+        suggestions = []
         
-        # Zusätzliche Gewichtung für gemeinsame Wortstämme
-        words1 = set(norm1.split())
-        words2 = set(norm2.split())
-        common_words = words1.intersection(words2)
-        word_similarity = len(common_words) / max(len(words1), len(words2))
-        
-        return (base_similarity + word_similarity) / 2
-
-    def _normalize_category_name(self, name: str) -> str:
-        """Normalisiert Kategorienamen für besseren Vergleich"""
-        # Zu Kleinbuchstaben und entferne Sonderzeichen
-        name = re.sub(r'[^\w\s]', '', name.lower())
-        # Entferne Stoppwörter
-        stop_words = {'und', 'oder', 'der', 'die', 'das', 'in', 'im', 'für', 'bei'}
-        return ' '.join(word for word in name.split() if word not in stop_words)
-
-    def suggest_merges(self, categories: Dict[str, CategoryDefinition]) -> List[Tuple[str, str, float]]:
-        """Identifiziert ähnliche Kategorien basierend auf semantischer Ähnlichkeit."""
-        similar_pairs = []
-        category_names = list(categories.keys())
-        
-        for i in range(len(category_names)):
-            for j in range(i + 1, len(category_names)):
-                name1, name2 = category_names[i], category_names[j]
-                similarity = self._calculate_semantic_similarity(name1, name2)
+        # 1. Suche nach ähnlichen Kategorien
+        for name1, cat1 in categories.items():
+            for name2, cat2 in categories.items():
+                if name1 >= name2:
+                    continue
+                    
+                similarity = self._calculate_semantic_similarity(
+                    cat1.definition,
+                    cat2.definition
+                )
                 
                 if similarity >= self.similarity_threshold:
-                    similar_pairs.append((name1, name2, similarity))
+                    suggestions.append({
+                        'type': 'merge',
+                        'categories': [name1, name2],
+                        'similarity': similarity,
+                        'recommendation': f"Kategorien '{name1}' und '{name2}' sind sehr ähnlich "
+                                       f"(Übereinstimmung: {similarity:.2f}). Zusammenführung empfohlen."
+                    })
         
-        return similar_pairs
-
-    def merge_categories(self, categories: Dict[str, CategoryDefinition]) -> Dict[str, CategoryDefinition]:
-        """Führt ähnliche Kategorien zusammen und dokumentiert Änderungen."""
-        similar_pairs = self.suggest_merges(categories)
-        merged_categories = categories.copy()
+        # 2. Suche nach zu großen Kategorien
+        for name, category in categories.items():
+            if len(category.subcategories) > 10:
+                suggestions.append({
+                    'type': 'split',
+                    'categories': [name],
+                    'subcategory_count': len(category.subcategories),
+                    'recommendation': f"Kategorie '{name}' hat sehr viele Subkategorien "
+                                   f"({len(category.subcategories)}). Aufteilung empfohlen."
+                })
         
-        for cat1, cat2, sim in similar_pairs:
-            # Implementiere hier die Logik zum Zusammenführen der Kategorien
-            merged_name = f"{cat1}_{cat2}"
-            merged_def = self._merge_definitions(categories[cat1].definition, categories[cat2].definition)
-            merged_examples = list(set(categories[cat1].examples + categories[cat2].examples))
-            merged_subcats = {**categories[cat1].subcategories, **categories[cat2].subcategories}
-            
-            merged_categories[merged_name] = CategoryDefinition(
-                name=merged_name,
-                definition=merged_def,
-                examples=merged_examples,
-                rules=list(set(categories[cat1].rules + categories[cat2].rules)),
-                subcategories=merged_subcats,
-                added_date=datetime.now().strftime("%Y-%m-%d"),
-                modified_date=datetime.now().strftime("%Y-%m-%d")
-            )
-            
-            del merged_categories[cat1]
-            del merged_categories[cat2]
-            
-            self.merge_log.append({
-                'merged': [cat1, cat2],
-                'new_category': merged_name,
-                'similarity': sim,
-                'timestamp': datetime.now().isoformat()
-            })
+        return suggestions
         
-        return merged_categories
+    def _calculate_semantic_similarity(self, text1: str, text2: str) -> float:
+        """Berechnet die semantische Ähnlichkeit zwischen zwei Texten."""
+        # Konvertiere zu Sets von Wörtern
+        words1 = set(text1.lower().split())
+        words2 = set(text2.lower().split())
+        
+        # Berechne Jaccard-Ähnlichkeit
+        intersection = len(words1.intersection(words2))
+        union = len(words1.union(words2))
+        
+        return intersection / union if union > 0 else 0.0
+        
+    def apply_optimization(self, 
+                         categories: Dict[str, CategoryDefinition],
+                         optimization: Dict) -> Dict[str, CategoryDefinition]:
+        """
+        Wendet eine spezifische Optimierung auf das Kategoriensystem an.
+        
+        Args:
+            categories: Aktuelles Kategoriensystem
+            optimization: Durchzuführende Optimierung
+            
+        Returns:
+            Dict[str, CategoryDefinition]: Optimiertes Kategoriensystem
+        """
+        optimized = categories.copy()
+        
+        try:
+            if optimization['type'] == 'merge':
+                cat1, cat2 = optimization['categories']
+                
+                # Erstelle neue zusammengeführte Kategorie
+                merged_name = f"{cat1}_{cat2}"
+                merged_def = f"{categories[cat1].definition}\n\nZusätzlich: {categories[cat2].definition}"
+                merged_examples = list(set(categories[cat1].examples + categories[cat2].examples))
+                merged_subcats = {**categories[cat1].subcategories, **categories[cat2].subcategories}
+                
+                optimized[merged_name] = CategoryDefinition(
+                    name=merged_name,
+                    definition=merged_def,
+                    examples=merged_examples,
+                    rules=list(set(categories[cat1].rules + categories[cat2].rules)),
+                    subcategories=merged_subcats,
+                    added_date=min(categories[cat1].added_date, categories[cat2].added_date),
+                    modified_date=datetime.now().strftime("%Y-%m-%d")
+                )
+                
+                # Entferne ursprüngliche Kategorien
+                del optimized[cat1]
+                del optimized[cat2]
+                
+                # Dokumentiere Optimierung
+                self.optimization_log.append({
+                    'type': 'merge',
+                    'original_categories': [cat1, cat2],
+                    'result_category': merged_name,
+                    'timestamp': datetime.now().isoformat()
+                })
+                
+            # Weitere Optimierungstypen hier implementieren...
+            
+        except Exception as e:
+            print(f"Fehler bei Optimierung: {str(e)}")
+            
+        return optimized
 
-    def _merge_definitions(self, def1: str, def2: str) -> str:
-        """Kombiniert zwei Kategoriendefinitionen"""
-        # Einfache Implementierung - kann verfeinert werden
-        return f"{def1}\n\nZusätzlich: {def2}"
-
-    def save_merge_log(self, output_dir: str):
-        """Speichert das Zusammenführungsprotokoll."""
-        if self.merge_log:
-            merge_log_path = os.path.join(output_dir, 
-                f'category_merges_{datetime.now().strftime("%Y%m%d_%H%M%S")}.json')
-            with open(merge_log_path, 'w', encoding='utf-8') as f:
-                json.dump(self.merge_log, f, ensure_ascii=False, indent=2)
-            print(f"Zusammenführungsprotokoll gespeichert unter: {merge_log_path}")
-
-    
-
+# --- Klasse: RelevanceChecker ---
+# Aufgabe: Zentrale Klasse für Relevanzprüfungen mit Caching und Batch-Verarbeitung
 class RelevanceChecker:
     """
     Zentrale Klasse für Relevanzprüfungen mit Caching und Batch-Verarbeitung.
@@ -1982,7 +2013,7 @@ class RelevanceChecker:
                         "confidence": 0.0-1.0,
                         "text_type": "interview|dokument|protokoll|andere",
                         "key_aspects": ["konkrete", "für", "die", "Forschungsfrage", "relevante", "Aspekte"],
-                        "justification": "Begründung unter Berücksichtigung der Textsorte"
+                        "justification": "Begründung der Relevanz unter Berücksichtigung der Textsorte"
                     }},
                     ...
                 ]
@@ -1996,6 +2027,8 @@ class RelevanceChecker:
             - Bei Unsicherheit (confidence < 0.7) als nicht relevant markieren
             - Dokumentiere die Begründung mit Bezug zur Textsorte
             """
+
+            input_tokens = estimate_tokens(prompt)
 
             # Ein API-Call für alle Segmente
             self.api_calls += 1
@@ -2011,6 +2044,9 @@ class RelevanceChecker:
 
             results = json.loads(response.choices[0].message.content)
             
+            output_tokens = estimate_tokens(response.choices[0].message.content)
+            token_counter.add_tokens(input_tokens, output_tokens)
+
             # Verarbeite Ergebnisse und aktualisiere Cache
             relevance_results = {}
             for i, (segment_id, _) in enumerate(uncached_segments):
@@ -2070,7 +2106,7 @@ class IntegratedAnalysisManager:
         self.cleaner = CategoryCleaner(self.validator)
 
         # Initialize merge handling with config
-        self.category_merger = CategoryMerger(config)
+        self.category_optimizer = CategoryOptimizer(config)
 
         # Batch Size aus Config
         self.batch_size = config.get('BATCH_SIZE', 5) 
@@ -2175,13 +2211,19 @@ class IntegratedAnalysisManager:
                                     categories: Dict[str, CategoryDefinition]) -> List[Dict]:
         """Führt die deduktive Kodierung mit optimierter Relevanzprüfung durch."""
         batch_results = []
+        batch_metrics = {
+            'new_aspects': [],
+            'category_coverage': {},
+            'coding_confidence': []
+        }
         
         # Prüfe Relevanz für ganzen Batch
         relevance_results = await self.relevance_checker.check_relevance_batch(batch)
         
         for segment_id, text in batch:
-            print(f"\nVerarbeite Segment {segment_id}")
-            
+            print(f"\n----------------------------------")
+            print(f"Verarbeite Segment {segment_id}")
+            print(f"----------------------------------\n")
             # Nutze gespeicherte Relevanzprüfung
             if not relevance_results.get(segment_id, False):
                 print(f"Segment wurde als nicht relevant markiert - wird übersprungen")
@@ -2228,7 +2270,18 @@ class IntegratedAnalysisManager:
                     continue
 
             self.processed_segments.add(segment_id)
-            
+
+        #  Aktualisiere Sättigungsmetriken
+        saturation_metrics = {
+            'new_aspects_found': len(batch_metrics['new_aspects']) > 0,
+            'categories_sufficient': len(batch_metrics['category_coverage']) >= len(categories) * 0.8,
+            'theoretical_coverage': len(batch_metrics['category_coverage']) / len(categories),
+            'avg_confidence': sum(batch_metrics['coding_confidence']) / len(batch_metrics['coding_confidence']) if batch_metrics['coding_confidence'] else 0
+        }
+        
+        # Füge Metriken zum SaturationChecker hinzu
+        self.saturation_checker.add_saturation_metrics(saturation_metrics)
+
         return batch_results
 
     async def analyze_material(self, 
@@ -2264,6 +2317,10 @@ class IntegratedAnalysisManager:
                     
                 total_batches += 1
                 print(f"\nBatch {total_batches}: {len(batch)} Segmente")
+
+                # Korrigierte Berechnung des Material-Prozentsatzes
+                material_percentage = (len(self.processed_segments) / total_segments) * 100
+                print(f"Verarbeiteter Materialanteil: {material_percentage:.1f}%")
                 
                 batch_start = time.time()
                 
@@ -2412,8 +2469,18 @@ class IntegratedAnalysisManager:
             raise
     
     def _merge_category_systems(self, 
-                                current: Dict[str, CategoryDefinition], 
-                                new: Dict[str, CategoryDefinition]) -> Dict[str, CategoryDefinition]:
+                            current: Dict[str, CategoryDefinition], 
+                            new: Dict[str, CategoryDefinition]) -> Dict[str, CategoryDefinition]:
+        """
+        Führt bestehendes und neues Kategoriensystem zusammen.
+        
+        Args:
+            current: Bestehendes Kategoriensystem
+            new: Neue Kategorien
+            
+        Returns:
+            Dict[str, CategoryDefinition]: Zusammengeführtes System
+        """
         merged = current.copy()
         
         for name, category in new.items():
@@ -2424,7 +2491,7 @@ class IntegratedAnalysisManager:
                 print(f"   Definition: {category.definition[:100]}...")
                 if category.subcategories:
                     print("   Subkategorien:")
-                    for sub_name, sub_def in category.subcategories.items():
+                    for sub_name in category.subcategories.keys():
                         print(f"   - {sub_name}")
             else:
                 # Bestehende Kategorie aktualisieren
@@ -2434,33 +2501,34 @@ class IntegratedAnalysisManager:
                 changes = []
                 
                 # Prüfe auf neue/geänderte Definition
-                if category.definition != existing.definition:
+                new_definition = category.definition
+                if len(new_definition) > len(existing.definition):
                     changes.append("Definition aktualisiert")
-                
-                # Neue Beispiele - KORRIGIERT: Verwende union() für Sets
-                if isinstance(existing.examples, set) and isinstance(category.examples, set):
-                    new_examples = category.examples - existing.examples
                 else:
-                    # Falls keine Sets, konvertiere zu Sets
-                    existing_set = set(existing.examples)
-                    category_set = set(category.examples)
-                    new_examples = category_set - existing_set
+                    new_definition = existing.definition
                 
-                if new_examples:
-                    changes.append(f"{len(new_examples)} neue Beispiele")
+                # Kombiniere Beispiele
+                new_examples = list(set(existing.examples) | set(category.examples))
+                if len(new_examples) > len(existing.examples):
+                    changes.append(f"{len(new_examples) - len(existing.examples)} neue Beispiele")
+                
+                # Kombiniere Regeln
+                new_rules = list(set(existing.rules) | set(category.rules))
+                if len(new_rules) > len(existing.rules):
+                    changes.append(f"{len(new_rules) - len(existing.rules)} neue Regeln")
                 
                 # Neue Subkategorien
-                new_subcats = set(category.subcategories.keys()) - set(existing.subcategories.keys())
-                if new_subcats:
-                    changes.append(f"{len(new_subcats)} neue Subkategorien")
+                new_subcats = {**existing.subcategories, **category.subcategories}
+                if len(new_subcats) > len(existing.subcategories):
+                    changes.append(f"{len(new_subcats) - len(existing.subcategories)} neue Subkategorien")
                 
-                # Führe Kategorien zusammen
+                # Erstelle aktualisierte Kategorie
                 merged[name] = CategoryDefinition(
                     name=name,
-                    definition=category.definition if len(category.definition) > len(existing.definition) else existing.definition,
-                    examples=list(set(existing.examples) | set(category.examples)),  # KORRIGIERT: Verwende | Operator
-                    rules=list(set(existing.rules) | set(category.rules)),  # KORRIGIERT: Verwende | Operator
-                    subcategories={**existing.subcategories, **category.subcategories},
+                    definition=new_definition,
+                    examples=new_examples,
+                    rules=new_rules,
+                    subcategories=new_subcats,
                     added_date=existing.added_date,
                     modified_date=datetime.now().strftime("%Y-%m-%d")
                 )
@@ -3243,15 +3311,22 @@ class DeductiveCoder:
         try:
             print(f"\nDeduktiver Kodierer {self.coder_id} verarbeitet Chunk...")
             
-            # Konvertiere CategoryDefinition in serialisierbares Dict
-            categories_dict = {
-                name: {
+            # Erstelle formatierte Kategorienübersicht mit Definitionen und Beispielen
+            categories_overview = []
+            for name, cat in categories.items():
+                category_info = {
+                    'name': name,
                     'definition': cat.definition,
                     'examples': list(cat.examples) if isinstance(cat.examples, set) else cat.examples,
                     'rules': list(cat.rules) if isinstance(cat.rules, set) else cat.rules,
-                    'subcategories': dict(cat.subcategories) if isinstance(cat.subcategories, set) else cat.subcategories
-                } for name, cat in categories.items()
-            }
+                    'subcategories': {}
+                }
+                
+                # Füge Subkategorien mit Definitionen hinzu
+                for sub_name, sub_def in cat.subcategories.items():
+                    category_info['subcategories'][sub_name] = sub_def
+                    
+                categories_overview.append(category_info)
             
             prompt = f"""
             Analysiere folgenden Text im Kontext der Forschungsfrage:
@@ -3261,42 +3336,50 @@ class DeductiveCoder:
             {chunk}
 
             KATEGORIENSYSTEM:
-            {json.dumps(categories_dict, indent=2, ensure_ascii=False)}
+            Vergleiche den Text sorgfältig mit den folgenden Kategorien und ihren Beispielen:
+
+            {json.dumps(categories_overview, indent=2, ensure_ascii=False)}
 
             KODIERREGELN:
             {json.dumps(KODIERREGELN, indent=2, ensure_ascii=False)}
 
-            Deine Aufgabe ist die präzise Anwendung des bestehenden Kategoriensystems:
-
-            1. Erstelle eine prägnante Paraphrase des Texts (max. 40 Wörter)
-            - Fokussiere auf forschungsrelevante Aspekte
-            - Vermeide Füllwörter und unnötige Wiederholungen
-            - Nutze präzise Formulierungen, dem Inhalt des Textes treu sind
+            WICHTIG: 
+            1. KATEGORIENVERGLEICH:
+            - Vergleiche den Text mit JEDER Kategoriendefinition und deren Beispielen
+            - Prüfe ob der Text ähnliche Aspekte wie die Beispiele aufweist
+            - Prüfe ob der Text der Definition der Kategorie entspricht
             
-            2. Ordne den Text einer vorhandenen Hauptkategorie und passenden Subkategorien zu:
-            - Verwende NUR die definierten Kategorien und Subkategorien
-            - Die Zuordnung muss eindeutig begründbar sein
-            - Die Zuordnung muss den Kodierregeln entsprechen
-            - Der inhaltliche Beitrag muss substanziell sein
-            - Berücksichtige den Kontext der Aussage
+            2. SUBKATEGORIENVERGLEICH:
+            - Falls eine vorhandene Hauptkategorie passt, vergleiche mit den  Subkategoriendefinitionen
+            - Wähle nur vorhandene Subkategorien, die wirklich zum Text passen
+            
+            3. ENTSCHEIDUNGSREGELN:
+            - Der Text könnte für die Forschungsfrage relevant sein, aber zu keiner Kategorie passen
+            - In diesem Fall gib "Keine passende Kategorie" zurück
+            - Kodiere nur dann mit einer Kategorie, wenn Text UND Beispiele ähnlich sind
+            - Erzwinge keine Zuordnung wenn keine Kategorie wirklich passt
+            - Die Zuordnung muss durch Bezug auf Definition UND Beispiele begründbar sein
 
-            3. Erstelle Schlüsselwörter aus dem Textsegment:
-            - Wähle 2-3 textnahe Schlüsselwörter, die zentral für die Aussage sind
-            - Verwende bevorzugt deutsche Begriffe
+            Erstelle:
+            1. Eine prägnante Paraphrase des Texts (max. 40 Wörter)
+            2. Schlüsselwörter (2-3 zentrale Begriffe)
+            3. Eine begründete Kategorienzuordnung oder "Keine passende Kategorie"
 
             Antworte ausschließlich mit einem JSON-Objekt:
             {{
                 "paraphrase": "Deine prägnante Paraphrase hier",
                 "keywords": "Deine Schlüsselwörter hier",
-                "category": "Name der Hauptkategorie",
+                "category": "Name der Hauptkategorie oder 'Keine passende Kategorie'",
                 "subcategories": ["Liste", "existierender", "Subkategorien"],
-                "justification": "Begründung der Zuordnung",
+                "justification": "Begründung mit Bezug auf Definitionen und Beispiele",
                 "confidence": {{
                     "total": 0.85,
                     "category": 0.9,
                     "subcategories": 0.8
                 }},
-                "text_references": ["Relevante", "Textstellen"]
+                "text_references": ["Relevante", "Textstellen"],
+                "definition_matches": ["Welche Aspekte der Definition passen"],
+                "example_matches": ["Welche Beispiele ähnlich sind"]
             }}
             """
 
@@ -3322,13 +3405,27 @@ class DeductiveCoder:
                 print(f"  ✓ Kodierung erstellt: {result['category']} "
                     f"(Konfidenz: {result.get('confidence', {}).get('total', 0):.2f})")
                 
-                # Debug-Ausgabe für Paraphrase
+                # Debug-Ausgaben
+                print("\nKodierungsbegründung:")
+                if definition_matches := result.get('definition_matches', []):
+                    print("Passende Definitionsaspekte:")
+                    for match in definition_matches:
+                        print(f"- {match}")
+                
+                if example_matches := result.get('example_matches', []):
+                    print("Ähnliche Beispiele:")
+                    for match in example_matches:
+                        print(f"- {match}")
+                
                 paraphrase = result.get('paraphrase', '')
                 if paraphrase:
-                    print(f"  ✓ Paraphrase erstellt: {paraphrase}")
-                else:
-                    print("  ⚠ Keine Paraphrase in API-Antwort")
-
+                    print(f"\nParaphrase: {paraphrase}")
+                
+                # Wenn "Keine passende Kategorie" zurückgegeben wurde
+                if result['category'] == "Keine passende Kategorie":
+                    print("\nℹ Text als relevant erkannt, aber keine passende Kategorie gefunden")
+                    print(f"Begründung: {result.get('justification', 'Keine Begründung angegeben')}")
+                    
                 return CodingResult(
                     category=result['category'],
                     subcategories=tuple(result.get('subcategories', [])),
@@ -3336,7 +3433,7 @@ class DeductiveCoder:
                     confidence=result.get('confidence', {'total': 0.0, 'category': 0.0, 'subcategories': 0.0}),
                     text_references=tuple([chunk[:100]]),
                     uncertainties=None,
-                    paraphrase=paraphrase,  
+                    paraphrase=paraphrase,
                     keywords=result.get('keywords', '')
                 )
             else:
@@ -3611,11 +3708,19 @@ class InductiveCoder:
             return {}
 
     async def analyze_category_batch(self, 
-                                category: Dict[str, Any], 
+                                category: Dict[str, CategoryDefinition], 
                                 segments: List[str],
                                 material_percentage: float) -> Dict[str, Any]:  
         """
         Verbesserte Batch-Analyse mit Berücksichtigung des aktuellen Kategoriensystems.
+        
+        Args:
+            category: Aktuelles Kategoriensystem
+            segments: Liste der Textsegmente
+            material_percentage: Prozentsatz des verarbeiteten Materials
+            
+        Returns:
+            Dict[str, Any]: Analyseergebnisse einschließlich Sättigungsmetriken
         """
         try:
             # Cache-Key erstellen
@@ -3641,6 +3746,47 @@ class InductiveCoder:
                         for sub_name, sub_def in cat.subcategories.items():
                             current_categories_text += f"  • {sub_name}: {sub_def}\n"
 
+            # Definiere JSON-Schema außerhalb des f-strings
+            json_schema = '''{
+                "existing_categories": {
+                    "kategorie_name": {
+                        "refinements": {
+                            "definition": "Erweiterte Definition",
+                            "justification": "Begründung",
+                            "confidence": 0.0-1.0
+                        },
+                        "new_subcategories": [
+                            {
+                                "name": "Name",
+                                "definition": "Definition",
+                                "evidence": ["Textbelege"],
+                                "confidence": 0.0-1.0
+                            }
+                        ]
+                    }
+                },
+                "new_categories": [
+                    {
+                        "name": "Name",
+                        "definition": "Definition",
+                        "subcategories": [
+                            {
+                                "name": "Name",
+                                "definition": "Definition"
+                            }
+                        ],
+                        "evidence": ["Textbelege"],
+                        "confidence": 0.0-1.0,
+                        "justification": "Begründung"
+                    }
+                ],
+                "saturation_metrics": {
+                    "new_aspects_found": true/false,
+                    "categories_sufficient": true/false,
+                    "theoretical_coverage": 0.0-1.0,
+                    "justification": "Begründung der Sättigungseinschätzung"
+                }
+            }'''
             prompt = f"""
             Führe eine vollständige Kategorienanalyse basierend auf den Textsegmenten durch.
             Berücksichtige dabei das bestehende Kategoriensystem und erweitere es.
@@ -3675,47 +3821,10 @@ class InductiveCoder:
             - Beurteile ob weitere Kategorienentwicklung nötig ist
 
             Antworte NUR mit einem JSON-Objekt:
-            {{
-                "existing_categories": {{
-                    "kategorie_name": {{
-                        "refinements": {{
-                            "definition": "Erweiterte Definition",
-                            "justification": "Begründung",
-                            "confidence": 0.0-1.0
-                        }},
-                        "new_subcategories": [
-                            {{
-                                "name": "Name",
-                                "definition": "Definition",
-                                "evidence": ["Textbelege"],
-                                "confidence": 0.0-1.0
-                            }}
-                        ]
-                    }}
-                }},
-                "new_categories": [
-                    {{
-                        "name": "Name",
-                        "definition": "Definition",
-                        "subcategories": [
-                            {{
-                                "name": "Name",
-                                "definition": "Definition"
-                            }}
-                        ],
-                        "evidence": ["Textbelege"],
-                        "confidence": 0.0-1.0,
-                        "justification": "Begründung"
-                    }},
-                ],
-                "saturation_metrics": {{
-                    "new_aspects_found": true/false,
-                    "categories_sufficient": true/false,
-                    "theoretical_coverage": 0.0-1.0,
-                    "justification": "Begründung der Sättigungseinschätzung"
-                }}
-            }}
+            {json_schema}
             """
+
+            input_tokens = estimate_tokens(prompt)
 
             response = await self.client.chat.completions.create(
                 model=self.model_name,
@@ -3729,6 +3838,9 @@ class InductiveCoder:
 
             result = json.loads(response.choices[0].message.content)
             
+            output_tokens = estimate_tokens(response.choices[0].message.content)
+            token_counter.add_tokens(input_tokens, output_tokens)
+
             # Cache das Ergebnis
             self.analysis_cache[cache_key] = result
             
@@ -3737,6 +3849,60 @@ class InductiveCoder:
 
             # Sättigungsmetriken extrahieren und speichern
             if 'saturation_metrics' in result:
+                # Erweiterte Sättigungsanalyse
+                category_usage = {
+                    cat_name: {
+                        'usage_count': 0,
+                        'confidence_scores': [],
+                        'subcategory_usage': defaultdict(int),
+                        'last_used_batch': 0
+                    } for cat_name in category.keys()
+                }
+                
+                # Analysiere Kategoriennutzung im aktuellen Batch
+                for coding in self.batch_results:
+                    if coding['category'] in category_usage:
+                        cat_stats = category_usage[coding['category']]
+                        cat_stats['usage_count'] += 1
+                        cat_stats['confidence_scores'].append(coding['confidence']['total'])
+                        cat_stats['last_used_batch'] = len(self.batch_results)
+                        
+                        # Subkategorien-Nutzung
+                        for subcat in coding.get('subcategories', []):
+                            cat_stats['subcategory_usage'][subcat] += 1
+
+                # Berechne erweiterte theoretische Abdeckung
+                if len(category) > 0:  # Prüfe ob überhaupt Kategorien vorhanden sind
+                    theoretical_coverage = {
+                        'category_coverage': len([c for c in category_usage.values() if c['usage_count'] > 0]) / len(category),
+                        'usage_stability': sum(1 for c in category_usage.values() if c['usage_count'] >= 3) / len(category),
+                        'subcategory_coverage': sum(1 for c in category_usage.values() if len(c['subcategory_usage']) > 0) / len(category),
+                        'avg_confidence': statistics.mean([score for c in category_usage.values() for score in c['confidence_scores']]) if any(c['confidence_scores'] for c in category_usage.values()) else 0
+                    }
+                else:
+                    # Fallback-Werte wenn keine Kategorien vorhanden
+                    theoretical_coverage = {
+                        'category_coverage': 0.0,
+                        'usage_stability': 0.0,
+                        'subcategory_coverage': 0.0,
+                        'avg_confidence': 0.0
+                    }
+                # Gewichtete Gesamtabdeckung
+                total_coverage = (
+                    theoretical_coverage['category_coverage'] * 0.4 +
+                    theoretical_coverage['usage_stability'] * 0.3 +
+                    theoretical_coverage['subcategory_coverage'] * 0.2 +
+                    theoretical_coverage['avg_confidence'] * 0.1
+                )
+
+                # Aktualisiere Sättigungsmetriken im Ergebnis
+                result['saturation_metrics'].update({
+                    'new_aspects_found': any(c['usage_count'] == 1 for c in category_usage.values()),
+                    'categories_sufficient': total_coverage >= 0.8,
+                    'theoretical_coverage': total_coverage,
+                    'coverage_details': theoretical_coverage,
+                    'justification': f"Theoretische Abdeckung: {total_coverage:.2f} (Kategorien: {theoretical_coverage['category_coverage']:.2f}, Stabilität: {theoretical_coverage['usage_stability']:.2f}, Subkategorien: {theoretical_coverage['subcategory_coverage']:.2f}, Konfidenz: {theoretical_coverage['avg_confidence']:.2f})"
+                })
 
                 # Übergebe Metriken an SaturationChecker
                 self.saturation_checker.add_saturation_metrics(result['saturation_metrics'])
@@ -3754,11 +3920,14 @@ class InductiveCoder:
                 if saturation_info['categories_sufficient']:
                     print("\nSättigungsanalyse:")
                     print(f"- Neue Aspekte gefunden: {'Ja' if saturation_info['new_aspects_found'] else 'Nein'}")
-                    print(f"- Theoretische Abdeckung: {saturation_info['theoretical_coverage']:.2f}")
+                    print(f"- Theoretische Abdeckung: {total_coverage:.2f}")
+                    print(f"- Details:")
+                    print(f"  • Kategorienutzung: {theoretical_coverage['category_coverage']:.2f}")
+                    print(f"  • Nutzungsstabilität: {theoretical_coverage['usage_stability']:.2f}")
+                    print(f"  • Subkategorien: {theoretical_coverage['subcategory_coverage']:.2f}")
+                    print(f"  • Durchschn. Konfidenz: {theoretical_coverage['avg_confidence']:.2f}")
                     print(f"- Begründung: {saturation_info['justification']}")
 
-            return result
-                
             # Zeige Erweiterungen bestehender Kategorien
             if 'existing_categories' in result:
                 for cat_name, updates in result['existing_categories'].items():
@@ -5327,6 +5496,11 @@ class SaturationChecker:
         self.stable_iterations = 0
         self.current_batch_size = 0
         self.saturation_history = []
+
+        self.category_usage_history = []
+        self.new_category_iterations = 0
+        self.max_stable_iterations = self.STABILITY_THRESHOLD
+        self.theoretical_coverage_threshold = 0.8
         
         print("\nInitialisierung von SaturationChecker:")
         print(f"- Stabilitätsschwelle: {self.STABILITY_THRESHOLD} Iterationen")
@@ -5337,65 +5511,176 @@ class SaturationChecker:
                         coded_segments: List[CodingResult],
                         material_percentage: float) -> Tuple[bool, Dict]:
         """
-        Prüft ob theoretische Sättigung erreicht wurde.
-        
-        Args:
-            current_categories: Aktuelles Kategoriensystem
-            coded_segments: Bisher kodierte Segmente
-            material_percentage: Prozentsatz des verarbeiteten Materials
-            
-        Returns:
-            Tuple[bool, Dict]: (is_saturated, metrics)
+        Verbesserte Sättigungsprüfung mit dynamischerer Bewertung
         """
         try:
-            # Aktualisiere Batch-Größe basierend auf den neuen Segmenten
-            new_segments = len(coded_segments) - self.current_batch_size
-            if new_segments > 0:
-                self.current_batch_size = new_segments
-                print(f"Batch-Größe aktualisiert: {self.current_batch_size} Segmente")
-
-            # 1. Schnellprüfung der Mindestmenge
-            if material_percentage < self.MIN_MATERIAL_PERCENTAGE:
-                self._history.log_saturation_check(
-                    material_percentage=material_percentage,
-                    result="insufficient_material",
-                    metrics=None
-                )
-                return False, {"reason": "insufficient_material"}
+            # 1. Kategoriennutzung analysieren
+            category_usage = self._analyze_category_usage(current_categories, coded_segments)
             
-            # 2. Prüfe letzte Sättigungsmetriken
-            if len(self.saturation_history) < 1:
-                return False, {"reason": "insufficient_history"}
-                
-            latest_metrics = self.saturation_history[-1]
+            # 2. Theoretische Abdeckung berechnen
+            theoretical_coverage = self._calculate_theoretical_coverage(category_usage, current_categories)
             
-            # 3. Prüfe Stabilitätskriterien
-            if latest_metrics['categories_sufficient']:
-                self.stable_iterations += 1
-            else:
-                self.stable_iterations = 0
+            # 3. Neue Kategorien-Dynamik prüfen
+            is_category_stable = self._check_category_stability(category_usage)
             
+            # 4. Gesamte Sättigungsbewertung
             is_saturated = (
-                self.stable_iterations >= self.STABILITY_THRESHOLD and
-                latest_metrics['theoretical_coverage'] > 0.8
+                material_percentage >= self.MIN_MATERIAL_PERCENTAGE and
+                theoretical_coverage >= self.theoretical_coverage_threshold and
+                is_category_stable
             )
             
-            # 4. Dokumentiere Status
+            # 5. Detaillierte Metriken
+            detailed_metrics = {
+                'material_processed': material_percentage,
+                'theoretical_coverage': theoretical_coverage,
+                'stable_iterations': self.stable_iterations,
+                'categories_sufficient': is_category_stable,
+                'justification': self._generate_saturation_justification(
+                    is_saturated, 
+                    material_percentage, 
+                    theoretical_coverage,
+                    is_category_stable
+                )
+            }
+            
+            # 6. Dokumentation
             self._history.log_saturation_check(
                 material_percentage=material_percentage,
                 result="saturated" if is_saturated else "not_saturated",
-                metrics={
-                    **latest_metrics,
-                    'stable_iterations': self.stable_iterations
-                }
+                metrics=detailed_metrics
             )
             
-            self.processed_percentage = material_percentage
-            return is_saturated, latest_metrics
+            return is_saturated, detailed_metrics
             
         except Exception as e:
-            self._history.log_error("saturation_check_error", str(e))
-            raise
+            print(f"Fehler bei Sättigungsprüfung: {str(e)}")
+            return False, {}
+            
+    def _generate_saturation_status(self,
+                                  is_saturated: bool,
+                                  material_percentage: float,
+                                  theoretical_coverage: float,
+                                  stable_iterations: int) -> str:
+        """Generiert eine aussagekräftige Statusmeldung."""
+        if is_saturated:
+            return (
+                f"Sättigung erreicht bei {material_percentage:.1f}% des Materials. "
+                f"Theoretische Abdeckung: {theoretical_coverage:.2f}. "
+                f"Stabil seit {stable_iterations} Iterationen."
+            )
+        else:
+            reasons = []
+            if material_percentage < self.MIN_MATERIAL_PERCENTAGE:
+                reasons.append(f"Mindestmaterialmenge ({self.MIN_MATERIAL_PERCENTAGE}%) nicht erreicht")
+            if theoretical_coverage <= 0.8:
+                reasons.append(f"Theoretische Abdeckung ({theoretical_coverage:.2f}) unzureichend")
+            if stable_iterations < self.STABILITY_THRESHOLD:
+                reasons.append(f"Stabilitätskriterium ({stable_iterations}/{self.STABILITY_THRESHOLD} Iterationen) nicht erfüllt")
+                
+            return "Keine Sättigung: " + "; ".join(reasons)
+            
+    def _analyze_category_usage(self, 
+                             categories: Dict[str, CategoryDefinition], 
+                             coded_segments: List[Union[Dict, CodingResult]]) -> Dict[str, int]:
+        """
+        Analysiert die Nutzung von Kategorien in den kodierten Segmenten.
+        Unterstützt sowohl CodingResult-Objekte als auch Dictionaries.
+        
+        Returns:
+            Dict mit Kategorien und ihrer Häufigkeit
+        """
+        category_usage = {cat: 0 for cat in categories.keys()}
+        
+        for segment in coded_segments:
+            # Extrahiere Kategorie basierend auf Objekttyp
+            category = None
+            if hasattr(segment, 'category'):
+                category = segment.category
+            elif isinstance(segment, dict):
+                category = segment.get('category')
+            
+            if category and category in category_usage:
+                category_usage[category] += 1
+        
+        return category_usage
+
+    def _calculate_theoretical_coverage(self, 
+                                   category_usage: Dict[str, int], 
+                                   categories: Dict[str, CategoryDefinition]) -> float:
+        """
+        Berechnet die theoretische Abdeckung basierend auf Kategoriennutzung.
+        
+        Args:
+            category_usage: Häufigkeit der Kategorien
+            categories: Gesamtes Kategoriensystem
+        
+        Returns:
+            float: Theoretische Abdeckung zwischen 0 und 1
+        """
+        # Kategorien mit mindestens einer Kodierung
+        used_categories = sum(1 for count in category_usage.values() if count > 0)
+        total_categories = len(categories)
+        
+        # Verhindere Division durch Null
+        if total_categories == 0:
+            return 0.0
+        
+        theoretical_coverage = used_categories / total_categories
+        return min(1.0, theoretical_coverage)
+
+    def _check_category_stability(self, category_usage: Dict[str, int]) -> bool:
+        """
+        Prüft die Stabilität der Kategorien.
+        
+        Args:
+            category_usage: Häufigkeit der Kategorien
+        
+        Returns:
+            bool: Sind die Kategorien stabil?
+        """
+        # Neue Kategorien zählen
+        new_categories = sum(1 for count in category_usage.values() if count > 0)
+        
+        # Tracke neue Kategorien
+        if new_categories > len(self.category_usage_history):
+            self.new_category_iterations = 0
+            self.category_usage_history.append(new_categories)
+        else:
+            self.new_category_iterations += 1
+        
+        # Prüfe Stabilität
+        is_stable = (
+            self.new_category_iterations >= self.max_stable_iterations and
+            len(set(self.category_usage_history[-self.max_stable_iterations:])) == 1
+        )
+        
+        return is_stable
+
+    def _generate_saturation_justification(self, 
+                                          is_saturated: bool,
+                                          material_percentage: float,
+                                          theoretical_coverage: float,
+                                          categories_stable: bool) -> str:
+        """
+        Generiert eine Begründung für den Sättigungsstatus.
+        """
+        if is_saturated:
+            return (
+                f"Sättigung erreicht bei {material_percentage:.1f}% des Materials. "
+                f"Theoretische Abdeckung: {theoretical_coverage:.2f}. "
+                f"Kategoriesystem stabil."
+            )
+        else:
+            reasons = []
+            if material_percentage < self.MIN_MATERIAL_PERCENTAGE:
+                reasons.append(f"Mindestmaterialmenge ({self.MIN_MATERIAL_PERCENTAGE}%) nicht erreicht")
+            if theoretical_coverage < self.theoretical_coverage_threshold:
+                reasons.append(f"Theoretische Abdeckung ({theoretical_coverage:.2f}) unzureichend")
+            if not categories_stable:
+                reasons.append("Kategoriesystem noch nicht stabil")
+                
+            return "Keine Sättigung: " + "; ".join(reasons)
 
     def add_saturation_metrics(self, metrics: Dict) -> None:
         """
@@ -5574,41 +5859,88 @@ class ResultsExporter:
         
         return quality_score
     
-    def export_merge_analysis(self, original_categories: Dict[str, CategoryDefinition], 
-                            merged_categories: Dict[str, CategoryDefinition],
-                            merge_log: List[Dict]):
-        """Exportiert eine detaillierte Analyse der Kategorienzusammenführungen."""
-        analysis_path = os.path.join(self.output_dir, f'merge_analysis_{datetime.now().strftime("%Y%m%d_%H%M%S")}.md')
+    def export_optimization_analysis(self, 
+                                original_categories: Dict[str, CategoryDefinition],
+                                optimized_categories: Dict[str, CategoryDefinition],
+                                optimization_log: List[Dict]):
+        """Exportiert eine detaillierte Analyse der Kategorienoptimierungen."""
+        
+        analysis_path = os.path.join(self.output_dir, 
+                                    f'category_optimization_{datetime.now().strftime("%Y%m%d_%H%M%S")}.md')
         
         with open(analysis_path, 'w', encoding='utf-8') as f:
-            f.write("# Analyse der Kategorienzusammenführungen\n\n")
+            f.write("# Analyse der Kategorienoptimierungen\n\n")
             
             f.write("## Übersicht\n")
             f.write(f"- Ursprüngliche Kategorien: {len(original_categories)}\n")
-            f.write(f"- Zusammengeführte Kategorien: {len(merged_categories)}\n")
-            f.write(f"- Anzahl der Zusammenführungen: {len(merge_log)}\n\n")
+            f.write(f"- Optimierte Kategorien: {len(optimized_categories)}\n")
+            f.write(f"- Anzahl der Optimierungen: {len(optimization_log)}\n\n")
             
-            f.write("## Detaillierte Zusammenführungen\n")
-            for merge in merge_log:
-                f.write(f"### {merge['new_category']}\n")
-                f.write(f"- Zusammengeführt aus: {', '.join(merge['merged'])}\n")
-                f.write(f"- Ähnlichkeit: {merge['similarity']:.2f}\n")
-                f.write(f"- Zeitpunkt: {merge['timestamp']}\n\n")
-                
-                f.write("#### Ursprüngliche Definitionen:\n")
-                for cat in merge['merged']:
-                    f.write(f"- {cat}: {original_categories[cat].definition}\n")
-                f.write("\n")
-                
-                f.write("#### Neue Definition:\n")
-                f.write(f"{merged_categories[merge['new_category']].definition}\n\n")
+            f.write("## Detaillierte Optimierungen\n")
+            for entry in optimization_log:
+                if entry['type'] == 'merge':
+                    f.write(f"\n### Zusammenführung zu: {entry['result_category']}\n")
+                    f.write(f"- Ursprüngliche Kategorien: {', '.join(entry['original_categories'])}\n")
+                    f.write(f"- Zeitpunkt: {entry['timestamp']}\n\n")
+                    
+                    f.write("#### Ursprüngliche Definitionen:\n")
+                    for cat in entry['original_categories']:
+                        if cat in original_categories:
+                            f.write(f"- {cat}: {original_categories[cat].definition}\n")
+                    f.write("\n")
+                    
+                    if entry['result_category'] in optimized_categories:
+                        f.write("#### Neue Definition:\n")
+                        f.write(f"{optimized_categories[entry['result_category']].definition}\n\n")
+                        
+                # Weitere Optimierungstypen hier...
             
-            f.write("## Statistiken\n")
-            f.write(f"- Durchschnittliche Ähnlichkeit bei Zusammenführungen: {sum(m['similarity'] for m in merge_log) / len(merge_log):.2f}\n")
-            f.write(f"- Kategorienreduktion: {(1 - len(merged_categories) / len(original_categories)) * 100:.1f}%\n")
+            f.write("\n## Statistiken\n")
+            f.write(f"- Kategorienreduktion: {(1 - len(optimized_categories) / len(original_categories)) * 100:.1f}%\n")
+            
+            # Zähle Optimierungstypen
+            optimization_types = Counter(entry['type'] for entry in optimization_log)
+            f.write("\nOptimierungstypen:\n")
+            for opt_type, count in optimization_types.items():
+                f.write(f"- {opt_type}: {count}\n")
         
-        print(f"Merge-Analyse exportiert nach: {analysis_path}")
-        pass
+        print(f"Optimierungsanalyse exportiert nach: {analysis_path}")
+
+    # def export_merge_analysis(self, original_categories: Dict[str, CategoryDefinition], 
+    #                         merged_categories: Dict[str, CategoryDefinition],
+    #                         merge_log: List[Dict]):
+    #     """Exportiert eine detaillierte Analyse der Kategorienzusammenführungen."""
+    #     analysis_path = os.path.join(self.output_dir, f'merge_analysis_{datetime.now().strftime("%Y%m%d_%H%M%S")}.md')
+        
+    #     with open(analysis_path, 'w', encoding='utf-8') as f:
+    #         f.write("# Analyse der Kategorienzusammenführungen\n\n")
+            
+    #         f.write("## Übersicht\n")
+    #         f.write(f"- Ursprüngliche Kategorien: {len(original_categories)}\n")
+    #         f.write(f"- Zusammengeführte Kategorien: {len(merged_categories)}\n")
+    #         f.write(f"- Anzahl der Zusammenführungen: {len(merge_log)}\n\n")
+            
+    #         f.write("## Detaillierte Zusammenführungen\n")
+    #         for merge in merge_log:
+    #             f.write(f"### {merge['new_category']}\n")
+    #             f.write(f"- Zusammengeführt aus: {', '.join(merge['merged'])}\n")
+    #             f.write(f"- Ähnlichkeit: {merge['similarity']:.2f}\n")
+    #             f.write(f"- Zeitpunkt: {merge['timestamp']}\n\n")
+                
+    #             f.write("#### Ursprüngliche Definitionen:\n")
+    #             for cat in merge['merged']:
+    #                 f.write(f"- {cat}: {original_categories[cat].definition}\n")
+    #             f.write("\n")
+                
+    #             f.write("#### Neue Definition:\n")
+    #             f.write(f"{merged_categories[merge['new_category']].definition}\n\n")
+            
+    #         f.write("## Statistiken\n")
+    #         f.write(f"- Durchschnittliche Ähnlichkeit bei Zusammenführungen: {sum(m['similarity'] for m in merge_log) / len(merge_log):.2f}\n")
+    #         f.write(f"- Kategorienreduktion: {(1 - len(merged_categories) / len(original_categories)) * 100:.1f}%\n")
+        
+    #     print(f"Merge-Analyse exportiert nach: {analysis_path}")
+    #     pass
     
     def _prepare_coding_for_export(self, coding: dict, chunk: str, chunk_id: int, doc_name: str) -> dict:
         """
@@ -5735,8 +6067,80 @@ class ResultsExporter:
         attribut2 = tokens[1] if len(tokens) >= 2 else ""
         return attribut1, attribut2
 
+    def _generate_pastel_colors(self, num_colors):
+        """
+        Generiert eine Palette mit Pastellfarben.
+        
+        Args:
+            num_colors (int): Anzahl der benötigten Farben
+        
+        Returns:
+            List[str]: Liste von Hex-Farbcodes in Pastelltönen
+        """
+        import colorsys
+        
+        pastel_colors = []
+        for i in range(num_colors):
+            # Wähle Hue gleichmäßig über Farbkreis
+            hue = i / num_colors
+            # Konvertiere HSV zu RGB mit hoher Helligkeit und Sättigung
+            rgb = colorsys.hsv_to_rgb(hue, 0.4, 0.9)
+            # Konvertiere RGB zu Hex
+            hex_color = 'FF{:02x}{:02x}{:02x}'.format(
+                int(rgb[0] * 255), 
+                int(rgb[1] * 255), 
+                int(rgb[2] * 255)
+            )
+            pastel_colors.append(hex_color)
+        
+        return pastel_colors
+
+    def _apply_category_color_formatting(self, worksheet, main_categories, pastel_colors):
+        """
+        Wendet Farbformatierung für Hauptkategorien an.
+        
+        Args:
+            worksheet: Excel-Worksheet
+            main_categories: Liste der Hauptkategorien
+            pastel_colors: Liste der Pastellfarben
+        """
+        from openpyxl.styles import PatternFill
+        
+        # Erstelle Mapping von Kategorien zu Farben
+        category_colors = {
+            cat: color 
+            for cat, color in zip(main_categories, pastel_colors)
+        }
+        
+        # Finde Spalten und Zeilen für Hauptkategorien
+        for row in worksheet.iter_rows():
+            for cell in row:
+                # Prüfe ob Zellwert eine Hauptkategorie ist
+                if cell.value in category_colors:
+                    # Setze Hintergrundfarbe
+                    cell.fill = PatternFill(
+                        start_color=category_colors[cell.value],
+                        end_color=category_colors[cell.value],
+                        fill_type='solid'
+                    )
+                    
     def _export_frequency_analysis(self, writer, df_coded: pd.DataFrame, attribut1_label: str, attribut2_label: str) -> None:
         try:
+            # Definiere Pastellfarben für Hauptkategorien
+            def generate_pastel_colors(num_colors):
+                import colorsys
+                pastel_colors = []
+                for i in range(num_colors):
+                    hue = i / num_colors
+                    rgb = colorsys.hsv_to_rgb(hue, 0.4, 0.9)
+                    hex_color = f'{int(rgb[0]*255):02x}{int(rgb[1]*255):02x}{int(rgb[2]*255):02x}'
+                    pastel_colors.append(hex_color)
+                return pastel_colors
+
+            # Hole eindeutige Hauptkategorien
+            main_categories = df_coded['Hauptkategorie'].unique()
+            category_colors = {cat: color for cat, color in zip(main_categories, self._generate_pastel_colors(len(main_categories)))}
+
             if 'Häufigkeitsanalysen' not in writer.sheets:
                 writer.book.create_sheet('Häufigkeitsanalysen')
             
@@ -5748,7 +6152,6 @@ class ResultsExporter:
             # Formatierungsstile
             from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
             header_font = Font(bold=True)
-            subheader_font = Font(bold=True, size=11)
             title_font = Font(bold=True, size=12)
             total_font = Font(bold=True)
             
@@ -5777,39 +6180,36 @@ class ResultsExporter:
                 fill_value=0
             )
 
-         
-            # Formatierte Spaltenbezeichnungen
-            formatted_columns = []
-            for col in pivot_main.columns:
-                if col == 'Gesamt':
-                    formatted_columns.append(col)
-                else:
-                    # Kürze Dokumentennamen falls nötig
-                    doc_name = str(col)
-                    if len(doc_name) > 40:
-                        doc_name = doc_name[:37] + "..."
-                    formatted_columns.append(doc_name)
-
             # Header mit Rahmen
             header_row = current_row
-            headers = ['Hauptkategorie'] + formatted_columns
+            headers = ['Hauptkategorie'] + list(pivot_main.columns)
             for col, header in enumerate(headers, 1):
-                cell = worksheet.cell(row=header_row, column=col, value=header)
+                cell = worksheet.cell(row=header_row, column=col, value=str(header))
                 cell.font = header_font
                 cell.border = thin_border
             current_row += 1
 
-            # Daten mit Rahmen und fetten Randsummen
+            # Daten mit Rahmen und Farbkodierung
             for idx, row in pivot_main.iterrows():
                 is_total = idx == 'Gesamt'
+                
+                # Hauptkategorie-Zelle
                 cell = worksheet.cell(row=current_row, column=1, value=str(idx))
                 cell.border = thin_border
+                
+                # Farbkodierung für Hauptkategorien
+                if not is_total and idx in category_colors:
+                    color = category_colors[idx]
+                    cell.fill = PatternFill(start_color=color, end_color=color, fill_type='solid')
+                
                 if is_total:
                     cell.font = total_font
                 
+                # Datenzellen
                 for col, value in enumerate(row, 2):
                     cell = worksheet.cell(row=current_row, column=col, value=value)
                     cell.border = thin_border
+                    
                     if is_total or col == len(row) + 2:  # Randsummen
                         cell.font = total_font
                 
@@ -5899,7 +6299,7 @@ class ResultsExporter:
 
             # 3.1 Attribut 1
             cell = worksheet.cell(row=current_row, column=1, value=f"3.1 Verteilung nach {attribut1_label}")
-            cell.font = subheader_font
+            cell.font = title_font
             current_row += 1
 
             # Analyse für Attribut 1
@@ -5934,7 +6334,7 @@ class ResultsExporter:
 
             # 3.2 Attribut 2
             cell = worksheet.cell(row=current_row, column=1, value=f"3.2 Verteilung nach {attribut2_label}")
-            cell.font = subheader_font
+            cell.font = title_font
             current_row += 1
 
             # Analyse für Attribut 2
@@ -5969,7 +6369,7 @@ class ResultsExporter:
 
             # 3.3 Kreuztabelle der Attribute
             cell = worksheet.cell(row=current_row, column=1, value="3.3 Kreuztabelle der Attribute")
-            cell.font = subheader_font
+            cell.font = title_font
             current_row += 1
 
             # Erstelle Kreuztabelle
@@ -6448,28 +6848,16 @@ class ResultsExporter:
             return filename, ""
         
     async def export_results(self,
-                            codings: List[Dict],
-                            reliability: float,
-                            categories: Dict[str, CategoryDefinition],
-                            chunks: Dict[str, List[str]],
-                            revision_manager: 'CategoryRevisionManager',
-                            export_mode: str = "consensus",
-                            original_categories: Dict[str, CategoryDefinition] = None,
-                            merge_log: List[Dict] = None,
-                            inductive_coder: 'InductiveCoder' = None) -> None:
+                          codings: List[Dict],
+                          reliability: float,
+                          categories: Dict[str, CategoryDefinition],
+                          chunks: Dict[str, List[str]],
+                          revision_manager: 'CategoryRevisionManager',
+                          export_mode: str = "consensus",
+                          original_categories: Dict[str, CategoryDefinition] = None,
+                          inductive_coder: 'InductiveCoder' = None) -> None:
         """
         Exportiert die Analyseergebnisse mit Konsensfindung zwischen Kodierern.
-        
-        Args:
-            codings: Liste der Kodierungen aller Kodierer
-            reliability: Berechnete Reliabilität
-            categories: Aktuelles Kategoriensystem
-            chunks: Dictionary mit Text-Chunks
-            revision_manager: Manager für Kategorienrevisionen
-            export_mode: Art der Konsensfindung ("consensus", "majority", "manual_priority")
-            original_categories: Ursprüngliches Kategoriensystem
-            merge_log: Log der Kategorienzusammenführungen
-            inductive_coder: Instanz des induktiven Kodierers
         """
         try:
             # Wenn inductive_coder als Parameter übergeben wurde, aktualisiere das Attribut
@@ -6554,60 +6942,33 @@ class ResultsExporter:
                 if not hasattr(writer, 'book') or writer.book is None:
                     writer.book = Workbook()
                 
-                # Arbeitsblatt 1: Detaillierte Kodierungen
+                # 1. Kodierte Segmente
+                print("\nExportiere kodierte Segmente...")
                 df_details.to_excel(writer, sheet_name='Kodierte_Segmente', index=False)
-                self._format_worksheet(writer.sheets['Kodierte_Segmente'])
+                self._format_worksheet(writer.sheets['Kodierte_Segmente'], as_table=True)
                 
-                # Weitere Exports nur wenn kodierte Daten vorhanden
+                # 2. Häufigkeitsanalysen nur wenn kodierte Daten vorhanden
                 if not df_coded.empty:
-                    # Erstelle Pivot-Tabellen
-                    df_pivot_main = pd.pivot_table(
-                        df_coded,
-                        index=['Hauptkategorie'],
-                        columns=[attribut1_label, attribut2_label],
-                        values='Chunk_Nr',
-                        aggfunc='count',
-                        fill_value=0
-                    )
-                    
-                    df_pivot_attr1 = pd.pivot_table(
-                        df_coded,
-                        index=[attribut1_label],
-                        values='Chunk_Nr',
-                        aggfunc='count',
-                        fill_value=0
-                    )
-                    
-                    df_pivot_attr2 = pd.pivot_table(
-                        df_coded,
-                        index=[attribut2_label],
-                        values='Chunk_Nr',
-                        aggfunc='count',
-                        fill_value=0
-                    )
-                    
-                    # Exportiere Häufigkeitsanalysen
-                    self._export_frequency_analysis(
-                        writer=writer,
-                        df_coded=df_coded,
-                        attribut1_label=attribut1_label,
-                        attribut2_label=attribut2_label
-                    )
-                                    
-                # Exportiere weitere Analysen
+                    print("\nExportiere Häufigkeitsanalysen...")
+                    self._export_frequency_analysis(writer, df_coded, attribut1_label, attribut2_label)
+                                        
+                # 3. Exportiere weitere Analysen
                 if revision_manager and hasattr(revision_manager, 'changes'):
+                    print("\nExportiere Revisionshistorie...")
                     revision_manager._export_revision_history(writer, revision_manager.changes)
                 
-                # Exportiere Intercoderanalyse
+                # 4. Exportiere Intercoderanalyse
                 if segment_codings:
+                    print("\nExportiere Intercoderanalyse...")
                     self._export_intercoder_analysis(
                         writer, 
                         segment_codings,
                         reliability
                     )
 
-                # Exportiere Reliabilitätsbericht
+                # 5. Exportiere Reliabilitätsbericht
                 if inductive_coder:
+                    print("\nExportiere Reliabilitätsbericht...")
                     self._export_reliability_report(
                         writer,
                         reliability=reliability,
@@ -6616,12 +6977,13 @@ class ResultsExporter:
                         category_frequencies=category_frequencies
                     )
 
-                # Exportiere Kategorienentwicklung wenn vorhanden
-                if original_categories and merge_log:
-                    self.export_merge_analysis(
+                # 6. Exportiere Kategorienentwicklung wenn vorhanden
+                if original_categories and hasattr(self.analysis_manager, 'category_optimizer') and self.analysis_manager.category_optimizer.optimization_log:
+                    print("\nExportiere Kategorienentwicklung...")
+                    self.export_optimization_analysis(
                         original_categories=original_categories,
-                        merged_categories=categories,
-                        merge_log=merge_log
+                        optimized_categories=categories,
+                        optimization_log=self.analysis_manager.category_optimizer.optimization_log
                     )
 
                 # Stelle sicher, dass mindestens ein Sheet sichtbar ist
@@ -6632,12 +6994,10 @@ class ResultsExporter:
                 for sheet in writer.book.sheetnames:
                     writer.book[sheet].sheet_state = 'visible'
 
-            print(f"\nErgebnisse erfolgreich exportiert nach: {filepath}")
-            print(f"- {len(consensus_codings)} Konsens-Kodierungen")
-            print(f"- {len(segment_codings)} Segmente analysiert")
-            print(f"- Reliabilität: {reliability:.3f}")
-            if merge_log:
-                print(f"- {len(merge_log)} Kategorienzusammenführungen dokumentiert")
+                print(f"\nErgebnisse erfolgreich exportiert nach: {filepath}")
+                print(f"- {len(consensus_codings)} Konsens-Kodierungen")
+                print(f"- {len(segment_codings)} Segmente analysiert")
+                print(f"- Reliabilität: {reliability:.3f}")
 
         except Exception as e:
             print(f"Fehler beim Excel-Export: {str(e)}")
@@ -6645,47 +7005,118 @@ class ResultsExporter:
             traceback.print_exc()
             raise
 
-    def _format_worksheet(self, worksheet) -> None:
+    def _format_worksheet(self, worksheet, as_table: bool = False) -> None:
         """Formatiert das Detail-Worksheet"""
         try:
+            # Prüfe ob Daten vorhanden sind
+            if worksheet.max_row < 2:
+                print(f"Warnung: Worksheet '{worksheet.title}' enthält keine Daten")
+                return
+
+            # Spaltenbreiten definieren
             column_widths = {
-                'A': 30,  # Dokument
-                'B': 15,  # Attribut1
-                'C': 15,  # Attribut2
-                'D': 5,   # Chunk_Nr
-                'E': 40,  # Text
-                'F': 40,  # Paraphrase (neue Spalte)
-                'G': 5,   # Kodiert
-                'H': 20,  # Hauptkategorie
-                'I': 15,  # Kategorietyp
-                'J': 40,  # Subkategorien
-                'K': 40,  # Schlüsselwörter
-                'L': 40,  # Begründung
-                'M': 15,  # Konfidenz
-                'N': 15   # Mehrfachkodierung
+                'A': 30, 'B': 15, 'C': 15, 'D': 5, 'E': 40, 
+                'F': 40, 'G': 5, 'H': 20, 'I': 15, 'J': 40, 
+                'K': 40, 'L': 40, 'M': 15, 'N': 15
             }
-            
+
+            # Setze Spaltenbreiten
             for col, width in column_widths.items():
                 worksheet.column_dimensions[col].width = width
-            
-            # Formatiere die Konfidenz-Spalte
-            confidence_col = worksheet['K']
-            for cell in confidence_col[1:]:  # Skip header
-                cell.alignment = Alignment(vertical='top', wrap_text=False)
-        
-        except Exception as e:
-            print(f"Warnung: Formatierung fehlgeschlagen: {str(e)}")
 
-    def _adjust_row_heights(self, worksheet) -> None:
-        """Passt die Zeilenhöhe basierend auf dem Inhalt an"""
-        for row in worksheet.iter_rows():
-            max_height = 0
-            for cell in row:
-                if cell.value:
-                    lines = str(cell.value).count('\n') + 1
-                    max_height = max(max_height, lines * 15)  # 15 Punkte pro Zeile
-            if max_height > worksheet.row_dimensions[row[0].row].height:
-                worksheet.row_dimensions[row[0].row].height = max_height
+            from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+            from openpyxl.utils import get_column_letter, column_index_from_string
+            from openpyxl.worksheet.table import Table, TableStyleInfo
+            
+            # Definiere Styles
+            thin_border = Border(
+                left=Side(style='thin'),
+                right=Side(style='thin'),
+                top=Side(style='thin'),
+                bottom=Side(style='thin')
+            )
+            header_font = Font(bold=True)
+            header_fill = PatternFill(start_color='EEEEEE', end_color='EEEEEE', fill_type='solid')
+            
+            # Eindeutige Hauptkategorien extrahieren
+            main_categories = set(worksheet.cell(row=row, column=8).value 
+                                for row in range(2, worksheet.max_row + 1) 
+                                if worksheet.cell(row=row, column=8).value)
+            category_colors = {cat: color for cat, color in zip(main_categories, self._generate_pastel_colors(len(main_categories)))}
+
+            # Header formatieren
+            for cell in worksheet[1]:
+                cell.font = header_font
+                cell.fill = header_fill
+                cell.alignment = Alignment(wrap_text=True, vertical='center', horizontal='center')
+                cell.border = thin_border
+
+            # Daten formatieren
+            for row in worksheet.iter_rows(min_row=2):
+                for cell in row:
+                    cell.alignment = Alignment(wrap_text=False, vertical='top')
+                    cell.border = thin_border
+
+                    # Farbkodierung für Hauptkategorien (8. Spalte)
+                    if cell.column == 8 and cell.value in category_colors:
+                        cell.fill = PatternFill(
+                            start_color=category_colors[cell.value], 
+                            end_color=category_colors[cell.value], 
+                            fill_type='solid'
+                        )
+
+            # Excel-Tabelle erstellen wenn gewünscht
+            if as_table:
+                try:
+                    # Entferne vorhandene Tabellen sicher
+                    table_names = list(worksheet.tables.keys()).copy()
+                    for table_name in table_names:
+                        del worksheet.tables[table_name]
+                    
+                    # Sichere Bestimmung der letzten Spalte und Zeile
+                    last_col_index = worksheet.max_column
+                    last_col_letter = get_column_letter(last_col_index)
+                    last_row = worksheet.max_row
+                    
+                    # Generiere eindeutigen Tabellennamen
+                    safe_table_name = f"Table_{worksheet.title.replace(' ', '_')}"
+                    
+                    # Tabellenverweis generieren
+                    table_ref = f"A1:{last_col_letter}{last_row}"
+                    
+                    # AutoFilter aktivieren
+                    worksheet.auto_filter.ref = table_ref
+                    
+                    # Neue Tabelle mit sicherer Namensgebung
+                    tab = Table(displayName=safe_table_name, ref=table_ref)
+                    
+                    # Tabellenstil definieren mit Fallback
+                    style = TableStyleInfo(
+                        name="TableStyleMedium2",
+                        showFirstColumn=False,
+                        showLastColumn=False,
+                        showRowStripes=True,
+                        showColumnStripes=False
+                    )
+                    tab.tableStyleInfo = style
+                    
+                    # Tabelle zum Worksheet hinzufügen
+                    worksheet.add_table(tab)
+                    
+                    print(f"Tabelle '{safe_table_name}' erfolgreich erstellt")
+                    
+                except Exception as table_error:
+                    print(f"Warnung bei Tabellenerstellung: {str(table_error)}")
+                    # Fallback: Nur Formatierung ohne Tabelle
+                    print("Tabellenerstellung übersprungen - nur Formatierung angewendet")
+
+            print(f"Worksheet '{worksheet.title}' erfolgreich formatiert")
+            
+        except Exception as e:
+            print(f"Fehler bei der Formatierung von {worksheet.title}: {str(e)}")
+            import traceback
+            traceback.print_exc()
+
 
     def _format_revision_worksheet(self, worksheet) -> None:
         """Formatiert das Revisions-Worksheet"""
@@ -7809,192 +8240,6 @@ class CategoryRevisionManager:
         # Speichere Revisionshistorie
         self._save_revision_history()
 
-    
-    def _export_intercoder_analysis(self, writer, segment_codings: Dict[str, List[Dict]], reliability: float):
-        """
-        Exports the intercoder analysis to a separate Excel sheet.
-        """
-        if 'Intercoderanalyse' not in writer.sheets:
-            writer.book.create_sheet('Intercoderanalyse')
-        
-        worksheet = writer.sheets['Intercoderanalyse']
-        current_row = 1
-
-        # 1. Überschrift und Gesamtreliabilität
-        worksheet.cell(row=current_row, column=1, value="Intercoderanalyse")
-        current_row += 2
-        worksheet.cell(row=current_row, column=1, value="Krippendorffs Alpha:")
-        worksheet.cell(row=current_row, column=2, value=round(reliability, 3))
-        current_row += 2
-
-        # 2. Übereinstimmungsanalyse pro Segment
-        worksheet.cell(row=current_row, column=1, value="Detaillierte Segmentanalyse")
-        current_row += 1
-
-        headers = ['Segment_ID', 'Anzahl Codierer', 'Übereinstimmungsgrad', 'Hauptkategorien', 'Subkategorien', 'Begründungen']
-        for col, header in enumerate(headers, 1):
-            worksheet.cell(row=current_row, column=col, value=header)
-        current_row += 1
-
-        # Analyse für jedes Segment
-        for segment_id, codings in segment_codings.items():
-            # Zähle verschiedene Kategorien
-            categories = [c['category'] for c in codings]
-            subcategories = [', '.join(c.get('subcategories', [])) for c in codings]
-            
-            # Berechne Übereinstimmungsgrad
-            category_agreement = len(set(categories)) == 1
-            subcat_agreement = len(set(subcategories)) == 1
-            
-            if category_agreement and subcat_agreement:
-                agreement = "Vollständig"
-            elif category_agreement:
-                agreement = "Nur Hauptkategorie"
-            else:
-                agreement = "Keine Übereinstimmung"
-
-            # Fülle Zeile
-            row_data = [
-                segment_id,
-                len(codings),
-                agreement,
-                ' | '.join(set(categories)),
-                ' | '.join(set(subcategories)),
-                '\n'.join([c.get('justification', '')[:100] + '...' for c in codings])
-            ]
-
-            for col, value in enumerate(row_data, 1):
-                worksheet.cell(row=current_row, column=col, value=value)
-            current_row += 1
-
-        # 3. Codierer-Vergleichsmatrix
-        current_row += 2
-        worksheet.cell(row=current_row, column=1, value="Codierer-Vergleichsmatrix")
-        current_row += 1
-
-        # Erstelle Liste aller Codierer
-        coders = sorted(list({coding['coder_id'] for codings in segment_codings.values() for coding in codings}))
-        
-        # Schreibe Spaltenüberschriften
-        for col, coder in enumerate(coders, 2):
-            worksheet.cell(row=current_row, column=col, value=coder)
-        current_row += 1
-
-        # Fülle Matrix
-        agreement_matrix = {}
-        for coder1 in coders:
-            agreement_matrix[coder1] = {}
-            worksheet.cell(row=current_row, column=1, value=coder1)
-            
-            for col, coder2 in enumerate(coders, 2):
-                if coder1 == coder2:
-                    agreement_matrix[coder1][coder2] = 1.0
-                else:
-                    # Berechne Übereinstimmung zwischen coder1 und coder2
-                    agreements = 0
-                    total = 0
-                    for codings in segment_codings.values():
-                        coding1 = next((c for c in codings if c['coder_id'] == coder1), None)
-                        coding2 = next((c for c in codings if c['coder_id'] == coder2), None)
-                        
-                        if coding1 and coding2:
-                            total += 1
-                            if coding1['category'] == coding2['category']:
-                                agreements += 1
-                    
-                    agreement = agreements / total if total > 0 else 0
-                    agreement_matrix[coder1][coder2] = agreement
-                    
-                worksheet.cell(row=current_row, column=col, value=round(agreement_matrix[coder1][coder2], 2))
-            current_row += 1
-
-        # 4. Kategorienspezifische Analyse
-        current_row += 2
-        worksheet.cell(row=current_row, column=1, value="Kategorienspezifische Übereinstimmung")
-        current_row += 1
-
-        # Sammle alle verwendeten Kategorien
-        all_categories = set()
-        for codings in segment_codings.values():
-            for coding in codings:
-                all_categories.add(coding['category'])
-
-        # Schreibe Überschriften
-        headers = ['Kategorie', 'Verwendungshäufigkeit', 'Übereinstimmungsgrad', 'Hauptcodierer']
-        for col, header in enumerate(headers, 1):
-            worksheet.cell(row=current_row, column=col, value=header)
-        current_row += 1
-
-        # Analysiere jede Kategorie
-        for category in sorted(all_categories):
-            category_usage = 0
-            category_agreements = 0
-            coders_using = defaultdict(int)
-            
-            for codings in segment_codings.values():
-                category_codings = [c for c in codings if c['category'] == category]
-                if category_codings:
-                    category_usage += 1
-                    if len(category_codings) == len(codings):  # Alle Codierer einig
-                        category_agreements += 1
-                    for coding in category_codings:
-                        coders_using[coding['coder_id']] += 1
-
-            # Finde Hauptcodierer
-            main_coders = sorted(coders_using.items(), key=lambda x: x[1], reverse=True)
-            main_coders_str = ', '.join([f"{coder}: {count}" for coder, count in main_coders[:3]])
-
-            # Schreibe Zeile
-            row_data = [
-                category,
-                category_usage,
-                f"{(category_agreements/category_usage*100):.1f}%" if category_usage > 0 else "0%",
-                main_coders_str
-            ]
-
-            for col, value in enumerate(row_data, 1):
-                worksheet.cell(row=current_row, column=col, value=value)
-            current_row += 1
-
-        # Formatierung
-        self._format_intercoder_worksheet(worksheet)
-
-    def _format_intercoder_worksheet(self, worksheet) -> None:
-        """Formatiert das Intercoder-Worksheet"""
-        try:
-            # Spaltenbreiten
-            column_widths = {
-                'A': 40,  # Segment_ID/Kategorie
-                'B': 15,  # Anzahl/Häufigkeit
-                'C': 20,  # Übereinstimmung
-                'D': 40,  # Kategorien/Codierer
-                'E': 40,  # Subkategorien
-                'F': 60   # Begründungen
-            }
-            
-            for col, width in column_widths.items():
-                worksheet.column_dimensions[col].width = width
-
-            # Überschriften formatieren
-            from openpyxl.styles import Font, PatternFill, Alignment
-            header_font = Font(bold=True)
-            header_fill = PatternFill(start_color='EEEEEE', end_color='EEEEEE', fill_type='solid')
-            
-            for row in worksheet.iter_rows():
-                first_cell = row[0]
-                if first_cell.value and isinstance(first_cell.value, str):
-                    if first_cell.value.endswith(':') or first_cell.value.isupper():
-                        for cell in row:
-                            cell.font = header_font
-                            cell.fill = header_fill
-
-            # Zellausrichtung
-            for row in worksheet.iter_rows():
-                for cell in row:
-                    cell.alignment = Alignment(wrap_text=True, vertical='top')
-                    
-        except Exception as e:
-            print(f"Warnung: Intercoder-Formatierung fehlgeschlagen: {str(e)}")
 
     def _export_revision_history(self, writer, changes: List['CategoryChange']) -> None:
         """
@@ -8679,7 +8924,6 @@ async def main() -> None:
                     revision_manager=revision_manager,
                     export_mode="consensus",
                     original_categories=initial_categories,
-                    merge_log=analysis_manager.category_merger.merge_log,
                     inductive_coder=reliability_calculator
                 )
                 print("Export erfolgreich abgeschlossen")
@@ -8730,8 +8974,6 @@ async def monitor_progress(analysis_manager: IntegratedAnalysisManager):
             print("\n--- Analysefortschritt ---")
             print(f"Verarbeitet: {progress['progress']['processed_segments']} Segmente")
             print(f"Geschwindigkeit: {progress['progress']['segments_per_hour']:.1f} Segmente/Stunde")
-            print(f"Sättigung: {progress['saturation']['material_processed']:.1f}%")
-            print(f"Stabile Iterationen: {progress['saturation']['stable_iterations']}")
             print("------------------------")
             
             await asyncio.sleep(30)  # Update alle 30 Sekunden
