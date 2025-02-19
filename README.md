@@ -43,6 +43,8 @@ Kontakt: justus.henke@hof.uni-halle.de
 
 Die KI-gestützte Datenverarbeitung nutzt die Schnittstelle von OpenAI. Auch wenn diese Anfragen offiziell nicht für das Training von Modellen genutzt werden, stellt diese eine Verarbeitung durch Dritte dar. Prüfen Sie, ob Ihre Dokumente dafür freigegeben sind und entfernen Sie ggf. sensible Informationen. Eine Nutzung mit hochsensiblen Daten wird ausdrücklich nicht empfohlen. 
 
+Prinzipiell ist die Verarbeitung der Daten per LLM auch auf einem lokalen Rechner möglich Dafür kann OLLAMA oder LMSTUDIO genutzt werden und das Setup im Client muss etwas angepasst werden mehr dazu hier: https://ollama.com/blog/openai-compatibility oder https://lmstudio.ai/docs/api/endpoints/openai
+
 ## Weitere Hinweise zur aktuellen Version 
 
 - Bei größeren Mengen an Texten kommt es immer wieder mal zu übermäßigen Vergaben von Subkategorien. Das entsprechende Prompting, das diese Ergebnisse produziert wird noch weiter verfeinert. 
