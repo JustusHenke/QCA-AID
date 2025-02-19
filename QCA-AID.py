@@ -5693,6 +5693,7 @@ class ResultsExporter:
         self.attribute_labels = attribute_labels
         self.inductive_coder = inductive_coder
         self.analysis_manager = analysis_manager
+        self.category_colors = {}
         os.makedirs(output_dir, exist_ok=True)
 
     def _get_consensus_coding(self, segment_codes: List[Dict]) -> Optional[Dict]:
@@ -6053,6 +6054,35 @@ class ResultsExporter:
         attribut2 = tokens[1] if len(tokens) >= 2 else ""
         return attribut1, attribut2
 
+    def _initialize_category_colors(self, df: pd.DataFrame) -> None:
+        """
+        Initialisiert die Farbzuordnung für alle Kategorien einmalig.
+        
+        Args:
+            df: DataFrame mit einer 'Hauptkategorie' Spalte
+        """
+        if not self.category_colors:  # Nur initialisieren wenn noch nicht geschehen
+            # Hole alle eindeutigen Hauptkategorien außer 'Nicht kodiert'
+            categories = sorted([cat for cat in df['Hauptkategorie'].unique() 
+                              if cat != 'Nicht kodiert'])
+            
+            # Generiere Pastellfarben
+            colors = self._generate_pastel_colors(len(categories))
+            
+            # Erstelle Mapping in alphabetischer Reihenfolge
+            self.category_colors = {
+                category: color for category, color in zip(categories, colors)
+            }
+            
+            # Füge 'Nicht kodiert' mit grauer Farbe hinzu
+            if 'Nicht kodiert' in df['Hauptkategorie'].unique():
+                self.category_colors['Nicht kodiert'] = 'CCCCCC'
+            
+            print("\nFarbzuordnung initialisiert:")
+            for cat, color in self.category_colors.items():
+                print(f"- {cat}: {color}")
+
+
     def _generate_pastel_colors(self, num_colors):
         """
         Generiert eine Palette mit Pastellfarben.
@@ -6070,7 +6100,7 @@ class ResultsExporter:
             # Wähle Hue gleichmäßig über Farbkreis
             hue = i / num_colors
             # Konvertiere HSV zu RGB mit hoher Helligkeit und Sättigung
-            rgb = colorsys.hsv_to_rgb(hue, 0.4, 0.9)
+            rgb = colorsys.hsv_to_rgb(hue, 0.4, 0.95)
             # Konvertiere RGB zu Hex
             hex_color = 'FF{:02x}{:02x}{:02x}'.format(
                 int(rgb[0] * 255), 
@@ -6085,9 +6115,11 @@ class ResultsExporter:
                     
     def _export_frequency_analysis(self, writer, df_coded: pd.DataFrame, attribut1_label: str, attribut2_label: str) -> None:
         try:
+            # Hole alle Datensätze, auch "Nicht kodiert"
+            df_all = df_coded.copy()
             
-            # Hole eindeutige Hauptkategorien
-            main_categories = df_coded['Hauptkategorie'].unique()
+            # Hole eindeutige Hauptkategorien, inkl. "Nicht kodiert"
+            main_categories = df_all['Hauptkategorie'].unique()
             category_colors = {cat: color for cat, color in zip(main_categories, self._generate_pastel_colors(len(main_categories)))}
 
             if 'Häufigkeitsanalysen' not in writer.sheets:
@@ -6117,9 +6149,9 @@ class ResultsExporter:
             cell.font = title_font
             current_row += 2
 
-            # Pivot-Tabelle für Hauptkategorien
+            # Pivot-Tabelle für Hauptkategorien, inkl. "Nicht kodiert"
             pivot_main = pd.pivot_table(
-                df_coded,
+                df_all,
                 index=['Hauptkategorie'],
                 columns='Dokument',
                 values='Chunk_Nr',
@@ -6147,10 +6179,10 @@ class ResultsExporter:
                 cell.border = thin_border
                 
                 # Farbkodierung für Hauptkategorien
-                if not is_total and idx in category_colors:
-                    color = category_colors[idx]
+                if not is_total and idx in self.category_colors:
+                    color = self.category_colors[idx]
                     cell.fill = PatternFill(start_color=color, end_color=color, fill_type='solid')
-                
+                                
                 if is_total:
                     cell.font = total_font
                 
@@ -6166,13 +6198,13 @@ class ResultsExporter:
 
             current_row += 2
 
-            # 2. Subkategorien-Hierarchie
+            # 2. Subkategorien-Hierarchie (nur für kodierte Segmente)
             cell = worksheet.cell(row=current_row, column=1, value="2. Subkategorien nach Hauptkategorien")
             cell.font = title_font
             current_row += 2
 
-            # Pivot für Subkategorien
-            df_sub = df_coded.copy()
+            # Filtere "Nicht kodiert" für Subkategorien-Analyse aus
+            df_sub = df_all[df_all['Hauptkategorie'] != "Nicht kodiert"].copy()
             df_sub['Subkategorie'] = df_sub['Subkategorien'].str.split(', ')
             df_sub = df_sub.explode('Subkategorie')
             
@@ -6602,6 +6634,9 @@ class ResultsExporter:
             df_details = pd.DataFrame(export_data)
             df_coded = df_details[df_details['Kodiert'] == 'Ja'].copy()
 
+            # Initialisiere Farbzuordnung einmalig für alle Sheets
+            self._initialize_category_colors(df_details)
+
             print(f"DataFrames erstellt: {len(df_details)} Gesamt, {len(df_coded)} Kodiert")
 
             # Exportiere nach Excel
@@ -6688,12 +6723,23 @@ class ResultsExporter:
                 'K': 40, 'L': 40, 'M': 15, 'N': 15
             }
 
+            # Hole alle Zeilen als DataFrame für Farbzuordnung
+            data = []
+            headers = []
+            for idx, row in enumerate(worksheet.iter_rows(values_only=True), 1):
+                if idx == 1:
+                    headers = list(row)
+                else:
+                    data.append(row)
+            
+            df = pd.DataFrame(data, columns=headers)
+            
             # Setze Spaltenbreiten
             for col, width in column_widths.items():
                 worksheet.column_dimensions[col].width = width
 
             from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
-            from openpyxl.utils import get_column_letter, column_index_from_string
+            from openpyxl.utils import get_column_letter
             from openpyxl.worksheet.table import Table, TableStyleInfo
             
             # Definiere Styles
@@ -6710,7 +6756,6 @@ class ResultsExporter:
             main_categories = set(worksheet.cell(row=row, column=8).value 
                                 for row in range(2, worksheet.max_row + 1) 
                                 if worksheet.cell(row=row, column=8).value)
-            category_colors = {cat: color for cat, color in zip(main_categories, self._generate_pastel_colors(len(main_categories)))}
 
             # Header formatieren
             for cell in worksheet[1]:
@@ -6726,10 +6771,10 @@ class ResultsExporter:
                     cell.border = thin_border
 
                     # Farbkodierung für Hauptkategorien (8. Spalte)
-                    if cell.column == 8 and cell.value in category_colors:
+                    if cell.column == 8 and cell.value in self.category_colors:
                         cell.fill = PatternFill(
-                            start_color=category_colors[cell.value], 
-                            end_color=category_colors[cell.value], 
+                            start_color=self.category_colors[cell.value], 
+                            end_color=self.category_colors[cell.value], 
                             fill_type='solid'
                         )
 
