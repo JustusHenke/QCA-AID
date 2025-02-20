@@ -45,9 +45,10 @@ Die KI-gestützte Datenverarbeitung nutzt die Schnittstelle von OpenAI. Auch wen
 
 Prinzipiell ist die Verarbeitung der Daten per LLM auch auf einem lokalen Rechner möglich Dafür kann OLLAMA oder LMSTUDIO genutzt werden und das Setup im Client muss etwas angepasst werden mehr dazu hier: https://ollama.com/blog/openai-compatibility oder https://lmstudio.ai/docs/api/endpoints/openai
 
-## Weitere Hinweise zur aktuellen Version 
+## Weitere Hinweise zur aktuellen Version (0.9.7)
 
-- Bei größeren Mengen an Texten kommt es immer wieder mal zu übermäßigen Vergaben von Subkategorien. Das entsprechende Prompting, das diese Ergebnisse produziert wird noch weiter verfeinert. 
+- NEU: Mistral Support! Es kann jetzt auch die Mistral API genutzt werden. Umschalten zwischen OpenAI und Mistral mit CONFIG-Parameter 'MODEL_PROVIDER'. Standardmodell für OpenAI ist 'GPT-4o-mini', für Mistral 'mistral-small'.
+- Bei größeren Mengen an Texten kann es im induktiven Modus immer wieder mal zu übermäßigen Vergaben von Subkategorien kommen. Das entsprechende Prompting, das diese Ergebnisse produziert wird noch weiter verfeinert. 
 - Sollte die induktive Kodierung zu großzügig sein und zu viele Subcodes erstellen, kann können Sie den CONFIG-Wert `Temperature` herunterregeln (z.B. auf '0.1'), dann wird konservativer kodiert. 
 - Beachten Sie, dass die Forschungsfrage am besten alle Aspekte der Hauptkategorien abdeckt bzw. letztere sich aus der Frage ableiten lassen. Damit ist eine zuverlässigere Kodierung möglich, da die Forschungsfrage zentral ist, um ein Textsegment als relevant vorauszuwählen. Die Forschungsfrage sollte die Aspekte der Hauptkategorien möglichst ausgewogen adressieren und nicht bereits eine Hauptkategorie bevorzugen (es sei denn, das ist beabsichtigt).
 - Während der Bearbeitung werden mehrere API-Calls durchgeführt (Relevanzprüfung, Code-Entwicklung, Sättigungsprüfung), die Verarbeitung von Texten ist also relativ langsam: Ca. 400 Textsegmente à 1.000 Zeichen je Stunde, also ca. 200-250 Seiten je Stunde.  

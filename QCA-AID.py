@@ -7,7 +7,11 @@ enhanced with AI capabilities through the OpenAI API.
 
 Version:
 --------
-0.9.6 (2025-02-18)
+0.9.7 (2025-02-20)
+
+New:
+- Switch between OpenAI and Mistral using CONFIG parameter 'MODEL_PROVIDER'
+- Standard model for Openai is 'GPT-4o-mini', for Mistral 'mistral-small'
 
 Description:
 -----------
@@ -82,6 +86,10 @@ import os        # Dateisystemzugriff
 import re        # Reguläre Ausdrücke für deduktives Codieren
 import openai    # OpenAI API-Integration
 from openai import AsyncOpenAI
+import httpx
+from mistralai import Mistral
+from abc import ABC, abstractmethod
+from typing import Dict, List, Optional, Union, Any
 import json      # Export/Import von Daten (z.B. CSV/JSON)
 import pandas as pd  # Zum Aggregieren und Visualisieren der Ergebnisse
 import logging   # Protokollierung
@@ -262,6 +270,7 @@ VALIDATION_MESSAGES = {
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 CONFIG = {
+    'MODEL_PROVIDER': 'OpenAI',
     'MODEL_NAME': 'gpt-4o-mini',
     'DATA_DIR': os.path.join(SCRIPT_DIR, 'input'),
     'OUTPUT_DIR': os.path.join(SCRIPT_DIR, 'output'),
@@ -292,6 +301,167 @@ os.makedirs(CONFIG['OUTPUT_DIR'], exist_ok=True)
 env_path = os.path.join(os.path.expanduser("~"), '.environ.env')
 load_dotenv(env_path)
 
+# ============================
+# 2. LLM-Provider konfigurieren
+# ============================
+
+
+
+
+
+class LLMProvider(ABC):
+    """Abstrakte Basisklasse für LLM Provider"""
+    
+    @abstractmethod
+    async def create_completion(self, 
+                              messages: List[Dict[str, str]], 
+                              model: str,
+                              temperature: float = 0.7,
+                              response_format: Optional[Dict] = None) -> Any:
+        """Generiert eine Completion mit dem konfigurierten LLM"""
+        pass
+
+class OpenAIProvider(LLMProvider):
+    """OpenAI spezifische Implementation"""
+    
+    def __init__(self):
+        """Initialisiert den OpenAI Client"""
+        try:
+            api_key = os.getenv("OPENAI_API_KEY")
+            if not api_key:
+                raise ValueError("OpenAI API Key nicht gefunden")
+            
+            # Erstelle einen expliziten httpx Client ohne Proxy Konfiguration
+            http_client = httpx.AsyncClient(
+                follow_redirects=True,
+                timeout=60.0
+            )
+            
+            # Initialisiere den OpenAI Client mit unserem sauberen httpx Client
+            self.client = openai.AsyncOpenAI(
+                api_key=api_key,
+                http_client=http_client
+            )
+            
+            print("OpenAI Client erfolgreich initialisiert")
+            
+        except Exception as e:
+            print(f"Fehler bei OpenAI Client Initialisierung: {str(e)}")
+            raise
+
+    async def create_completion(self,
+                              messages: List[Dict[str, str]],
+                              model: str,
+                              temperature: float = 0.7, 
+                              response_format: Optional[Dict] = None) -> Any:
+        """Erzeugt eine Completion mit OpenAI"""
+        try:
+            return await self.client.chat.completions.create(
+                model=model,
+                messages=messages,
+                temperature=temperature,
+                response_format=response_format
+            )
+        except Exception as e:
+            print(f"Fehler bei OpenAI API Call: {str(e)}")
+            raise
+
+class MistralProvider(LLMProvider):
+    """Mistral spezifische Implementation"""
+    
+    def __init__(self):
+        """Initialisiert den Mistral Client"""
+        self.api_key = os.getenv("MISTRAL_API_KEY")
+        if not self.api_key:
+            raise ValueError("Mistral API Key nicht gefunden")
+
+    async def create_completion(self,
+                              messages: List[Dict[str, str]],
+                              model: str,
+                              temperature: float = 0.7,
+                              response_format: Optional[Dict] = None) -> Any:
+        """
+        Erzeugt eine Completion mit Mistral
+        
+        Args:
+            messages: Liste von Nachrichten im Mistral Format
+            model: Name des zu verwendenden Modells 
+            temperature: Kreativität der Antworten (0.0-1.0)
+            response_format: Optional dict für JSON response etc.
+            
+        Returns:
+            Mistral Chat Completion Response
+        """
+        try:
+            async with Mistral(api_key=self.api_key) as client:
+                return await client.chat.complete_async(
+                    model=model,
+                    messages=messages,
+                    temperature=temperature,
+                    response_format=response_format,
+                    stream=False
+                )
+        except Exception as e:
+            print(f"Fehler bei Mistral API Call: {str(e)}")
+            raise
+
+class LLMProviderFactory:
+    """Factory Klasse zur Erstellung des konfigurierten LLM Providers"""
+    
+    @staticmethod
+    def create_provider(provider_name: str) -> LLMProvider:
+        """
+        Erstellt die passende Provider Instanz
+        
+        Args:
+            provider_name: Name des Providers ("openai" oder "mistral")
+            
+        Returns:
+            LLMProvider Instanz
+        
+        Raises:
+            ValueError: Wenn ungültiger Provider Name
+        """
+        try:
+            # Lade Environment Variablen
+            env_path = os.path.join(os.path.expanduser("~"), '.environ.env')
+            load_dotenv(env_path)
+            
+            print(f"\nInitialisiere LLM Provider: {provider_name}")
+            
+            if provider_name.lower() == "openai":
+                return OpenAIProvider()
+                
+            elif provider_name.lower() == "mistral":
+                return MistralProvider()
+                
+            else:
+                raise ValueError(f"Ungültiger Provider Name: {provider_name}")
+                
+        except Exception as e:
+            print(f"Fehler bei Provider-Erstellung: {str(e)}")
+            raise
+
+# Hilfsklasse für einheitliche Response Verarbeitung            
+class LLMResponse:
+    """Wrapper für Provider-spezifische Responses"""
+    
+    def __init__(self, provider_response: Any):
+        self.raw_response = provider_response
+        
+    @property  
+    def content(self) -> str:
+        """Extrahiert den Content aus der Provider Response"""
+        try:
+            if hasattr(self.raw_response, "choices"):
+                # OpenAI Format
+                return self.raw_response.choices[0].message.content
+            else:
+                # Mistral Format 
+                return self.raw_response.choices[0].message.content
+        except Exception as e:
+            print(f"Fehler beim Extrahieren des Response Contents: {str(e)}")
+            return ""
 
 # ============================
 # 3. Klassen und Funktionen
@@ -1794,6 +1964,15 @@ class CategoryOptimizer:
             self.similarity_threshold = thresholds.get('SIMILARITY_THRESHOLD', 0.8)
         else:
             self.similarity_threshold = 0.8
+        
+         # Initialisiere LLM Provider
+        provider_name = CONFIG.get('MODEL_PROVIDER', 'openai')
+        try:
+            self.llm_provider = LLMProviderFactory.create_provider(provider_name)
+            print(f"LLM Provider '{provider_name}' für Kategorienoptimierung initialisiert")
+        except Exception as e:
+            print(f"Fehler bei Provider-Initialisierung: {str(e)}")
+            raise
             
         self.optimization_log = []
         
@@ -1920,7 +2099,15 @@ class RelevanceChecker:
     def __init__(self, model_name: str, batch_size: int = 5):
         self.model_name = model_name
         self.batch_size = batch_size
-        self.client = AsyncOpenAI()
+
+        # Hole Provider aus CONFIG
+        provider_name = CONFIG.get('MODEL_PROVIDER', 'openai')  # Fallback zu OpenAI
+        try:
+            # Wir lassen den LLMProvider sich selbst um die Client-Initialisierung kümmern
+            self.llm_provider = LLMProviderFactory.create_provider(provider_name)
+        except Exception as e:
+            print(f"Fehler bei Provider-Initialisierung: {str(e)}")
+            raise
         
         # Cache für Relevanzprüfungen
         self.relevance_cache = {}
@@ -2031,17 +2218,19 @@ class RelevanceChecker:
 
             # Ein API-Call für alle Segmente
             self.api_calls += 1
-            response = await self.client.chat.completions.create(
+            response = await self.llm_provider.create_completion(
                 model=self.model_name,
                 messages=[
-                    {"role": "system", "content": "Du bist ein Experte für qualitative Inhaltsanalyse."},
+                    {"role": "system", "content": "Du bist ein Experte für qualitative Inhaltsanalyse. Du antwortest auf deutsch."},
                     {"role": "user", "content": prompt}
                 ],
                 temperature=0.3,
                 response_format={"type": "json_object"}
             )
-
-            results = json.loads(response.choices[0].message.content)
+            
+            # Verarbeite Response mit Wrapper
+            llm_response = LLMResponse(response)
+            results = json.loads(llm_response.content)
             
             output_tokens = estimate_tokens(response.choices[0].message.content)
             token_counter.add_tokens(input_tokens, output_tokens)
@@ -2229,9 +2418,9 @@ class IntegratedAnalysisManager:
         relevance_results = await self.relevance_checker.check_relevance_batch(batch)
         
         for segment_id, text in batch:
-            print(f"\n----------------------------------")
-            print(f"Verarbeite Segment {segment_id}")
-            print(f"----------------------------------\n")
+            print(f"\n--------------------------------------------------------")
+            print(f"🔎 Verarbeite Segment {segment_id}")
+            print(f"--------------------------------------------------------\n")
             # Nutze gespeicherte Relevanzprüfung
             if not relevance_results.get(segment_id, False):
                 print(f"Segment wurde als nicht relevant markiert - wird übersprungen")
@@ -3113,22 +3302,20 @@ class DeductiveCoder:
             coder_id (str): Unique identifier for this coder instance
         """
         self.model_name = model_name
-        self.temperature = temperature
+        self.temperature = float(temperature)
         self.coder_id = coder_id
         self.skip_inductive = skip_inductive
-        
-        # Lade API Key aus .env Datei
-        env_path = os.path.join(os.path.expanduser("~"), '.renviron.env')
-        load_dotenv(env_path)
-        
-        # Initialisiere OpenAI Client
-        # self.client = OpenAI()
-        # Initialisiere den asynchronen OpenAI-Client
-        self.client = AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-        
-        # Prüfe API Key
-        if not os.getenv("OPENAI_API_KEY"):
-            raise ValueError(f"OPENAI_API_KEY nicht in {env_path} gefunden")
+        self.current_categories = {}
+           
+        # Hole Provider aus CONFIG
+        provider_name = CONFIG.get('MODEL_PROVIDER', 'openai')  # Fallback zu OpenAI
+        try:
+            # Wir lassen den LLMProvider sich selbst um die Client-Initialisierung kümmern
+            self.llm_provider = LLMProviderFactory.create_provider(provider_name)
+            print(f"LLM Provider '{provider_name}' für Kodierer {coder_id} initialisiert")
+        except Exception as e:
+            print(f"Fehler bei Provider-Initialisierung für {coder_id}: {str(e)}")
+            raise
 
     async def _check_deductive_categories(self, chunk: str, deductive_categories: Dict) -> Optional[CodingResult]:
         """
@@ -3179,18 +3366,20 @@ class DeductiveCoder:
 
             input_tokens = estimate_tokens(prompt + chunk)
 
-             # Verwende die asynchrone OpenAI-API
-            response = await self.client.chat.completions.create(
+            response = await self.llm_provider.create_completion(
                 model=self.model_name,
                 messages=[
-                    {"role": "system", "content": "Du bist ein Experte für qualitative Inhaltsanalyse."},
+                    {"role": "system", "content": "Du bist ein Experte für qualitative Inhaltsanalyse. Du antwortest auf deutsch."},
                     {"role": "user", "content": prompt}
                 ],
                 temperature=float(self.temperature),
                 response_format={"type": "json_object"}
             )
+            
+            # Verarbeite Response mit Wrapper
+            llm_response = LLMResponse(response)
+            result = json.loads(llm_response.content)
 
-            result = json.loads(response.choices[0].message.content)
             print(f"  ✓ Kodierung erstellt: {result.get('category', 'Keine Kategorie')} "
                   f"(Konfidenz: {result.get('confidence', {}).get('total', 0):.2f})")
 
@@ -3258,23 +3447,27 @@ class DeductiveCoder:
 
             input_tokens = estimate_tokens(prompt)
 
-            # Sende Aktualisierung an GPT
-            response = await self.client.chat.completions.create(
-                model=self.model_name,
-                messages=[
-                    {"role": "system", "content": "Du bist ein Experte für qualitative Inhaltsanalyse."},
-                    {"role": "user", "content": prompt}
-                ],
-                temperature=0.3
-            )
+            response = await self.llm_provider.create_completion(
+                    model=self.model_name,
+                    messages=[
+                        {"role": "system", "content": "Du bist ein Experte für qualitative Inhaltsanalyse. Du antwortest auf deutsch."},
+                        {"role": "user", "content": prompt}
+                    ],
+                    temperature=0.3
+                )
+            
+            # Zähle Tokens
+            output_tokens = estimate_tokens(response.choices[0].message.content)
+            token_counter.add_tokens(input_tokens, output_tokens)
 
             if response.choices[0].message.content:
+
+                self.current_categories = categories
+
                 print(f"Kategoriensystem für Kodierer {self.coder_id} aktualisiert")
                 print(f"- {len(categories)} Kategorien verfügbar")
                 return True
             
-            output_tokens = estimate_tokens(response.choices[0].message.content)
-            token_counter.add_tokens(input_tokens, output_tokens)
             return False
 
         except Exception as e:
@@ -3283,23 +3476,30 @@ class DeductiveCoder:
             traceback.print_exc()
             return False
 
-    async def code_chunk(self, chunk: str, categories: Dict[str, CategoryDefinition]) -> Optional[CodingResult]:
+    async def code_chunk(self, chunk: str, categories: Dict[str, CategoryDefinition] = None) -> Optional[CodingResult]:
         """
         Kodiert einen Text-Chunk basierend auf dem aktuellen Kategoriensystem.
         
         Args:
             chunk: Zu kodierender Text
-            categories: Aktuelles Kategoriensystem
+            categories: Optional übergebenes Kategoriensystem (wird nur verwendet wenn kein aktuelles System existiert)
             
         Returns:
             Optional[CodingResult]: Kodierungsergebnis oder None bei Fehler
         """
         try:
-            print(f"\nDeduktiver Kodierer {self.coder_id} verarbeitet Chunk...")
+            # Verwende das interne Kategoriensystem wenn vorhanden, sonst das übergebene
+            current_categories = self.current_categories or categories
+            
+            if not current_categories:
+                print(f"Fehler: Kein Kategoriensystem für Kodierer {self.coder_id} verfügbar")
+                return None
+
+            print(f"\nDeduktiver Kodierer 🧐 **{self.coder_id}** verarbeitet Chunk...")
             
             # Erstelle formatierte Kategorienübersicht mit Definitionen und Beispielen
             categories_overview = []
-            for name, cat in categories.items():
+            for name, cat in current_categories.items():  # Verwende current_categories statt categories
                 category_info = {
                     'name': name,
                     'definition': cat.definition,
@@ -3369,62 +3569,69 @@ class DeductiveCoder:
             }}
             """
 
-            input_tokens = estimate_tokens(prompt + chunk)
+            try:
+                input_tokens = estimate_tokens(prompt + chunk)
 
-            # Verwende die asynchrone OpenAI-API
-            response = await self.client.chat.completions.create(
-                model=self.model_name,
-                messages=[
-                    {"role": "system", "content": "Du bist ein Experte für qualitative Inhaltsanalyse."},
-                    {"role": "user", "content": prompt}
-                ],
-                temperature=float(self.temperature),
-                response_format={"type": "json_object"}
-            )
-
-            result = json.loads(response.choices[0].message.content)
-            
-            output_tokens = estimate_tokens(response.choices[0].message.content)
-            token_counter.add_tokens(input_tokens, output_tokens)
-
-            if result.get('category'):
-                print(f"  ✓ Kodierung erstellt: {result['category']} "
-                    f"(Konfidenz: {result.get('confidence', {}).get('total', 0):.2f})")
-                
-                # Debug-Ausgaben
-                print("\nKodierungsbegründung:")
-                if definition_matches := result.get('definition_matches', []):
-                    print("Passende Definitionsaspekte:")
-                    for match in definition_matches:
-                        print(f"- {match}")
-                
-                if example_matches := result.get('example_matches', []):
-                    print("Ähnliche Beispiele:")
-                    for match in example_matches:
-                        print(f"- {match}")
-                
-                paraphrase = result.get('paraphrase', '')
-                if paraphrase:
-                    print(f"\nParaphrase: {paraphrase}")
-                
-                # Wenn "Keine passende Kategorie" zurückgegeben wurde
-                if result['category'] == "Keine passende Kategorie":
-                    print("\nℹ Text als relevant erkannt, aber keine passende Kategorie gefunden")
-                    print(f"Begründung: {result.get('justification', 'Keine Begründung angegeben')}")
-                    
-                return CodingResult(
-                    category=result['category'],
-                    subcategories=tuple(result.get('subcategories', [])),
-                    justification=result.get('justification', ''),
-                    confidence=result.get('confidence', {'total': 0.0, 'category': 0.0, 'subcategories': 0.0}),
-                    text_references=tuple([chunk[:100]]),
-                    uncertainties=None,
-                    paraphrase=paraphrase,
-                    keywords=result.get('keywords', '')
+                response = await self.llm_provider.create_completion(
+                    model=self.model_name,
+                    messages=[
+                        {"role": "system", "content": "Du bist ein Experte für qualitative Inhaltsanalyse. Du antwortest auf deutsch."},
+                        {"role": "user", "content": prompt}
+                    ],
+                    temperature=self.temperature,
+                    response_format={"type": "json_object"}
                 )
-            else:
-                print("  ✗ Keine passende Kategorie gefunden")
-                return None
+                
+                # Verarbeite Response mit Wrapper
+                llm_response = LLMResponse(response)
+                result = json.loads(llm_response.content)
+
+                output_tokens = estimate_tokens(response.choices[0].message.content)
+                token_counter.add_tokens(input_tokens, output_tokens)
+                
+                if result and isinstance(result, dict):
+                    if result.get('category'):
+                        print(f"  ✓ Kodierung erstellt: {result['category']} "
+                            f"(Konfidenz: {result.get('confidence', {}).get('total', 0):.2f})")
+                        
+                        # Debug-Ausgaben
+                        print("\n👨‍⚖️  Kodierungsbegründung:")
+                        if definition_matches := result.get('definition_matches', []):
+                            print("  Passende Definitionsaspekte:")
+                            for match in definition_matches:
+                                print(f"  - {match}")
+                        
+                        if example_matches := result.get('example_matches', []):
+                            print("  Ähnliche Beispiele:")
+                            for match in example_matches:
+                                print(f"  - {match}")
+                        
+                        paraphrase = result.get('paraphrase', '')
+                        if paraphrase:
+                            print(f"\nParaphrase: {paraphrase}")
+                        
+                        # Wenn "Keine passende Kategorie" zurückgegeben wurde
+                        if result['category'] == "Keine passende Kategorie":
+                            print("\nℹ Text als relevant erkannt, aber keine passende Kategorie gefunden")
+                            print(f"Begründung: {result.get('justification', 'Keine Begründung angegeben')}")
+                    
+                    return CodingResult(
+                        category=result.get('category', ''),
+                        subcategories=tuple(result.get('subcategories', [])),
+                        justification=result.get('justification', ''),
+                        confidence=result.get('confidence', {'total': 0.0, 'category': 0.0, 'subcategories': 0.0}),
+                        text_references=tuple([chunk[:100]]),
+                        uncertainties=None,
+                        paraphrase=result.get('paraphrase', ''),
+                        keywords=result.get('keywords', '')
+                    )
+                else:
+                    print("  ✗ Keine passende Kategorie gefunden")
+                    return None
+                
+            except Exception as e:
+                print(f"Fehler bei API Call: {str(e)}")
+                return None          
 
         except Exception as e:
             print(f"Fehler bei der Kodierung durch {self.coder_id}: {str(e)}")
@@ -3464,18 +3671,20 @@ class DeductiveCoder:
             """
 
             input_tokens = estimate_tokens(prompt + chunk)
-
-            response = await self.client.chat.completions.create(
-                model=self.model_name,
-                messages=[
-                    {"role": "system", "content": "Du bist ein Experte für qualitative Inhaltsanalyse."},
-                    {"role": "user", "content": prompt}
-                ],
-                temperature=0.3,
-                response_format={"type": "json_object"}
-            )
-
-            result = json.loads(response.choices[0].message.content)
+            
+            response = await self.llm_provider.create_completion(
+                    model=self.model_name,
+                    messages=[
+                        {"role": "system", "content": "Du bist ein Experte für qualitative Inhaltsanalyse. Du antwortest auf deutsch."},
+                        {"role": "user", "content": prompt}
+                    ],
+                    temperature=0.3,
+                    response_format={"type": "json_object"}
+                )
+                
+            # Verarbeite Response mit Wrapper
+            llm_response = LLMResponse(response)
+            result = json.loads(llm_response.content)
             
             output_tokens = estimate_tokens(response.choices[0].message.content)
             token_counter.add_tokens(input_tokens, output_tokens)
@@ -3523,10 +3732,17 @@ class InductiveCoder:
     """
     
     def __init__(self, model_name: str, history: DevelopmentHistory, output_dir: str = None, config: dict = None):
-        # OpenAI Konfiguration
         self.model_name = model_name
-        self.client = openai.AsyncOpenAI()
         self.output_dir = output_dir or CONFIG['OUTPUT_DIR']
+        
+        # Initialisiere LLM Provider
+        provider_name = CONFIG.get('MODEL_PROVIDER', 'openai')
+        try:
+            self.llm_provider = LLMProviderFactory.create_provider(provider_name)
+            print(f"\nLLM Provider '{provider_name}' für induktive Kodierung initialisiert")
+        except Exception as e:
+            print(f"Fehler bei Provider-Initialisierung: {str(e)}")
+            raise
         
         # Performance-Optimierung
         self.category_cache = {}  # Cache für häufig verwendete Kategorien
@@ -3812,17 +4028,19 @@ class InductiveCoder:
 
             input_tokens = estimate_tokens(prompt)
 
-            response = await self.client.chat.completions.create(
-                model=self.model_name,
-                messages=[
-                    {"role": "system", "content": "Du bist ein Experte für qualitative Inhaltsanalyse."},
-                    {"role": "user", "content": prompt}
-                ],
-                temperature=0.3,
-                response_format={"type": "json_object"}
-            )
-
-            result = json.loads(response.choices[0].message.content)
+            response = await self.llm_provider.create_completion(
+                    model=self.model_name,
+                    messages=[
+                        {"role": "system", "content": "Du bist ein Experte für qualitative Inhaltsanalyse. Du antwortest auf deutsch."},
+                        {"role": "user", "content": prompt}
+                    ],
+                    temperature=0.3,
+                    response_format={"type": "json_object"}
+                )
+                
+            # Verarbeite Response mit Wrapper
+            llm_response = LLMResponse(response)
+            result = json.loads(llm_response.content)
             
             output_tokens = estimate_tokens(response.choices[0].message.content)
             token_counter.add_tokens(input_tokens, output_tokens)
@@ -3987,17 +4205,19 @@ class InductiveCoder:
         try:
             input_tokens = estimate_tokens(prompt)
 
-            response = await self.client.chat.completions.create(
-                model=self.model_name,
-                messages=[
-                    {"role": "system", "content": "Du bist ein Experte für qualitative Inhaltsanalyse."},
-                    {"role": "user", "content": prompt}
-                ],
-                temperature=0.3,
-                response_format={"type": "json_object"}
-            )
-            
-            result = json.loads(response.choices[0].message.content)
+            response = await self.llm_provider.create_completion(
+                    model=self.model_name,
+                    messages=[
+                        {"role": "system", "content": "Du bist ein Experte für qualitative Inhaltsanalyse. Du antwortest auf deutsch."},
+                        {"role": "user", "content": prompt}
+                    ],
+                    temperature=0.3,
+                    response_format={"type": "json_object"}
+                )
+                
+            # Verarbeite Response mit Wrapper
+            llm_response = LLMResponse(response)
+            result = json.loads(llm_response.content)
 
             output_tokens = estimate_tokens(response.choices[0].message.content)
             token_counter.add_tokens(input_tokens, output_tokens)
@@ -4021,21 +4241,27 @@ class InductiveCoder:
         async def process_segment(segment: str) -> List[Dict]:
             prompt = self._get_category_extraction_prompt(segment)
             
-            input_tokens = estimate_tokens(prompt)
+           
 
             try:
                 print("\nSende Anfrage an API...")
-                response = await self.client.chat.completions.create(
+
+                input_tokens = estimate_tokens(prompt)
+                
+                response = await self.llm_provider.create_completion(
                     model=self.model_name,
                     messages=[
-                        {"role": "system", "content": self._get_system_prompt()},
+                        {"role": "system", "content": "Du bist ein Experte für qualitative Inhaltsanalyse. Du antwortest auf deutsch."},
                         {"role": "user", "content": prompt}
                     ],
                     temperature=0.7,
                     response_format={"type": "json_object"}
                 )
                 
-                raw_response = response.choices[0].message.content
+                # Verarbeite Response mit Wrapper
+                llm_response = LLMResponse(response)
+                raw_response = json.loads(llm_response.content)
+                
 
                 output_tokens = estimate_tokens(response.choices[0].message.content)
                 token_counter.add_tokens(output_tokens)
@@ -4043,7 +4269,7 @@ class InductiveCoder:
                 print(raw_response)
 
                 try:
-                    result = json.loads(raw_response)
+                    result = json.loads(llm_response)
                     print("\nJSON erfolgreich geparst:")
                     print(json.dumps(result, indent=2, ensure_ascii=False))
                     
@@ -5168,11 +5394,12 @@ class ManualCoder:
         self.categories = {}
         self.current_coding = None
         self._is_processing = False
+        self.current_categories = {}
         
-    async def code_chunk(self, chunk: str, categories: Dict[str, CategoryDefinition]) -> Optional[CodingResult]:
+    async def code_chunk(self, chunk: str, categories: Optional[Dict[str, CategoryDefinition]]) -> Optional[CodingResult]:
         """Nutzt das asyncio Event Loop, um tkinter korrekt zu starten"""
         try:
-            self.categories = categories
+            self.categories = self.current_categories or categories
             self.current_coding = None
             
             # Erstelle und starte das Tkinter-Fenster im Hauptthread
@@ -5811,40 +6038,48 @@ class ResultsExporter:
         - Konfidenz der Kodierung
         - Übereinstimmung mit Konsens-Subkategorien
         - Qualität der Begründung
-        
+
         Args:
             coding: Einzelne Kodierung
             consensus_subcats: Liste der Konsens-Subkategorien
-            
+
         Returns:
             float: Qualitätsscore zwischen 0 und 1
         """
-        # Hole Konfidenzwert (gesamt oder Hauptkategorie)
-        if isinstance(coding.get('confidence'), dict):
-            confidence = float(coding['confidence'].get('total', 0))
-        else:
-            confidence = float(coding.get('confidence', 0))
-        
-        # Berechne Übereinstimmung mit Konsens-Subkategorien
-        coding_subcats = set(coding.get('subcategories', []))
-        consensus_subcats_set = set(consensus_subcats)
-        if consensus_subcats_set:
-            subcat_overlap = len(coding_subcats & consensus_subcats_set) / len(consensus_subcats_set)
-        else:
-            subcat_overlap = 1.0  # Volle Punktzahl wenn keine Konsens-Subkategorien
-        
-        # Bewerte Qualität der Begründung
-        justification = coding.get('justification', '')
-        justification_score = min(len(justification.split()) / 20, 1.0)  # Max bei 20 Wörtern
-        
-        # Gewichtete Kombination der Faktoren
-        quality_score = (
-            confidence * 0.5 +          # 50% Konfidenz
-            subcat_overlap * 0.3 +      # 30% Subkategorien-Übereinstimmung
-            justification_score * 0.2    # 20% Begründungsqualität
-        )
-        
-        return quality_score
+        try:
+            # Hole Konfidenzwert (gesamt oder Hauptkategorie)
+            if isinstance(coding.get('confidence'), dict):
+                confidence = float(coding['confidence'].get('total', 0))
+            else:
+                confidence = float(coding.get('confidence', 0))
+
+            # Berechne Übereinstimmung mit Konsens-Subkategorien
+            coding_subcats = set(coding.get('subcategories', []))
+            consensus_subcats_set = set(consensus_subcats)
+            if consensus_subcats_set:
+                subcat_overlap = len(coding_subcats & consensus_subcats_set) / len(consensus_subcats_set)
+            else:
+                subcat_overlap = 1.0  # Volle Punktzahl wenn keine Konsens-Subkategorien
+
+            # Bewerte Qualität der Begründung
+            justification = coding.get('justification', '')
+            if isinstance(justification, str):
+                justification_score = min(len(justification.split()) / 20, 1.0)  # Max bei 20 Wörtern
+            else:
+                justification_score = 0.0  # Keine Begründung vorhanden oder ungültiger Typ
+
+            # Gewichtete Kombination der Faktoren
+            quality_score = (
+                confidence * 0.5 +          # 50% Konfidenz
+                subcat_overlap * 0.3 +      # 30% Subkategorien-Übereinstimmung
+                justification_score * 0.2   # 20% Begründungsqualität
+            )
+
+            return quality_score
+
+        except Exception as e:
+            print(f"Fehler bei der Berechnung der Codierungsqualität: {str(e)}")
+            return 0.0  # Rückgabe eines neutralen Scores im Fehlerfall
     
     def export_optimization_analysis(self, 
                                 original_categories: Dict[str, CategoryDefinition],
@@ -6545,17 +6780,15 @@ class ResultsExporter:
             import traceback
             traceback.print_exc()
 
-   
-        
     async def export_results(self,
-                          codings: List[Dict],
-                          reliability: float,
-                          categories: Dict[str, CategoryDefinition],
-                          chunks: Dict[str, List[str]],
-                          revision_manager: 'CategoryRevisionManager',
-                          export_mode: str = "consensus",
-                          original_categories: Dict[str, CategoryDefinition] = None,
-                          inductive_coder: 'InductiveCoder' = None) -> None:
+                        codings: List[Dict],
+                        reliability: float,
+                        categories: Dict[str, CategoryDefinition],
+                        chunks: Dict[str, List[str]],
+                        revision_manager: 'CategoryRevisionManager',
+                        export_mode: str = "consensus",
+                        original_categories: Dict[str, CategoryDefinition] = None,
+                        inductive_coder: 'InductiveCoder' = None) -> None:
         """
         Exportiert die Analyseergebnisse mit Konsensfindung zwischen Kodierern.
         """
@@ -6830,12 +7063,10 @@ class ResultsExporter:
             import traceback
             traceback.print_exc()
 
-
-    
     def _export_intercoder_analysis(self, writer, segment_codings: Dict[str, List[Dict]], reliability: float):
         """
         Exportiert die Intercoder-Analyse für Haupt- und Subkategorien.
-        
+
         Args:
             writer: Excel Writer Objekt
             segment_codings: Dictionary mit Kodierungen pro Segment
@@ -6844,7 +7075,7 @@ class ResultsExporter:
         try:
             if 'Intercoderanalyse' not in writer.sheets:
                 writer.book.create_sheet('Intercoderanalyse')
-            
+
             worksheet = writer.sheets['Intercoderanalyse']
             current_row = 1
 
@@ -6864,11 +7095,11 @@ class ResultsExporter:
             current_row += 1
 
             headers = [
-                'Segment_ID', 
+                'Segment_ID',
                 'Text',
-                'Anzahl Codierer', 
-                'Übereinstimmungsgrad', 
-                'Hauptkategorien', 
+                'Anzahl Codierer',
+                'Übereinstimmungsgrad',
+                'Hauptkategorien',
                 'Begründungen'
             ]
             for col, header in enumerate(headers, 1):
@@ -6879,21 +7110,41 @@ class ResultsExporter:
             for segment_id, codings in segment_codings.items():
                 categories = [c['category'] for c in codings]
                 category_agreement = len(set(categories)) == 1
-                
+
                 # Verbesserte Text-Extraktion
                 text_chunk = codings[0].get('text', '')
                 if text_chunk:
                     text_chunk = text_chunk[:200] + ("..." if len(text_chunk) > 200 else "")
                 else:
                     text_chunk = "Text nicht verfügbar"
-                
+
+                # Debug-Ausgabe
+                # print(f"Segment ID: {segment_id}, Categories: {categories}, Text Chunk: {text_chunk}")
+
+                # Überprüfen Sie die Struktur der 'justification'-Felder
+                justifications = []
+                for c in codings:
+                    justification = c.get('justification', '')
+                    if isinstance(justification, dict):
+                        # Wenn 'justification' ein Dictionary ist, nehmen Sie einen bestimmten Schlüssel
+                        justification_text = justification.get('text', '')
+                    elif isinstance(justification, str):
+                        # Wenn 'justification' ein String ist, verwenden Sie ihn direkt
+                        justification_text = justification
+                    else:
+                        # Wenn 'justification' ein unerwarteter Typ ist, setzen Sie ihn auf einen leeren String
+                        justification_text = ''
+                    justifications.append(justification_text)
+
+                # print(f"Justifications: {justifications}")
+
                 row_data = [
                     segment_id,
                     text_chunk,
                     len(codings),
                     "Vollständig" if category_agreement else "Keine Übereinstimmung",
                     ' | '.join(set(categories)),
-                    '\n'.join([c.get('justification', '')[:100] + '...' for c in codings])
+                    '\n'.join([j[:100] + '...' for j in justifications])
                 ]
 
                 for col, value in enumerate(row_data, 1):
@@ -6906,11 +7157,11 @@ class ResultsExporter:
             current_row += 1
 
             headers = [
-                'Segment_ID', 
+                'Segment_ID',
                 'Text',
-                'Anzahl Codierer', 
-                'Übereinstimmungsgrad', 
-                'Subkategorien', 
+                'Anzahl Codierer',
+                'Übereinstimmungsgrad',
+                'Subkategorien',
                 'Begründungen'
             ]
             for col, header in enumerate(headers, 1):
@@ -6920,19 +7171,19 @@ class ResultsExporter:
             # Analyse für Subkategorien
             for segment_id, codings in segment_codings.items():
                 subcategories = [set(c.get('subcategories', [])) for c in codings]
-                
+
                 # Verbesserte Text-Extraktion
                 text_chunk = codings[0].get('text', '')
                 if text_chunk:
                     text_chunk = text_chunk[:200] + ("..." if len(text_chunk) > 200 else "")
                 else:
                     text_chunk = "Text nicht verfügbar"
-                
+
                 # Berechne Übereinstimmungsgrad für Subkategorien
                 if subcategories:
                     all_equal = all(s == subcategories[0] for s in subcategories)
                     partial_overlap = any(s1 & s2 for s1, s2 in itertools.combinations(subcategories, 2))
-                    
+
                     if all_equal:
                         agreement = "Vollständig"
                     elif partial_overlap:
@@ -6948,7 +7199,7 @@ class ResultsExporter:
                     len(codings),
                     agreement,
                     ' | '.join(set.union(*subcategories) if subcategories else set()),
-                    '\n'.join([c.get('justification', '')[:100] + '...' for c in codings])
+                    '\n'.join([j[:100] + '...' for j in justifications])
                 ]
 
                 for col, value in enumerate(row_data, 1):
@@ -6967,7 +7218,7 @@ class ResultsExporter:
                 current_row += 1
 
                 coders = sorted(list({coding['coder_id'] for codings in segment_codings.values() for coding in codings}))
-                
+
                 # Schreibe Spaltenüberschriften
                 for col, coder in enumerate(coders, 2):
                     worksheet.cell(row=current_row, column=col, value=coder)
@@ -6976,7 +7227,7 @@ class ResultsExporter:
                 # Fülle Matrix
                 for coder1 in coders:
                     worksheet.cell(row=current_row, column=1, value=coder1)
-                    
+
                     for col, coder2 in enumerate(coders, 2):
                         if coder1 == coder2:
                             agreement = 1.0
@@ -6987,7 +7238,7 @@ class ResultsExporter:
                             for codings in segment_codings.values():
                                 coding1 = next((c for c in codings if c['coder_id'] == coder1), None)
                                 coding2 = next((c for c in codings if c['coder_id'] == coder2), None)
-                                
+
                                 if coding1 and coding2:
                                     total += 1
                                     if analysis_type == 'Hauptkategorien':
@@ -6998,13 +7249,13 @@ class ResultsExporter:
                                         subcats2 = set(coding2.get('subcategories', []))
                                         if subcats1 == subcats2:
                                             agreements += 1
-                            
+
                             agreement = agreements / total if total > 0 else 0
-                        
+
                         cell = worksheet.cell(row=current_row, column=col, value=round(agreement, 2))
                         # Formatiere Zelle als Prozentsatz
                         cell.number_format = '0%'
-                    
+
                     current_row += 1
                 current_row += 2
 
@@ -7016,7 +7267,7 @@ class ResultsExporter:
             # Berechne Statistiken
             total_segments = len(segment_codings)
             total_coders = len({coding['coder_id'] for codings in segment_codings.values() for coding in codings})
-            
+
             stats = [
                 ('Anzahl analysierter Segmente', total_segments),
                 ('Anzahl Codierer', total_coders),
@@ -7041,14 +7292,14 @@ class ResultsExporter:
     def _format_intercoder_worksheet(self, worksheet) -> None:
         """
         Formatiert das Intercoder-Worksheet für bessere Lesbarkeit.
-        
+
         Args:
             worksheet: Das zu formatierende Worksheet-Objekt
         """
         try:
             # Importiere Styling-Klassen
             from openpyxl.styles import Font, PatternFill, Alignment
-            
+
             # Definiere Spaltenbreiten
             column_widths = {
                 'A': 40,  # Segment_ID
@@ -7058,7 +7309,7 @@ class ResultsExporter:
                 'E': 40,  # Haupt-/Subkategorien
                 'F': 60   # Begründungen
             }
-            
+
             # Setze Spaltenbreiten
             for col, width in column_widths.items():
                 worksheet.column_dimensions[col].width = width
@@ -7067,19 +7318,19 @@ class ResultsExporter:
             header_font = Font(bold=True)
             header_fill = PatternFill(start_color='EEEEEE', end_color='EEEEEE', fill_type='solid')
             wrapped_alignment = Alignment(wrap_text=True, vertical='top')
-            
+
             # Formatiere alle Zellen
             for row in worksheet.iter_rows():
                 for cell in row:
                     # Grundformatierung für alle Zellen
                     cell.alignment = wrapped_alignment
-                    
+
                     # Spezielle Formatierung für Überschriften
                     if (cell.row == 1 or  # Hauptüberschrift
-                        (cell.value and isinstance(cell.value, str) and 
-                         (cell.value.startswith(('A.', 'B.', 'C.', 'D.')) or  # Abschnittsüberschriften
-                          cell.value in ['Segment_ID', 'Text', 'Anzahl Codierer', 'Übereinstimmungsgrad', 
-                                       'Hauptkategorien', 'Subkategorien', 'Begründungen']))):  # Spaltenüberschriften
+                        (cell.value and isinstance(cell.value, str) and
+                        (cell.value.startswith(('A.', 'B.', 'C.', 'D.')) or  # Abschnittsüberschriften
+                        cell.value in ['Segment_ID', 'Text', 'Anzahl Codierer', 'Übereinstimmungsgrad',
+                                        'Hauptkategorien', 'Subkategorien', 'Begründungen']))):  # Spaltenüberschriften
                         cell.font = header_font
                         cell.fill = header_fill
 
@@ -7103,6 +7354,8 @@ class ResultsExporter:
             print(f"Warnung: Formatierung des Intercoder-Worksheets fehlgeschlagen: {str(e)}")
             import traceback
             traceback.print_exc()
+
+
 
 
 # --- Klasse: CategoryRevisionManager ---
@@ -7648,15 +7901,15 @@ class CategoryRevisionManager:
             
             input_tokens = estimate_tokens(prompt)
 
-            # Sende Anfrage an GPT
-            response = await self.client.chat.completions.create(
-                model=self.model_name,
-                messages=[
-                    {"role": "system", "content": "Du bist ein Experte für Kategorienentwicklung."},
-                    {"role": "user", "content": prompt}
-                ],
-                temperature=0.7
-            )
+            response = await self.llm_provider.create_completion(
+                    model=self.model_name,
+                    messages=[
+                        {"role": "system", "content": "Du bist ein Experte für qualitative Inhaltsanalyse."},
+                        {"role": "user", "content": prompt}
+                    ],
+                    temperature=0.7
+                )
+                
 
             enhanced_def = response.choices[0].message.content.strip()
             
@@ -7695,19 +7948,19 @@ class CategoryRevisionManager:
             
             input_tokens = estimate_tokens(prompt)
 
-            # Sende Anfrage an GPT
-            response = await self.client.chat.completions.create(
-                model=self.model_name,
-                messages=[
-                    {"role": "system", "content": "Du bist ein Experte für Kategorienentwicklung."},
-                    {"role": "user", "content": prompt}
-                ],
-                temperature=0.7,
-                response_format={"type": "json_object"}
-            )
-
-            # Parse das Ergebnis
-            result = json.loads(response.choices[0].message.content)
+            response = await self.llm_provider.create_completion(
+                    model=self.model_name,
+                    messages=[
+                        {"role": "system", "content": "Du bist ein Experte für qualitative Inhaltsanalyse."},
+                        {"role": "user", "content": prompt}
+                    ],
+                    temperature=0.5,
+                    response_format={"type": "json_object"}
+                )
+                
+            # Verarbeite Response mit Wrapper
+            llm_response = LLMResponse(response)
+            result = json.loads(llm_response.content)
             
             output_tokens = estimate_tokens(response.choices[0].message.content)
             token_counter.add_tokens(input_tokens, output_tokens)
