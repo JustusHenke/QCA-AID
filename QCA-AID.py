@@ -2183,9 +2183,9 @@ class RelevanceChecker:
             1. THEMATISCHE VORPRÜFUNG:
             
             Führe ZUERST eine grundlegende thematische Analyse durch:
-            - Identifiziere die Kernthemen und zentralen Konzepte der Forschungsfrage
-            - Prüfe, ob der Text diese Kernthemen überhaupt behandelt
-            - Stelle fest, ob ein inhaltlicher Zusammenhang zur Forschungsfrage besteht
+            - Identifiziere den Gegenstand, die Kernthemen und zentralen Konzepte der Forschungsfrage
+            - Prüfe, ob der Text den Gegenstand und diese Kernthemen überhaupt behandelt
+            - Stelle fest, ob ein hinreichender inhaltlicher Zusammenhang zur Forschungsfrage besteht
             - Falls NEIN: Sofort als nicht relevant markieren
             - Falls JA: Weiter mit detaillierter Prüfung
 
@@ -2238,11 +2238,10 @@ class RelevanceChecker:
                     {{
                         "segment_number": 1,
                         "is_relevant": true/false,
-                        "thematic_match": true/false,
                         "confidence": 0.0-1.0,
-                        "key_aspects": ["liste", "relevanter", "aspekte"],
-                        "off_topic_reason": "Bei thematic_match=false: Begründung warum thematisch unpassend",
-                        "justification": "Ausführliche Begründung der Entscheidung"
+                        "text_type": "interview|dokument|protokoll|andere",
+                        "key_aspects": ["konkrete", "für", "die", "Forschungsfrage", "relevante", "Aspekte"],
+                        "justification": "Begründung der Relevanz unter Berücksichtigung der Textsorte"
                     }},
                     ...
                 ]
@@ -2273,7 +2272,11 @@ class RelevanceChecker:
             
             # Verarbeite Response mit Wrapper
             llm_response = LLMResponse(response)
-            results = json.loads(llm_response.content)
+            try:
+                results = json.loads(llm_response.content)
+            except json.JSONDecodeError as e:
+                print(f"Fehler beim Parsen von JSON: {str(e)}")
+                results = {}  # Setze ein leeres Dictionary als Fallback
             
             output_tokens = estimate_tokens(response.choices[0].message.content)
             token_counter.add_tokens(input_tokens, output_tokens)
@@ -2500,10 +2503,10 @@ class IntegratedAnalysisManager:
                             'paraphrase': coding.paraphrase,
                             'keywords': coding.keywords
                         }
-                        print(f"  ✓ Kodierung von {coder.coder_id}: {result['category']}")
+                        print(f"  ✓ Kodierung von x{coder.coder_id}: 🏷️  {result['category']}")
                         batch_results.append(result)
                     else:
-                        print(f"  ✗ Keine gültige Kodierung von 🏷️  {coder.coder_id}")
+                        print(f"  ✗ Keine gültige Kodierung von {coder.coder_id}")
                         
                 except Exception as e:
                     print(f"  ✗ Fehler bei Kodierer {coder.coder_id}: {str(e)}")
@@ -6550,6 +6553,7 @@ class ResultsExporter:
                 
                 current_row += 1
 
+            current_row += 2
 
             # 3. Attribut-Analysen
             cell = worksheet.cell(row=current_row, column=1, value="3. Verteilung nach Attributen")
