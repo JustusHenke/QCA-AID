@@ -4,7 +4,7 @@
 
 Dieses Python-Skript implementiert Mayrings Methode der deduktiven Qualitativen Inhaltsanalyse mit induktiver Erweiterung mit KI-Unterstützung durch die OpenAI API. Es kombiniert traditionelle qualitative Forschungsmethoden mit modernen KI-Fähigkeiten, um Forschende bei der Analyse von Dokumenten- und Interviewdaten zu unterstützen. Das Ziel dieses Tools ist nicht, die menschliche Arbeit der Inhaltsanalyse zu ersetzen, sondern neue Möglichkeiten zu eröffnen, mehr Zeit für die Analyse und Reflexion bereits vorstrukturierter Textdaten zu gewinnen. 
 
-Chancen:
+Anwendungsmöglichkeiten:
 - Es ermöglicht mehr Dokumente in einer Untersuchung zu berücksichtigen als in herkömmlichen Verfahren, bei denen Personalkapazitäten stark begrenzt sind.    
 - Es ermöglicht die Umsetzung von Intercoder-Vergleichen mittels zugeschalteten KI-Coder, wo sonst nur ein menschlicher Coder pro Dokument arbeiten würde, und kann damit zur Qualitätsverbesserung beitragen
 - QCA-AID kann auch ganz ohne KI-Coder genutzt werden, als Alternative zu kostenpflichtigen Programmen.
@@ -48,6 +48,7 @@ Prinzipiell ist die Verarbeitung der Daten per LLM auch auf einem lokalen Rechne
 ## Weitere Hinweise zur aktuellen Version (0.9.7)
 
 - NEU: Mistral Support! Es kann jetzt auch die Mistral API genutzt werden. Umschalten zwischen OpenAI und Mistral mit CONFIG-Parameter 'MODEL_PROVIDER'. Standardmodell für OpenAI ist 'GPT-4o-mini', für Mistral 'mistral-small'.
+- NEU: Ausschlusskriterien während der Relevanzprüfung in 'KODIERREGELN' definieren (z.B. Literaturverzeichnis)
 - Bei größeren Mengen an Texten kann es im induktiven Modus immer wieder mal zu übermäßigen Vergaben von Subkategorien kommen. Das entsprechende Prompting, das diese Ergebnisse produziert wird noch weiter verfeinert. 
 - Sollte die induktive Kodierung zu großzügig sein und zu viele Subcodes erstellen, kann können Sie den CONFIG-Wert `Temperature` herunterregeln (z.B. auf '0.1'), dann wird konservativer kodiert. 
 - Beachten Sie, dass die Forschungsfrage am besten alle Aspekte der Hauptkategorien abdeckt bzw. letztere sich aus der Frage ableiten lassen. Damit ist eine zuverlässigere Kodierung möglich, da die Forschungsfrage zentral ist, um ein Textsegment als relevant vorauszuwählen. Die Forschungsfrage sollte die Aspekte der Hauptkategorien möglichst ausgewogen adressieren und nicht bereits eine Hauptkategorie bevorzugen (es sei denn, das ist beabsichtigt).
@@ -77,6 +78,7 @@ Um den API-Schlüssel sicher zu speichern und zu verwenden, folgen Sie diesen Sc
    - Fügen Sie folgende Zeile hinzu, ersetzen Sie dabei `IhrAPISchlüssel` mit Ihrem tatsächlichen API-Schlüssel:
      ```
      OPENAI_API_KEY=IhrAPISchlüssel
+     MISTRAL_API_KEY=IhrAPISchhlüssel
      ```
 
 3. **Speichern der Datei**:
@@ -121,84 +123,68 @@ Für optimale Ergebnisse  wird die Verwendung von einfachen Textformaten (.txt) 
 - Stellen Sie sicher, dass alle Dateien im Eingabeverzeichnis für die Analyse relevant sind, da das Programm versuchen wird, jede unterstützte Datei zu verarbeiten.
 - Andere Dateiformate wie .csv, .md, .srt oder .vtt werden derzeit nicht unterstützt. Konvertieren Sie diese gegebenenfalls in eines der unterstützten Formate.
 
+## QCA-AID: Konfiguration und Nutzung
 
-## Verwendung der Codebook.xlsx
+QCA-AID unterstützt die qualitative Inhaltsanalyse nach Mayring mit KI-Unterstützung. Diese Anleitung erklärt die wichtigsten Schritte zur Konfiguration und Nutzung.
 
-Die `Codebook.xlsx` Datei ist ein zentrales Element für die Konfiguration und Anpassung der qualitativen Inhaltsanalyse. Sie enthält wichtige Informationen wie die Forschungsfrage, Kodierregeln und deduktive Kategorien. Folgen Sie diesen Schritten, um die Datei effektiv zu nutzen:
+### Codebook.xlsx
 
-1. **Dateistruktur**: Die Excel-Datei besteht aus mehreren Blättern:
-   - FORSCHUNGSFRAGE
-   - KODIERREGELN
-   - DEDUKTIVE_KATEGORIEN
-   - CONFIG
+Die Excel-Datei `Codebook.xlsx` ist zentral für die Konfiguration der Analyse und enthält:
 
-2. **FORSCHUNGSFRAGE**: 
-   - Tragen Sie Ihre Forschungsfrage in Zelle B1 ein.
+#### Tabellenblätter
+- **FORSCHUNGSFRAGE**: Tragen Sie Ihre Forschungsfrage in Zelle B1 ein
+- **KODIERREGELN**: Allgemeine Kodierregeln (Spalte A), Formatregeln (Spalte B), Ausschlusskriterien für die Relevanzprüfung (Spalte C)
+- **DEDUKTIVE_KATEGORIEN**: Hauptkategorien mit Definition, Regeln, Beispielen und Subkategorien
+- **CONFIG**: Technische Einstellungen wie Modell, Verzeichnisse und Chunk-Größen
 
-3. **KODIERREGELN**:
-   - Spalte A: Allgemeine Kodierregeln
-   - Spalte B: Formatregeln
-   - Fügen Sie pro Zeile eine Regel hinzu.
+#### Struktur der DEDUKTIVE_KATEGORIEN
 
-4. **DEDUKTIVE_KATEGORIEN**:
-   - Spalte A (Key): Hauptkategoriename
-   - Spalte B (Sub-Key): Art der Information (definition, rules, examples, subcategories)
-   - Spalte C (Sub-Sub-Key): Nur für Subkategorien relevant
-   - Spalte D (Value): Inhalt der jeweiligen Information
-   - Beispiel:
-   
      | Key       | Sub-Key     | Sub-Sub-Key | Value                        |
      |-----------|-------------|-------------|------------------------------|
      | Akteure   | definition  |             | Erfasst alle handelnden...   |
      | Akteure   | rules       |             | Codiere Aussagen zu: Indi... |
      | Akteure   | examples    | [0]         | Die Arbeitsgruppe trifft...  |
      | Akteure   | subcategories | Individuelle_Akteure | Einzelpersonen und deren... |
-  
 
-5. **CONFIG**:
-   - Hier können Sie verschiedene Konfigurationsparameter einstellen:
-     - MODEL_NAME: Name des zu verwendenden Sprachmodells
-     - DATA_DIR: Verzeichnis für Eingabedaten
-     - OUTPUT_DIR: Verzeichnis für Ausgabedaten
-     - CHUNK_SIZE: Größe der Textabschnitte für die Analyse
-     - CHUNK_OVERLAP: Überlappung zwischen Textabschnitten
-     - ATTRIBUTE_LABELS: Bezeichnungen für Attribute, die aus dem Dateinamen extrahiert werden (z.B. "Part1_Part2_Restname.txt")
-     - CODER_SETTINGS: Einstellungen für automatische Kodierer
+#### Struktur der CONFI
+Hier können Sie verschiedene Konfigurationsparameter einstellen:
+- MODEL_PROVIDER: Name des LLM-Anbieters ('OpenAI' oder 'Mistral')
+- MODEL_NAME: Name des zu verwendenden Sprachmodells
+- DATA_DIR: Verzeichnis für Eingabedaten
+- OUTPUT_DIR: Verzeichnis für Ausgabedaten
+- CHUNK_SIZE: Größe der Textabschnitte für die Analyse
+- CHUNK_OVERLAP: Überlappung zwischen Textabschnitten
+- ATTRIBUTE_LABELS: Bezeichnungen für Attribute, die aus dem Dateinamen extrahiert werden (z.B. "Part1_Part2_Restname.txt")
+- CODER_SETTINGS: Einstellungen für automatische Kodierer
 
-6. **Aktualisierung**: 
-   - Speichern Sie Ihre Änderungen in der Excel-Datei.
-   - Das Programm liest die aktualisierten Informationen beim nächsten Start automatisch ein.
+### Verzeichnisstruktur
 
-7. **Validierung**:
-   - Das System überprüft die Vollständigkeit und Konsistenz der eingegebenen Daten.
-   - Achten Sie auf Warnmeldungen und Hinweise zur Verbesserung des Kategoriensystems.
+#### Eingabeverzeichnis (input)
+- Standardpfad: `input/` im Skriptverzeichnis
+- Unterstützte Formate:
+  - .txt (Textdateien)
+  - .pdf (PDF-Dokumente)
+  - .docx (Word-Dokumente)
+- Namenskonvention: `attribut1_attribut2_weiteres.extension`
+  - Beispiel: `university-type_position_2024-01-01.txt`
+  - Die Attribute werden für spätere Analysen genutzt
 
-Durch sorgfältige Pflege und Aktualisierung der `Codebook.xlsx` können Sie die Analyse optimal an Ihre Forschungsfragen und -methoden anpassen.
+#### Ausgabeverzeichnis (output)
+- Standardpfad: `output/` im Skriptverzeichnis
+- Erzeugte Dateien:
+  - `QCA-AID_Analysis_[DATUM].xlsx`: Hauptergebnisdatei mit Kodierungen und Analysen
+  - `category_revisions.json`: Protokoll der Kategorienentwicklung
+  - `codebook_inductive.json`: Erweitertes Kategoriensystem nach induktiver Phase
 
-## Ausgabedateien
+### Wichtige Hinweise
+- Entfernen Sie am besten Literaturverzeichnisse und nicht zu kodierende Textteile aus den Eingabedokumenten
+- Prüfen Sie bei PDF-Dokumenten die korrekte Textextraktion
+- Sichern Sie regelmäßig die QCA-AID-Codebook.xlsx
+- Die Verzeichnispfade können in der CONFIG angepasst werden
 
-Das Programm speichert verschiedene Ausgabedateien im konfigurierten Ausgabeverzeichnis (OUTPUT_DIR). Hier finden Sie eine Übersicht der erstellten Dateien und deren Inhalte:
 
-1. **Ergebnisse der Analyse (Excel-Mappe)**:
-   - Dateiname: `QCA_Results_[DATUM]_[ZEIT].xlsx`
-   - Inhalt: Eine umfassende Excel-Mappe mit mehreren Tabellenblättern, die verschiedene Aspekte der Analyse abdecken:
-     - Kodierergebnisse
-     - Kategoriensystem
-     - Zusammenfassende Statistiken
-     - Visualisierungen (falls vorhanden)
-   - Diese Datei dient als Hauptquelle für die Analyse und Interpretation der Ergebnisse.
+Durch sorgfältige Pflege und Aktualisierung der `QCA-AID-Codebook.xlsx` können Sie die Analyse optimal an Ihre Forschungsfragen und -methoden anpassen. Insbesondere die DEDUKTIVEN_KATEGORIEN sollten gründlich mit Definitionen und Beispielen versorgt werden, um das LLM nötigen Kontext mitzuliefern. 
 
-2. **Kategorie-Revisionen**:
-   - Dateiname: `category_revisions_[DATUM]_[ZEIT].json`
-   - Inhalt: Ein detailliertes Protokoll aller Änderungen am Kategoriensystem während des Analyseprozesses. Dies umfasst:
-     - Hinzufügungen neuer Kategorien
-     - Modifikationen bestehender Kategorien
-     - Löschungen von Kategorien
-     - Zeitstempel und Begründungen für jede Änderung
-
-Alle Dateien sind mit Datum und Uhrzeit versehen, um mehrere Analysedurchläufe unterscheiden zu können. Diese Ausgaben bieten eine umfassende Dokumentation des Analyseprozesses und ermöglichen eine detaillierte Nachverfolgung und Auswertung der Ergebnisse.
-
-**Hinweis**: Stellen Sie sicher, dass Sie über ausreichend Speicherplatz im Ausgabeverzeichnis verfügen, insbesondere bei der Analyse großer Datenmengen oder bei mehreren Durchläufen.
 
 
 # QCA-Mayring: Qualitative Content Analysis with AI Support

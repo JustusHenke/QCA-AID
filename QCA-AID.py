@@ -7,11 +7,12 @@ enhanced with AI capabilities through the OpenAI API.
 
 Version:
 --------
-0.9.7 (2025-02-20)
+0.9.7.1 (2025-02-21)
 
-New:
+New in 0.9.7:
 - Switch between OpenAI and Mistral using CONFIG parameter 'MODEL_PROVIDER'
 - Standard model for Openai is 'GPT-4o-mini', for Mistral 'mistral-small'
+- add exclusion criteria for relevance check in codebook coding rules
 
 Description:
 -----------
@@ -649,13 +650,34 @@ class ConfigLoader:
 
 
     def _load_coding_rules(self, wb):
+        """Lädt Kodierregeln aus dem Excel-Codebook."""
         if 'KODIERREGELN' in wb.sheetnames:
             df = pd.read_excel(self.excel_path, sheet_name='KODIERREGELN', header=0)
-            # print(f"Geladene Kodierregeln: {df}")  # Debug-Ausgabe
-            self.config['KODIERREGELN'] = {
-                'general': df['Allgemeine Kodierregeln'].dropna().tolist(),
-                'format': df['Formatregeln'].dropna().tolist()
+            
+            # Initialisiere Regelkategorien
+            rules = {
+                'general': [],       # Allgemeine Kodierregeln
+                'format': [],        # Formatregeln
+                'exclusion': []      # Neue Kategorie für Ausschlussregeln
             }
+            
+            # Verarbeite jede Spalte
+            for column in df.columns:
+                rules_list = df[column].dropna().tolist()
+                
+                if 'Allgemeine' in column:
+                    rules['general'].extend(rules_list)
+                elif 'Format' in column:
+                    rules['format'].extend(rules_list)
+                elif 'Ausschluss' in column:  # Neue Spalte für Ausschlussregeln
+                    rules['exclusion'].extend(rules_list)
+            
+            print("\nKodierregeln geladen:")
+            print(f"- Allgemeine Regeln: {len(rules['general'])}")
+            print(f"- Formatregeln: {len(rules['format'])}")
+            print(f"- Ausschlussregeln: {len(rules['exclusion'])}")
+            
+            self.config['KODIERREGELN'] = rules
 
     def _load_deduktive_kategorien(self, wb):
         try:
@@ -2118,6 +2140,11 @@ class RelevanceChecker:
         self.relevant_segments = 0
         self.api_calls = 0
 
+        # Hole Ausschlussregeln aus KODIERREGELN
+        self.exclusion_rules = KODIERREGELN.get('exclusion', [])
+        print("\nRelevanceChecker initialisiert:")
+        print(f"- {len(self.exclusion_rules)} Ausschlussregeln geladen")
+
     async def check_relevance_batch(self, segments: List[Tuple[str, str]]) -> Dict[str, bool]:
         """
         Prüft die Relevanz mehrerer Segmente in einem API-Call.
@@ -2144,48 +2171,63 @@ class RelevanceChecker:
                 for i, (_, text) in enumerate(uncached_segments)
             )
 
+            # Formatiere Ausschlussregeln für den Prompt
+            exclusion_rules_text = "\n".join(f"- {rule}" for rule in self.exclusion_rules)
+
             prompt = f"""
             Analysiere die Relevanz der folgenden Textsegmente für die Forschungsfrage:
             "{FORSCHUNGSFRAGE}"
+            
+            PRÜFUNGSREIHENFOLGE - Analysiere jedes Segment in dieser Reihenfolge:
 
-            WICHTIG: Berücksichtige bei der Relevanzprüfung die spezifischen Merkmale verschiedener Textsorten:
+            1. THEMATISCHE VORPRÜFUNG:
+            
+            Führe ZUERST eine grundlegende thematische Analyse durch:
+            - Identifiziere die Kernthemen und zentralen Konzepte der Forschungsfrage
+            - Prüfe, ob der Text diese Kernthemen überhaupt behandelt
+            - Stelle fest, ob ein inhaltlicher Zusammenhang zur Forschungsfrage besteht
+            - Falls NEIN: Sofort als nicht relevant markieren
+            - Falls JA: Weiter mit detaillierter Prüfung
 
-            1. INHALTLICHE RELEVANZ - Nach Textsorte:
+            2. AUSSCHLUSSKRITERIEN:
+            {exclusion_rules_text}
+
+            3. TEXTSORTENSPEZIFISCHE PRÜFUNG:
 
             INTERVIEWS/GESPRÄCHE:
-            - Direkte Erfahrungsberichte und Schilderungen
-            - Persönliche Einschätzungen und Bewertungen
+            - Direkte Erfahrungsberichte zum Forschungsthema
+            - Persönliche Einschätzungen relevanter Akteure
             - Konkrete Beispiele aus der Praxis
-            - Auch implizites Erfahrungswissen beachten
+            - Implizites Erfahrungswissen zum Thema
 
             DOKUMENTE/BERICHTE:
-            - Faktische Informationen und Beschreibungen
+            - Faktische Informationen zum Forschungsgegenstand
             - Formale Regelungen und Vorgaben
-            - Dokumentierte Abläufe und Prozesse
-            - Strukturelle Rahmenbedingungen
+            - Dokumentierte Prozesse und Strukturen
+            - Institutionelle Rahmenbedingungen
 
             PROTOKOLLE/NOTIZEN:
             - Beobachtete Handlungen und Interaktionen
-            - Situationsbeschreibungen
+            - Situationsbeschreibungen zum Thema
             - Dokumentierte Entscheidungen
-            - Kontextinformationen zu Ereignissen
+            - Relevante Kontextinformationen
 
-            2. QUALITÄTSKRITERIEN:
+            4. QUALITÄTSKRITERIEN:
 
             AUSSAGEKRAFT:
-            - Enthält das Segment konkrete, gehaltvolle Information?
-            - Geht es über Allgemeinplätze hinaus?
-            - Ist die Information präzise genug für die Analyse?
+            - Spezifische Information zum Forschungsthema
+            - Substanzielle, nicht-triviale Aussagen
+            - Präzise und gehaltvolle Information
 
             ANWENDBARKEIT:
-            - Lässt sich die Information auf die Forschungsfrage beziehen?
-            - Ermöglicht sie Erkenntnisse zu den Kernaspekten?
-            - Trägt sie zum Verständnis relevanter Zusammenhänge bei?
+            - Direkter Bezug zur Forschungsfrage
+            - Beitrag zur Beantwortung der Forschungsfrage
+            - Erkenntnispotenzial für die Untersuchung
 
-            KONTEXTBEDEUTUNG:
-            - Ist der Kontext wichtig für das Verständnis?
-            - Hilft er bei der Interpretation anderer Informationen?
-            - Ist er notwendig für die Einordnung der Aussagen?
+            KONTEXTRELEVANZ:
+            - Bedeutung für das Verständnis des Forschungsgegenstands
+            - Hilfe bei der Interpretation anderer Informationen
+            - Notwendigkeit für die thematische Einordnung
 
             TEXTSEGMENTE:
             {segments_text}
@@ -2196,22 +2238,23 @@ class RelevanceChecker:
                     {{
                         "segment_number": 1,
                         "is_relevant": true/false,
+                        "thematic_match": true/false,
                         "confidence": 0.0-1.0,
-                        "text_type": "interview|dokument|protokoll|andere",
-                        "key_aspects": ["konkrete", "für", "die", "Forschungsfrage", "relevante", "Aspekte"],
-                        "justification": "Begründung der Relevanz unter Berücksichtigung der Textsorte"
+                        "key_aspects": ["liste", "relevanter", "aspekte"],
+                        "off_topic_reason": "Bei thematic_match=false: Begründung warum thematisch unpassend",
+                        "justification": "Ausführliche Begründung der Entscheidung"
                     }},
                     ...
                 ]
             }}
 
             WICHTIGE HINWEISE:
-            - Berücksichtige die spezifischen Merkmale der jeweiligen Textsorte
-            - Beachte unterschiedliche Formen relevanter Information (explizit/implizit)
-            - Prüfe den Informationsgehalt im Kontext der Textsorte
-            - Bewerte die Relevanz entsprechend der textsortentypischen Merkmale
+            - Führe IMMER ZUERST die thematische Vorprüfung durch
+            - Identifiziere die Kernthemen der Forschungsfrage und prüfe deren Präsenz im Text
+            - Markiere Segmente als nicht relevant, wenn sie die Kernthemen nicht behandeln
             - Bei Unsicherheit (confidence < 0.7) als nicht relevant markieren
-            - Dokumentiere die Begründung mit Bezug zur Textsorte
+            - Gib bei thematischer Nicht-Passung eine klare Begründung
+            - Sei streng bei der thematischen Vorprüfung
             """
 
             input_tokens = estimate_tokens(prompt)
@@ -2460,7 +2503,7 @@ class IntegratedAnalysisManager:
                         print(f"  ✓ Kodierung von {coder.coder_id}: {result['category']}")
                         batch_results.append(result)
                     else:
-                        print(f"  ✗ Keine gültige Kodierung von {coder.coder_id}")
+                        print(f"  ✗ Keine gültige Kodierung von 🏷️  {coder.coder_id}")
                         
                 except Exception as e:
                     print(f"  ✗ Fehler bei Kodierer {coder.coder_id}: {str(e)}")
@@ -3380,7 +3423,7 @@ class DeductiveCoder:
             llm_response = LLMResponse(response)
             result = json.loads(llm_response.content)
 
-            print(f"  ✓ Kodierung erstellt: {result.get('category', 'Keine Kategorie')} "
+            print(f"  ✓ Kodierung erstellt: 🏷️ {result.get('category', 'Keine Kategorie')} "
                   f"(Konfidenz: {result.get('confidence', {}).get('total', 0):.2f})")
 
 
@@ -6631,7 +6674,7 @@ class ResultsExporter:
                             max_length = len(str(cell.value))
                     except:
                         pass
-                    worksheet.column_dimensions[col[0].column_letter].width = min(max_length + 2, 40)
+                    worksheet.column_dimensions[col[0].column_letter].width = min(max_length + 2, 20)
 
             print("Häufigkeitsanalysen erfolgreich exportiert")
             
@@ -6639,12 +6682,6 @@ class ResultsExporter:
             print(f"Fehler bei Häufigkeitsanalysen: {str(e)}")
             import traceback
             traceback.print_exc()
-
-    
-
-    
-        
-    
 
     def _export_reliability_report(self, writer, reliability: float, total_segments: int, 
                                    total_coders: int, category_frequencies: dict):
