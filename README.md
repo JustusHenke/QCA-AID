@@ -17,6 +17,7 @@ Zu beachten ist aber:
 ## Merkmale von QCA-AID
 
 - Automatisierte Textvorverarbeitung und Chunking
+- Relevanzprüfung der Textsegmente vor der Kodierung
 - Deduktive Anwendung von Kategorien
 - Induktive Kategorienentwicklung (kann übersprungen werden)
 - Multi-Coder-Unterstützung (AI und Mensch)
@@ -32,7 +33,7 @@ Zu beachten ist aber:
 - Schätzung der verwendeten Input-/Output-Tokens der API-Aufrufe
 
 __ACHTUNG!__
-Bitte beachten Sie, dass sich dieses Skript noch in der Entwicklung befindet und noch nicht alle Funktionen verfügbar sind oder zuverlässig arbeiten. Es wird aktuell eine Nutzung zu Testzwecken empfohlen. 
+Bitte beachten Sie, dass sich dieses Skript noch in der Entwicklung befindet und noch nicht alle Funktionen verfügbar sind oder zuverlässig arbeiten. Es wird aktuell eine Nutzung zu Testzwecken empfohlen. Prüfen Sie regelmäßig, ob eine neue Version hier bereitgestellt ist.
 Beachten Sie auch, dass KI-Ergebnisse nicht perfekt sind und die Ergebnisse von der Qualität der Eingabedaten abhängen.
 Verwenden Sie das Skript auf eigene Gefahr! 
 
@@ -41,7 +42,7 @@ Kontakt: justus.henke@hof.uni-halle.de
 
 ## Hinweis zum Datenschutz
 
-Die KI-gestützte Datenverarbeitung nutzt die Schnittstelle von OpenAI. Auch wenn diese Anfragen offiziell nicht für das Training von Modellen genutzt werden, stellt diese eine Verarbeitung durch Dritte dar. Prüfen Sie, ob Ihre Dokumente dafür freigegeben sind und entfernen Sie ggf. sensible Informationen. Eine Nutzung mit hochsensiblen Daten wird ausdrücklich nicht empfohlen. 
+Die KI-gestützte Datenverarbeitung nutzt die Schnittstelle von OpenAI bzw. Mistral. Auch wenn diese Anfragen offiziell nicht für das Training von Modellen genutzt werden, stellt diese eine Verarbeitung durch Dritte dar. Prüfen Sie, ob Ihre Dokumente dafür freigegeben sind und entfernen Sie ggf. sensible Informationen. Eine Nutzung mit hochsensiblen Daten wird ausdrücklich nicht empfohlen. 
 
 Prinzipiell ist die Verarbeitung der Daten per LLM auch auf einem lokalen Rechner möglich Dafür kann OLLAMA oder LMSTUDIO genutzt werden und das Setup im Client muss etwas angepasst werden mehr dazu hier: https://ollama.com/blog/openai-compatibility oder https://lmstudio.ai/docs/api/endpoints/openai
 
@@ -146,7 +147,7 @@ Die Excel-Datei `Codebook.xlsx` ist zentral für die Konfiguration der Analyse u
      | Akteure   | examples    | [0]         | Die Arbeitsgruppe trifft...  |
      | Akteure   | subcategories | Individuelle_Akteure | Einzelpersonen und deren... |
 
-#### Struktur der CONFI
+#### Struktur der CONFIG
 Hier können Sie verschiedene Konfigurationsparameter einstellen:
 - MODEL_PROVIDER: Name des LLM-Anbieters ('OpenAI' oder 'Mistral')
 - MODEL_NAME: Name des zu verwendenden Sprachmodells
