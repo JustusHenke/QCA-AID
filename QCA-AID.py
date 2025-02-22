@@ -7,12 +7,14 @@ enhanced with AI capabilities through the OpenAI API.
 
 Version:
 --------
-0.9.7.1 (2025-02-21)
+0.9.7.2 (2025-02-22)
 
 New in 0.9.7:
 - Switch between OpenAI and Mistral using CONFIG parameter 'MODEL_PROVIDER'
 - Standard model for Openai is 'GPT-4o-mini', for Mistral 'mistral-small'
 - add exclusion criteria for relevance check in codebook coding rules
+- export justification for non-relevant text segments
+- improved relevance check, justification and segement coding prompt
 
 Description:
 -----------
@@ -253,17 +255,6 @@ VALIDATION_THRESHOLDS = {
     'MIN_NAME_LENGTH': 3
 }
 
-ENGLISH_WORDS = {
-    'research', 'development', 'management', 
-    'system', 'process', 'analysis'
-}
-
-VALIDATION_MESSAGES = {
-    'short_definition': "Definition zu kurz (min. {min_words} Wörter)",
-    'few_examples': "Zu wenige Beispiele (min. {min_examples})",
-    'english_terms': "Name enthält englische Begriffe",
-    'name_length': "Name muss zwischen {min_len} und {max_len} Zeichen sein"
-}
 
 # ------------------------
 # Konfigurationskonstanten
@@ -305,9 +296,6 @@ load_dotenv(env_path)
 # ============================
 # 2. LLM-Provider konfigurieren
 # ============================
-
-
-
 
 
 class LLMProvider(ABC):
@@ -1991,7 +1979,7 @@ class CategoryOptimizer:
         provider_name = CONFIG.get('MODEL_PROVIDER', 'openai')
         try:
             self.llm_provider = LLMProviderFactory.create_provider(provider_name)
-            print(f"LLM Provider '{provider_name}' für Kategorienoptimierung initialisiert")
+            print(f"🤖 LLM Provider '{provider_name}' für Kategorienoptimierung initialisiert")
         except Exception as e:
             print(f"Fehler bei Provider-Initialisierung: {str(e)}")
             raise
@@ -2291,7 +2279,8 @@ class RelevanceChecker:
                 self.relevance_cache[segment_id] = is_relevant
                 self.relevance_details[segment_id] = {
                     'confidence': segment_result['confidence'],
-                    'key_aspects': segment_result['key_aspects']
+                    'key_aspects': segment_result['key_aspects'],
+                    'justification': segment_result['justification']
                 }
                 
                 relevance_results[segment_id] = is_relevant
@@ -2503,7 +2492,7 @@ class IntegratedAnalysisManager:
                             'paraphrase': coding.paraphrase,
                             'keywords': coding.keywords
                         }
-                        print(f"  ✓ Kodierung von x{coder.coder_id}: 🏷️  {result['category']}")
+                        print(f"  ✓ Kodierung von {coder.coder_id}: 🏷️  {result['category']}")
                         batch_results.append(result)
                     else:
                         print(f"  ✗ Keine gültige Kodierung von {coder.coder_id}")
@@ -3358,106 +3347,10 @@ class DeductiveCoder:
         try:
             # Wir lassen den LLMProvider sich selbst um die Client-Initialisierung kümmern
             self.llm_provider = LLMProviderFactory.create_provider(provider_name)
-            print(f"LLM Provider '{provider_name}' für Kodierer {coder_id} initialisiert")
+            print(f"🤖 LLM Provider '{provider_name}' für Kodierer {coder_id} initialisiert")
         except Exception as e:
             print(f"Fehler bei Provider-Initialisierung für {coder_id}: {str(e)}")
             raise
-
-    async def _check_deductive_categories(self, chunk: str, deductive_categories: Dict) -> Optional[CodingResult]:
-        """
-        Prüft, ob der Chunk zu einer deduktiven Kategorie passt und reichert diese ggf. mit induktiven 
-        Subkategorien an.
-        """
-        try:
-            prompt = f"""
-            Analysiere den Text in zwei Schritten:
-
-            1. DEDUKTIVE HAUPTKATEGORIEN:
-            Prüfe zunächst, ob der Text zu einer dieser deduktiven Hauptkategorien passt:
-            {json.dumps(deductive_categories, indent=2, ensure_ascii=False)}
-
-            2. INDUKTIVE SUBKATEGORIEN:
-            Falls der Text einer deduktiven Hauptkategorie zugeordnet werden kann:
-            - Prüfe die bestehenden Subkategorien
-            - Identifiziere zusätzliche, neue thematische Aspekte
-            - Schlage neue Subkategorien vor, wenn wichtige Aspekte nicht abgedeckt sind
-
-            TEXT:
-            {chunk}
-
-            FORSCHUNGSFRAGE:
-            {FORSCHUNGSFRAGE}
-
-            Antworte nur mit einem JSON-Objekt:
-            {{
-                "matches_deductive": true/false,
-                "category": "Name der deduktiven Hauptkategorie (oder leer)",
-                "existing_subcategories": ["Liste", "bestehender", "Subkategorien"],
-                "new_subcategories": ["Liste", "neuer", "Subkategorien"],
-                "confidence": {{
-                    "category": 0.9,
-                    "subcategories": 0.8
-                }},
-                "justification": "Begründung der Zuordnung und neuer Subkategorien"
-            }}
-
-            WICHTIG:
-            - Neue Subkategorien nur vorschlagen, wenn sie:
-            1. Einen neuen, relevanten Aspekt erfassen
-            2. Sich klar von bestehenden Subkategorien unterscheiden
-            3. Zur Forschungsfrage beitragen
-            - Subkategorien müssen spezifisch und präzise sein
-            - Verwende ausschließlich deutsche Begriffe
-            """
-
-            input_tokens = estimate_tokens(prompt + chunk)
-
-            response = await self.llm_provider.create_completion(
-                model=self.model_name,
-                messages=[
-                    {"role": "system", "content": "Du bist ein Experte für qualitative Inhaltsanalyse. Du antwortest auf deutsch."},
-                    {"role": "user", "content": prompt}
-                ],
-                temperature=float(self.temperature),
-                response_format={"type": "json_object"}
-            )
-            
-            # Verarbeite Response mit Wrapper
-            llm_response = LLMResponse(response)
-            result = json.loads(llm_response.content)
-
-            print(f"  ✓ Kodierung erstellt: 🏷️ {result.get('category', 'Keine Kategorie')} "
-                  f"(Konfidenz: {result.get('confidence', {}).get('total', 0):.2f})")
-
-
-            output_tokens = estimate_tokens(response.choices[0].message.content)
-            token_counter.add_tokens(input_tokens, output_tokens)
-            
-            if result.get('matches_deductive', False) and result.get('category'):
-                # Kombiniere bestehende und neue Subkategorien
-                all_subcategories = (
-                    result.get('existing_subcategories', []) +
-                    result.get('new_subcategories', [])
-                )
-                
-                # Erstelle erweiterte Begründung
-                justification = result.get('justification', '')
-                if result.get('new_subcategories'):
-                    justification += f"\nNeue Subkategorien: {', '.join(result['new_subcategories'])}"
-
-                return CodingResult(
-                    category=result['category'],
-                    subcategories=tuple(result.get('subcategories', [])),  # Als Tuple
-                    justification=result.get('justification', ''),
-                    confidence=result.get('confidence', {'total': 0.0, 'category': 0.0, 'subcategories': 0.0}),
-                    text_references=tuple([chunk[:100]]),  # Als Tuple
-                    uncertainties=None
-                )
-            return None
-
-        except Exception as e:
-            print(f"Fehler bei der Prüfung deduktiver Kategorien: {str(e)}")
-            return None
 
     async def update_category_system(self, categories: Dict[str, CategoryDefinition]) -> bool:
         """
@@ -3577,25 +3470,47 @@ class DeductiveCoder:
 
             WICHTIG: 
             1. KATEGORIENVERGLEICH:
-            - Vergleiche den Text mit JEDER Kategoriendefinition und deren Beispielen
-            - Prüfe ob der Text ähnliche Aspekte wie die Beispiele aufweist
-            - Prüfe ob der Text der Definition der Kategorie entspricht
+            - Vergleiche den Text systematisch mit JEDER Kategoriendefinition
+            - Prüfe explizit die Übereinstimmung mit den Beispielen jeder Kategorie
+            - Identifiziere wörtliche und sinngemäße Übereinstimmungen
+            - Dokumentiere auch teilweise Übereinstimmungen für die Nachvollziehbarkeit
             
             2. SUBKATEGORIENVERGLEICH:
-            - Falls eine vorhandene Hauptkategorie passt, vergleiche mit den  Subkategoriendefinitionen
-            - Wähle nur vorhandene Subkategorien, die wirklich zum Text passen
+            - Bei passender Hauptkategorie: Prüfe ALLE zugehörigen Subkategorien
+            - Wähle nur Subkategorien mit hoher Konfidenz (>0.79)
+            - Dokumentiere die spezifischen Textstellen für jede gewählte Subkategorie
+            - Begründe die Nicht-Wahl von scheinbar passenden Subkategorien
             
             3. ENTSCHEIDUNGSREGELN:
-            - Der Text könnte für die Forschungsfrage relevant sein, aber zu keiner Kategorie passen
-            - In diesem Fall gib "Keine passende Kategorie" zurück
-            - Kodiere nur dann mit einer Kategorie, wenn Text UND Beispiele ähnlich sind
-            - Erzwinge keine Zuordnung wenn keine Kategorie wirklich passt
-            - Die Zuordnung muss durch Bezug auf Definition UND Beispiele begründbar sein
+            - Kodiere nur bei eindeutiger Übereinstimmung mit Definition UND Beispielen
+            - Bei konkurrierenden Kategorien: Dokumentiere die Abwägung
+            - Bei niedriger Konfidenz (<0.80): Wähle "Keine passende Kategorie"
+            - Die Interpretation muss sich auf konkrete Textstellen stützen
+            - Keine Annahmen oder Spekulationen über den Text hinaus
+            - Prüfe die Relevanz für die Forschungsfrage explizit
 
-            Erstelle:
-            1. Eine prägnante Paraphrase des Texts (max. 40 Wörter)
-            2. Schlüsselwörter (2-3 zentrale Begriffe)
-            3. Eine begründete Kategorienzuordnung oder "Keine passende Kategorie"
+            4. QUALITÄTSSICHERUNG:
+            - Stelle intersubjektive Nachvollziehbarkeit sicher
+            - Dokumentiere Grenzfälle und Abwägungen transparent
+            - Prüfe die Konsistenz mit bisherigen Kodierungen
+            - Bei Unsicherheiten: Lieber konservativ kodieren
+
+            LIEFERE:
+
+            1. PARAPHRASE:
+            - Erfasse den zentralen Inhalt in max. 40 Wörtern
+            - Verwende sachliche, deskriptive Sprache
+            - Bleibe nah am Originaltext ohne Interpretation
+
+            2. SCHLÜSSELWÖRTER:
+            - 2-3 zentrale Begriffe aus dem Text
+            - Wähle bedeutungstragende Terme
+            - Vermeide zu allgemeine Begriffe
+
+            3. KATEGORIENZUORDNUNG:
+            - Entweder präzise Kategorie oder "Keine passende Kategorie"
+            - Ausführliche Begründung mit Textbelegen
+            - Transparente Konfidenzeinschätzung
 
             Antworte ausschließlich mit einem JSON-Objekt:
             {{
@@ -3603,17 +3518,22 @@ class DeductiveCoder:
                 "keywords": "Deine Schlüsselwörter hier",
                 "category": "Name der Hauptkategorie oder 'Keine passende Kategorie'",
                 "subcategories": ["Liste", "existierender", "Subkategorien"],
-                "justification": "Begründung mit Bezug auf Definitionen und Beispiele",
+                "justification": "Begründung muss enthalten: 1. Konkrete Textstellen, 2. Bezug zur Kategoriendefinition, 3. Verbindung zur Forschungsfrage",
                 "confidence": {{
-                    "total": 0.85,
-                    "category": 0.9,
-                    "subcategories": 0.8
+                    "total": 0.00-1.00,
+                    "category": 0.00-1.00,
+                    "subcategories": 0.00-1.00
                 }},
                 "text_references": ["Relevante", "Textstellen"],
                 "definition_matches": ["Welche Aspekte der Definition passen"],
-                "example_matches": ["Welche Beispiele ähnlich sind"]
+                "example_matches": ["Welche Beispiele ähnlich sind"],
+                "competing_categories": {{
+                    "considered": ["Liste erwogener Kategorien"],
+                    "rejection_reasons": ["Begründung für Nicht-Zuordnung"]
+                }}
             }}
             """
+
 
             try:
                 input_tokens = estimate_tokens(prompt + chunk)
@@ -3637,29 +3557,46 @@ class DeductiveCoder:
                 
                 if result and isinstance(result, dict):
                     if result.get('category'):
-                        print(f"  ✓ Kodierung erstellt: {result['category']} "
-                            f"(Konfidenz: {result.get('confidence', {}).get('total', 0):.2f})")
-                        
                         # Debug-Ausgaben
                         print("\n👨‍⚖️  Kodierungsbegründung:")
-                        if definition_matches := result.get('definition_matches', []):
-                            print("  Passende Definitionsaspekte:")
-                            for match in definition_matches:
-                                print(f"  - {match}")
                         
-                        if example_matches := result.get('example_matches', []):
-                            print("  Ähnliche Beispiele:")
+                        # Verarbeite Begründung
+                        justification = result.get('justification', '')
+                        if isinstance(justification, dict):
+                            # Formatiere Dictionary-Begründung
+                            for key, value in justification.items():
+                                print(f"  {key}: {value}")
+                        elif justification:
+                            print(f"  {justification}")
+                        
+                        # Verarbeite Beispiel-Matches
+                        example_matches = result.get('example_matches', [])
+                        if isinstance(example_matches, list) and example_matches:
+                            print("\n  Ähnliche Beispiele:")
                             for match in example_matches:
                                 print(f"  - {match}")
+                        elif example_matches:
+                            print(f"\n  Ähnliche Beispiele: {example_matches}")
                         
+                        # Verarbeite Paraphrase
                         paraphrase = result.get('paraphrase', '')
                         if paraphrase:
-                            print(f"\nParaphrase: {paraphrase}")
-                        
-                        # Wenn "Keine passende Kategorie" zurückgegeben wurde
-                        if result['category'] == "Keine passende Kategorie":
-                            print("\nℹ Text als relevant erkannt, aber keine passende Kategorie gefunden")
-                            print(f"Begründung: {result.get('justification', 'Keine Begründung angegeben')}")
+                            print(f"\n🗒️  Paraphrase: {paraphrase}")
+                            
+                        # Zeige Definition-Matches wenn vorhanden
+                        definition_matches = result.get('definition_matches', [])
+                        if isinstance(definition_matches, list) and definition_matches:
+                            print("\n  Passende Definitionsaspekte:")
+                            for match in definition_matches:
+                                print(f"  - {match}")
+                                
+                        # Zeige Konfidenzdetails
+                        confidence = result.get('confidence', {})
+                        if isinstance(confidence, dict) and confidence:
+                            print("\n  Konfidenzwerte:")
+                            for key, value in confidence.items():
+                                if isinstance(value, (int, float)):
+                                    print(f"  - {key}: {value:.2f}")
                     
                     return CodingResult(
                         category=result.get('category', ''),
@@ -3785,7 +3722,7 @@ class InductiveCoder:
         provider_name = CONFIG.get('MODEL_PROVIDER', 'openai')
         try:
             self.llm_provider = LLMProviderFactory.create_provider(provider_name)
-            print(f"\nLLM Provider '{provider_name}' für induktive Kodierung initialisiert")
+            print(f"\n🤖 LLM Provider '{provider_name}' für induktive Kodierung initialisiert")
         except Exception as e:
             print(f"Fehler bei Provider-Initialisierung: {str(e)}")
             raise
@@ -5966,6 +5903,7 @@ class ResultsExporter:
         self.attribute_labels = attribute_labels
         self.inductive_coder = inductive_coder
         self.analysis_manager = analysis_manager
+        self.relevance_checker = analysis_manager.relevance_checker if analysis_manager else None
         self.category_colors = {}
         os.makedirs(output_dir, exist_ok=True)
 
@@ -6213,6 +6151,7 @@ class ResultsExporter:
     def _prepare_coding_for_export(self, coding: dict, chunk: str, chunk_id: int, doc_name: str) -> dict:
         """
         Bereitet eine Kodierung für den Export vor.
+        Erweitert um zusätzliche Felder für detailliertere Analysedokumentation.
         """
         try:
             # Extrahiere Attribute aus dem Dateinamen
@@ -6222,25 +6161,96 @@ class ResultsExporter:
             category = coding.get('category', '')
             
             # Bestimme den Kategorietyp (deduktiv/induktiv)
-            # Wichtig: Vergleiche mit den ursprünglichen deduktiven Kategorien
             if category in DEDUKTIVE_KATEGORIEN:
                 kategorie_typ = "deduktiv"
             else:
                 kategorie_typ = "induktiv"
-                print(f"Induktive Kategorie gefunden: {category}")  # Debug-Ausgabe
                 
             # Setze Kodiert-Status basierend auf Kategorie
             is_coded = 'Ja' if category and category != "Nicht kodiert" else 'Nein'
-            
+
+            # Debug-Ausgabe zum Prüfen der Coding-Struktur
+            print(f"\nDebug - Coding für Chunk {chunk_id}:")
+            for key, value in coding.items():
+                print(f"{key}: {value}")
+                
+            # Formatiere Keywords
             raw_keywords = coding.get('keywords', '')
             if isinstance(raw_keywords, list):
-                formatted_keywords = [kw.strip() for kw in raw_keywords]  # Leerzeichen entfernen
+                formatted_keywords = [kw.strip() for kw in raw_keywords]
             else:
                 formatted_keywords = raw_keywords.replace("[", "").replace("]", "").replace("'", "").split(",")
                 formatted_keywords = [kw.strip() for kw in formatted_keywords]
+            
+            # Hole Relevanzdetails
+            segment_id = f"{doc_name}_chunk_{chunk_id}"
+            relevance_details = None
+            if hasattr(self, 'relevance_checker'):
+                relevance_details = self.relevance_checker.get_relevance_details(segment_id)
+                if relevance_details:
+                    print(f"\nDebug - Relevanzdetails für Chunk {chunk_id}:")
+                    print(relevance_details)
 
-            # Umwandlung der Liste in einen String
-            formatted_keywords_list = ", ".join(formatted_keywords)
+            # Formatiere die Begründung
+            justification = coding.get('justification', '')
+            if category == "Nicht kodiert" and relevance_details:
+                justification = relevance_details.get('justification', justification)
+
+            # Formatiere Text-bezogene Felder für kodierte Chunks
+            if is_coded == 'Ja':
+                # Textstellen
+                text_refs = coding.get('text_references', [])
+                if isinstance(text_refs, str):
+                    formatted_references = text_refs
+                elif isinstance(text_refs, (list, tuple)):
+                    formatted_references = '\n'.join(str(ref) for ref in text_refs if ref)
+                else:
+                    formatted_references = str(text_refs)
+
+                # Definition-Matches
+                def_matches = coding.get('definition_matches', [])
+                if isinstance(def_matches, str):
+                    formatted_def_matches = def_matches
+                elif isinstance(def_matches, (list, tuple)):
+                    formatted_def_matches = '\n'.join(str(match) for match in def_matches if match)
+                else:
+                    formatted_def_matches = str(def_matches)
+
+                # Beispiel-Matches
+                ex_matches = coding.get('example_matches', [])
+                if isinstance(ex_matches, str):
+                    formatted_ex_matches = ex_matches
+                elif isinstance(ex_matches, (list, tuple)):
+                    formatted_ex_matches = '\n'.join(str(match) for match in ex_matches if match)
+                else:
+                    formatted_ex_matches = str(ex_matches)
+
+                # Konkurrierende Kategorien
+                competing_cats = coding.get('competing_categories', {})
+                if isinstance(competing_cats, dict):
+                    considered = competing_cats.get('considered', [])
+                    reasons = competing_cats.get('rejection_reasons', [])
+                    comp_parts = []
+                    if considered:
+                        comp_parts.append("Erwogene Kategorien: " + ', '.join(str(cat) for cat in considered))
+                    if reasons:
+                        comp_parts.append("Ablehnungsgründe: " + ', '.join(str(reason) for reason in reasons))
+                    formatted_competing = '\n'.join(comp_parts)
+                else:
+                    formatted_competing = str(competing_cats)
+
+            # Formatiere Text-bezogene Felder für nicht-kodierte Chunks
+            else:
+                if relevance_details:
+                    formatted_references = f"Texttyp: {relevance_details.get('text_type', 'nicht spezifiziert')}"
+                    formatted_def_matches = "Relevanzprüfung: " + str(relevance_details.get('confidence', ''))
+                    formatted_ex_matches = "Kernaspekte: " + ", ".join(str(aspect) for aspect in relevance_details.get('key_aspects', []))
+                    formatted_competing = ""
+                else:
+                    formatted_references = "Keine Details verfügbar"
+                    formatted_def_matches = "Keine Details verfügbar"
+                    formatted_ex_matches = "Keine Details verfügbar"
+                    formatted_competing = ""
 
             # Export-Dictionary mit allen erforderlichen Feldern
             export_data = {
@@ -6249,21 +6259,38 @@ class ResultsExporter:
                 self.attribute_labels['attribut2']: attribut2,
                 'Chunk_Nr': chunk_id,
                 'Text': chunk,
-                'Paraphrase': coding.get('paraphrase', ''), 
+                'Paraphrase': coding.get('paraphrase', ''),
                 'Kodiert': is_coded,
                 'Hauptkategorie': category,
-                'Kategorietyp': kategorie_typ,  # Hier wird der korrekte Typ gesetzt
-                'Subkategorien': ', '.join(coding.get('subcategories', [])),
-                'Schlüsselwörter': formatted_keywords_list,
-                'Begründung': coding.get('justification', ''),
+                'Kategorietyp': kategorie_typ,
+                'Subkategorien': (', '.join(coding.get('subcategories', []))
+                if isinstance(coding.get('subcategories'), (list, tuple)) 
+                else str(coding.get('subcategories', ''))),
+                'Schlüsselwörter': ', '.join(formatted_keywords),
+                'Begründung': justification,
                 'Konfidenz': self._format_confidence(coding.get('confidence', {})),
-                'Mehrfachkodierung': 'Ja' if len(coding.get('subcategories', [])) > 1 else 'Nein'
+                'Mehrfachkodierung': ('Ja' if isinstance(coding.get('subcategories'), (list, tuple)) 
+                    and len(coding.get('subcategories', [])) > 1 else 'Nein'),
+                'Textstellen': formatted_references,
+                'Definition_Übereinstimmungen': formatted_def_matches,
+                'Beispiel_Übereinstimmungen': formatted_ex_matches,
+                'Konkurrierende_Kategorien': formatted_competing
             }
+
+            # Debug-Ausgabe der formatierten Felder
+            print(f"\nDebug - Formatierte Felder für Chunk {chunk_id}:")
+            print(f"Textstellen: {formatted_references}")
+            print(f"Definition_Übereinstimmungen: {formatted_def_matches}")
+            print(f"Beispiel_Übereinstimmungen: {formatted_ex_matches}")
+            print(f"Konkurrierende_Kategorien: {formatted_competing}")
             
             return export_data
-            
+                
         except Exception as e:
             print(f"Fehler bei der Exportvorbereitung für Chunk {chunk_id}: {str(e)}")
+            print("Details:")
+            import traceback
+            traceback.print_exc()
             return {
                 'Dokument': doc_name,
                 'Chunk_Nr': chunk_id,
@@ -6272,19 +6299,44 @@ class ResultsExporter:
                 'Kodiert': 'Nein',
                 'Hauptkategorie': 'Fehler bei Verarbeitung',
                 'Kategorietyp': 'unbekannt',
-                'Begründung': f'Fehler: {str(e)}'
+                'Begründung': f'Fehler: {str(e)}',
+                'Subkategorien': '',
+                'Konfidenz': '',
+                'Mehrfachkodierung': 'Nein',
+                'Textstellen': '',
+                'Definition_Übereinstimmungen': '',
+                'Beispiel_Übereinstimmungen': '',
+                'Konkurrierende_Kategorien': ''
             }
 
     def _format_confidence(self, confidence: dict) -> str:
-        """Formatiert die Konfidenz-Werte"""
-        if isinstance(confidence, dict):
-            return (
-                f"Kategorie: {confidence.get('category', 0):.2f}\n"
-                f"Subkategorien: {confidence.get('subcategories', 0):.2f}"
-            )
-        elif isinstance(confidence, (int, float)):
-            return f"{float(confidence):.2f}"
-        else:
+        """Formatiert die Konfidenz-Werte für den Export"""
+        try:
+            if isinstance(confidence, dict):
+                formatted_values = []
+                # Verarbeite jeden Konfidenzwert einzeln
+                for key, value in confidence.items():
+                    if isinstance(value, (int, float)):
+                        formatted_values.append(f"{key}: {value:.2f}")
+                    elif isinstance(value, dict):
+                        # Verarbeite verschachtelte Konfidenzwerte
+                        nested_values = [f"{k}: {v:.2f}" for k, v in value.items() 
+                                    if isinstance(v, (int, float))]
+                        if nested_values:
+                            formatted_values.append(f"{key}: {', '.join(nested_values)}")
+                    elif isinstance(value, str):
+                        formatted_values.append(f"{key}: {value}")
+                
+                return "\n".join(formatted_values)
+            elif isinstance(confidence, (int, float)):
+                return f"{float(confidence):.2f}"
+            elif isinstance(confidence, str):
+                return confidence
+            else:
+                return "0.00"
+                
+        except Exception as e:
+            print(f"Fehler bei Konfidenz-Formatierung: {str(e)}")
             return "0.00"
 
     def _validate_export_data(self, export_data: List[dict]) -> bool:
