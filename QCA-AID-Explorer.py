@@ -298,41 +298,136 @@ class QCAAnalyzer:
             edges_df.to_excel(writer, sheet_name='Edges', index=False)
         print(f"Netzwerkdaten exportiert nach: {excel_output_path}")
         
+        # Starte die Visualisierung
         print("\nErstelle Visualisierung...")
-        plt.figure(figsize=(20, 15))
+        plt.figure(figsize=(24, 20))
         
-        # Use force-directed layout with adjusted parameters
-        pos = nx.spring_layout(G, k=2, iterations=50)
+        # Sammle Knoten nach Typ
+        main_nodes = [n for n, d in G.nodes(data=True) if d['node_type'] == 'main']
+        sub_nodes = [n for n, d in G.nodes(data=True) if d['node_type'] == 'sub']
+        keyword_nodes = [n for n, d in G.nodes(data=True) if d['node_type'] == 'keyword']
         
-        # Draw edges first with reduced opacity
-        nx.draw_networkx_edges(G, pos, 
+        # Berechne Positionen für Hauptkategorien im Zentrum
+        num_main = len(main_nodes)
+        main_radius = 0.3
+        main_pos = {}
+        for i, node in enumerate(main_nodes):
+            angle = 2 * np.pi * i / num_main
+            main_pos[node] = (main_radius * np.cos(angle), main_radius * np.sin(angle))
+        
+        # Berechne Positionen für Subkategorien in mittlerem Ring
+        sub_radius = 0.6
+        sub_pos = {}
+        for i, node in enumerate(sub_nodes):
+            main_neighbors = [n for n in G.predecessors(node) if n in main_nodes]
+            if main_neighbors:
+                main_x, main_y = main_pos[main_neighbors[0]]
+                angle = 2 * np.pi * i / len(sub_nodes)
+                offset_x = sub_radius * np.cos(angle)
+                offset_y = sub_radius * np.sin(angle)
+                sub_pos[node] = (0.7 * offset_x + 0.3 * main_x, 
+                            0.7 * offset_y + 0.3 * main_y)
+            else:
+                angle = 2 * np.pi * i / len(sub_nodes)
+                sub_pos[node] = (sub_radius * np.cos(angle), 
+                            sub_radius * np.sin(angle))
+        
+        # Berechne Positionen für Keywords im äußeren Ring
+        keyword_radius = 1.0
+        keyword_pos = {}
+        for i, node in enumerate(keyword_nodes):
+            sub_neighbors = [n for n in G.predecessors(node) if n in sub_nodes]
+            if sub_neighbors:
+                sub_x, sub_y = sub_pos[sub_neighbors[0]]
+                angle = 2 * np.pi * i / len(keyword_nodes)
+                offset_x = keyword_radius * np.cos(angle)
+                offset_y = keyword_radius * np.sin(angle)
+                keyword_pos[node] = (0.7 * offset_x + 0.3 * sub_x,
+                                0.7 * offset_y + 0.3 * sub_y)
+            else:
+                angle = 2 * np.pi * i / len(keyword_nodes)
+                keyword_pos[node] = (keyword_radius * np.cos(angle),
+                                keyword_radius * np.sin(angle))
+        
+        # Kombiniere alle Positionen
+        pos = {**main_pos, **sub_pos, **keyword_pos}
+
+        def get_smart_label_pos(node_pos, node_type, node_size):
+            """Berechne intelligente Label-Position basierend auf Position im Plot und Knotengröße"""
+            x, y = node_pos
+            
+            # Berechne den Radius des Knotens aus der Knotengröße
+            # Die Formel sqrt(node_size/pi) gibt uns den ungefähren Radius in Punkten
+            node_radius = np.sqrt(node_size/np.pi) / 1000  # Skalierungsfaktor für bessere Anpassung
+            # print(f"node_radius: {node_radius}")
+            # Basis-Offset ist nun proportional zur Knotengröße
+            base_offset = max(0.01, node_radius * 1)  # Mindestens 0.3 Einheiten Abstand
+            
+            if node_type == 'main':
+                # Hauptkategorien: Labels immer nach rechts mit größerem Abstand
+                return (x, y + base_offset), 'center'
+            elif node_type == 'sub':
+                # Subkategorien: Links oder rechts, je nach x-Position
+                if x >= 0:
+                    return (x + base_offset, y), 'left'
+                else:
+                    return (x - base_offset, y), 'right'
+            else:
+                # Keywords mit kleinerem Abstand
+                offset = base_offset * 0.3  # Etwas kleinerer Abstand für Keywords
+                # Bestimme Quadranten
+                if x >= 0 and y >= 0:  # Quadrant 1 (oben rechts)
+                    return (x + offset, y), 'left'
+                elif x < 0 and y >= 0:  # Quadrant 2 (oben links)
+                    return (x - offset, y), 'right'
+                elif x < 0 and y < 0:  # Quadrant 3 (unten links)
+                    return (x - offset, y), 'right'
+                else:  # Quadrant 4 (unten rechts)
+                    return (x + offset, y), 'left'
+
+        # Berechne Label-Positionen und Ausrichtungen
+        label_pos = {}
+        label_alignments = {}
+        for node, node_pos in pos.items():
+            node_type = G.nodes[node]['node_type']
+            # Berechne Knotengröße für diesen Node
+            if node_type == 'main':
+                node_size = 3000 * (category_counts.get(node, 1) / max(category_counts.values()))
+            elif node_type == 'sub':
+                node_size = 2000 * (subcategory_counts.get(node, 1) / max(subcategory_counts.values()))
+            else:
+                node_size = 1000 * (keyword_counts.get(node, 1) / max(keyword_counts.values()))
+            
+            label_position, alignment = get_smart_label_pos(node_pos, node_type, node_size)
+            label_pos[node] = label_position
+            label_alignments[node] = alignment
+        
+        # Zeichne Kanten
+        nx.draw_networkx_edges(G, pos,
                             edge_color='gray',
                             alpha=0.3,
                             arrows=True,
                             arrowsize=10,
-                            width=0.5)
+                            width=0.5,
+                            connectionstyle="arc3,rad=0.2")
         
-        # Draw nodes with size based on occurrence count
+        # Zeichne Knoten
         for node_type, counts, base_size, shape in [
             ('main', category_counts, 3000, 'o'),
             ('sub', subcategory_counts, 2000, 's'),
             ('keyword', keyword_counts, 1000, 'd')
         ]:
-            # Get nodes of current type
             node_list = [n for n, d in G.nodes(data=True) if d['node_type'] == node_type]
             
             if node_list:
-                # Calculate node sizes
                 node_sizes = [base_size * (counts.get(node, 1) / max(counts.values()))
                             for node in node_list]
                 
-                # Set node colors
                 if node_type == 'main':
                     node_colors = [main_category_colors[node] for node in node_list]
                 else:
                     node_colors = 'lightgreen' if node_type == 'sub' else 'lightpink'
                 
-                # Draw nodes
                 nx.draw_networkx_nodes(G, pos,
                                     nodelist=node_list,
                                     node_color=node_colors,
@@ -340,26 +435,32 @@ class QCAAnalyzer:
                                     node_shape=shape,
                                     alpha=0.7)
         
-        # Draw labels with improved visibility
-        label_pos = {k: (v[0], v[1] + 0.08) for k, v in pos.items()}  # Offset labels slightly
-        nx.draw_networkx_labels(G, label_pos,
-                            font_size=8,
-                            font_weight='bold',
-                            bbox=dict(facecolor='white',
-                                    edgecolor='none',
-                                    alpha=0.7,
-                                    pad=0.5))
+        # Zeichne Labels für jeden Node-Typ separat
+        for node_type in ['main', 'sub', 'keyword']:
+            nodes = [n for n, d in G.nodes(data=True) if d['node_type'] == node_type]
+            for node in nodes:
+                label_position = label_pos[node]
+                alignment = label_alignments[node]
+                plt.text(label_position[0], label_position[1], 
+                        node,
+                        horizontalalignment=alignment,
+                        fontsize=8,
+                        fontweight='bold',
+                        bbox=dict(facecolor='white',
+                                edgecolor='none',
+                                alpha=0.7,
+                                pad=0.5))
         
         plt.title("Code Network Analysis", pad=20, fontsize=16)
         plt.axis('off')
         
-        # Add legend for node types
+        # Legende
         legend_elements = [
-            plt.Line2D([0], [0], marker='o', color='w', 
+            plt.Line2D([0], [0], marker='o', color='w',
                     markerfacecolor=list(main_category_colors.values())[0],
                     markersize=10, label='Hauptkategorien'),
             plt.Line2D([0], [0], marker='s', color='w',
-                    markerfacecolor='lightgreen', markersize=10, 
+                    markerfacecolor='lightgreen', markersize=10,
                     label='Subkategorien'),
             plt.Line2D([0], [0], marker='d', color='w',
                     markerfacecolor='lightpink', markersize=10,
@@ -367,11 +468,13 @@ class QCAAnalyzer:
         ]
         plt.legend(handles=legend_elements, loc='upper right', fontsize=10)
         
+        # Speichern
         print(f"Speichere Netzwerk-Visualisierung...")
         output_path = self.output_dir / f"{output_filename}.pdf"
         plt.savefig(output_path, format='pdf', bbox_inches='tight', dpi=300)
         plt.close()
         print(f"Netzwerk-Visualisierung erfolgreich erstellt")
+
     
     def _format_filters_for_prompt(self, filters: Dict[str, str]) -> str:
         """
@@ -424,7 +527,7 @@ async def main():
 
     # --- HIER DATEINAMEN EINTRAGEN --- #
     # --- DATEI SCHLIESSEN VOR START DES SKRIPTS --- #
-    EXPLORE_FILE = "QCA-AID_Analysis_20250221_182300.xlsx"  
+    EXPLORE_FILE = "QCA-AID_Analysis_20250222_192824.xlsx"  
     # -------------------------------------------------
 
 
@@ -450,7 +553,7 @@ async def main():
     # -------------------------------------------------
     filters = {
         "Dokument": None,  # Optional: set to None if not filtering
-        "Hauptkategorie": "Feldstruktur",
+        "Hauptkategorie": "Strukturelle Rahmenbedingungen",
         "Subkategorien" : None,
         second_column: None,  # Spalte mit "Attribut_1"
         third_column: None    # Spalte mit "Attribut_2"
@@ -479,18 +582,18 @@ async def main():
     
     paraphrase_text = '\n'.join(filtered_df['Paraphrase'].dropna())
     print("Sende Anfrage an LLM...")
-    paraphrase_summary = await analyzer.generate_summary(
-        text=paraphrase_text,
-        prompt_template=paraphrase_prompt,
-        model=MODEL_NAME,
-        temperature=TEMPERATURE
-    )
-    output_file = f"Summary_Paraphrase_{filter_str}.txt"
-    analyzer.save_text_summary(
-        paraphrase_summary,
-        output_file
-    )
-    print(f"Zusammenfassung gespeichert in: {output_file}")
+    # paraphrase_summary = await analyzer.generate_summary(
+    #     text=paraphrase_text,
+    #     prompt_template=paraphrase_prompt,
+    #     model=MODEL_NAME,
+    #     temperature=TEMPERATURE
+    # )
+    # output_file = f"Summary_Paraphrase_{filter_str}.txt"
+    # analyzer.save_text_summary(
+    #     paraphrase_summary,
+    #     output_file
+    # )
+    # print(f"Zusammenfassung gespeichert in: {output_file}")
     
     # 2. Zusammenfassung der Argumentation generieren und speichern
     # -------------------------------------------------
@@ -509,19 +612,19 @@ async def main():
     
     reasoning_text = '\n'.join(filtered_df['Begründung'].dropna())
     print("Sende Anfrage an LLM...")
-    reasoning_summary = await analyzer.generate_summary(
-        text=reasoning_text,
-        prompt_template=reasoning_prompt,
-        model=MODEL_NAME,
-        temperature=TEMPERATURE,
-        filters=filters
-    )
-    output_file = f"Summary_Begründung_{filter_str}.txt"
-    analyzer.save_text_summary(
-        reasoning_summary,
-        output_file
-    )
-    print(f"Zusammenfassung gespeichert in: {output_file}")
+    # reasoning_summary = await analyzer.generate_summary(
+    #     text=reasoning_text,
+    #     prompt_template=reasoning_prompt,
+    #     model=MODEL_NAME,
+    #     temperature=TEMPERATURE,
+    #     filters=filters
+    # )
+    # output_file = f"Summary_Begründung_{filter_str}.txt"
+    # analyzer.save_text_summary(
+    #     reasoning_summary,
+    #     output_file
+    # )
+    # print(f"Zusammenfassung gespeichert in: {output_file}")
     
     # 3. Netzwerkvisualisierung erstellen und speichern
     # -------------------------------------------------
