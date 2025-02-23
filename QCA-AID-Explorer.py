@@ -3,6 +3,7 @@ import networkx as nx
 import matplotlib.pyplot as plt
 from pathlib import Path
 from typing import List, Dict, Any, Optional
+import asyncio
 import json
 from datetime import datetime
 import os
@@ -159,9 +160,16 @@ class QCAAnalyzer:
         self.df = pd.read_excel(excel_path, sheet_name='Kodierte_Segmente')
         self.llm_provider = llm_provider
         
+        # Get the input filename without extension
+        input_filename = Path(excel_path).stem
+
         # Set output directory relative to script location
         script_dir = os.path.dirname(os.path.abspath(__file__))
-        self.output_dir = Path(script_dir) / 'output'
+        self.base_output_dir = Path(script_dir) / 'output'
+        self.base_output_dir.mkdir(exist_ok=True)
+
+        # Create analysis-specific subdirectory
+        self.output_dir = self.base_output_dir / input_filename
         self.output_dir.mkdir(exist_ok=True)
         
         # Store column names for easy access
@@ -175,12 +183,23 @@ class QCAAnalyzer:
                 filtered_df = filtered_df[filtered_df[col] == value]
         return filtered_df
 
-    async def generate_summary(self, text: str, prompt_template: str, model: str, temperature: float = 0.7) -> str:
+    async def generate_summary(self, 
+                             text: str, 
+                             prompt_template: str, 
+                             model: str,
+                             temperature: float = 0.7,
+                             **kwargs) -> str:
         """Generate summary using configured LLM provider"""
-        prompt = prompt_template.format(text=text)
+
+        # Format filters if present
+        if 'filters' in kwargs:
+            kwargs['filters'] = self._format_filters_for_prompt(kwargs['filters'])
+
+        format_args = {'text': text, **kwargs}
+        prompt = prompt_template.format(**format_args)
         
         messages = [
-            {"role": "system", "content": "You are a helpful research assistant skilled in analyzing qualitative data."},
+            {"role": "system", "content": "Sie sind ein hilfreicher Forschungsassistent, der sich mit der Analyse qualitativer Daten auskennt."},
             {"role": "user", "content": prompt}
         ]
         
@@ -200,7 +219,7 @@ class QCAAnalyzer:
             f.write(summary)
 
     def create_network_graph(self, filtered_df: pd.DataFrame, output_filename: str):
-        """Create and save network graph visualization with improved parameters"""
+        """Create and save network graph visualization with improved parameters and export network data"""
         print("Erstelle Netzwerkgraph...")
         G = nx.DiGraph()
         
@@ -214,6 +233,10 @@ class QCAAnalyzer:
         colors = plt.cm.Set3(np.linspace(0, 1, len(unique_main_categories)))
         main_category_colors = dict(zip(unique_main_categories, colors))
         
+        # Lists to store node and edge data for Excel export
+        nodes_data = []
+        edges_data = []
+        
         # Process each row
         print("Verarbeite Datensätze...")
         total_rows = len(filtered_df)
@@ -226,12 +249,24 @@ class QCAAnalyzer:
             main_category = str(row['Hauptkategorie'])
             category_counts[main_category] = category_counts.get(main_category, 0) + 1
             
+            # Add main category node
+            if main_category not in [node[0] for node in nodes_data]:
+                G.add_node(main_category, node_type='main')  # Add node_type attribute here
+                nodes_data.append([main_category, 'main', category_counts[main_category]])
+            
             # Handle subcategories
             sub_categories = []
             if pd.notna(row['Subkategorien']):
                 sub_categories = [cat.strip() for cat in str(row['Subkategorien']).split(',') if cat.strip()]
                 for sub_cat in sub_categories:
                     subcategory_counts[sub_cat] = subcategory_counts.get(sub_cat, 0) + 1
+                    
+                    # Add subcategory node if not exists
+                    if sub_cat not in [node[0] for node in nodes_data]:
+                        G.add_node(sub_cat, node_type='sub')  # Add node_type attribute here
+                        nodes_data.append([sub_cat, 'sub', subcategory_counts[sub_cat]])
+                    G.add_edge(main_category, sub_cat)
+                    edges_data.append([main_category, sub_cat, 'main_to_sub'])
             
             # Handle keywords
             keywords = []
@@ -239,23 +274,31 @@ class QCAAnalyzer:
                 keywords = [kw.strip() for kw in str(row['Schlüsselwörter']).split(',') if kw.strip()]
                 for kw in keywords:
                     keyword_counts[kw] = keyword_counts.get(kw, 0) + 1
-            
-            # Add nodes and edges
-            G.add_node(main_category, node_type='main')
-            for sub_cat in sub_categories:
-                G.add_node(sub_cat, node_type='sub')
-                G.add_edge(main_category, sub_cat)
-                
-                for kw in keywords:
-                    G.add_node(kw, node_type='keyword')
-                    G.add_edge(sub_cat, kw)
+                    
+                    # Add keyword nodes and connect to subcategories
+                    for sub_cat in sub_categories:
+                        if kw not in [node[0] for node in nodes_data]:
+                            G.add_node(kw, node_type='keyword')  # Add node_type attribute here
+                            nodes_data.append([kw, 'keyword', keyword_counts[kw]])
+                        G.add_edge(sub_cat, kw)
+                        edges_data.append([sub_cat, kw, 'sub_to_keyword'])
             
             rows_processed += 1
             if rows_processed % max(1, total_rows // 5) == 0:
                 print(f"Fortschritt: {rows_processed}/{total_rows} Datensätze verarbeitet")
         
+        # Export network data to Excel
+        print("\nExportiere Netzwerkdaten nach Excel...")
+        nodes_df = pd.DataFrame(nodes_data, columns=['Node', 'Type', 'Count'])
+        edges_df = pd.DataFrame(edges_data, columns=['Source', 'Target', 'Type'])
+        
+        excel_output_path = self.output_dir / f"{output_filename}_network_data.xlsx"
+        with pd.ExcelWriter(excel_output_path, engine='openpyxl') as writer:
+            nodes_df.to_excel(writer, sheet_name='Nodes', index=False)
+            edges_df.to_excel(writer, sheet_name='Edges', index=False)
+        print(f"Netzwerkdaten exportiert nach: {excel_output_path}")
+        
         print("\nErstelle Visualisierung...")
-        # Create visualization with improved parameters
         plt.figure(figsize=(20, 15))
         
         # Use force-directed layout with adjusted parameters
@@ -270,23 +313,26 @@ class QCAAnalyzer:
                             width=0.5)
         
         # Draw nodes with size based on occurrence count
-        for node_type, node_list, counts, base_size, shape in [
-            ('main', [n for n, d in G.nodes(data=True) if d['node_type'] == 'main'],
-            category_counts, 3000, 'o'),
-            ('sub', [n for n, d in G.nodes(data=True) if d['node_type'] == 'sub'],
-            subcategory_counts, 2000, 's'),
-            ('keyword', [n for n, d in G.nodes(data=True) if d['node_type'] == 'keyword'],
-            keyword_counts, 1000, 'd')
+        for node_type, counts, base_size, shape in [
+            ('main', category_counts, 3000, 'o'),
+            ('sub', subcategory_counts, 2000, 's'),
+            ('keyword', keyword_counts, 1000, 'd')
         ]:
+            # Get nodes of current type
+            node_list = [n for n, d in G.nodes(data=True) if d['node_type'] == node_type]
+            
             if node_list:
+                # Calculate node sizes
                 node_sizes = [base_size * (counts.get(node, 1) / max(counts.values()))
                             for node in node_list]
                 
+                # Set node colors
                 if node_type == 'main':
                     node_colors = [main_category_colors[node] for node in node_list]
                 else:
                     node_colors = 'lightgreen' if node_type == 'sub' else 'lightpink'
                 
+                # Draw nodes
                 nx.draw_networkx_nodes(G, pos,
                                     nodelist=node_list,
                                     node_color=node_colors,
@@ -326,12 +372,47 @@ class QCAAnalyzer:
         plt.savefig(output_path, format='pdf', bbox_inches='tight', dpi=300)
         plt.close()
         print(f"Netzwerk-Visualisierung erfolgreich erstellt")
+    
+    def _format_filters_for_prompt(self, filters: Dict[str, str]) -> str:
+        """
+        Formatiert Filter-Dictionary in einen lesbaren Text
+        
+        Args:
+            filters: Dictionary mit Spaltenname-Wert Paaren
+            
+        Returns:
+            Formatierter Text der aktiven Filter
+        """
+        active_filters = []
+        for column, value in filters.items():
+            if value:  # Nur aktive Filter einbeziehen
+                # Sonderbehandlung für bestimmte Spaltennamen
+                if column == "Hauptkategorie":
+                    active_filters.append(f"der Hauptkategorie '{value}'")
+                elif column == "Subkategorien":
+                    active_filters.append(f"der Subkategorie '{value}'")
+                elif column == "Dokument":
+                    active_filters.append(f"aus dem Dokument '{value}'")
+                else:
+                    active_filters.append(f"mit {column} = '{value}'")
+        
+        if not active_filters:
+            return "ohne spezifische Filterkriterien"
+            
+        if len(active_filters) == 1:
+            return active_filters[0]
+            
+        # Für mehrere Filter: Alle außer dem letzten mit Komma, letzter mit "und"
+        return ", ".join(active_filters[:-1]) + " und " + active_filters[-1]
 
 def create_filter_string(filters: Dict[str, str]) -> str:
     """Create a string representation of the filters for filenames"""
     return '_'.join(f"{k}-{v}" for k, v in filters.items() if v)
 
 
+# ------------------------------------ #
+# ---      ANPASSUNGEN AB HIER     --- #
+# ------------------------------------ #
 async def main():
     print("\n=== QCA Analyse Start ===")
     # LLM Configuration
@@ -340,7 +421,12 @@ async def main():
     TEMPERATURE = 0.7
     SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
     OUTPUT_DIR = "output"
-    EXPLORE_FILE = "QCA-AID_Analysis_20250222_192824.xlsx"
+
+    # --- HIER DATEINAMEN EINTRAGEN --- #
+    # --- DATEI SCHLIESSEN VOR START DES SKRIPTS --- #
+    EXPLORE_FILE = "QCA-AID_Analysis_20250221_182300.xlsx"  
+    # -------------------------------------------------
+
 
     # Path Configuration
     EXCEL_PATH = os.path.join(SCRIPT_DIR, OUTPUT_DIR, EXPLORE_FILE)
@@ -364,8 +450,8 @@ async def main():
     # -------------------------------------------------
     filters = {
         "Dokument": None,  # Optional: set to None if not filtering
-        "Hauptkategorie": "Strukturelle Rahmenbedingungen",
-        "Subkategorien": "Strukturelle Rahmenbedingungen",
+        "Hauptkategorie": "Feldstruktur",
+        "Subkategorien" : None,
         second_column: None,  # Spalte mit "Attribut_1"
         third_column: None    # Spalte mit "Attribut_2"
     }
@@ -378,15 +464,16 @@ async def main():
     # Create filter string for filenames
     filter_str = create_filter_string(filters)
     
-    # 1. Generate and save paraphrase summary
+    # 1. Paraphrasenzusammenfassung erstellen und speichern
+    # -------------------------------------------------
     paraphrase_prompt = """
     Bitte analysieren Sie die folgenden paraphrasierten Textabschnitte und erstellen Sie einen thematischen Überblick:
 
     {text}
 
     Bitte geben Sie an:
-    1. Identifizierte Hauptthemen
-    2. Wichtige Muster und Beziehungen
+    1. Zusammanfassung identifizierter Hauptthemen. Ergänze dies anschließend mit konkreten Beispieln
+    2. Zusammanfassung wichtiger Muster und Beziehungen. Ergänze dies anschließend mit konkreten Beispieln
     3. Zusammenfassung der Ergebnisse
     """
     
@@ -405,14 +492,17 @@ async def main():
     )
     print(f"Zusammenfassung gespeichert in: {output_file}")
     
-    # 2. Generate and save reasoning summary
+    # 2. Zusammenfassung der Argumentation generieren und speichern
+    # -------------------------------------------------
     reasoning_prompt = """
-    Bitte analysieren Sie die folgenden Argumentationsabschnitte und erstellen Sie eine umfassende Zusammenfassung:
+    Bitte analysieren Sie die folgenden Begründungen für die Inklusion von Textsegementen in diesen Kategorien: {filters} 
+    
+    Erstellen Sie eine umfassende Zusammenfassung:
 
     {text}
 
     Bitte geben Sie an:
-    1. Identifizierte Hauptargumente
+    1. Identifizierte Hauptargumente, die zur Inklusion in die Kategorien führten
     2. Gemeinsame Muster in der Argumentation
     3. Zusammenfassung der wichtigsten Begründungen
     """
@@ -423,16 +513,18 @@ async def main():
         text=reasoning_text,
         prompt_template=reasoning_prompt,
         model=MODEL_NAME,
-        temperature=TEMPERATURE
+        temperature=TEMPERATURE,
+        filters=filters
     )
-    output_file = f"Summary_Reasoning_{filter_str}.txt"
+    output_file = f"Summary_Begründung_{filter_str}.txt"
     analyzer.save_text_summary(
         reasoning_summary,
         output_file
     )
     print(f"Zusammenfassung gespeichert in: {output_file}")
     
-    # 3. Create and save network visualization
+    # 3. Netzwerkvisualisierung erstellen und speichern
+    # -------------------------------------------------
     print("\nErstelle Netzwerk-Visualisierung...")
     output_file = f"Code-Network_{filter_str}.pdf"
     analyzer.create_network_graph(
@@ -444,11 +536,16 @@ async def main():
     print("\n=== QCA Analyse abgeschlossen ===\n")
 
 if __name__ == "__main__":
-    import asyncio
-    import nest_asyncio
-    
-    # Apply nest_asyncio to allow nested event loops
-    nest_asyncio.apply()
-    
-    # Run the async main function
-    asyncio.run(main())
+    try:
+        # Windows-spezifische Event Loop Policy setzen
+        if os.name == 'nt':
+            asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+        
+        # Hauptprogramm ausführen
+        asyncio.run(main())
+        
+    except KeyboardInterrupt:
+        print("\nProgramm durch Benutzer beendet")
+    except Exception as e:
+        print(f"Fehler im Hauptprogramm: {str(e)}")
+        raise
