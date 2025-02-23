@@ -11,6 +11,7 @@ import httpx
 from abc import ABC, abstractmethod
 from dotenv import load_dotenv
 import openai
+from mistralai import Mistral
 from docx import Document
 from reportlab.pdfgen import canvas
 import numpy as np
