@@ -1,14 +1,24 @@
 """
 QCA-AID Explorer 
 ========================================================================
-
 Version:
 --------
 0.3 (2025-02-24)
-
 New in this version
 - ForceAtlas2 layout for network graphs
+- Enhanced visualization with hierarchical node placement
+- SVG export for better editability
+- Improved node and label styling
+- Fallback to spring layout for stability
 
+QCA-AID Explorer ist ein Tool zur Analyse von qualitativen Kodierungsdaten.
+Es ermöglicht die Visualisierung von Kodierungsnetzwerken mit Hauptkategorien,
+Subkategorien und Schlüsselwörtern sowie die automatisierte Zusammenfassung
+von kodierten Textsegmenten mit Hilfe von LLM-Modellen.
+
+Das ForceAtlas2-Layout bietet eine verbesserte Netzwerkvisualisierung,
+bei der zusammengehörige Elemente näher beieinander platziert werden
+und die hierarchische Struktur der Daten besser sichtbar wird.
 """
 
 import pandas as pd

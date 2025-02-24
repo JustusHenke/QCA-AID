@@ -7,7 +7,7 @@ enhanced with AI capabilities through the OpenAI API.
 
 Version:
 --------
-0.9.7.2 (2025-02-22)
+0.9.7.3 (2025-02-24)
 
 New in 0.9.7:
 - Switch between OpenAI and Mistral using CONFIG parameter 'MODEL_PROVIDER'
@@ -15,6 +15,8 @@ New in 0.9.7:
 - add exclusion criteria for relevance check in codebook coding rules
 - export justification for non-relevant text segments
 - improved relevance check, justification and segement coding prompt
+- create summaries and graphs from your coded data with 'QCA-AID-Explorer.py'
+- improved subcategory prompt - focus on most important subcat
 
 Description:
 -----------
@@ -2492,7 +2494,7 @@ class IntegratedAnalysisManager:
                             'paraphrase': coding.paraphrase,
                             'keywords': coding.keywords
                         }
-                        print(f"  ✓ Kodierung von {coder.coder_id}: 🏷️  {result['category']}")
+                        
                         batch_results.append(result)
                     else:
                         print(f"  ✗ Keine gültige Kodierung von {coder.coder_id}")
@@ -3477,9 +3479,9 @@ class DeductiveCoder:
             
             2. SUBKATEGORIENVERGLEICH:
             - Bei passender Hauptkategorie: Prüfe ALLE zugehörigen Subkategorien
-            - Wähle nur Subkategorien mit hoher Konfidenz (>0.79)
-            - Dokumentiere die spezifischen Textstellen für jede gewählte Subkategorie
-            - Begründe die Nicht-Wahl von scheinbar passenden Subkategorien
+            - WICHTIG: Wähle PRIMÄR NUR DIE EINE Subkategorie mit der höchsten Passung zum Text
+            - Vergebe weitere Subkategorien NUR, wenn der Text EINDEUTIG mehrere Subkategorien gleichgewichtig adressiert
+            - Bei mehreren passenden Subkategorien mit ähnlicher Relevanz: Begründe die Wahl klar
             
             3. ENTSCHEIDUNGSREGELN:
             - Kodiere nur bei eindeutiger Übereinstimmung mit Definition UND Beispielen
@@ -3517,7 +3519,7 @@ class DeductiveCoder:
                 "paraphrase": "Deine prägnante Paraphrase hier",
                 "keywords": "Deine Schlüsselwörter hier",
                 "category": "Name der Hauptkategorie oder 'Keine passende Kategorie'",
-                "subcategories": ["Liste", "existierender", "Subkategorien"],
+                "subcategories": ["MEIST NUR EINE Subkategorie hier, mehrere NUR bei eindeutiger Gleichgewichtung im Text"],
                 "justification": "Begründung muss enthalten: 1. Konkrete Textstellen, 2. Bezug zur Kategoriendefinition, 3. Verbindung zur Forschungsfrage",
                 "confidence": {{
                     "total": 0.00-1.00,
@@ -3557,6 +3559,17 @@ class DeductiveCoder:
                 
                 if result and isinstance(result, dict):
                     if result.get('category'):
+
+                        # Verarbeite Paraphrase
+                        paraphrase = result.get('paraphrase', '')
+                        if paraphrase:
+                            print(f"\n🗒️  Paraphrase: {paraphrase}")
+
+
+                        print(f"  ✓ Kodierung von {self.coder_id}: 🏷️  {result.get('category', '')}")
+                        print(f"  ✓ Subkategorien von {self.coder_id}: 🏷️  {result.get('subcategories', [])}")
+                        print(f"  ✓ Keywords von {self.coder_id}: 🏷️  {result.get('keywords', '')}")
+
                         # Debug-Ausgaben
                         print("\n👨‍⚖️  Kodierungsbegründung:")
                         
@@ -3578,11 +3591,7 @@ class DeductiveCoder:
                         elif example_matches:
                             print(f"\n  Ähnliche Beispiele: {example_matches}")
                         
-                        # Verarbeite Paraphrase
-                        paraphrase = result.get('paraphrase', '')
-                        if paraphrase:
-                            print(f"\n🗒️  Paraphrase: {paraphrase}")
-                            
+                                               
                         # Zeige Definition-Matches wenn vorhanden
                         definition_matches = result.get('definition_matches', [])
                         if isinstance(definition_matches, list) and definition_matches:
@@ -6168,11 +6177,6 @@ class ResultsExporter:
                 
             # Setze Kodiert-Status basierend auf Kategorie
             is_coded = 'Ja' if category and category != "Nicht kodiert" else 'Nein'
-
-            # Debug-Ausgabe zum Prüfen der Coding-Struktur
-            print(f"\nDebug - Coding für Chunk {chunk_id}:")
-            for key, value in coding.items():
-                print(f"{key}: {value}")
                 
             # Formatiere Keywords
             raw_keywords = coding.get('keywords', '')
@@ -6278,11 +6282,11 @@ class ResultsExporter:
             }
 
             # Debug-Ausgabe der formatierten Felder
-            print(f"\nDebug - Formatierte Felder für Chunk {chunk_id}:")
-            print(f"Textstellen: {formatted_references}")
-            print(f"Definition_Übereinstimmungen: {formatted_def_matches}")
-            print(f"Beispiel_Übereinstimmungen: {formatted_ex_matches}")
-            print(f"Konkurrierende_Kategorien: {formatted_competing}")
+            # print(f"\nDebug - Formatierte Felder für Chunk {chunk_id}:")
+            # print(f"Textstellen: {formatted_references}")
+            # print(f"Definition_Übereinstimmungen: {formatted_def_matches}")
+            # print(f"Beispiel_Übereinstimmungen: {formatted_ex_matches}")
+            # print(f"Konkurrierende_Kategorien: {formatted_competing}")
             
             return export_data
                 
