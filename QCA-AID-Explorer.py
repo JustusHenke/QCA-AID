@@ -1,3 +1,16 @@
+"""
+QCA-AID Explorer 
+========================================================================
+
+Version:
+--------
+0.3 (2025-02-24)
+
+New in this version
+- ForceAtlas2 layout for network graphs
+
+"""
+
 import pandas as pd
 from difflib import SequenceMatcher
 import networkx as nx
@@ -16,6 +29,8 @@ from mistralai import Mistral
 from docx import Document
 from reportlab.pdfgen import canvas
 import numpy as np
+from sklearn.manifold import MDS
+from scipy.sparse import csgraph
 
 class LLMProvider(ABC):
     """Abstrakte Basisklasse für LLM Provider"""
@@ -350,70 +365,63 @@ class QCAAnalyzer:
         print("\nErstelle Visualisierung...")
         plt.figure(figsize=(24, 20))
 
+        # --- NEUER CODE: Verwendung des ForceAtlas2-ähnlichen Layouts ---
+        print("\nBerechne Knotenpositionen mit ForceAtlas2-ähnlichem Layout...")
         
-        # Sammle Knoten nach Typ
+        # Erstelle initiale Positionen für bessere Konvergenz
+        initial_pos = {}
+        
+        # Positioniere Hauptkategorien im Zentrum
         main_nodes = [n for n, d in G.nodes(data=True) if d['node_type'] == 'main']
-        sub_nodes = [n for n, d in G.nodes(data=True) if d['node_type'] == 'sub']
-        keyword_nodes = [n for n, d in G.nodes(data=True) if d['node_type'] == 'keyword']
-        
-        # Berechne Positionen für Hauptkategorien im Zentrum
         num_main = len(main_nodes)
-        main_radius = 0.3
-        main_pos = {}
         for i, node in enumerate(main_nodes):
-            angle = 2 * np.pi * i / num_main
-            main_pos[node] = (main_radius * np.cos(angle), main_radius * np.sin(angle))
+            if num_main > 1:
+                angle = 2 * np.pi * i / num_main
+                initial_pos[node] = (0.2 * np.cos(angle), 0.2 * np.sin(angle))
+            else:
+                initial_pos[node] = (0, 0)
         
-        # Berechne Positionen für Subkategorien in mittlerem Ring
-        sub_radius = 0.6
-        sub_pos = {}
+        # Positioniere Subkategorien in einem mittleren Ring
+        sub_nodes = [n for n, d in G.nodes(data=True) if d['node_type'] == 'sub']
+        num_sub = len(sub_nodes)
         for i, node in enumerate(sub_nodes):
-            main_neighbors = [n for n in G.predecessors(node) if n in main_nodes]
-            if main_neighbors:
-                main_x, main_y = main_pos[main_neighbors[0]]
-                angle = 2 * np.pi * i / len(sub_nodes)
-                offset_x = sub_radius * np.cos(angle)
-                offset_y = sub_radius * np.sin(angle)
-                sub_pos[node] = (0.7 * offset_x + 0.3 * main_x, 
-                            0.7 * offset_y + 0.3 * main_y)
+            if num_sub > 1:
+                angle = 2 * np.pi * i / num_sub
+                initial_pos[node] = (0.5 * np.cos(angle), 0.5 * np.sin(angle))
             else:
-                angle = 2 * np.pi * i / len(sub_nodes)
-                sub_pos[node] = (sub_radius * np.cos(angle), 
-                            sub_radius * np.sin(angle))
+                initial_pos[node] = (0.5, 0)
         
-        # Berechne Positionen für Keywords im äußeren Ring
-        keyword_radius = 1.0
-        keyword_pos = {}
+        # Positioniere Keywords in einem äußeren Ring
+        keyword_nodes = [n for n, d in G.nodes(data=True) if d['node_type'] == 'keyword']
+        num_kw = len(keyword_nodes)
         for i, node in enumerate(keyword_nodes):
-            sub_neighbors = [n for n in G.predecessors(node) if n in sub_nodes]
-            if sub_neighbors:
-                sub_x, sub_y = sub_pos[sub_neighbors[0]]
-                angle = 2 * np.pi * i / len(keyword_nodes)
-                offset_x = keyword_radius * np.cos(angle)
-                offset_y = keyword_radius * np.sin(angle)
-                keyword_pos[node] = (0.7 * offset_x + 0.3 * sub_x,
-                                0.7 * offset_y + 0.3 * sub_y)
+            if num_kw > 1:
+                angle = 2 * np.pi * i / num_kw
+                initial_pos[node] = (1.0 * np.cos(angle), 1.0 * np.sin(angle))
             else:
-                angle = 2 * np.pi * i / len(keyword_nodes)
-                keyword_pos[node] = (keyword_radius * np.cos(angle),
-                                keyword_radius * np.sin(angle))
+                initial_pos[node] = (1.0, 0)
         
-        # Kombiniere alle Positionen
-        pos = {**main_pos, **sub_pos, **keyword_pos}
+        # Berechne das Layout mit unserer ForceAtlas2-ähnlichen Funktion
+        # Sie können diese Parameter anpassen, um das Layout zu optimieren
+        pos = create_forceatlas_like_layout(
+            G,
+            iterations=100,    # Mehr Iterationen = besseres Layout, aber langsamer
+            gravity=0.05,      # Stärke der Anziehung zum Zentrum (0.01-0.1 empfohlen)
+            scaling=2.0        # Skalierungsfaktor (1.0-10.0 empfohlen)
+        )
+        # --- ENDE NEUER CODE ---
 
+        # Define label placement function
         def get_smart_label_pos(node_pos, node_type, node_size):
             """Berechne intelligente Label-Position basierend auf Position im Plot und Knotengröße"""
             x, y = node_pos
             
             # Berechne den Radius des Knotens aus der Knotengröße
-            # Die Formel sqrt(node_size/pi) gibt uns den ungefähren Radius in Punkten
-            node_radius = np.sqrt(node_size/np.pi) / 1000  # Skalierungsfaktor für bessere Anpassung
-            # print(f"node_radius: {node_radius}")
-            # Basis-Offset ist nun proportional zur Knotengröße
-            base_offset = max(0.01, node_radius * 1)  # Mindestens 0.3 Einheiten Abstand
+            node_radius = np.sqrt(node_size/np.pi) / 1000
+            base_offset = max(0.05, node_radius * 1.2)  # Etwas größerer Offset für bessere Lesbarkeit
             
             if node_type == 'main':
-                # Hauptkategorien: Labels immer nach rechts mit größerem Abstand
+                # Hauptkategorien: Labels oberhalb
                 return (x, y + base_offset), 'center'
             elif node_type == 'sub':
                 # Subkategorien: Links oder rechts, je nach x-Position
@@ -423,7 +431,7 @@ class QCAAnalyzer:
                     return (x - base_offset, y), 'right'
             else:
                 # Keywords mit kleinerem Abstand
-                offset = base_offset * 0.3  # Etwas kleinerer Abstand für Keywords
+                offset = base_offset * 0.5  # Etwas kleinerer Abstand für Keywords
                 # Bestimme Quadranten
                 if x >= 0 and y >= 0:  # Quadrant 1 (oben rechts)
                     return (x + offset, y), 'left'
@@ -451,14 +459,14 @@ class QCAAnalyzer:
             label_pos[node] = label_position
             label_alignments[node] = alignment
         
-        # Zeichne Kanten
+        # Zeichne Kanten mit angepasstem Stil
         nx.draw_networkx_edges(G, pos,
                             edge_color='gray',
-                            alpha=0.3,
+                            alpha=0.4,
                             arrows=True,
                             arrowsize=10,
                             width=0.5,
-                            connectionstyle="arc3,rad=0.2")
+                            connectionstyle="arc3,rad=0.1")  # Reduzierter Bogen für besseres Layout
         
         # Zeichne Knoten
         for node_type, counts, base_size, shape in [
@@ -482,31 +490,46 @@ class QCAAnalyzer:
                                     node_color=node_colors,
                                     node_size=node_sizes,
                                     node_shape=shape,
-                                    alpha=0.7)
+                                    alpha=0.8)
         
-        # Zeichne Labels für jeden Node-Typ separat
+        # Zeichne Labels für jeden Node-Typ separat mit verbesserten Textboxen
         for node_type in ['main', 'sub', 'keyword']:
             nodes = [n for n, d in G.nodes(data=True) if d['node_type'] == node_type]
             for node in nodes:
                 label_position = label_pos[node]
                 alignment = label_alignments[node]
+                
+                # Angepasste Texteigenschaften nach Knotentyp
+                if node_type == 'main':
+                    fontweight = 'bold'
+                    fontsize = 10
+                    alpha = 0.85
+                elif node_type == 'sub':
+                    fontweight = 'medium'
+                    fontsize = 9
+                    alpha = 0.8
+                else:
+                    fontweight = 'normal'
+                    fontsize = 8
+                    alpha = 0.75
+                    
                 plt.text(label_position[0], label_position[1], 
                         node,
                         horizontalalignment=alignment,
-                        fontsize=8,
-                        fontweight='bold',
+                        fontsize=fontsize,
+                        fontweight=fontweight,
                         bbox=dict(facecolor='white',
                                 edgecolor='none',
-                                alpha=0.7,
+                                alpha=alpha,
                                 pad=0.5))
         
-        plt.title("Code Network Analysis", pad=20, fontsize=16)
+        plt.title("Code Network Analysis (ForceAtlas2-Style Layout)", pad=20, fontsize=16)
         plt.axis('off')
         
         # Legende
         legend_elements = [
             plt.Line2D([0], [0], marker='o', color='w',
-                    markerfacecolor=default_color,  # Use default_color instead
+                    markerfacecolor=default_color,
                     markersize=10, label='Hauptkategorien'),
             plt.Line2D([0], [0], marker='s', color='w',
                     markerfacecolor='lightgreen', markersize=10,
@@ -521,10 +544,14 @@ class QCAAnalyzer:
         print(f"Speichere Netzwerk-Visualisierung...")
         output_path = self.output_dir / f"{output_filename}.pdf"
         plt.savefig(output_path, format='pdf', bbox_inches='tight', dpi=300)
+        
+        # Zusätzlich als SVG speichern für bessere Bearbeitbarkeit
+        svg_output_path = self.output_dir / f"{output_filename}.svg"
+        plt.savefig(svg_output_path, format='svg', bbox_inches='tight')
+        
         plt.close()
         print(f"Netzwerk-Visualisierung erfolgreich erstellt")
 
-    
     def _format_filters_for_prompt(self, filters: Dict[str, str]) -> str:
         """
         Formatiert Filter-Dictionary in einen lesbaren Text
@@ -701,7 +728,196 @@ def create_filter_string(filters: Dict[str, str]) -> str:
     """Create a string representation of the filters for filenames"""
     return '_'.join(f"{k}-{v}" for k, v in filters.items() if v)
 
-
+def create_forceatlas_like_layout(G, iterations=100, gravity=0.01, scaling=10.0):
+    """Erzeugt ein ForceAtlas2-ähnliches Layout mit NetworkX und scikit-learn
+    
+    Args:
+        G: NetworkX Graph
+        iterations: Anzahl Iterationen
+        gravity: Stärke der Anziehung zum Zentrum
+        scaling: Skalierungsfaktor für Knotenabstände
+        
+    Returns:
+        Dictionary mit Knotenpositionen
+    """
+    # Imports innerhalb der Funktion platzieren
+    import numpy as np
+    from sklearn.manifold import MDS
+    
+    print("Berechne ForceAtlas-ähnliches Layout...")
+    
+    # Wichtig: Erstelle eine ungerichtete Kopie des Graphen für die Distanzberechnung
+    # Dies stellt sicher, dass die Distanzmatrix symmetrisch ist
+    G_undirected = G.to_undirected()
+    
+    # Sonderbehandlung für hierarchische Strukturen
+    # Unterschiedliche Gewichtung je nach Knotentyp
+    edges = list(G_undirected.edges())
+    for src, tgt in edges:
+        src_type = G.nodes[src]['node_type']
+        tgt_type = G.nodes[tgt]['node_type']
+        
+        # Gleiche Typen näher zusammen, unterschiedliche Typen weiter weg
+        if src_type == tgt_type:
+            if src_type == 'main':
+                weight = 0.5  # Hauptkategorien etwas näher zusammen
+            elif src_type == 'sub':
+                weight = 1.0  # Subkategorien normal
+            else:
+                weight = 2.0  # Keywords weiter auseinander
+        else:
+            # Verbindungen zwischen verschiedenen Typen
+            if (src_type == 'main' and tgt_type == 'sub') or (src_type == 'sub' and tgt_type == 'main'):
+                weight = 1.0  # Haupt-zu-Sub: normal
+            else:
+                weight = 2.0  # Andere Verbindungen: weiter auseinander
+        
+        # Gewicht direkt im ungerichteten Graphen setzen
+        G_undirected[src][tgt]['weight'] = weight
+    
+    # Verwende NetworkX's integrierte Methode für kürzeste Pfade
+    # Dies ist robuster als csgraph für gerichtete Graphen
+    try:
+        # Berechne alle kürzesten Pfade mit dem ungerichteten Graphen
+        distances = dict(nx.all_pairs_shortest_path_length(G_undirected))
+        
+        # Konvertiere zu Matrix
+        nodes = list(G.nodes())
+        n = len(nodes)
+        distance_matrix = np.zeros((n, n))
+        
+        # Erstelle eine Lookup-Tabelle für Node-Indizes
+        node_indices = {node: i for i, node in enumerate(nodes)}
+        
+        # Befülle die Distanzmatrix - garantiert symmetrisch
+        for i, node1 in enumerate(nodes):
+            for j, node2 in enumerate(nodes):
+                if i == j:
+                    # Diagonale mit Nullen
+                    distance_matrix[i, j] = 0
+                else:
+                    try:
+                        # Verwende vorberechnete kürzeste Pfade
+                        distance_matrix[i, j] = distances[node1][node2]
+                    except KeyError:
+                        # Für unverbundene Knoten: maximale Distanz
+                        distance_matrix[i, j] = n * 2
+        
+        # Für MDS wird eine symmetrische Matrix benötigt
+        # Dies sollte bereits gewährleistet sein, aber wir prüfen zur Sicherheit
+        distance_matrix = (distance_matrix + distance_matrix.T) / 2
+        
+        # Verwende MDS (Multidimensional Scaling) als Ersatz für ForceAtlas2
+        mds = MDS(
+            n_components=2,            # 2D-Layout
+            dissimilarity='precomputed',  # Wir liefern Distanzmatrix
+            random_state=42,           # Für Reproduzierbarkeit
+            n_init=1,                  # Eine Initialisierung
+            max_iter=iterations,       # Iterationen
+            normalized_stress=False,   # Deaktiviere normalisiertem Stress für metrisches MDS
+            n_jobs=1                   # Single-threaded für Stabilität
+        )
+                
+        # Wende MDS auf die Distanzmatrix an
+        pos_array = mds.fit_transform(distance_matrix)
+        
+        # Skalierungen hinzufügen
+        pos_array *= scaling
+        
+        # Schwache Anziehung zum Zentrum (Gravitation)
+        # Dies ist eine vereinfachte Version der Gravitation in ForceAtlas2
+        if gravity > 0:
+            center = np.mean(pos_array, axis=0)
+            for i in range(pos_array.shape[0]):
+                direction = center - pos_array[i]
+                distance = np.linalg.norm(direction)
+                if distance > 0:  # Vermeiden der Division durch Null
+                    # Je weiter weg, desto stärker die Anziehung
+                    force = gravity * distance
+                    pos_array[i] += direction / distance * force
+        
+        # Konvertiere zurück zum Dictionary
+        pos = {nodes[i]: (pos_array[i, 0], pos_array[i, 1]) for i in range(n)}
+        
+        # Optionale weitere Anpassungen:
+        # 1. Knoten nach Typ gruppieren
+        node_by_type = {'main': [], 'sub': [], 'keyword': []}
+        for node in G.nodes():
+            node_type = G.nodes[node]['node_type']
+            node_by_type[node_type].append(node)
+        
+        # 2. Leichte Anziehung innerhalb der gleichen Typen
+        for node_type, nodes_of_type in node_by_type.items():
+            if len(nodes_of_type) > 1:
+                # Finde den Schwerpunkt dieser Gruppe
+                centroid = np.mean([pos[node] for node in nodes_of_type], axis=0)
+                
+                # Anziehungskoeffizient je nach Typ
+                attraction = 0.1 if node_type == 'main' else 0.05 if node_type == 'sub' else 0.01
+                
+                # Bewege alle Knoten etwas in Richtung ihres Zentroids
+                for node in nodes_of_type:
+                    curr_pos = np.array(pos[node])
+                    direction = centroid - curr_pos
+                    # Mische aktuelle Position mit einer leichten Anziehung zum Zentroid
+                    new_pos = curr_pos + direction * attraction
+                    pos[node] = (new_pos[0], new_pos[1])
+        
+        print("ForceAtlas-ähnliches Layout berechnet.")
+        return pos
+        
+    except Exception as e:
+        print(f"Fehler bei ForceAtlas-Layout: {str(e)}")
+        print("Falle zurück auf Spring-Layout als Alternative...")
+        
+        # Import auch hier für den Fallback benötigt
+        import numpy as np
+        
+        # Erstelle initiale Positionen für bessere Konvergenz
+        initial_pos = {}
+        
+        # Positioniere Hauptkategorien im Zentrum
+        main_nodes = [n for n, d in G.nodes(data=True) if d['node_type'] == 'main']
+        num_main = len(main_nodes)
+        for i, node in enumerate(main_nodes):
+            if num_main > 1:
+                angle = 2 * np.pi * i / num_main
+                initial_pos[node] = (0.2 * np.cos(angle), 0.2 * np.sin(angle))
+            else:
+                initial_pos[node] = (0, 0)
+        
+        # Positioniere Subkategorien in einem mittleren Ring
+        sub_nodes = [n for n, d in G.nodes(data=True) if d['node_type'] == 'sub']
+        num_sub = len(sub_nodes)
+        for i, node in enumerate(sub_nodes):
+            if num_sub > 1:
+                angle = 2 * np.pi * i / num_sub
+                initial_pos[node] = (0.5 * np.cos(angle), 0.5 * np.sin(angle))
+            else:
+                initial_pos[node] = (0.5, 0)
+        
+        # Positioniere Keywords in einem äußeren Ring
+        keyword_nodes = [n for n, d in G.nodes(data=True) if d['node_type'] == 'keyword']
+        num_kw = len(keyword_nodes)
+        for i, node in enumerate(keyword_nodes):
+            if num_kw > 1:
+                angle = 2 * np.pi * i / num_kw
+                initial_pos[node] = (1.0 * np.cos(angle), 1.0 * np.sin(angle))
+            else:
+                initial_pos[node] = (1.0, 0)
+        
+        # Verwende das Spring-Layout als Fallback mit gewichteten Kanten
+        # für eine bessere hierarchische Darstellung
+        pos = nx.spring_layout(
+            G,
+            pos=initial_pos,
+            k=1.5/np.sqrt(len(G.nodes())),
+            iterations=100,
+            weight='weight',
+            scale=scaling
+        )
+        
+        return pos
 
 
 # ------------------------------------ #
@@ -718,11 +934,11 @@ async def main():
 
     # --- KONFIGURATIONSMÖGLICHKEITEN --- #
     CLEAN_KEYWORDS = True  # Auf True setzen, um die Harmonisierung von Schlüsselwörtern zu aktivieren
-    SIMILARITY_THRESHOLD = 0.65  # Anpassen des Ähnlichkeitsschwellenwerts für den Schlüsselwortabgleich
+    SIMILARITY_THRESHOLD = 0.7  # Anpassen des Ähnlichkeitsschwellenwerts für den Schlüsselwortabgleich
 
     # --- HIER DATEINAMEN EINTRAGEN --- #
     # --- DATEI SCHLIESSEN VOR START DES SKRIPTS --- #
-    EXPLORE_FILE = "QCA-AID_Analysis_20250223_134252.xlsx"  
+    EXPLORE_FILE = "QCA-AID_Analysis_20250224_201708.xlsx"  
     # -------------------------------------------------
 
 
