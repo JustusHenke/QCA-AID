@@ -1,4 +1,5 @@
 import pandas as pd
+from difflib import SequenceMatcher
 import networkx as nx
 import matplotlib.pyplot as plt
 from pathlib import Path
@@ -160,6 +161,7 @@ class QCAAnalyzer:
         # Read specifically from 'Kodierte_Segmente' sheet
         self.df = pd.read_excel(excel_path, sheet_name='Kodierte_Segmente')
         self.llm_provider = llm_provider
+        self.keyword_mappings = {}
         
         # Get the input filename without extension
         input_filename = Path(excel_path).stem
@@ -177,11 +179,38 @@ class QCAAnalyzer:
         self.columns = list(self.df.columns)
 
     def filter_data(self, filters: Dict[str, str]) -> pd.DataFrame:
-        """Filter the dataframe based on provided column-value pairs"""
+        """
+        Filter the dataframe based on provided column-value pairs
+        
+        Args:
+            filters: Dictionary with column-value pairs
+            
+        Returns:
+            Filtered DataFrame
+        """
         filtered_df = self.df.copy()
+        
+        for col, value in filters.items():
+            if not value:  # Skip empty filters
+                continue
+                
+            if col == "Subkategorien":
+                # Spezielle Behandlung für Subkategorien
+                # Prüfe ob der gesuchte Wert in der kommagetrennten Liste vorkommt
+                filtered_df = filtered_df[filtered_df[col].fillna('').str.split(',').apply(
+                    lambda x: value.strip() in [item.strip() for item in x]
+                )]
+            else:
+                # Standardfilterung für andere Spalten
+                filtered_df = filtered_df[filtered_df[col] == value]
+        
+        # Debug-Ausgabe
+        print(f"\nFilter angewendet:")
         for col, value in filters.items():
             if value:
-                filtered_df = filtered_df[filtered_df[col] == value]
+                print(f"- {col}: {value}")
+        print(f"Anzahl der gefilterten Zeilen: {len(filtered_df)}")
+        
         return filtered_df
 
     async def generate_summary(self, 
@@ -220,29 +249,37 @@ class QCAAnalyzer:
             f.write(summary)
 
     def create_network_graph(self, filtered_df: pd.DataFrame, output_filename: str):
-        """Create and save network graph visualization with improved parameters and export network data"""
+        """Create network graph using harmonized keywords"""
         print("Erstelle Netzwerkgraph...")
+        
         G = nx.DiGraph()
+        
+        # Debug: Print mappings
+        print("\nAktive Keyword-Mappings:")
+        for original, harmonized in self.keyword_mappings.items():
+            if original != harmonized:
+                print(f"  '{original}' → '{harmonized}'")
         
         # Count occurrences for node sizing
         category_counts = {}
         subcategory_counts = {}
         keyword_counts = {}
         
-        # Color mapping for main categories
+        # Color mapping for main categories with default color
         unique_main_categories = filtered_df['Hauptkategorie'].unique()
-        colors = plt.cm.Set3(np.linspace(0, 1, len(unique_main_categories)))
-        main_category_colors = dict(zip(unique_main_categories, colors))
+        if len(unique_main_categories) > 0:
+            colors = plt.cm.Set3(np.linspace(0, 1, len(unique_main_categories)))
+            main_category_colors = dict(zip(unique_main_categories, colors))
+            default_color = colors[0]  # Use first color as default
+        else:
+            # If no main categories, use a default color
+            default_color = plt.cm.Set3(0)
+            main_category_colors = {}
         
-        # Lists to store node and edge data for Excel export
         nodes_data = []
         edges_data = []
         
         # Process each row
-        print("Verarbeite Datensätze...")
-        total_rows = len(filtered_df)
-        rows_processed = 0
-        
         for _, row in filtered_df.iterrows():
             if pd.isna(row['Hauptkategorie']):
                 continue
@@ -250,58 +287,69 @@ class QCAAnalyzer:
             main_category = str(row['Hauptkategorie'])
             category_counts[main_category] = category_counts.get(main_category, 0) + 1
             
-            # Add main category node
             if main_category not in [node[0] for node in nodes_data]:
-                G.add_node(main_category, node_type='main')  # Add node_type attribute here
+                G.add_node(main_category, node_type='main')
                 nodes_data.append([main_category, 'main', category_counts[main_category]])
-            
+
             # Handle subcategories
-            sub_categories = []
             if pd.notna(row['Subkategorien']):
                 sub_categories = [cat.strip() for cat in str(row['Subkategorien']).split(',') if cat.strip()]
+                
                 for sub_cat in sub_categories:
                     subcategory_counts[sub_cat] = subcategory_counts.get(sub_cat, 0) + 1
                     
-                    # Add subcategory node if not exists
                     if sub_cat not in [node[0] for node in nodes_data]:
-                        G.add_node(sub_cat, node_type='sub')  # Add node_type attribute here
+                        G.add_node(sub_cat, node_type='sub')
                         nodes_data.append([sub_cat, 'sub', subcategory_counts[sub_cat]])
-                    G.add_edge(main_category, sub_cat)
-                    edges_data.append([main_category, sub_cat, 'main_to_sub'])
-            
-            # Handle keywords
-            keywords = []
-            if pd.notna(row['Schlüsselwörter']):
-                keywords = [kw.strip() for kw in str(row['Schlüsselwörter']).split(',') if kw.strip()]
-                for kw in keywords:
-                    keyword_counts[kw] = keyword_counts.get(kw, 0) + 1
                     
-                    # Add keyword nodes and connect to subcategories
-                    for sub_cat in sub_categories:
-                        if kw not in [node[0] for node in nodes_data]:
-                            G.add_node(kw, node_type='keyword')  # Add node_type attribute here
-                            nodes_data.append([kw, 'keyword', keyword_counts[kw]])
-                        G.add_edge(sub_cat, kw)
-                        edges_data.append([sub_cat, kw, 'sub_to_keyword'])
-            
-            rows_processed += 1
-            if rows_processed % max(1, total_rows // 5) == 0:
-                print(f"Fortschritt: {rows_processed}/{total_rows} Datensätze verarbeitet")
+                    if not G.has_edge(main_category, sub_cat):
+                        G.add_edge(main_category, sub_cat)
+                        edges_data.append([main_category, sub_cat, 'main_to_sub'])
+                    
+                    # Handle keywords
+                    if pd.notna(row['Schlüsselwörter']):
+                        keywords = [kw.strip() for kw in str(row['Schlüsselwörter']).split(',') if kw.strip()]
+                        
+                        for keyword in keywords:
+                            # Use harmonized version of keyword if available
+                            harmonized_keyword = self.keyword_mappings.get(keyword, keyword)
+                            
+                            # Update counts using harmonized keyword
+                            keyword_counts[harmonized_keyword] = keyword_counts.get(harmonized_keyword, 0) + 1
+                            
+                            # Add node using harmonized keyword
+                            if harmonized_keyword not in [node[0] for node in nodes_data]:
+                                G.add_node(harmonized_keyword, node_type='keyword')
+                                nodes_data.append([harmonized_keyword, 'keyword', keyword_counts[harmonized_keyword]])
+                            
+                            # Add edge using harmonized keyword
+                            if not G.has_edge(sub_cat, harmonized_keyword):
+                                G.add_edge(sub_cat, harmonized_keyword)
+                                edges_data.append([sub_cat, harmonized_keyword, 'sub_to_keyword'])
         
-        # Export network data to Excel
-        print("\nExportiere Netzwerkdaten nach Excel...")
+        # Export network data
+        print("\nExportiere Netzwerkdaten...")
         nodes_df = pd.DataFrame(nodes_data, columns=['Node', 'Type', 'Count'])
         edges_df = pd.DataFrame(edges_data, columns=['Source', 'Target', 'Type'])
         
+        # Print statistics
+        print(f"\nStatistiken:")
+        print(f"Anzahl Knoten: {len(nodes_df)}")
+        print(f"Anzahl Kanten: {len(edges_df)}")
+        print("\nKnotentypen Verteilung:")
+        print(nodes_df['Type'].value_counts())
+        
+        # Export to Excel
         excel_output_path = self.output_dir / f"{output_filename}_network_data.xlsx"
         with pd.ExcelWriter(excel_output_path, engine='openpyxl') as writer:
             nodes_df.to_excel(writer, sheet_name='Nodes', index=False)
             edges_df.to_excel(writer, sheet_name='Edges', index=False)
         print(f"Netzwerkdaten exportiert nach: {excel_output_path}")
         
-        # Starte die Visualisierung
+        # Create visualization
         print("\nErstelle Visualisierung...")
         plt.figure(figsize=(24, 20))
+
         
         # Sammle Knoten nach Typ
         main_nodes = [n for n, d in G.nodes(data=True) if d['node_type'] == 'main']
@@ -458,7 +506,7 @@ class QCAAnalyzer:
         # Legende
         legend_elements = [
             plt.Line2D([0], [0], marker='o', color='w',
-                    markerfacecolor=list(main_category_colors.values())[0],
+                    markerfacecolor=default_color,  # Use default_color instead
                     markersize=10, label='Hauptkategorien'),
             plt.Line2D([0], [0], marker='s', color='w',
                     markerfacecolor='lightgreen', markersize=10,
@@ -509,9 +557,151 @@ class QCAAnalyzer:
         # Für mehrere Filter: Alle außer dem letzten mit Komma, letzter mit "und"
         return ", ".join(active_filters[:-1]) + " und " + active_filters[-1]
 
+    def harmonize_keywords(self, similarity_threshold: float = 0.60) -> pd.DataFrame:
+        """
+        Harmonize keywords using fuzzy matching while preserving hierarchical relationships.
+        
+        Args:
+            similarity_threshold: Threshold for fuzzy matching (default: 0.60)
+                
+        Returns:
+            DataFrame with harmonized keywords
+        """
+        def get_similarity(a: str, b: str) -> float:
+            """Calculate string similarity with enhanced rules for academic terms"""
+            if not isinstance(a, str) or not isinstance(b, str):
+                return 0.0
+                    
+            # Normalize strings
+            a = a.lower().strip()
+            b = b.lower().strip()
+                
+            # Base similarity with SequenceMatcher
+            base_similarity = SequenceMatcher(None, a, b).ratio()
+            
+            return min(1.0, base_similarity)
+
+        def find_most_common_variant(keywords: list) -> dict:
+            """Find the most common variant with improved academic context handling"""
+            keyword_mapping = {}
+            processed = set()
+                
+            # Flatten and clean keywords
+            flat_keywords = []
+            for kw_list in keywords:
+                if pd.notna(kw_list):
+                    flat_keywords.extend([k.strip() for k in str(kw_list).split(',') if k.strip()])
+                
+            # Convert to frequency series and sort
+            keyword_freq = pd.Series(flat_keywords).value_counts()
+            
+            # Define preferred forms for certain terms
+            preferred_forms = {
+                # private hochschule': 'Private Hochschule',
+            }
+            
+            print("\nAnalyzing keyword similarities...")
+            
+            # Store potential matches for diagnostics
+            potential_matches = []
+            
+            for keyword in keyword_freq.index:
+                if keyword in processed:
+                    continue
+                
+                similar_keywords = []
+                
+                # Find similar keywords
+                for other_keyword in keyword_freq.index:
+                    if other_keyword != keyword and other_keyword not in processed:
+                        similarity = get_similarity(keyword, other_keyword)
+                        if similarity >= similarity_threshold:
+                            similar_keywords.append(other_keyword)
+                            processed.add(other_keyword)
+                            potential_matches.append((keyword, other_keyword, similarity))
+                
+                if similar_keywords:
+                    # Check if any preferred form exists
+                    normalized_key = keyword.lower()
+                    preferred_form = next(
+                        (pref for key, pref in preferred_forms.items() 
+                        if key in normalized_key),
+                        None
+                    )
+                    
+                    if preferred_form:
+                        canonical = preferred_form
+                    else:
+                        # Use most frequent variant
+                        canonical = max(similar_keywords + [keyword], 
+                                    key=lambda x: keyword_freq[x])
+                    
+                    for kw in similar_keywords + [keyword]:
+                        keyword_mapping[kw] = canonical
+            
+            # Print diagnostic information
+            if potential_matches:
+                print("\nPotential keyword matches found (showing pairs with similarity >= threshold):")
+                for kw1, kw2, sim in sorted(potential_matches, key=lambda x: x[2], reverse=True):
+                    print(f"  '{kw1}' ↔ '{kw2}' (similarity: {sim:.3f})")
+            else:
+                print("\nNo keyword pairs met the similarity threshold.")
+                
+            # Store mappings in class instance
+            self.keyword_mappings.update(keyword_mapping)
+            return keyword_mapping
+
+        # Create a copy of the DataFrame
+        harmonized_df = self.df.copy()
+            
+        # Sammle alle Schlüsselwörter aus dem gesamten DataFrame
+        all_keywords = []
+        for kw_list in harmonized_df['Schlüsselwörter'].dropna():
+            all_keywords.extend([k.strip() for k in str(kw_list).split(',') if k.strip()])
+
+        # Generiere globale Keyword-Mappings
+        keyword_mapping = find_most_common_variant(all_keywords)
+        self.keyword_mappings.update(keyword_mapping)
+
+        # Wende Mappings auf alle Zeilen an
+        def replace_keywords(x):
+            if pd.isna(x):
+                return x
+            original = [k.strip() for k in str(x).split(',')]
+            mapped = [keyword_mapping.get(k, k) for k in original]
+            seen = set()
+            return ','.join([k for k in mapped if not (k in seen or seen.add(k))])
+
+        harmonized_df['Schlüsselwörter'] = harmonized_df['Schlüsselwörter'].apply(replace_keywords)
+
+        # Aktualisiere den Haupt-DataFrame
+        self.df = harmonized_df
+        return self.df
+    
+    def validate_keyword_mapping(self):
+        """Validiert die Schlüsselwort-Zuordnungen"""
+        from collections import defaultdict
+        mapping = defaultdict(set)
+        
+        for kw in self.df['Schlüsselwörter'].dropna():
+            for keyword in str(kw).split(','):
+                cleaned = keyword.strip().lower()
+                mapping[cleaned].add(keyword.strip())
+        
+        print("\nSchlüsselwort-Zuordnungen:")
+        for canonical, variants in mapping.items():
+            if len(variants) > 1:
+                print(f"Kanonisch: {canonical}")
+                print(f"Varianten: {', '.join(variants)}")
+                print("------")
+
+# --- Helper functions --- #
+
 def create_filter_string(filters: Dict[str, str]) -> str:
     """Create a string representation of the filters for filenames"""
     return '_'.join(f"{k}-{v}" for k, v in filters.items() if v)
+
+
 
 
 # ------------------------------------ #
@@ -526,9 +716,13 @@ async def main():
     SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
     OUTPUT_DIR = "output"
 
+    # --- KONFIGURATIONSMÖGLICHKEITEN --- #
+    CLEAN_KEYWORDS = True  # Auf True setzen, um die Harmonisierung von Schlüsselwörtern zu aktivieren
+    SIMILARITY_THRESHOLD = 0.65  # Anpassen des Ähnlichkeitsschwellenwerts für den Schlüsselwortabgleich
+
     # --- HIER DATEINAMEN EINTRAGEN --- #
     # --- DATEI SCHLIESSEN VOR START DES SKRIPTS --- #
-    EXPLORE_FILE = "QCA-AID_Analysis_20250222_192824.xlsx"  
+    EXPLORE_FILE = "QCA-AID_Analysis_20250223_134252.xlsx"  
     # -------------------------------------------------
 
 
@@ -555,18 +749,29 @@ async def main():
     filters = {
         "Dokument": None,  # Optional: set to None if not filtering
         "Hauptkategorie": "Strukturelle Rahmenbedingungen",
-        "Subkategorien" : None,
+        "Subkategorien" : "Finanzierung",
         second_column: None,  # Spalte mit "Attribut_1"
         third_column: None    # Spalte mit "Attribut_2"
     }
     # -------------------------------------------------
 
+    # Schlüsselwörter harmonisieren, falls aktiviert
+    if CLEAN_KEYWORDS:
+        print("\nStarte Keyword-Harmonisierung...")
+        # Update the main DataFrame with harmonized keywords
+        analyzer.df = analyzer.harmonize_keywords(similarity_threshold=SIMILARITY_THRESHOLD)
+        analyzer.validate_keyword_mapping()
+        print("Keyword-Harmonisierung abgeschlossen.")
 
     # Filter data
     filtered_df = analyzer.filter_data(filters)
     
     # Create filter string for filenames
     filter_str = create_filter_string(filters)
+
+    # Schlüsselwort-Harmonisierungsinfo zum Filterstring hinzufügen, falls aktiviert
+    if CLEAN_KEYWORDS:
+        filter_str = f"harmonized_{filter_str}" if filter_str else "harmonized"
     
     # 1. Paraphrasenzusammenfassung erstellen und speichern
     # -------------------------------------------------
@@ -583,18 +788,18 @@ async def main():
     
     paraphrase_text = '\n'.join(filtered_df['Paraphrase'].dropna())
     print("Sende Anfrage an LLM...")
-    # paraphrase_summary = await analyzer.generate_summary(
-    #     text=paraphrase_text,
-    #     prompt_template=paraphrase_prompt,
-    #     model=MODEL_NAME,
-    #     temperature=TEMPERATURE
-    # )
-    # output_file = f"Summary_Paraphrase_{filter_str}.txt"
-    # analyzer.save_text_summary(
-    #     paraphrase_summary,
-    #     output_file
-    # )
-    # print(f"Zusammenfassung gespeichert in: {output_file}")
+    paraphrase_summary = await analyzer.generate_summary(
+        text=paraphrase_text,
+        prompt_template=paraphrase_prompt,
+        model=MODEL_NAME,
+        temperature=TEMPERATURE
+    )
+    output_file = f"Summary_Paraphrase_{filter_str}.txt"
+    analyzer.save_text_summary(
+        paraphrase_summary,
+        output_file
+    )
+    print(f"Zusammenfassung gespeichert in: {output_file}")
     
     # 2. Zusammenfassung der Argumentation generieren und speichern
     # -------------------------------------------------
@@ -613,19 +818,19 @@ async def main():
     
     reasoning_text = '\n'.join(filtered_df['Begründung'].dropna())
     print("Sende Anfrage an LLM...")
-    # reasoning_summary = await analyzer.generate_summary(
-    #     text=reasoning_text,
-    #     prompt_template=reasoning_prompt,
-    #     model=MODEL_NAME,
-    #     temperature=TEMPERATURE,
-    #     filters=filters
-    # )
-    # output_file = f"Summary_Begründung_{filter_str}.txt"
-    # analyzer.save_text_summary(
-    #     reasoning_summary,
-    #     output_file
-    # )
-    # print(f"Zusammenfassung gespeichert in: {output_file}")
+    reasoning_summary = await analyzer.generate_summary(
+        text=reasoning_text,
+        prompt_template=reasoning_prompt,
+        model=MODEL_NAME,
+        temperature=TEMPERATURE,
+        filters=filters
+    )
+    output_file = f"Summary_Begründung_{filter_str}.txt"
+    analyzer.save_text_summary(
+        reasoning_summary,
+        output_file
+    )
+    print(f"Zusammenfassung gespeichert in: {output_file}")
     
     # 3. Netzwerkvisualisierung erstellen und speichern
     # -------------------------------------------------
