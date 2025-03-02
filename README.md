@@ -46,7 +46,14 @@ Die KI-gestützte Datenverarbeitung nutzt die Schnittstelle von OpenAI bzw. Mist
 
 Prinzipiell ist die Verarbeitung der Daten per LLM auch auf einem lokalen Rechner möglich Dafür kann OLLAMA oder LMSTUDIO genutzt werden und das Setup im Client muss etwas angepasst werden mehr dazu hier: https://ollama.com/blog/openai-compatibility oder https://lmstudio.ai/docs/api/endpoints/openai
 
-## Weitere Hinweise zur aktuellen Version (0.9.7)
+
+## Weitere Hinweise zur aktuellen Version (0.9.8)
+
+- Progressive Dokumentenzusammenfassung als Kodierungskontext (max. 80 Wörter)
+- Aktivieren durch Setzen des CONFIG-Wertes `CODE_WITH_CONTEXT` im Codebook auf 'true' (Standard: false)
+- Eignet sind sich inbesondere bei deduktivem Kodieren. Es kann Einfluss auf die Kodierung nehmen, daher testen, ob die Funktion zu besseren Ergebnissen führt. Den Kontext beizufügen, erleichtert es dem Sprachmodell einzuschätzen, ob die Inhalte im größeren Zusammenhang des Textes bedeutsam sind. Damit wird gewissermaßen ein Gedächtnis des bisherigen Textes in die Verarbeitung des Textsegments integriert. 
+
+## Weitere Hinweise zur Version (0.9.7)
 
 - NEU: Mistral Support! Es kann jetzt auch die Mistral API genutzt werden. Umschalten zwischen OpenAI und Mistral mit CONFIG-Parameter 'MODEL_PROVIDER'. Standardmodell für OpenAI ist 'GPT-4o-mini', für Mistral 'mistral-small'.
 - NEU: Ausschlusskriterien während der Relevanzprüfung in 'KODIERREGELN' definieren (z.B. Literaturverzeichnis)
@@ -55,7 +62,6 @@ Prinzipiell ist die Verarbeitung der Daten per LLM auch auf einem lokalen Rechne
 - Verbesserte Relevanzprüfung, Rechtfertigung und Aufforderung zur Kodierung von Segmenten
 - NEU: Erstellen von Zusammenfassungen und Diagrammen aus Ihren kodierten Daten mit 'QCA-AID-Explorer.py'.
 
-- Bei größeren Mengen an Texten kann es im induktiven Modus immer wieder mal zu übermäßigen Vergaben von Subkategorien kommen. Das entsprechende Prompting, das diese Ergebnisse produziert wird noch weiter verfeinert. 
 - Sollte die induktive Kodierung zu großzügig sein und zu viele Subcodes erstellen, kann können Sie den CONFIG-Wert `Temperature` herunterregeln (z.B. auf '0.1'), dann wird konservativer kodiert. 
 - Beachten Sie, dass die Forschungsfrage am besten alle Aspekte der Hauptkategorien abdeckt bzw. letztere sich aus der Frage ableiten lassen. Damit ist eine zuverlässigere Kodierung möglich, da die Forschungsfrage zentral ist, um ein Textsegment als relevant vorauszuwählen. Die Forschungsfrage sollte die Aspekte der Hauptkategorien möglichst ausgewogen adressieren und nicht bereits eine Hauptkategorie bevorzugen (es sei denn, das ist beabsichtigt).
 - Während der Bearbeitung werden mehrere API-Calls durchgeführt (Relevanzprüfung, Code-Entwicklung, Sättigungsprüfung), die Verarbeitung von Texten ist also relativ langsam: Ca. 400 Textsegmente à 1.000 Zeichen je Stunde, also ca. 200-250 Seiten je Stunde.  
