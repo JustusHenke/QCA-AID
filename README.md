@@ -191,6 +191,25 @@ Hier können Sie verschiedene Konfigurationsparameter einstellen:
 
 Durch sorgfältige Pflege und Aktualisierung der `QCA-AID-Codebook.xlsx` können Sie die Analyse optimal an Ihre Forschungsfragen und -methoden anpassen. Insbesondere die DEDUKTIVEN_KATEGORIEN sollten gründlich mit Definitionen und Beispielen versorgt werden, um das LLM nötigen Kontext mitzuliefern. 
 
+### CODE_WITH_CONTEXT
+----------------
+Wenn CONFIG-Parameter `CODE_WITH_CONTEXT` aktiviert ist (True), nutzt QCA-AID einen progressiven Dokumentkontext für die Kodierung.
+Dabei wird für jedes Dokument ein fortlaufend aktualisiertes Summary erstellt, das bei
+der Kodierung der nachfolgenden Chunks als Kontext verwendet wird.
+
+Vorteile:
+- Bessere Kontextsicherheit durch Berücksichtigung vorheriger Dokumentinhalte
+- Verbesserte Kodierqualität bei kontextabhängigen Kategorien (z.B. "dominante Akteure")
+- Mehr Konsistenz in der Kodierung eines Dokuments
+
+Nachteile:
+- Dokumente müssen sequentiell verarbeitet werden
+- Geringer erhöhter Tokenverbrauch
+- Mögliche Fehlerfortpflanzung bei falsch interpretierten frühen Abschnitten
+
+Empfehlung:
+- Für Analysen mit hierarchischen oder relationalen Kategorien aktivieren
+- Für einfache thematische Kategorisierungen kann ohne Kontext gearbeitet werden
 
 
 # QCA-Mayring: Qualitative Content Analysis with AI Support

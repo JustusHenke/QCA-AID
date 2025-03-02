@@ -7,16 +7,18 @@ enhanced with AI capabilities through the OpenAI API.
 
 Version:
 --------
-0.9.7.3 (2025-02-24)
+0.9.8 (2025-02-25)
+
+New in 0.9.8
+- Progressive document summary as coding context (max 80 words)
+- Activate by setting CONFIG value `CODE_WITH_CONTEXT`to 'true' (default: false)
 
 New in 0.9.7:
 - Switch between OpenAI and Mistral using CONFIG parameter 'MODEL_PROVIDER'
 - Standard model for Openai is 'GPT-4o-mini', for Mistral 'mistral-small'
 - add exclusion criteria for relevance check in codebook coding rules
-- export justification for non-relevant text segments
 - improved relevance check, justification and segement coding prompt
 - create summaries and graphs from your coded data with 'QCA-AID-Explorer.py'
-- improved subcategory prompt - focus on most important subcat
 
 Description:
 -----------
@@ -271,6 +273,7 @@ CONFIG = {
     'CHUNK_SIZE': 800,
     'CHUNK_OVERLAP': 80,
     'BATCH_SIZE': 5,
+    'CODE_WITH_CONTEXT': False,
     'ATTRIBUTE_LABELS': {
         'attribut1': 'Hochschulprofil',
         'attribut2': 'Akteur'
@@ -686,7 +689,7 @@ class ConfigLoader:
             headers = []
             for cell in sheet[1]:
                 headers.append(cell.value)
-            print(f"Gefundene Spalten: {headers}")
+            # print(f"Gefundene Spalten: {headers}")
             
             # Indizes für Spalten finden
             key_idx = headers.index('Key') if 'Key' in headers else None
@@ -750,16 +753,16 @@ class ConfigLoader:
 
             # Validierung der geladenen Daten
             print("\nValidiere geladene Kategorien:")
-            for name, kat in kategorien.items():
-                print(f"\nKategorie: {name}")
-                print(f"- Definition: {len(kat['definition'])} Zeichen")
-                if not kat['definition']:
-                    print("  WARNUNG: Keine Definition!")
-                print(f"- Regeln: {len(kat['rules'])}")
-                print(f"- Beispiele: {len(kat['examples'])}")
-                print(f"- Subkategorien: {len(kat['subcategories'])}")
-                for sub_name, sub_def in kat['subcategories'].items():
-                    print(f"  • {sub_name}: {sub_def[:50]}...")
+            # for name, kat in kategorien.items():
+            #     print(f"\nKategorie: {name}")
+            #     print(f"- Definition: {len(kat['definition'])} Zeichen")
+            #     if not kat['definition']:
+            #         print("  WARNUNG: Keine Definition!")
+            #     print(f"- Regeln: {len(kat['rules'])}")
+            #     print(f"- Beispiele: {len(kat['examples'])}")
+            #     print(f"- Subkategorien: {len(kat['subcategories'])}")
+            #     for sub_name, sub_def in kat['subcategories'].items():
+            #         print(f"  • {sub_name}: {sub_def[:50]}...")
 
             # Ergebnis
             if kategorien:
@@ -877,7 +880,22 @@ class ConfigLoader:
                 # Alle anderen Werte unverändert übernehmen
                 else:
                     sanitized[key] = value
-           
+
+            # Verarbeitung des CODE_WITH_CONTEXT Parameters
+            if 'CODE_WITH_CONTEXT' in config:
+                # Konvertiere zu Boolean
+                value = config['CODE_WITH_CONTEXT']
+                if isinstance(value, str):
+                    sanitized['CODE_WITH_CONTEXT'] = value.lower() in ('true', 'ja', 'yes', '1')
+                else:
+                    sanitized['CODE_WITH_CONTEXT'] = bool(value)
+                print(f"Übernehme CODE_WITH_CONTEXT aus Codebook: {sanitized['CODE_WITH_CONTEXT']}")
+            else:
+                # Standardwert setzen
+                sanitized['CODE_WITH_CONTEXT'] = True
+                print(f"CODE_WITH_CONTEXT nicht in Codebook gefunden, verwende Standard: {sanitized['CODE_WITH_CONTEXT']}")
+
+            # Verarbeitung des BATCH_SIZE Parameters
             if 'BATCH_SIZE' in config:
                 try:
                     batch_size = int(config['BATCH_SIZE'])
@@ -2368,6 +2386,13 @@ class IntegratedAnalysisManager:
             'category_changes': []
         }
 
+        # Konfigurationsparameter
+        self.use_context = config.get('CODE_WITH_CONTEXT', True)
+        print(f"\nKontextuelle Kodierung: {'Aktiviert' if self.use_context else 'Deaktiviert'}")
+
+        # Dictionary für die Verwaltung der Document-Summaries
+        self.document_summaries = {}
+
     async def _get_next_batch(self, 
                            segments: List[Tuple[str, str]], 
                            batch_size: float) -> List[Tuple[str, str]]:
@@ -2518,6 +2543,160 @@ class IntegratedAnalysisManager:
 
         return batch_results
 
+    async def _code_batch_with_context(self, batch: List[Tuple[str, str]], categories: Dict[str, CategoryDefinition]) -> List[Dict]:
+        """
+        Kodiert einen Batch sequentiell mit progressivem Dokumentkontext.
+        Aktualisiert um alle Kodierer zu nutzen.
+        
+        Args:
+            batch: Liste von (segment_id, text) Tupeln
+            categories: Aktuelle Kategorien
+            
+        Returns:
+            List[Dict]: Kodierungsergebnisse
+        """
+        batch_results = []
+        
+        # Sequentielle Verarbeitung um Kontext aufzubauen
+        for segment_id, text in batch:
+            # Extrahiere Dokumentnamen und Chunk-ID
+            doc_name, chunk_id = self._extract_doc_and_chunk_id(segment_id)
+            position = f"Chunk {chunk_id}"
+            
+            # Hole aktuelles Summary oder initialisiere es
+            current_summary = self.document_summaries.get(doc_name, "")
+            
+            # Segment-Informationen
+            segment_info = {
+                'doc_name': doc_name,
+                'chunk_id': chunk_id,
+                'position': position
+            }
+            
+            # Kontext-Daten vorbereiten
+            context_data = {
+                'current_summary': current_summary,
+                'segment_info': segment_info
+            }
+            
+            print(f"\n🔍 Verarbeite Segment {segment_id} mit Kontext")
+            
+            # Prüfe Relevanz (abgekürzt, da bereits in der Hauptmethode geprüft)
+            relevance_result = await self.relevance_checker.check_relevance_batch([(segment_id, text)])
+            is_relevant = relevance_result.get(segment_id, False)
+            
+            if not is_relevant:
+                print(f"  ↪ Segment als nicht relevant markiert - wird übersprungen")
+                
+                # Erstelle "Nicht kodiert" Ergebnis für alle Kodierer
+                for coder in self.deductive_coders:
+                    result = {
+                        'segment_id': segment_id,
+                        'coder_id': coder.coder_id,
+                        'category': "Nicht kodiert",
+                        'subcategories': [],
+                        'confidence': {'total': 1.0, 'category': 1.0, 'subcategories': 1.0},
+                        'justification': "Nicht relevant für Forschungsfrage",
+                        'text': text,
+                        'context_summary': current_summary
+                    }
+                    batch_results.append(result)
+                continue
+            
+            # Verarbeite relevante Segmente mit Kontext für ALLE Kodierer
+            # Wichtig: Der erste Kodierer aktualisiert das Summary, weitere Kodierer verwenden es nur
+            updated_summary = current_summary
+            
+            for coder_index, coder in enumerate(self.deductive_coders):
+                # Für den ersten Kodierer aktualisieren wir das Summary
+                if coder_index == 0:
+                    combined_result = await coder.code_chunk_with_progressive_context(
+                        text, 
+                        categories, 
+                        current_summary, 
+                        segment_info
+                    )
+                    
+                    if combined_result:
+                        # Extrahiere Kodierungsergebnis und aktualisiertes Summary
+                        coding_result = combined_result.get('coding_result', {})
+                        updated_summary = combined_result.get('updated_summary', current_summary)
+                        
+                        # Speichere aktualisiertes Summary
+                        self.document_summaries[doc_name] = updated_summary
+                        
+                        # Erstelle Kodierungseintrag
+                        coding_entry = {
+                            'segment_id': segment_id,
+                            'coder_id': coder.coder_id,
+                            'category': coding_result.get('category', ''),
+                            'subcategories': coding_result.get('subcategories', []),
+                            'justification': coding_result.get('justification', ''),
+                            'confidence': coding_result.get('confidence', {}),
+                            'text': text,
+                            'paraphrase': coding_result.get('paraphrase', ''),
+                            'keywords': coding_result.get('keywords', ''),
+                            'context_summary': current_summary,
+                            'context_influence': coding_result.get('context_influence', '')
+                        }
+                        
+                        batch_results.append(coding_entry)
+                        
+                        print(f"🔄 Summary aktualisiert: {len(updated_summary.split())} Wörter")
+                    else:
+                        print(f"  ⚠ Keine Kodierung von {coder.coder_id} erhalten")
+                
+                # Für weitere Kodierer verwenden wir das bereits aktualisierte Summary nur zum Lesen
+                else:
+                    combined_result = await coder.code_chunk_with_progressive_context(
+                        text, 
+                        categories, 
+                        updated_summary,  # Verwende das vom ersten Kodierer aktualisierte Summary
+                        segment_info
+                    )
+                    
+                    if combined_result:
+                        # Extrahiere nur das Kodierungsergebnis, ignoriere Summary-Updates
+                        coding_result = combined_result.get('coding_result', {})
+                        
+                        # Erstelle Kodierungseintrag
+                        coding_entry = {
+                            'segment_id': segment_id,
+                            'coder_id': coder.coder_id,
+                            'category': coding_result.get('category', ''),
+                            'subcategories': coding_result.get('subcategories', []),
+                            'justification': coding_result.get('justification', ''),
+                            'confidence': coding_result.get('confidence', {}),
+                            'text': text,
+                            'paraphrase': coding_result.get('paraphrase', ''),
+                            'keywords': coding_result.get('keywords', ''),
+                            'context_summary': updated_summary,
+                            'context_influence': coding_result.get('context_influence', '')
+                        }
+                        
+                        batch_results.append(coding_entry)
+                        print(f"  ✓ Kodierer {coder.coder_id}: {coding_entry['category']}")
+                    else:
+                        print(f"  ⚠ Keine Kodierung von {coder.coder_id} erhalten")
+        
+        return batch_results
+
+    def _extract_doc_and_chunk_id(self, segment_id: str) -> Tuple[str, str]:
+        """Extrahiert Dokumentname und Chunk-ID aus segment_id."""
+        parts = segment_id.split('_chunk_')
+        if len(parts) == 2:
+            return parts[0], parts[1]
+        else:
+            return segment_id, "unknown"
+
+    def _extract_segment_sort_key(self, segment_id: str) -> Tuple[str, int]:
+        """Erstellt einen Sortierschlüssel für die richtige Chunk-Reihenfolge."""
+        try:
+            doc_name, chunk_id = self._extract_doc_and_chunk_id(segment_id)
+            return (doc_name, int(chunk_id) if chunk_id.isdigit() else 0)
+        except Exception:
+            return (segment_id, 0)
+    
     async def analyze_material(self, 
                                 chunks: Dict[str, List[str]], 
                                 initial_categories: Dict,
@@ -2531,16 +2710,32 @@ class IntegratedAnalysisManager:
             # Wichtig: Kopie des initialen Systems erstellen
             current_categories = initial_categories.copy()
             all_segments = self._prepare_segments(chunks)
-            total_segments = len(all_segments)
+
+            # Kontext-Feature aktiviert?
+            use_context = CONFIG.get('CODE_WITH_CONTEXT', False)
+
+            # Wenn Kontext verwendet wird, Segmente sortieren
+            if use_context:
+                print("\n🔄 Kontextuelle Kodierung aktiviert")
+                print("Sortiere Segmente für sequentielle Verarbeitung...")
+                all_segments.sort(key=lambda x: self._extract_segment_sort_key(x[0]))
+                # Reset document_summaries
+                self.document_summaries = {}
+            else:
+                print("\n🔄 Standardkodierung ohne Kontext aktiviert")
+
+            
             
             # Reset Tracking-Variablen
             self.coding_results = []
             self.processed_segments = set()
             
+            # Batch-Größe festlegen
             if batch_size is None:
-                batch_size = CONFIG.get('BATCH_SIZE', 5) 
+                batch_size = CONFIG.get('BATCH_SIZE', 5)
             total_batches = 0
             
+            total_segments = len(all_segments)
             print(f"Verarbeite {total_segments} Segmente mit Batch-Größe {batch_size}...")
             self.history.log_analysis_start(total_segments, len(initial_categories))
             
@@ -2588,17 +2783,7 @@ class IntegratedAnalysisManager:
                                 current_categories,
                                 new_categories
                             )
-                            
-                            # Debug-Ausgabe des aktualisierten Systems
-                            # print("\nAktuelles Kategoriensystem:")
-                            # for name, cat in current_categories.items():
-                            #     print(f"\n- {name}:")
-                            #     print(f"  Definition: {cat.definition[:100]}...")
-                            #     if cat.subcategories:
-                            #         print("  Subkategorien:")
-                            #         for sub_name in cat.subcategories:
-                            #             print(f"    • {sub_name}")
-                            
+
                             # Aktualisiere ALLE Kodierer mit dem neuen System
                             for coder in self.deductive_coders:
                                 await coder.update_category_system(current_categories)
@@ -2606,8 +2791,16 @@ class IntegratedAnalysisManager:
                     
                     # Deduktive Kodierung für alle Segmente
                     print("\nStarte deduktive Kodierung...")
-                    batch_results = await self._code_batch_deductively(batch, current_categories)
+
+                    if use_context:
+                        # Kontextuelle Kodierung sequentiell für jeden Chunk
+                        batch_results = await self._code_batch_with_context(batch, current_categories)
+                    else:
+                        # Klassische Kodierung ohne Kontext
+                        batch_results = await self._code_batch_deductively(batch, current_categories)
+                
                     self.coding_results.extend(batch_results)
+                    self.processed_segments.update(sid for sid, _ in batch)
                     
                     # Performance-Tracking
                     batch_time = time.time() - batch_start
@@ -2680,6 +2873,13 @@ class IntegratedAnalysisManager:
                 print(f"  • Final: {len(current_categories)} Kategorien")
                 print(f"  • Neu entwickelt: {len(current_categories) - len(initial_categories)} Kategorien")
             
+            # Bei kontextueller Kodierung: Zeige Zusammenfassung der Dokument-Summaries
+            if use_context and self.document_summaries:
+                print("\nDocument-Summaries:")
+                for doc_name, summary in self.document_summaries.items():
+                    print(f"\n📄 {doc_name}:")
+                    print(f"  {summary}")
+                    
             # Dokumentiere Abschluss
             self.history.log_analysis_completion(
                 final_categories=current_categories,
@@ -3417,6 +3617,50 @@ class DeductiveCoder:
             traceback.print_exc()
             return False
 
+    async def code_chunk_with_context_switch(self, 
+                                         chunk: str, 
+                                         categories: Dict[str, CategoryDefinition],
+                                         use_context: bool = True,
+                                         context_data: Dict = None) -> Dict:
+        """
+        Wrapper-Methode, die basierend auf dem use_context Parameter
+        zwischen code_chunk und code_chunk_with_progressive_context wechselt.
+        
+        Args:
+            chunk: Zu kodierender Text
+            categories: Kategoriensystem
+            use_context: Ob Kontext verwendet werden soll
+            context_data: Kontextdaten (current_summary und segment_info)
+            
+        Returns:
+            Dict: Kodierungsergebnis (und ggf. aktualisiertes Summary)
+        """
+        if use_context and context_data:
+            # Mit progressivem Kontext kodieren
+            return await self.code_chunk_with_progressive_context(
+                chunk, 
+                categories, 
+                context_data.get('current_summary', ''),
+                context_data.get('segment_info', {})
+            )
+        else:
+            # Klassische Kodierung ohne Kontext
+            result = await self.code_chunk(chunk, categories)
+            
+            # Wandle CodingResult in Dictionary um, wenn nötig
+            if result and isinstance(result, CodingResult):
+                return {
+                    'coding_result': result.to_dict(),
+                    'updated_summary': context_data.get('current_summary', '') if context_data else ''
+                }
+            elif result and isinstance(result, dict):
+                return {
+                    'coding_result': result,
+                    'updated_summary': context_data.get('current_summary', '') if context_data else ''
+                }
+            else:
+                return None
+            
     async def code_chunk(self, chunk: str, categories: Dict[str, CategoryDefinition] = None) -> Optional[CodingResult]:
         """
         Kodiert einen Text-Chunk basierend auf dem aktuellen Kategoriensystem.
@@ -3519,7 +3763,7 @@ class DeductiveCoder:
                 "paraphrase": "Deine prägnante Paraphrase hier",
                 "keywords": "Deine Schlüsselwörter hier",
                 "category": "Name der Hauptkategorie oder 'Keine passende Kategorie'",
-                "subcategories": ["MEIST NUR EINE Subkategorie hier, mehrere NUR bei eindeutiger Gleichgewichtung im Text"],
+                "subcategories": ["Subkategorie", "Subkategorie"],
                 "justification": "Begründung muss enthalten: 1. Konkrete Textstellen, 2. Bezug zur Kategoriendefinition, 3. Verbindung zur Forschungsfrage",
                 "confidence": {{
                     "total": 0.00-1.00,
@@ -3528,7 +3772,6 @@ class DeductiveCoder:
                 }},
                 "text_references": ["Relevante", "Textstellen"],
                 "definition_matches": ["Welche Aspekte der Definition passen"],
-                "example_matches": ["Welche Beispiele ähnlich sind"],
                 "competing_categories": {{
                     "considered": ["Liste erwogener Kategorien"],
                     "rejection_reasons": ["Begründung für Nicht-Zuordnung"]
@@ -3566,8 +3809,8 @@ class DeductiveCoder:
                             print(f"\n🗒️  Paraphrase: {paraphrase}")
 
 
-                        print(f"  ✓ Kodierung von {self.coder_id}: 🏷️  {result.get('category', '')}")
-                        print(f"  ✓ Subkategorien von {self.coder_id}: 🏷️  {result.get('subcategories', [])}")
+                        print(f"\n  ✓ Kodierung von {self.coder_id}: 🏷️  {result.get('category', '')}")
+                        print(f"  ✓ Subkategorien von {self.coder_id}: 🏷️  {', '.join(result.get('subcategories', []))}")
                         print(f"  ✓ Keywords von {self.coder_id}: 🏷️  {result.get('keywords', '')}")
 
                         # Debug-Ausgaben
@@ -3581,16 +3824,7 @@ class DeductiveCoder:
                                 print(f"  {key}: {value}")
                         elif justification:
                             print(f"  {justification}")
-                        
-                        # Verarbeite Beispiel-Matches
-                        example_matches = result.get('example_matches', [])
-                        if isinstance(example_matches, list) and example_matches:
-                            print("\n  Ähnliche Beispiele:")
-                            for match in example_matches:
-                                print(f"  - {match}")
-                        elif example_matches:
-                            print(f"\n  Ähnliche Beispiele: {example_matches}")
-                        
+                                               
                                                
                         # Zeige Definition-Matches wenn vorhanden
                         definition_matches = result.get('definition_matches', [])
@@ -3627,6 +3861,301 @@ class DeductiveCoder:
 
         except Exception as e:
             print(f"Fehler bei der Kodierung durch {self.coder_id}: {str(e)}")
+            return None
+
+    async def code_chunk_with_progressive_context(self, 
+                                          chunk: str, 
+                                          categories: Dict[str, CategoryDefinition],
+                                          current_summary: str,
+                                          segment_info: Dict) -> Dict:
+        """
+        Kodiert einen Text-Chunk und aktualisiert gleichzeitig das Dokument-Summary
+        mit einem dreistufigen Reifungsmodell.
+        
+        Args:
+            chunk: Zu kodierender Text
+            categories: Kategoriensystem
+            current_summary: Aktuelles Dokument-Summary
+            segment_info: Zusätzliche Informationen über das Segment
+            
+        Returns:
+            Dict: Enthält sowohl Kodierungsergebnis als auch aktualisiertes Summary
+        """
+        try:
+            # Verwende das interne Kategoriensystem wenn vorhanden, sonst das übergebene
+            current_categories = self.current_categories or categories
+            
+            if not current_categories:
+                print(f"Fehler: Kein Kategoriensystem für Kodierer {self.coder_id} verfügbar")
+                return None
+
+            print(f"\nDeduktiver Kodierer 🧐 **{self.coder_id}** verarbeitet Chunk mit progressivem Kontext...")
+            
+            # Erstelle formatierte Kategorienübersicht
+            categories_overview = []
+            for name, cat in current_categories.items():
+                category_info = {
+                    'name': name,
+                    'definition': cat.definition,
+                    'examples': list(cat.examples) if isinstance(cat.examples, set) else cat.examples,
+                    'rules': list(cat.rules) if isinstance(cat.rules, set) else cat.rules,
+                    'subcategories': {}
+                }
+                
+                # Füge Subkategorien hinzu
+                for sub_name, sub_def in cat.subcategories.items():
+                    category_info['subcategories'][sub_name] = sub_def
+                    
+                categories_overview.append(category_info)
+            
+            # Position im Dokument und Fortschritt berechnen
+            position_info = f"Segment: {segment_info.get('position', '')}"
+            doc_name = segment_info.get('doc_name', 'Unbekanntes Dokument')
+            
+            # Berechne die relative Position im Dokument (für das Reifungsmodell)
+            chunk_id = 0
+            total_chunks = 1
+            if 'position' in segment_info:
+                try:
+                    # Extrahiere Chunk-Nummer aus "Chunk X"
+                    chunk_id = int(segment_info['position'].split()[-1])
+                    
+                    # Schätze Gesamtanzahl der Chunks (basierend auf bisherigen Chunks)
+                    # Alternative: Tatsächliche Anzahl übergeben, falls verfügbar
+                    total_chunks = max(chunk_id * 1.5, 20)  # Schätzung
+                    
+                    document_progress = chunk_id / total_chunks
+                    print(f"Dokumentfortschritt: ca. {document_progress:.1%}")
+                except (ValueError, IndexError):
+                    document_progress = 0.5  # Fallback
+            else:
+                document_progress = 0.5  # Fallback
+                
+            # Bestimme die aktuelle Reifephase basierend auf dem Fortschritt
+            if document_progress < 0.3:
+                reifephase = "PHASE 1 (Sammlung)"
+                max_aenderung = "50%"
+            elif document_progress < 0.7:
+                reifephase = "PHASE 2 (Konsolidierung)"
+                max_aenderung = "30%"
+            else:
+                reifephase = "PHASE 3 (Präzisierung)"
+                max_aenderung = "10%"
+                
+            print(f"Summary-Reifephase: {reifephase}, max. Änderung: {max_aenderung}")
+            
+            # Angepasster Prompt basierend auf dem dreistufigen Reifungsmodell
+            summary_update_prompt = f"""
+            AUFGABE 2: SUMMARY-UPDATE ({reifephase}, {int(document_progress*100)}%)
+
+            """
+
+            # Änderungen für bessere Einhaltung der Änderungsraten und Redundanzkontrolle
+            if document_progress < 0.3:
+                summary_update_prompt += """
+            SAMMLUNG (0-30%):
+            - Erfasse Kernthemen, zentrale Akteure und grundlegende Strukturen
+            - Prüfe VOR jeder Ergänzung: Ist die Information wirklich neu?
+            - STRIKT: Max. 50% des bisherigen Summaries ändern, zähle Wörter!
+            """
+            elif document_progress < 0.7:
+                summary_update_prompt += """
+            KONSOLIDIERUNG (30-70%):
+            - Verdichte das Summary thematisch, erkenne Muster statt Einzelbeispiele
+            - Nur substantielle neue Erkenntnisse integrieren 
+            - STRIKT: Max. 30% des bisherigen Summaries ändern, Ersetzungen bevorzugen
+            """
+            else:
+                summary_update_prompt += """
+            PRÄZISIERUNG (70-100%):
+            - HÖCHSTE ABSTRAKTION: Explizit Einzelfälle durch Prinzipien und Muster ersetzen
+            - Fast keine Ergänzungen mehr - stattdessen präzisieren und verdichten des Summaries
+            - STRIKT: Max. 10% Änderungen, nur für essenzielle neue Erkenntnisse
+            """
+
+            # Verstärkte allgemeine Kriterien
+            summary_update_prompt += """
+
+            ALLGEMEINE KRITERIEN:
+            - Exakt max. 70 Wörter - zähle nach der Erstellung
+            - Die Relevanz von Informationen ergibt sich aus der Forschungsfrage
+            - Redundanzprüfung: Auch synonyme oder ähnliche Aussagen identifizieren
+            - Bei jeder Information fragen: Ist sie unverzichtbar für das Gesamtverständnis?
+            - Lieber unverändert lassen als marginale Änderungen vornehmen
+            """
+            
+            # Prompt mit erweiterter Aufgabe für Summary-Update
+            prompt = f"""
+            AUFGABE 1: KODIERUNG
+            Analysiere folgenden Text im Kontext der Forschungsfrage:
+            "{FORSCHUNGSFRAGE}"
+            
+            PROGRESSIVER DOKUMENTKONTEXT (bisherige relevante Inhalte):
+            {current_summary if current_summary else "Noch keine relevanten Inhalte für dieses Dokument erfasst."}
+            
+            TEXTSEGMENT ZU KODIEREN:
+            {chunk}
+            
+            {position_info}
+
+            KATEGORIENSYSTEM:
+            {json.dumps(categories_overview, indent=2, ensure_ascii=False)}
+
+            KODIERREGELN:
+            {json.dumps(KODIERREGELN, indent=2, ensure_ascii=False)}
+
+            WICHTIG - PROGRESSIVE KONTEXTANALYSE UND GENAUE KATEGORIENZUORDNUNG: 
+            
+            1. KATEGORIENVERGLEICH:
+            - Vergleiche das TEXTSEGMENT systematisch mit JEDER Kategoriendefinition
+            - Prüfe explizit die Übereinstimmung mit den Beispielen jeder Kategorie
+            - Identifiziere wörtliche und sinngemäße Übereinstimmungen
+            - Dokumentiere auch teilweise Übereinstimmungen für die Nachvollziehbarkeit
+            - Berücksichtige den DOKUMENTKONTEXT für tieferes Verständnis des TEXTSEGMENTS
+            
+            2. SUBKATEGORIENVERGLEICH:
+            - Bei passender Hauptkategorie: Prüfe ALLE zugehörigen Subkategorien
+            - WICHTIG: Wähle PRIMÄR NUR DIE EINE Subkategorie mit der höchsten Passung zum Text
+            - Vergebe weitere Subkategorien NUR, wenn der Text EINDEUTIG mehrere Subkategorien gleichgewichtig adressiert
+            - Bei mehreren passenden Subkategorien mit ähnlicher Relevanz: Begründe die Wahl
+            
+            3. KONTEXT-INTEGRATION:
+            - Prüfe, ob das aktuelle TEXTSEGMENT bisherige Einschätzungen bestätigt, ergänzt oder widerspricht
+            - Bei Kategorien wie "dominante Akteure": Besonders wichtig, den bisherigen Kontext zu berücksichtigen
+            - Formuliere eine klare Begründung, die den Kontext explizit einbezieht
+            
+            4. ENTSCHEIDUNGSREGELN:
+            - Kodiere nur bei eindeutiger Übereinstimmung mit Definition UND Beispielen
+            - Bei konkurrierenden Kategorien: Dokumentiere die Abwägung
+            - Bei niedriger Konfidenz (<0.80): Wähle "Keine passende Kategorie"
+            - Die Interpretation muss sich auf konkrete Textstellen stützen
+            - Keine Annahmen oder Spekulationen über den Text hinaus
+            - Prüfe die Relevanz für die Forschungsfrage explizit
+
+            5. QUALITÄTSSICHERUNG:
+            - Stelle intersubjektive Nachvollziehbarkeit sicher
+            - Dokumentiere Grenzfälle und Abwägungen transparent
+            - Prüfe die Konsistenz mit bisherigen Kodierungen
+            - Bei Unsicherheiten: Lieber konservativ kodieren
+            
+            LIEFERE IN DER KODIERUNG:
+
+            1. PARAPHRASE:
+            - Erfasse den zentralen Inhalt des TEXTSEGMENTS in max. 40 Wörtern
+            - IGNORIERE dafür den Dokumenttext
+            - Verwende sachliche, deskriptive Sprache
+            - Bleibe nah am Originaltext ohne Interpretation
+
+            2. SCHLÜSSELWÖRTER:
+            - 2-3 zentrale Begriffe aus dem Text
+            - Wähle bedeutungstragende Terme
+            - Vermeide zu allgemeine Begriffe
+
+            3. KATEGORIENZUORDNUNG:
+            - Entweder präzise Kategorie oder "Keine passende Kategorie"
+            - Ausführliche Begründung mit Textbelegen
+            - Transparente Konfidenzeinschätzung
+            - Erläutere explizit den Einfluss des Dokumentkontexts
+
+            {summary_update_prompt}
+
+            Antworte mit EINEM JSON-Objekt, das BEIDE Aufgaben umfasst:
+            {{
+                "coding_result": {{
+                    "paraphrase": "Deine prägnante Paraphrase des TEXTSEGMENTS hier",
+                    "keywords": "Deine Schlüsselwörter hier",
+                    "category": "Name der Hauptkategorie oder 'Keine passende Kategorie'",
+                    "subcategories": ["Subkategorie", "Subkategorie"],
+                    "justification": "Begründung muss enthalten: 1. Konkrete Textstellen, 2. Bezug zur Kategoriendefinition, 3. Verbindung zur Forschungsfrage",
+                    "confidence": {{
+                        "total": 0.00-1.00,
+                        "category": 0.00-1.00,
+                        "subcategories": 0.00-1.00
+                    }},
+                    "text_references": ["Relevante Textstellen"],
+                    "definition_matches": ["Welche Aspekte der Definition passen"],
+                    "context_influence": "Wie der Dokumentkontext die Kodierung beeinflusst hat",
+                    "competing_categories": {{
+                        "considered": ["Liste erwogener Kategorien"],
+                        "rejection_reasons": ["Begründung für Nicht-Zuordnung"]
+                    }}
+                }},
+                "updated_summary": "Das aktualisierte Document-Summary mit max. 70 Wörtern"
+            }}
+            """
+
+            # API-Call
+            input_tokens = estimate_tokens(prompt)
+
+            response = await self.llm_provider.create_completion(
+                model=self.model_name,
+                messages=[
+                    {"role": "system", "content": "Du bist ein Experte für qualitative Inhaltsanalyse. Du antwortest auf deutsch."},
+                    {"role": "user", "content": prompt}
+                ],
+                temperature=self.temperature,
+                response_format={"type": "json_object"}
+            )
+            
+            # Verarbeite Response mit Wrapper
+            llm_response = LLMResponse(response)
+            result = json.loads(llm_response.content)
+
+            output_tokens = estimate_tokens(llm_response.content)
+            token_counter.add_tokens(input_tokens, output_tokens)
+            
+            # Extrahiere relevante Teile
+            if result and isinstance(result, dict):
+                coding_result = result.get('coding_result', {})
+                updated_summary = result.get('updated_summary', current_summary)
+                
+                # Prüfe Wortlimit beim Summary
+                if len(updated_summary.split()) > 80:  # Etwas Spielraum über 70
+                    words = updated_summary.split()
+                    updated_summary = ' '.join(words[:70])
+                    print(f"⚠️ Summary wurde gekürzt: {len(words)} → 70 Wörter")
+                
+                # Analyse der Veränderungen
+                if current_summary:
+                    # Berechne Prozent der Änderung
+                    old_words = set(current_summary.lower().split())
+                    new_words = set(updated_summary.lower().split())
+                    
+                    if old_words:
+                        # Jaccard-Distanz als Maß für Veränderung
+                        unchanged = len(old_words.intersection(new_words))
+                        total = len(old_words.union(new_words))
+                        change_percent = (1 - (unchanged / total)) * 100
+                        
+                        print(f"Summary Änderung: {change_percent:.1f}% (Ziel: max. {max_aenderung})")
+                
+                if coding_result:
+                    paraphrase = coding_result.get('paraphrase', '')
+                    if paraphrase:
+                        print(f"\n🗒️  Paraphrase: {paraphrase}")
+                    print(f"  ✓ Kodierung von {self.coder_id}: 🏷️  {coding_result.get('category', '')}")
+                    print(f"  ✓ Subkategorien von {self.coder_id}: 🏷️  {', '.join(coding_result.get('subcategories', []))}")
+                    print(f"  ✓ Keywords von {self.coder_id}: 🏷️  {coding_result.get('keywords', '')}")
+                    print(f"\n📝 Summary für {doc_name} aktualisiert ({len(updated_summary.split())} Wörter):")
+                    print(f"{updated_summary[:1000]}..." if len(updated_summary) > 100 else f"📄 {updated_summary}")
+                    
+                    # Kombiniertes Ergebnis zurückgeben
+                    return {
+                        'coding_result': coding_result,
+                        'updated_summary': updated_summary
+                    }
+                else:
+                    print(f"  ✗ Keine gültige Kodierung erhalten")
+                    return None
+            else:
+                print("  ✗ Keine gültige Antwort erhalten")
+                return None
+                
+        except Exception as e:
+            print(f"Fehler bei der Kodierung durch {self.coder_id}: {str(e)}")
+            print("Details:")
+            import traceback
+            traceback.print_exc()
             return None
 
     async def _check_relevance(self, chunk: str) -> bool:
@@ -6161,6 +6690,7 @@ class ResultsExporter:
         """
         Bereitet eine Kodierung für den Export vor.
         Erweitert um zusätzliche Felder für detailliertere Analysedokumentation.
+        KORRIGIERT, um alle Felder korrekt zu befüllen.
         """
         try:
             # Extrahiere Attribute aus dem Dateinamen
@@ -6184,77 +6714,51 @@ class ResultsExporter:
                 formatted_keywords = [kw.strip() for kw in raw_keywords]
             else:
                 formatted_keywords = raw_keywords.replace("[", "").replace("]", "").replace("'", "").split(",")
-                formatted_keywords = [kw.strip() for kw in formatted_keywords]
+                formatted_keywords = [kw.strip() for kw in formatted_keywords if kw.strip()]
             
             # Hole Relevanzdetails
             segment_id = f"{doc_name}_chunk_{chunk_id}"
             relevance_details = None
             if hasattr(self, 'relevance_checker'):
                 relevance_details = self.relevance_checker.get_relevance_details(segment_id)
-                if relevance_details:
-                    print(f"\nDebug - Relevanzdetails für Chunk {chunk_id}:")
-                    print(relevance_details)
 
             # Formatiere die Begründung
             justification = coding.get('justification', '')
             if category == "Nicht kodiert" and relevance_details:
                 justification = relevance_details.get('justification', justification)
 
-            # Formatiere Text-bezogene Felder für kodierte Chunks
-            if is_coded == 'Ja':
-                # Textstellen
-                text_refs = coding.get('text_references', [])
-                if isinstance(text_refs, str):
-                    formatted_references = text_refs
-                elif isinstance(text_refs, (list, tuple)):
-                    formatted_references = '\n'.join(str(ref) for ref in text_refs if ref)
-                else:
-                    formatted_references = str(text_refs)
-
-                # Definition-Matches
-                def_matches = coding.get('definition_matches', [])
-                if isinstance(def_matches, str):
-                    formatted_def_matches = def_matches
-                elif isinstance(def_matches, (list, tuple)):
-                    formatted_def_matches = '\n'.join(str(match) for match in def_matches if match)
-                else:
-                    formatted_def_matches = str(def_matches)
-
-                # Beispiel-Matches
-                ex_matches = coding.get('example_matches', [])
-                if isinstance(ex_matches, str):
-                    formatted_ex_matches = ex_matches
-                elif isinstance(ex_matches, (list, tuple)):
-                    formatted_ex_matches = '\n'.join(str(match) for match in ex_matches if match)
-                else:
-                    formatted_ex_matches = str(ex_matches)
-
-                # Konkurrierende Kategorien
-                competing_cats = coding.get('competing_categories', {})
-                if isinstance(competing_cats, dict):
-                    considered = competing_cats.get('considered', [])
-                    reasons = competing_cats.get('rejection_reasons', [])
-                    comp_parts = []
-                    if considered:
-                        comp_parts.append("Erwogene Kategorien: " + ', '.join(str(cat) for cat in considered))
-                    if reasons:
-                        comp_parts.append("Ablehnungsgründe: " + ', '.join(str(reason) for reason in reasons))
-                    formatted_competing = '\n'.join(comp_parts)
-                else:
-                    formatted_competing = str(competing_cats)
-
-            # Formatiere Text-bezogene Felder für nicht-kodierte Chunks
+            # Formatiere Textreferenzen
+            text_refs = coding.get('text_references', [])
+            if isinstance(text_refs, str):
+                formatted_references = text_refs
+            elif isinstance(text_refs, (list, tuple)):
+                formatted_references = '\n'.join(str(ref) for ref in text_refs if ref)
             else:
-                if relevance_details:
-                    formatted_references = f"Texttyp: {relevance_details.get('text_type', 'nicht spezifiziert')}"
-                    formatted_def_matches = "Relevanzprüfung: " + str(relevance_details.get('confidence', ''))
-                    formatted_ex_matches = "Kernaspekte: " + ", ".join(str(aspect) for aspect in relevance_details.get('key_aspects', []))
-                    formatted_competing = ""
-                else:
-                    formatted_references = "Keine Details verfügbar"
-                    formatted_def_matches = "Keine Details verfügbar"
-                    formatted_ex_matches = "Keine Details verfügbar"
-                    formatted_competing = ""
+                formatted_references = str(text_refs)
+
+            # Formatiere Definition-Matches (KORRIGIERT)
+            def_matches = coding.get('definition_matches', [])
+            if isinstance(def_matches, str):
+                formatted_def_matches = def_matches
+            elif isinstance(def_matches, (list, tuple)):
+                formatted_def_matches = '\n'.join(str(match) for match in def_matches if match)
+            else:
+                formatted_def_matches = str(def_matches)
+
+            
+            # Formatiere konkurrierende Kategorien (KORRIGIERT)
+            competing_cats = coding.get('competing_categories', {})
+            if isinstance(competing_cats, dict):
+                considered = competing_cats.get('considered', [])
+                reasons = competing_cats.get('rejection_reasons', [])
+                comp_parts = []
+                if considered:
+                    comp_parts.append("Erwogene Kategorien: " + ', '.join(str(cat) for cat in considered))
+                if reasons:
+                    comp_parts.append("Ablehnungsgründe: " + ', '.join(str(reason) for reason in reasons))
+                formatted_competing = '\n'.join(comp_parts)
+            else:
+                formatted_competing = str(competing_cats)
 
             # Export-Dictionary mit allen erforderlichen Feldern
             export_data = {
@@ -6277,17 +6781,16 @@ class ResultsExporter:
                     and len(coding.get('subcategories', [])) > 1 else 'Nein'),
                 'Textstellen': formatted_references,
                 'Definition_Übereinstimmungen': formatted_def_matches,
-                'Beispiel_Übereinstimmungen': formatted_ex_matches,
                 'Konkurrierende_Kategorien': formatted_competing
             }
 
-            # Debug-Ausgabe der formatierten Felder
-            # print(f"\nDebug - Formatierte Felder für Chunk {chunk_id}:")
-            # print(f"Textstellen: {formatted_references}")
-            # print(f"Definition_Übereinstimmungen: {formatted_def_matches}")
-            # print(f"Beispiel_Übereinstimmungen: {formatted_ex_matches}")
-            # print(f"Konkurrierende_Kategorien: {formatted_competing}")
+            # Nur Kontext-bezogene Felder hinzufügen, wenn vorhanden
+            if 'context_summary' in coding and coding['context_summary']:
+                export_data['Progressive_Context'] = coding.get('context_summary', '')
             
+            if 'context_influence' in coding and coding['context_influence']:
+                export_data['Context_Influence'] = coding.get('context_influence', '')
+
             return export_data
                 
         except Exception as e:
@@ -6885,7 +7388,8 @@ class ResultsExporter:
                         revision_manager: 'CategoryRevisionManager',
                         export_mode: str = "consensus",
                         original_categories: Dict[str, CategoryDefinition] = None,
-                        inductive_coder: 'InductiveCoder' = None) -> None:
+                        inductive_coder: 'InductiveCoder' = None,
+                        document_summaries: Dict[str, str] = None) -> None:
         """
         Exportiert die Analyseergebnisse mit Konsensfindung zwischen Kodierern.
         """
@@ -7019,6 +7523,10 @@ class ResultsExporter:
                         optimization_log=self.analysis_manager.category_optimizer.optimization_log
                     )
 
+                # 7. Exportiere progressive Summaries
+                if document_summaries:
+                    self._export_progressive_summaries(writer, document_summaries)
+
                 # Stelle sicher, dass mindestens ein Sheet sichtbar ist
                 if len(writer.book.sheetnames) == 0:
                     writer.book.create_sheet('Leeres_Sheet')
@@ -7037,6 +7545,63 @@ class ResultsExporter:
             import traceback
             traceback.print_exc()
             raise
+    
+    def _export_progressive_summaries(self, writer, document_summaries):
+        """
+        Exportiert die finalen Document-Summaries mit verbesserter Fehlerbehandlung.
+        """
+        try:
+            if 'Progressive_Summaries' not in writer.sheets:
+                writer.book.create_sheet('Progressive_Summaries')
+                
+            worksheet = writer.sheets['Progressive_Summaries']
+            
+            # Eventuell vorhandene Daten löschen
+            if worksheet.max_row > 0:
+                worksheet.delete_rows(1, worksheet.max_row)
+            
+            # Prüfe ob Daten vorhanden sind
+            if not document_summaries:
+                # Dummy-Zeile einfügen, um leeres Blatt zu vermeiden
+                worksheet.cell(row=1, column=1, value="Keine progressiven Summaries verfügbar")
+                return
+            
+            # Erstelle Daten für Export
+            summary_data = []
+            for doc_name, summary in document_summaries.items():
+                summary_data.append({
+                    'Dokument': doc_name,
+                    'Finales Summary': summary,
+                    'Wortanzahl': len(summary.split())
+                })
+                
+            # Erstelle DataFrame
+            if summary_data:
+                df = pd.DataFrame(summary_data)
+                
+                # Exportiere Daten ohne Tabellenformatierung
+                for r_idx, row in enumerate(dataframe_to_rows(df, index=False, header=True), 1):
+                    for c_idx, value in enumerate(row, 1):
+                        worksheet.cell(row=r_idx, column=c_idx, value=value)
+                
+                # Einfache Formatierung ohne Tabellen-Definition
+                for cell in worksheet[1]:
+                    cell.font = Font(bold=True)
+                    
+                # Spaltenbreiten anpassen
+                worksheet.column_dimensions['A'].width = 25
+                worksheet.column_dimensions['B'].width = 80
+                worksheet.column_dimensions['C'].width = 15
+                
+                print("Progressive Summaries erfolgreich exportiert")
+            else:
+                print("Keine Daten für Progressive Summaries verfügbar")
+        
+        except Exception as e:
+            print(f"Fehler beim Export der progressiven Summaries: {str(e)}")
+            print("Details:")
+            import traceback
+            traceback.print_exc()
 
     def _format_worksheet(self, worksheet, as_table: bool = False) -> None:
         """Formatiert das Detail-Worksheet"""
@@ -8485,7 +9050,7 @@ class DocumentReader:
             for i, paragraph in enumerate(doc.paragraphs):
                 text = paragraph.text.strip()
                 if text:
-                    print(f"  Paragraph {i+1}: {len(text)} Zeichen")
+                    # print(f"  Paragraph {i+1}: {len(text)} Zeichen")
                     paragraphs.append(text)
                 else:
                     print(f"  Paragraph {i+1}: Leer")
@@ -8883,6 +9448,10 @@ async def main() -> None:
 
         # 8. Integrierte Analyse starten
         print("\n7. Starte integrierte Analyse...")
+
+        # Zeige Kontext-Modus an
+        print(f"\nKodierungsmodus: {'Mit progressivem Kontext' if CONFIG.get('CODE_WITH_CONTEXT', True) else 'Ohne Kontext'}")
+        
         analysis_manager = IntegratedAnalysisManager(CONFIG)
 
         # Initialisiere Fortschrittsüberwachung
@@ -8953,6 +9522,9 @@ async def main() -> None:
                     inductive_coder=reliability_calculator
                 )
                 
+                # Exportiere Ergebnisse mit Document-Summaries, wenn vorhanden
+                summary_arg = analysis_manager.document_summaries if CONFIG.get('CODE_WITH_CONTEXT', True) else None
+
                 await exporter.export_results(
                     codings=all_codings,
                     reliability=reliability,
@@ -8961,8 +9533,17 @@ async def main() -> None:
                     revision_manager=revision_manager,
                     export_mode="consensus",
                     original_categories=initial_categories,
-                    inductive_coder=reliability_calculator
+                    inductive_coder=reliability_calculator,
+                    document_summaries=summary_arg
                 )
+
+                # Ausgabe der finalen Summaries, wenn vorhanden
+                if CONFIG.get('CODE_WITH_CONTEXT', True) and analysis_manager.document_summaries:
+                    print("\nFinale Document-Summaries:")
+                    for doc_name, summary in analysis_manager.document_summaries.items():
+                        print(f"\n📄 {doc_name}:")
+                        print(f"  {summary}")
+
                 print("Export erfolgreich abgeschlossen")
             else:
                 print("Keine Kodierungen zum Exportieren vorhanden")
