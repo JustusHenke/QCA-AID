@@ -47,6 +47,10 @@ Die KI-gestützte Datenverarbeitung nutzt die Schnittstelle von OpenAI bzw. Mist
 Prinzipiell ist die Verarbeitung der Daten per LLM auch auf einem lokalen Rechner möglich Dafür kann OLLAMA oder LMSTUDIO genutzt werden und das Setup im Client muss etwas angepasst werden mehr dazu hier: https://ollama.com/blog/openai-compatibility oder https://lmstudio.ai/docs/api/endpoints/openai
 
 
+## Neu in 0.9.9
+- Ablativmodus: induktive Codierung nur für Subcodes ohne Hinzufügen von Hauptcodes
+- kann entweder beim starten des Skripts ausgewählt oder im Codebook konfiguriert
+
 ## Weitere Hinweise zur aktuellen Version (0.9.8)
 
 - Progressive Dokumentenzusammenfassung als Kodierungskontext (max. 80 Wörter)
