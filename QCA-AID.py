@@ -7,17 +7,17 @@ enhanced with AI capabilities through the OpenAI API.
 
 Version:
 --------
-0.9.8 (2025-02-25)
+0.9.9 (2025-04-01)
+
+
+New in 0.9.9
+- Ablative mode: inductive coding just for subcodes with adding main codes 
 
 New in 0.9.8
-- Progressive document summary as coding context (max 80 words)
-- Activate by setting CONFIG value `CODE_WITH_CONTEXT`to 'true' (default: false)
+- Progressive document summary as coding context (max 80 words) 
 
 New in 0.9.7:
 - Switch between OpenAI and Mistral using CONFIG parameter 'MODEL_PROVIDER'
-- Standard model for Openai is 'GPT-4o-mini', for Mistral 'mistral-small'
-- add exclusion criteria for relevance check in codebook coding rules
-- improved relevance check, justification and segement coding prompt
 - create summaries and graphs from your coded data with 'QCA-AID-Explorer.py'
 
 Description:
@@ -274,6 +274,7 @@ CONFIG = {
     'CHUNK_OVERLAP': 80,
     'BATCH_SIZE': 5,
     'CODE_WITH_CONTEXT': False,
+    'ANALYSIS_MODE': 'deductive',
     'ATTRIBUTE_LABELS': {
         'attribut1': 'Hochschulprofil',
         'attribut2': 'Akteur'
@@ -820,6 +821,18 @@ class ConfigLoader:
                             if sub_key not in config[key]:
                                 config[key][sub_key] = {}
                             config[key][sub_key][sub_sub_key] = value
+
+            # Prüfe auf ANALYSIS_MODE in der Konfiguration
+            if 'ANALYSIS_MODE' in config:
+                valid_modes = {'full', 'ablative', 'deductive'}
+                if config['ANALYSIS_MODE'] not in valid_modes:
+                    print(f"Warnung: Ungültiger ANALYSIS_MODE '{config['ANALYSIS_MODE']}' im Codebook. Verwende 'full'.")
+                    config['ANALYSIS_MODE'] = 'full'
+                else:
+                    print(f"ANALYSIS_MODE aus Codebook geladen: {config['ANALYSIS_MODE']}")
+            else:
+                config['ANALYSIS_MODE'] = 'full'  # Standardwert
+                print(f"ANALYSIS_MODE nicht im Codebook gefunden, verwende Standard: {config['ANALYSIS_MODE']}")
 
             self.config['CONFIG'] = self._sanitize_config(config)
             return True  # Explizite Rückgabe von True
@@ -3703,18 +3716,18 @@ class DeductiveCoder:
             Analysiere folgenden Text im Kontext der Forschungsfrage:
             "{FORSCHUNGSFRAGE}"
             
-            TEXT:
+            ## TEXT:
             {chunk}
 
-            KATEGORIENSYSTEM:
+            ## KATEGORIENSYSTEM:
             Vergleiche den Text sorgfältig mit den folgenden Kategorien und ihren Beispielen:
 
             {json.dumps(categories_overview, indent=2, ensure_ascii=False)}
 
-            KODIERREGELN:
+            ## KODIERREGELN:
             {json.dumps(KODIERREGELN, indent=2, ensure_ascii=False)}
 
-            WICHTIG: 
+            ## WICHTIG: 
             1. KATEGORIENVERGLEICH:
             - Vergleiche den Text systematisch mit JEDER Kategoriendefinition
             - Prüfe explizit die Übereinstimmung mit den Beispielen jeder Kategorie
@@ -3741,7 +3754,7 @@ class DeductiveCoder:
             - Prüfe die Konsistenz mit bisherigen Kodierungen
             - Bei Unsicherheiten: Lieber konservativ kodieren
 
-            LIEFERE:
+            ## LIEFERE:
 
             1. PARAPHRASE:
             - Erfasse den zentralen Inhalt in max. 40 Wörtern
@@ -3946,7 +3959,7 @@ class DeductiveCoder:
             
             # Angepasster Prompt basierend auf dem dreistufigen Reifungsmodell
             summary_update_prompt = f"""
-            AUFGABE 2: SUMMARY-UPDATE ({reifephase}, {int(document_progress*100)}%)
+            ## AUFGABE 2: SUMMARY-UPDATE ({reifephase}, {int(document_progress*100)}%)
 
             """
 
@@ -3986,25 +3999,25 @@ class DeductiveCoder:
             
             # Prompt mit erweiterter Aufgabe für Summary-Update
             prompt = f"""
-            AUFGABE 1: KODIERUNG
+            ## AUFGABE 1: KODIERUNG
             Analysiere folgenden Text im Kontext der Forschungsfrage:
             "{FORSCHUNGSFRAGE}"
             
-            PROGRESSIVER DOKUMENTKONTEXT (bisherige relevante Inhalte):
+            ### PROGRESSIVER DOKUMENTKONTEXT (bisherige relevante Inhalte):
             {current_summary if current_summary else "Noch keine relevanten Inhalte für dieses Dokument erfasst."}
             
-            TEXTSEGMENT ZU KODIEREN:
+            ### TEXTSEGMENT ZU KODIEREN:
             {chunk}
             
             {position_info}
 
-            KATEGORIENSYSTEM:
+            ### KATEGORIENSYSTEM:
             {json.dumps(categories_overview, indent=2, ensure_ascii=False)}
 
-            KODIERREGELN:
+            ### KODIERREGELN:
             {json.dumps(KODIERREGELN, indent=2, ensure_ascii=False)}
 
-            WICHTIG - PROGRESSIVE KONTEXTANALYSE UND GENAUE KATEGORIENZUORDNUNG: 
+            ### WICHTIG - PROGRESSIVE KONTEXTANALYSE UND GENAUE KATEGORIENZUORDNUNG: 
             
             1. KATEGORIENVERGLEICH:
             - Vergleiche das TEXTSEGMENT systematisch mit JEDER Kategoriendefinition
@@ -4038,7 +4051,7 @@ class DeductiveCoder:
             - Prüfe die Konsistenz mit bisherigen Kodierungen
             - Bei Unsicherheiten: Lieber konservativ kodieren
             
-            LIEFERE IN DER KODIERUNG:
+            ### LIEFERE IN DER KODIERUNG:
 
             1. PARAPHRASE:
             - Erfasse den zentralen Inhalt des TEXTSEGMENTS in max. 40 Wörtern
@@ -4281,6 +4294,11 @@ class InductiveCoder:
         self.BATCH_SIZE = CONFIG.get('BATCH_SIZE', 5)  # Number of segments to process at once
         self.MAX_RETRIES = 3 # Maximum number of retries for failed API calls
         
+
+        # Speichere den Analysemodus aus CONFIG
+        self.analysis_mode = CONFIG.get('ANALYSIS_MODE', 'full')
+        print(f"\n🔍 InductiveCoder verwendet Analysemodus: {self.analysis_mode}")
+
         # Tracking
         self.history = history
         self.development_history = []
@@ -4331,6 +4349,10 @@ class InductiveCoder:
             # Initialisiere Dict für das erweiterte Kategoriensystem
             extended_categories = {}
             
+            # Hole den konfigurierten Analyse-Modus
+            analysis_mode = self.analysis_mode
+            print(f"\nAnalyse-Modus: {analysis_mode}")
+            
             for batch_idx, batch in enumerate(batches):
                 print(f"\nAnalysiere Batch {batch_idx + 1}/{len(batches)}...")
 
@@ -4341,7 +4363,8 @@ class InductiveCoder:
                 batch_analysis = await self.analyze_category_batch(
                     category=extended_categories,  # Wichtig: Übergebe bisheriges System
                     segments=batch,
-                    material_percentage=material_percentage 
+                    material_percentage=material_percentage,
+                    analysis_mode=analysis_mode  # Füge den Analyse-Modus hier hinzu
                 )
                 
                 if batch_analysis:
@@ -4375,8 +4398,8 @@ class InductiveCoder:
                                 extended_categories[cat_name] = current_cat
                                 print(f"✓ Kategorie '{cat_name}' aktualisiert")
                     
-                    # 2. Füge neue Kategorien hinzu
-                    if 'new_categories' in batch_analysis:
+                    # 2. Füge neue Kategorien hinzu (nur im 'full' Modus)
+                    if analysis_mode == 'full' and 'new_categories' in batch_analysis:
                         for new_cat in batch_analysis['new_categories']:
                             if new_cat['confidence'] < 0.7:  # Prüfe Konfidenz
                                 continue
@@ -4433,14 +4456,16 @@ class InductiveCoder:
     async def analyze_category_batch(self, 
                                 category: Dict[str, CategoryDefinition], 
                                 segments: List[str],
-                                material_percentage: float) -> Dict[str, Any]:  
+                                material_percentage: float,
+                                analysis_mode: str = 'full') -> Dict[str, Any]:  
         """
-        Verbesserte Batch-Analyse mit Berücksichtigung des aktuellen Kategoriensystems.
+        Verbesserte Batch-Analyse mit Berücksichtigung des aktuellen Kategoriensystems und Analyse-Modus.
         
         Args:
             category: Aktuelles Kategoriensystem
             segments: Liste der Textsegmente
             material_percentage: Prozentsatz des verarbeiteten Materials
+            analysis_mode: Analyse-Modus ('deductive', 'full', 'ablative')
             
         Returns:
             Dict[str, Any]: Analyseergebnisse einschließlich Sättigungsmetriken
@@ -4449,7 +4474,8 @@ class InductiveCoder:
             # Cache-Key erstellen
             cache_key = (
                 frozenset(category.items()) if isinstance(category, dict) else str(category),
-                tuple(segments)
+                tuple(segments),
+                self.analysis_mode  # Füge den Modus zum Cache-Key hinzu
             )
             
             # Prüfe Cache
@@ -4469,47 +4495,91 @@ class InductiveCoder:
                         for sub_name, sub_def in cat.subcategories.items():
                             current_categories_text += f"  • {sub_name}: {sub_def}\n"
 
-            # Definiere JSON-Schema außerhalb des f-strings
-            json_schema = '''{
-                "existing_categories": {
-                    "kategorie_name": {
-                        "refinements": {
-                            "definition": "Erweiterte Definition",
-                            "justification": "Begründung",
-                            "confidence": 0.0-1.0
-                        },
-                        "new_subcategories": [
-                            {
-                                "name": "Name",
-                                "definition": "Definition",
-                                "evidence": ["Textbelege"],
+            # Definiere JSON-Schema abhängig vom Analyse-Modus
+            if analysis_mode == 'deductive':
+                # Bei rein deduktiver Analyse kein neues Schema benötigt, da keine Kategorien entwickelt werden
+                return {"existing_categories": {}, "new_categories": []}
+                
+            elif analysis_mode == 'ablative':
+                # Modifiziere Schema um neue Hauptkategorien zu vermeiden
+                json_schema = '''{
+                    "existing_categories": {
+                        "kategorie_name": {
+                            "refinements": {
+                                "definition": "Erweiterte Definition",
+                                "justification": "Begründung",
                                 "confidence": 0.0-1.0
-                            }
-                        ]
+                            },
+                            "new_subcategories": [
+                                {
+                                    "name": "Name",
+                                    "definition": "Definition",
+                                    "evidence": ["Textbelege"],
+                                    "confidence": 0.0-1.0
+                                }
+                            ]
+                        }
+                    },
+                    "saturation_metrics": {
+                        "new_aspects_found": true/false,
+                        "categories_sufficient": true/false,
+                        "theoretical_coverage": 0.0-1.0,
+                        "justification": "Begründung der Sättigungseinschätzung"
                     }
-                },
-                "new_categories": [
-                    {
-                        "name": "Name",
-                        "definition": "Definition",
-                        "subcategories": [
-                            {
-                                "name": "Name",
-                                "definition": "Definition"
-                            }
-                        ],
-                        "evidence": ["Textbelege"],
-                        "confidence": 0.0-1.0,
-                        "justification": "Begründung"
+                }'''
+                
+            else:  # 'full' Modus (Standard)
+                json_schema = '''{
+                    "existing_categories": {
+                        "kategorie_name": {
+                            "refinements": {
+                                "definition": "Erweiterte Definition",
+                                "justification": "Begründung",
+                                "confidence": 0.0-1.0
+                            },
+                            "new_subcategories": [
+                                {
+                                    "name": "Name",
+                                    "definition": "Definition",
+                                    "evidence": ["Textbelege"],
+                                    "confidence": 0.0-1.0
+                                }
+                            ]
+                        }
+                    },
+                    "new_categories": [
+                        {
+                            "name": "Name",
+                            "definition": "Definition",
+                            "subcategories": [
+                                {
+                                    "name": "Name",
+                                    "definition": "Definition"
+                                }
+                            ],
+                            "evidence": ["Textbelege"],
+                            "confidence": 0.0-1.0,
+                            "justification": "Begründung"
+                        }
+                    ],
+                    "saturation_metrics": {
+                        "new_aspects_found": true/false,
+                        "categories_sufficient": true/false,
+                        "theoretical_coverage": 0.0-1.0,
+                        "justification": "Begründung der Sättigungseinschätzung"
                     }
-                ],
-                "saturation_metrics": {
-                    "new_aspects_found": true/false,
-                    "categories_sufficient": true/false,
-                    "theoretical_coverage": 0.0-1.0,
-                    "justification": "Begründung der Sättigungseinschätzung"
-                }
-            }'''
+                }'''
+
+            # Anpassung des Prompt-Texts abhängig vom Analyse-Modus
+            mode_instructions = ""
+            if analysis_mode == 'ablative':
+                mode_instructions = """
+                BESONDERE ANWEISUNGEN FÜR DEN ABLATIVEN MODUS:
+                - KEINE NEUEN HAUPTKATEGORIEN entwickeln
+                - NUR bestehende Kategorien durch neue Subkategorien erweitern
+                - Konzentriere dich ausschließlich auf die Verfeinerung des bestehenden Systems
+                """
+            
             prompt = f"""
             Führe eine vollständige Kategorienanalyse basierend auf den Textsegmenten durch.
             Berücksichtige dabei das bestehende Kategoriensystem und erweitere es.
@@ -4522,17 +4592,30 @@ class InductiveCoder:
             FORSCHUNGSFRAGE:
             {FORSCHUNGSFRAGE}
             
+            {mode_instructions}
+            
             Analysiere systematisch:
             1. BESTEHENDE KATEGORIEN
             - Prüfe ob neue Aspekte zu bestehenden Kategorien passen
             - Schlage Erweiterungen/Verfeinerungen vor
             - Identifiziere neue Subkategorien für bestehende Hauptkategorien
             
+            """
+            
+            # Ergänze den Prompt je nach Analyse-Modus
+            if analysis_mode == 'full':
+                prompt += """
             2. NEUE KATEGORIEN
             - Identifiziere gänzlich neue Aspekte
-            - Entwickle neue Hauptkategorien wenn nötig
+            - die für die Beantwortung der Forschungsfrage UNBEDINGT NOTWENDIG sind
+            - identifizierten Phänomene fallen NICHT unter bestehende Kategorien 
+            - Entwickle neue Hauptkategorien nur wenn nötig
+            - Prüfe bei jedem Vorschlag kritisch: Trägt diese neue Kategorie wesentlich zur Beantwortung der Forschungsfrage bei oder handelt es sich um einen Aspekt, 
+            der als Subkategorie bestehender Hauptkategorien besser aufgehoben wäre?
             - Stelle Trennschärfe zu bestehenden Kategorien sicher
-            
+                """
+                
+            prompt += """
             3. BEGRÜNDUNG UND EVIDENZ
             - Belege alle Vorschläge mit Textstellen
             - Dokumentiere Entscheidungsgründe
@@ -4540,7 +4623,7 @@ class InductiveCoder:
 
             4. SÄTTIGUNGSANALYSE
             - Bewerte ob neue inhaltliche Aspekte gefunden wurden
-            - Prüfe ob bestehende Kategorien ausreichen
+            - Prüfe ob bestehende Haupt- und Sub-Kategorien ausreichen
             - Beurteile ob weitere Kategorienentwicklung nötig ist
 
             Antworte NUR mit einem JSON-Objekt:
@@ -9378,17 +9461,38 @@ async def main() -> None:
                     print("Fahre mit Standard-Kategorien fort")
 
         if not skip_inductive:
-            print("\nAutomatische Fortführung in 10 Sekunden...")
-            user_input = get_input_with_timeout(
-                "\nMöchten Sie die induktive Kodierung überspringen und nur deduktiv arbeiten? (j/n)",
+            print(f"\nAktueller Analysemodus aus Codebook: {CONFIG['ANALYSIS_MODE']}")
+            print("Sie haben 10 Sekunden Zeit für die Eingabe.")
+            print("Optionen:")
+            print("1 = full (volle induktive Analyse)")
+            print("2 = ablative (nur Subkategorien entwickeln)")
+            print("3 = deductive (nur deduktiv)")
+
+            analysis_mode = get_input_with_timeout(
+                f"\nWelchen Analysemodus möchten Sie verwenden? [1/2/3] (Standard: {CONFIG['ANALYSIS_MODE']})", 
                 timeout=10
             )
-            
-            if user_input.lower() == 'j':
-                skip_inductive = True
-                print("\nℹ Induktive Kodierung wird übersprungen - Nur deduktive Kategorien werden verwendet")
+
+            # Mapping von Zahlen zu Modi
+            mode_mapping = {
+                '1': 'full',
+                '2': 'ablative',
+                '3': 'deductive'
+            }
+
+            # Verarbeite Zahlen oder direkte Modusangaben
+            if analysis_mode in mode_mapping:
+                CONFIG['ANALYSIS_MODE'] = mode_mapping[analysis_mode]
+            elif analysis_mode.lower() in mode_mapping.values():
+                CONFIG['ANALYSIS_MODE'] = analysis_mode.lower()
             else:
-                print("\nℹ Vollständige Analyse mit deduktiven und induktiven Kategorien")
+                print(f"\nUngültiger Modus '{analysis_mode}'. Verwende Standardmodus 'full'.")
+                CONFIG['ANALYSIS_MODE'] = 'full'
+
+            # Bestimme, ob induktive Analyse übersprungen wird
+            skip_inductive = CONFIG['ANALYSIS_MODE'] == 'deductive'
+
+            print(f"\nAnalysemodus: {CONFIG['ANALYSIS_MODE']} {'(Skip induktiv)' if skip_inductive else ''}")
 
         # 5. Kodierer konfigurieren
         print("\n4. Konfiguriere Kodierer...")
