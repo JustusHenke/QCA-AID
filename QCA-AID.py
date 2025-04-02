@@ -13,6 +13,7 @@ Version:
 New in 0.9.9
 - Ablative mode: inductive coding just for subcodes without adding main codes 
 - slightly stricter relevance check for text segments (from interviews)
+- Coding consenus: mark segments with no consensus as "kein Kodierkonsens"
 
 New in 0.9.8
 - Progressive document summary as coding context (max 80 words) 
@@ -6542,7 +6543,7 @@ class ResultsExporter:
             segment_codes: Liste der Kodierungen für ein Segment von verschiedenen Kodierern
                 
         Returns:
-            Optional[Dict]: Konsens-Kodierung oder None wenn kein Konsens erreicht
+            Optional[Dict]: Konsens-Kodierung oder ein spezieller Eintrag für "Kein Konsens"
         """
         if not segment_codes:
             return None
@@ -6561,7 +6562,24 @@ class ResultsExporter:
         # Prüfe ob es eine klare Mehrheit gibt (>50%)
         if max_count <= total_coders / 2:
             print(f"Keine Mehrheit für Hauptkategorie gefunden: {dict(category_counts)}")
-            return None
+            
+            # Erstelle "Kein Konsens"-Eintrag statt None zurückzugeben
+            segment_id = segment_codes[0].get('segment_id', '')
+            
+            # Verwende die erste Kodierung als Basis, aber markiere sie als "kein Kodierkonsens"
+            base_coding = segment_codes[0].copy()
+            base_coding['category'] = "Kein Kodierkonsens"
+            base_coding['subcategories'] = []
+            base_coding['justification'] = f"Keine Mehrheit unter den Kodierern. Kategorien: {', '.join(category_counts.keys())}"
+            
+            # Dokumentiere den Konsensprozess
+            base_coding['consensus_info'] = {
+                'total_coders': total_coders,
+                'category_distribution': dict(category_counts),
+                'max_agreement': max_count / total_coders
+            }
+            
+            return base_coding
 
         # 2. Wenn es mehrere gleichhäufige Hauptkategorien gibt, verwende Tie-Breaking
         if len(majority_categories) > 1:
@@ -6777,8 +6795,7 @@ class ResultsExporter:
     def _prepare_coding_for_export(self, coding: dict, chunk: str, chunk_id: int, doc_name: str) -> dict:
         """
         Bereitet eine Kodierung für den Export vor.
-        Erweitert um zusätzliche Felder für detailliertere Analysedokumentation.
-        KORRIGIERT, um alle Felder korrekt zu befüllen.
+        Erweitert um spezielle Behandlung für den "Kein Kodierkonsens"-Fall.
         """
         try:
             # Extrahiere Attribute aus dem Dateinamen
@@ -6787,14 +6804,27 @@ class ResultsExporter:
             # Prüfe ob eine gültige Kategorie vorhanden ist
             category = coding.get('category', '')
             
-            # Bestimme den Kategorietyp (deduktiv/induktiv)
-            if category in DEDUKTIVE_KATEGORIEN:
-                kategorie_typ = "deduktiv"
-            else:
-                kategorie_typ = "induktiv"
+            # Spezialfall "Kein Kodierkonsens"
+            if category == "Kein Kodierkonsens":
+                kategorie_typ = "unkodiert"
+                is_coded = 'Nein'
                 
-            # Setze Kodiert-Status basierend auf Kategorie
-            is_coded = 'Ja' if category and category != "Nicht kodiert" else 'Nein'
+                # Optional: Füge zusätzliche Informationen aus consensus_info hinzu
+                consensus_info = coding.get('consensus_info', {})
+                category_distribution = consensus_info.get('category_distribution', {})
+                competing_cats_text = "Konkurrierende Kategorien: " + ", ".join([
+                    f"{cat}: {count}" for cat, count in category_distribution.items()
+                ])
+            else:
+                # Bestimme den Kategorietyp (deduktiv/induktiv)
+                if category in DEDUKTIVE_KATEGORIEN:
+                    kategorie_typ = "deduktiv"
+                else:
+                    kategorie_typ = "induktiv"
+                    
+                # Setze Kodiert-Status basierend auf Kategorie
+                is_coded = 'Ja' if category and category != "Nicht kodiert" else 'Nein'
+                competing_cats_text = ""  # Standardwert
                 
             # Formatiere Keywords
             raw_keywords = coding.get('keywords', '')
@@ -6869,7 +6899,7 @@ class ResultsExporter:
                     and len(coding.get('subcategories', [])) > 1 else 'Nein'),
                 'Textstellen': formatted_references,
                 'Definition_Übereinstimmungen': formatted_def_matches,
-                'Konkurrierende_Kategorien': formatted_competing
+                'Konkurrierende_Kategorien': competing_cats_text or formatted_competing
             }
 
             # Nur Kontext-bezogene Felder hinzufügen, wenn vorhanden
