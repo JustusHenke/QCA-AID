@@ -14,6 +14,7 @@ New in 0.9.9
 - Ablative mode: inductive coding just for subcodes without adding main codes 
 - slightly stricter relevance check for text segments (from interviews)
 - Coding consenus: mark segments with no consensus as "kein Kodierkonsens"
+- Coding consensus: if no consensus choose coding with higher confidence, otherwise "kein Kodierkonsens"
 
 New in 0.9.8
 - Progressive document summary as coding context (max 80 words) 
@@ -6538,12 +6539,13 @@ class ResultsExporter:
         """
         Ermittelt die Konsens-Kodierung für ein Segment basierend auf einem mehrstufigen Prozess.
         Berücksichtigt Hauptkategorien, Subkategorien und verschiedene Qualitätskriterien.
+        Bei fehlendem Konsens wird die Kodierung mit der höchsten Konfidenz verwendet.
         
         Args:
             segment_codes: Liste der Kodierungen für ein Segment von verschiedenen Kodierern
                 
         Returns:
-            Optional[Dict]: Konsens-Kodierung oder ein spezieller Eintrag für "Kein Konsens"
+            Optional[Dict]: Konsens-Kodierung oder konfidenzbasierte Kodierung
         """
         if not segment_codes:
             return None
@@ -6563,23 +6565,70 @@ class ResultsExporter:
         if max_count <= total_coders / 2:
             print(f"Keine Mehrheit für Hauptkategorie gefunden: {dict(category_counts)}")
             
-            # Erstelle "Kein Konsens"-Eintrag statt None zurückzugeben
-            segment_id = segment_codes[0].get('segment_id', '')
+            # Suche nach Kodierung mit höchster Konfidenz
+            highest_confidence = -1
+            best_coding = None
             
-            # Verwende die erste Kodierung als Basis, aber markiere sie als "kein Kodierkonsens"
-            base_coding = segment_codes[0].copy()
-            base_coding['category'] = "Kein Kodierkonsens"
-            base_coding['subcategories'] = []
-            base_coding['justification'] = f"Keine Mehrheit unter den Kodierern. Kategorien: {', '.join(category_counts.keys())}"
+            for coding in segment_codes:
+                # Extrahiere Konfidenzwert
+                confidence = 0.0
+                if isinstance(coding.get('confidence'), dict):
+                    confidence = float(coding['confidence'].get('total', 0))
+                    if confidence == 0:  # Fallback auf category-Konfidenz wenn total fehlt
+                        confidence = float(coding['confidence'].get('category', 0))
+                elif isinstance(coding.get('confidence'), (int, float)):
+                    confidence = float(coding['confidence'])
+                
+                # Prüfe ob diese Kodierung eine höhere Konfidenz hat
+                if confidence > highest_confidence:
+                    highest_confidence = confidence
+                    best_coding = coding
             
-            # Dokumentiere den Konsensprozess
-            base_coding['consensus_info'] = {
-                'total_coders': total_coders,
-                'category_distribution': dict(category_counts),
-                'max_agreement': max_count / total_coders
-            }
+            # Minimalschwelle für Konfidenz (kann angepasst werden)
+            confidence_threshold = 0.7
             
-            return base_coding
+            if highest_confidence >= confidence_threshold:
+                # Verwende die Kodierung mit der höchsten Konfidenz
+                result_coding = best_coding.copy()
+                
+                # Füge Hinweis zur konfidenzbedingten Auswahl hinzu
+                result_coding['justification'] = (f"[Konfidenzbasierte Auswahl: {highest_confidence:.2f}] " + 
+                                                result_coding.get('justification', ''))
+                
+                # Dokumentiere den Konsensprozess
+                result_coding['consensus_info'] = {
+                    'total_coders': total_coders,
+                    'category_distribution': dict(category_counts),
+                    'max_agreement': max_count / total_coders,
+                    'selection_type': 'confidence_based',
+                    'confidence': highest_confidence
+                }
+                
+                print(f"  Konfidenzbasierte Auswahl: '{result_coding['category']}' (Konfidenz: {highest_confidence:.2f})")
+                return result_coding
+            else:
+                # Erstelle "Kein Kodierkonsens"-Eintrag
+                segment_id = segment_codes[0].get('segment_id', '')
+                
+                # Verwende die erste Kodierung als Basis, aber markiere sie als "kein Kodierkonsens"
+                base_coding = segment_codes[0].copy()
+                base_coding['category'] = "Kein Kodierkonsens"
+                base_coding['subcategories'] = []
+                base_coding['justification'] = (f"Keine Mehrheit unter den Kodierern und keine Kodierung " +
+                                            f"mit ausreichender Konfidenz (max: {highest_confidence:.2f}). " +
+                                            f"Kategorien: {', '.join(category_counts.keys())}")
+                
+                # Dokumentiere den Konsensprozess
+                base_coding['consensus_info'] = {
+                    'total_coders': total_coders,
+                    'category_distribution': dict(category_counts),
+                    'max_agreement': max_count / total_coders,
+                    'selection_type': 'no_consensus',
+                    'max_confidence': highest_confidence
+                }
+                
+                print(f"  Kein Konsens und unzureichende Konfidenz (max: {highest_confidence:.2f})")
+                return base_coding
 
         # 2. Wenn es mehrere gleichhäufige Hauptkategorien gibt, verwende Tie-Breaking
         if len(majority_categories) > 1:
@@ -6591,15 +6640,33 @@ class ResultsExporter:
             ]
             
             # Wähle basierend auf höchster durchschnittlicher Konfidenz
-            majority_category = max(
-                majority_categories,
-                key=lambda cat: sum(
-                    float(coding['confidence'].get('total', 0))
-                    for coding in candidate_codings
-                    if coding['category'] == cat
-                ) / len([c for c in candidate_codings if c['category'] == cat])
-            )
-            print(f"Kategorie '{majority_category}' durch höchste Konfidenz gewählt")
+            highest_avg_confidence = -1
+            selected_category = None
+            
+            for category in majority_categories:
+                category_codings = [c for c in candidate_codings if c['category'] == category]
+                total_confidence = 0.0
+                
+                for coding in category_codings:
+                    if isinstance(coding.get('confidence'), dict):
+                        confidence = float(coding['confidence'].get('total', 0))
+                        if confidence == 0:
+                            confidence = float(coding['confidence'].get('category', 0))
+                    elif isinstance(coding.get('confidence'), (int, float)):
+                        confidence = float(coding['confidence'])
+                    else:
+                        confidence = 0.0
+                        
+                    total_confidence += confidence
+                    
+                avg_confidence = total_confidence / len(category_codings) if category_codings else 0
+                
+                if avg_confidence > highest_avg_confidence:
+                    highest_avg_confidence = avg_confidence
+                    selected_category = category
+                    
+            majority_category = selected_category
+            print(f"  Kategorie '{majority_category}' durch höchste Konfidenz ({highest_avg_confidence:.2f}) gewählt")
         else:
             majority_category = majority_categories[0]
 
@@ -6640,7 +6707,8 @@ class ResultsExporter:
             'total_coders': total_coders,
             'category_agreement': max_count / total_coders,
             'subcategory_agreement': len(consensus_subcats) / len(all_subcategories) if all_subcategories else 1.0,
-            'source_codings': len(matching_codings)
+            'source_codings': len(matching_codings),
+            'selection_type': 'majority'
         }
         
         print(f"\nKonsens-Kodierung erstellt:")
@@ -6795,7 +6863,7 @@ class ResultsExporter:
     def _prepare_coding_for_export(self, coding: dict, chunk: str, chunk_id: int, doc_name: str) -> dict:
         """
         Bereitet eine Kodierung für den Export vor.
-        Erweitert um spezielle Behandlung für den "Kein Kodierkonsens"-Fall.
+        Erweitert um zusätzliche Felder für detailliertere Analysedokumentation.
         """
         try:
             # Extrahiere Attribute aus dem Dateinamen
@@ -6804,17 +6872,17 @@ class ResultsExporter:
             # Prüfe ob eine gültige Kategorie vorhanden ist
             category = coding.get('category', '')
             
-            # Spezialfall "Kein Kodierkonsens"
+            # Hole Consensus-Info für erweiterte Informationen
+            consensus_info = coding.get('consensus_info', {})
+            selection_type = consensus_info.get('selection_type', '')
+            
+            # Bestimme den Kategorietyp und Kodiertstatus
             if category == "Kein Kodierkonsens":
                 kategorie_typ = "unkodiert"
                 is_coded = 'Nein'
-                
-                # Optional: Füge zusätzliche Informationen aus consensus_info hinzu
-                consensus_info = coding.get('consensus_info', {})
-                category_distribution = consensus_info.get('category_distribution', {})
-                competing_cats_text = "Konkurrierende Kategorien: " + ", ".join([
-                    f"{cat}: {count}" for cat, count in category_distribution.items()
-                ])
+            elif category == "Nicht kodiert":
+                kategorie_typ = "unkodiert"
+                is_coded = 'Nein'
             else:
                 # Bestimme den Kategorietyp (deduktiv/induktiv)
                 if category in DEDUKTIVE_KATEGORIEN:
@@ -6822,10 +6890,8 @@ class ResultsExporter:
                 else:
                     kategorie_typ = "induktiv"
                     
-                # Setze Kodiert-Status basierend auf Kategorie
-                is_coded = 'Ja' if category and category != "Nicht kodiert" else 'Nein'
-                competing_cats_text = ""  # Standardwert
-                
+                is_coded = 'Ja'
+                    
             # Formatiere Keywords
             raw_keywords = coding.get('keywords', '')
             if isinstance(raw_keywords, list):
@@ -6854,7 +6920,7 @@ class ResultsExporter:
             else:
                 formatted_references = str(text_refs)
 
-            # Formatiere Definition-Matches (KORRIGIERT)
+            # Formatiere Definition-Matches
             def_matches = coding.get('definition_matches', [])
             if isinstance(def_matches, str):
                 formatted_def_matches = def_matches
@@ -6862,11 +6928,23 @@ class ResultsExporter:
                 formatted_def_matches = '\n'.join(str(match) for match in def_matches if match)
             else:
                 formatted_def_matches = str(def_matches)
-
             
-            # Formatiere konkurrierende Kategorien (KORRIGIERT)
+            # Formatiere konkurrierende Kategorien
             competing_cats = coding.get('competing_categories', {})
-            if isinstance(competing_cats, dict):
+            
+            # Spezialfall: Bei konfidenzbasierter Auswahl oder kein Konsens, zeige Kategorieverteilung
+            if 'category_distribution' in consensus_info:
+                category_dist = consensus_info['category_distribution']
+                dist_text = ", ".join([f"{cat}: {count}" for cat, count in category_dist.items()])
+                
+                if selection_type == 'confidence_based':
+                    competing_cats_text = f"Konfidenzbasierte Auswahl bei Gleichstand: {dist_text}"
+                elif selection_type == 'no_consensus':
+                    competing_cats_text = f"Kein Konsens (Verteilung): {dist_text}"
+                else:
+                    competing_cats_text = f"Kategorieverteilung: {dist_text}"
+            # Standardfall: Verwende competing_categories wenn vorhanden
+            elif isinstance(competing_cats, dict):
                 considered = competing_cats.get('considered', [])
                 reasons = competing_cats.get('rejection_reasons', [])
                 comp_parts = []
@@ -6874,9 +6952,9 @@ class ResultsExporter:
                     comp_parts.append("Erwogene Kategorien: " + ', '.join(str(cat) for cat in considered))
                 if reasons:
                     comp_parts.append("Ablehnungsgründe: " + ', '.join(str(reason) for reason in reasons))
-                formatted_competing = '\n'.join(comp_parts)
+                competing_cats_text = '\n'.join(comp_parts)
             else:
-                formatted_competing = str(competing_cats)
+                competing_cats_text = str(competing_cats)
 
             # Export-Dictionary mit allen erforderlichen Feldern
             export_data = {
@@ -6899,8 +6977,13 @@ class ResultsExporter:
                     and len(coding.get('subcategories', [])) > 1 else 'Nein'),
                 'Textstellen': formatted_references,
                 'Definition_Übereinstimmungen': formatted_def_matches,
-                'Konkurrierende_Kategorien': competing_cats_text or formatted_competing
+                'Konkurrierende_Kategorien': competing_cats_text
             }
+
+            # Füge Konsensinformationen hinzu wenn vorhanden
+            if consensus_info:
+                export_data['Übereinstimmungsgrad'] = consensus_info.get('category_agreement', 0) * 100
+                export_data['Konsenstyp'] = selection_type
 
             # Nur Kontext-bezogene Felder hinzufügen, wenn vorhanden
             if 'context_summary' in coding and coding['context_summary']:
@@ -6930,7 +7013,6 @@ class ResultsExporter:
                 'Mehrfachkodierung': 'Nein',
                 'Textstellen': '',
                 'Definition_Übereinstimmungen': '',
-                'Beispiel_Übereinstimmungen': '',
                 'Konkurrierende_Kategorien': ''
             }
 
