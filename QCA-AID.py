@@ -11,14 +11,15 @@ Version:
 
 
 New in 0.9.9
-- Ablative mode: inductive coding just for subcodes with adding main codes 
+- Ablative mode: inductive coding just for subcodes without adding main codes 
+- slightly stricter relevance check for text segments (from interviews)
 
 New in 0.9.8
 - Progressive document summary as coding context (max 80 words) 
 
 New in 0.9.7:
 - Switch between OpenAI and Mistral using CONFIG parameter 'MODEL_PROVIDER'
-- create summaries and graphs from your coded data with 'QCA-AID-Explorer.py'
+- Standard model for Openai is 'GPT-4o-mini', for Mistral 'mistral-small'
 
 Description:
 -----------
@@ -1090,7 +1091,7 @@ class MaterialLoader:
                 # Speichere aktuellen Chunk
                 chunk_text = ' '.join(current_chunk)
                 chunks.append(chunk_text)
-                print(f"- Neuer Chunk erstellt: {len(chunk_text)} Zeichen")
+                # print(f"- Neuer Chunk erstellt: {len(chunk_text)} Zeichen")
                 
                 # Starte neuen Chunk mit Überlappung
                 # Berechne wie viele Sätze wir für die Überlappung behalten
@@ -1113,7 +1114,7 @@ class MaterialLoader:
         if current_chunk:
             chunk_text = ' '.join(current_chunk)
             chunks.append(chunk_text)
-            print(f"- Letzter Chunk: {len(chunk_text)} Zeichen")
+            # print(f"- Letzter Chunk: {len(chunk_text)} Zeichen")
         
         print(f"\nChunking Ergebnis:")
         print(f"- Anzahl Chunks: {len(chunks)}")
@@ -2220,6 +2221,7 @@ class RelevanceChecker:
             - Persönliche Einschätzungen relevanter Akteure
             - Konkrete Beispiele aus der Praxis
             - Implizites Erfahrungswissen zum Thema
+            - NICHT relevant: Interviewerfrage, sofern Sie nicht den Interviewten paraphrasiert
 
             DOKUMENTE/BERICHTE:
             - Faktische Informationen zum Forschungsgegenstand
@@ -2272,7 +2274,7 @@ class RelevanceChecker:
             - Führe IMMER ZUERST die thematische Vorprüfung durch
             - Identifiziere die Kernthemen der Forschungsfrage und prüfe deren Präsenz im Text
             - Markiere Segmente als nicht relevant, wenn sie die Kernthemen nicht behandeln
-            - Bei Unsicherheit (confidence < 0.7) als nicht relevant markieren
+            - Bei Unsicherheit (confidence < 0.75) als nicht relevant markieren
             - Gib bei thematischer Nicht-Passung eine klare Begründung
             - Sei streng bei der thematischen Vorprüfung
             """
@@ -4440,10 +4442,13 @@ class InductiveCoder:
                         modified_categories=len(batch_analysis.get('existing_categories', {}))
                     )
                     
+                    print(f"\n----------------------------------------------------------------------")
                     print(f"\nZwischenstand nach Batch {batch_idx + 1}:")
                     print(f"- Kategorien gesamt: {len(extended_categories)}")
                     print(f"- Davon neu in diesem Batch: {len(batch_analysis.get('new_categories', []))}")
                     print(f"- Aktualisiert in diesem Batch: {len(batch_analysis.get('existing_categories', {}))}")
+                    print(f"\n----------------------------------------------------------------------")
+
             
             return extended_categories
                 
@@ -9461,7 +9466,8 @@ async def main() -> None:
                     print("Fahre mit Standard-Kategorien fort")
 
         if not skip_inductive:
-            print(f"\nAktueller Analysemodus aus Codebook: {CONFIG['ANALYSIS_MODE']}")
+            default_mode = CONFIG.get('ANALYSIS_MODE', 'deductive')
+            print(f"\nAktueller Analysemodus aus Codebook: {default_mode}")
             print("Sie haben 10 Sekunden Zeit für die Eingabe.")
             print("Optionen:")
             print("1 = full (volle induktive Analyse)")
@@ -9480,14 +9486,18 @@ async def main() -> None:
                 '3': 'deductive'
             }
 
-            # Verarbeite Zahlen oder direkte Modusangaben
-            if analysis_mode in mode_mapping:
-                CONFIG['ANALYSIS_MODE'] = mode_mapping[analysis_mode]
-            elif analysis_mode.lower() in mode_mapping.values():
-                CONFIG['ANALYSIS_MODE'] = analysis_mode.lower()
+            # Verarbeite Zahlen oder direkte Modusangaben, behalte Default wenn leere oder ungültige Eingabe
+            if analysis_mode:  # Nur wenn etwas eingegeben wurde
+                if analysis_mode in mode_mapping:
+                    CONFIG['ANALYSIS_MODE'] = mode_mapping[analysis_mode]
+                elif analysis_mode.lower() in mode_mapping.values():
+                    CONFIG['ANALYSIS_MODE'] = analysis_mode.lower()
+                else:
+                    print(f"\nUngültiger Modus '{analysis_mode}'. Verwende Default-Modus '{default_mode}'.")
+                    # Keine Änderung an CONFIG['ANALYSIS_MODE'], Default bleibt bestehen
             else:
-                print(f"\nUngültiger Modus '{analysis_mode}'. Verwende Standardmodus 'full'.")
-                CONFIG['ANALYSIS_MODE'] = 'full'
+                print(f"Keine Eingabe. Verwende Default-Modus '{default_mode}'.")
+                # Keine Änderung an CONFIG['ANALYSIS_MODE'], Default bleibt bestehen
 
             # Bestimme, ob induktive Analyse übersprungen wird
             skip_inductive = CONFIG['ANALYSIS_MODE'] == 'deductive'
