@@ -53,7 +53,7 @@ Prinzipiell ist die Verarbeitung der Daten per LLM auch auf einem lokalen Rechne
 - leicht verschärfte Relevanzprüfung für Textsegmente (aus Interviews)
 - Kodierkonsens: Segmente ohne Konsens als "kein Kodierkonsens" markieren; wenn kein Konsens besteht, wird die  Kodierung mit höherem Konfidenzwert gewählt, sonst "kein Kodierkonsens"
 
-## Weitere Hinweise zur aktuellen Version (0.9.8)
+## Weitere Hinweise zur Version (0.9.8)
 
 - Progressive Dokumentenzusammenfassung als Kodierungskontext (max. 80 Wörter)
 - Aktivieren durch Setzen des CONFIG-Wertes `CODE_WITH_CONTEXT` im Codebook auf 'true' (Standard: false)
