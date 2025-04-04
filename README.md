@@ -48,8 +48,10 @@ Prinzipiell ist die Verarbeitung der Daten per LLM auch auf einem lokalen Rechne
 
 
 ## Neu in 0.9.9
-- Ablativmodus: induktive Codierung nur für Subcodes ohne Hinzufügen von Hauptcodes
+- Abduktivmodus: induktive Codierung nur für Subcodes ohne Hinzufügen von Hauptcodes
 - kann entweder beim starten des Skripts ausgewählt oder im Codebook konfiguriert
+- leicht verschärfte Relevanzprüfung für Textsegmente (aus Interviews)
+- Kodierkonsens: Segmente ohne Konsens als "kein Kodierkonsens" markieren; wenn kein Konsens besteht, wird die  Kodierung mit höherem Konfidenzwert gewählt, sonst "kein Kodierkonsens"
 
 ## Weitere Hinweise zur aktuellen Version (0.9.8)
 

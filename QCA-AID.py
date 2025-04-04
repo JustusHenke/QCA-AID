@@ -11,7 +11,7 @@ Version:
 
 
 New in 0.9.9
-- Ablative mode: inductive coding just for subcodes without adding main codes 
+- abductive mode: inductive coding just for subcodes without adding main codes 
 - slightly stricter relevance check for text segments (from interviews)
 - Coding consenus: mark segments with no consensus as "kein Kodierkonsens"
 - Coding consensus: if no consensus choose coding with higher confidence, otherwise "kein Kodierkonsens"
@@ -827,7 +827,7 @@ class ConfigLoader:
 
             # Prüfe auf ANALYSIS_MODE in der Konfiguration
             if 'ANALYSIS_MODE' in config:
-                valid_modes = {'full', 'ablative', 'deductive'}
+                valid_modes = {'full', 'abductive', 'deductive'}
                 if config['ANALYSIS_MODE'] not in valid_modes:
                     print(f"Warnung: Ungültiger ANALYSIS_MODE '{config['ANALYSIS_MODE']}' im Codebook. Verwende 'full'.")
                     config['ANALYSIS_MODE'] = 'full'
@@ -4472,7 +4472,7 @@ class InductiveCoder:
             category: Aktuelles Kategoriensystem
             segments: Liste der Textsegmente
             material_percentage: Prozentsatz des verarbeiteten Materials
-            analysis_mode: Analyse-Modus ('deductive', 'full', 'ablative')
+            analysis_mode: Analyse-Modus ('deductive', 'full', 'abductive')
             
         Returns:
             Dict[str, Any]: Analyseergebnisse einschließlich Sättigungsmetriken
@@ -4507,7 +4507,7 @@ class InductiveCoder:
                 # Bei rein deduktiver Analyse kein neues Schema benötigt, da keine Kategorien entwickelt werden
                 return {"existing_categories": {}, "new_categories": []}
                 
-            elif analysis_mode == 'ablative':
+            elif analysis_mode == 'abductive':
                 # Modifiziere Schema um neue Hauptkategorien zu vermeiden
                 json_schema = '''{
                     "existing_categories": {
@@ -4579,9 +4579,9 @@ class InductiveCoder:
 
             # Anpassung des Prompt-Texts abhängig vom Analyse-Modus
             mode_instructions = ""
-            if analysis_mode == 'ablative':
+            if analysis_mode == 'abductive':
                 mode_instructions = """
-                BESONDERE ANWEISUNGEN FÜR DEN ABLATIVEN MODUS:
+                BESONDERE ANWEISUNGEN FÜR DEN ABDUKTIVEN MODUS:
                 - KEINE NEUEN HAUPTKATEGORIEN entwickeln
                 - NUR bestehende Kategorien durch neue Subkategorien erweitern
                 - Konzentriere dich ausschließlich auf die Verfeinerung des bestehenden Systems
@@ -9583,7 +9583,7 @@ async def main() -> None:
             print("Sie haben 10 Sekunden Zeit für die Eingabe.")
             print("Optionen:")
             print("1 = full (volle induktive Analyse)")
-            print("2 = ablative (nur Subkategorien entwickeln)")
+            print("2 = abductive (nur Subkategorien entwickeln)")
             print("3 = deductive (nur deduktiv)")
 
             analysis_mode = get_input_with_timeout(
@@ -9594,7 +9594,7 @@ async def main() -> None:
             # Mapping von Zahlen zu Modi
             mode_mapping = {
                 '1': 'full',
-                '2': 'ablative',
+                '2': 'abductive',
                 '3': 'deductive'
             }
 
