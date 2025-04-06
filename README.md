@@ -196,6 +196,28 @@ Hier können Sie verschiedene Konfigurationsparameter einstellen:
 - **ATTRIBUTE_LABELS**: Bezeichnungen für Attribute, die aus dem Dateinamen extrahiert werden (z.B. "Part1_Part2_Restname.txt")
 - **CODER_SETTINGS**: Einstellungen für automatische Kodierer
 
+
+#### CODE_WITH_CONTEXT
+
+Wenn CONFIG-Parameter `CODE_WITH_CONTEXT` aktiviert ist (True), nutzt QCA-AID einen progressiven Dokumentkontext für die Kodierung.
+Dabei wird für jedes Dokument ein fortlaufend aktualisiertes Summary erstellt, das bei
+der Kodierung der nachfolgenden Chunks als Kontext verwendet wird.
+
+Vorteile:
+- Bessere Kontextsicherheit durch Berücksichtigung vorheriger Dokumentinhalte
+- Verbesserte Kodierqualität bei kontextabhängigen Kategorien (z.B. "dominante Akteure")
+- Mehr Konsistenz in der Kodierung eines Dokuments
+
+Nachteile:
+- Dokumente müssen sequentiell verarbeitet werden
+- Geringer erhöhter Tokenverbrauch
+- Mögliche Fehlerfortpflanzung bei falsch interpretierten frühen Abschnitten
+
+Empfehlung:
+- Für Analysen mit hierarchischen oder relationalen Kategorien aktivieren
+- Für einfache thematische Kategorisierungen kann ohne Kontext gearbeitet werden
+
+
 ### Verzeichnisstruktur
 
 #### Eingabeverzeichnis (input)
@@ -253,22 +275,3 @@ python -m spacy download de_core_news_sm
 - Versuchen Sie, das Dokument in das .txt-Format zu konvertieren
 - Prüfen Sie, ob das Dokument Sonderzeichen oder komplexe Formatierungen enthält
 
-## CODE_WITH_CONTEXT
-----------------
-Wenn CONFIG-Parameter `CODE_WITH_CONTEXT` aktiviert ist (True), nutzt QCA-AID einen progressiven Dokumentkontext für die Kodierung.
-Dabei wird für jedes Dokument ein fortlaufend aktualisiertes Summary erstellt, das bei
-der Kodierung der nachfolgenden Chunks als Kontext verwendet wird.
-
-Vorteile:
-- Bessere Kontextsicherheit durch Berücksichtigung vorheriger Dokumentinhalte
-- Verbesserte Kodierqualität bei kontextabhängigen Kategorien (z.B. "dominante Akteure")
-- Mehr Konsistenz in der Kodierung eines Dokuments
-
-Nachteile:
-- Dokumente müssen sequentiell verarbeitet werden
-- Geringer erhöhter Tokenverbrauch
-- Mögliche Fehlerfortpflanzung bei falsch interpretierten frühen Abschnitten
-
-Empfehlung:
-- Für Analysen mit hierarchischen oder relationalen Kategorien aktivieren
-- Für einfache thematische Kategorisierungen kann ohne Kontext gearbeitet werden
