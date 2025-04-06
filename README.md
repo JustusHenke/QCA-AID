@@ -34,27 +34,43 @@ Prinzipiell ist die Verarbeitung der Daten per LLM auch auf einem lokalen Rechne
 
 ## Merkmale von QCA-AID
 
-- Automatisierte Textvorverarbeitung und Chunking
-- Relevanzprüfung der Textsegmente vor der Kodierung
-- Deduktive Anwendung von Kategorien
-- Induktive Kategorienentwicklung (kann übersprungen werden)
-- Multi-Coder-Unterstützung (AI und Mensch)
-- Fähigkeiten zur Zusammenführung und Aufteilung von Kategorien
-- Berechnung der Intercoder-Zuverlässigkeit
-- Überarbeitung und Optimierung des Kategoriensystems
-- Iterativer Analyseprozess mit Sättigungsprüfungen
-- Umfassender Analyseexport
-- Export des erweiterten Codebooks
-- Attributbasierte Analyse für demografische oder kontextbezogene Faktoren
-- Konfigurierbare Analyseparameter und Schwellenwerte
-- Detaillierte Dokumentation des Kodierungsprozesses
-- Schätzung der verwendeten Input-/Output-Tokens der API-Aufrufe
+### Textverarbeitung und Vorbereitung
+- **Automatisierte Textvorverarbeitung**: Konvertierung verschiedener Dokumentformate (.txt, .pdf, .docx)
+- **Intelligentes Chunking**: Aufteilung von Texten in analysierbare Segmente mit konfigurierbarer Überlappung
+- **Relevanzprüfung**: Automatische Bewertung der Textsegmente vor der Kodierung mit konfigurierbaren Ausschlusskriterien
+
+### Kodierungsfunktionen
+- **Deduktive Kategorienanwendung**: Systematische Anwendung vordefinierter Kategorien
+- **Induktive Kategorienerweiterung**: Erkennung neuer Kategorien und Subkategorien im Material
+- **Abduktiver Modus**: Erweiterung nur auf Subkategorien-Ebene ohne neue Hauptkategorien
+- **Multi-Coder-Unterstützung**: Parallele Kodierung durch mehrere KI- und optionale menschliche Kodierer
+- **Kontextuelle Kodierung**: Progressive Dokumentenzusammenfassung für kontextsensitive Analyse
+- **Batch-Verarbeitung**: Konfigurierbare Anzahl gleichzeitig zu verarbeitender Textsegmente
+
+### Qualitätssicherung
+- **Intercoder-Reliabilitätsanalyse**: Automatische Berechnung der Übereinstimmung zwischen Kodierern
+- **Konsensbildung**: Mehrstufiger Prozess zur Konsensfindung bei divergierenden Kodierungen
+- **Kategoriesystem-Validierung**: Überprüfung und Optimierung des Kategoriensystems
+- **Sättigungsprüfungen**: Iterative Analyse mit automatischer Erkennung theoretischer Sättigung
+
+### Export und Dokumentation
+- **Umfassender Analysebericht**: Excel-Export mit Kodierungen, Häufigkeitsanalysen und Intercoderstatistiken
+- **Kategorienentwicklungs-Dokumentation**: Nachvollziehbare Historisierung aller Änderungen am Kategoriensystem
+- **Codebook-Export**: Speicherung des erweiterten Kodierungssystems für zukünftige Analysen
+- **Attributbasierte Analyse**: Automatische Extraktion von Metadaten aus Dateinamen für vergleichende Auswertungen
+- **Token-Tracking**: Schätzung und Dokumentation der verwendeten API-Tokens
+
+### Konfiguration und Anpassbarkeit
+- **Flexible Modellwahl**: Unterstützung verschiedener KI-Anbieter (OpenAI und Mistral)
+- **Konfigurierbare Parameter**: Anpassung von Chunk-Größe, Überlappung, Batch-Größe und weiteren Einstellungen
+- **Temperaturstufen**: Steuerung der "Kreativität" bei der induktiven Kategorienentwicklung
+- **Anpassbarer Analysemodus**: Wahl zwischen vollständiger, abduktiver oder rein deduktiver Analyse
 
 ## Neu in 0.9.9
 - Abduktivmodus: induktive Codierung nur für Subcodes ohne Hinzufügen von Hauptcodes
 - kann entweder beim starten des Skripts ausgewählt oder im Codebook konfiguriert
 - leicht verschärfte Relevanzprüfung für Textsegmente (aus Interviews)
-- Kodierkonsens: Segmente ohne Konsens als "kein Kodierkonsens" markieren; wenn kein Konsens besteht, wird die Kodierung mit höherem Konfidenzwert gewählt, sonst "kein Kodierkonsens"
+- Kodierkonsens: Segmente ohne Konsens als "kein Kodierkonsens" markieren; wenn kein Konsens besteht, wird die  Kodierung mit höherem Konfidenzwert gewählt, sonst "kein Kodierkonsens"
 
 ## Weitere Hinweise zur Version (0.9.8)
 
@@ -193,8 +209,11 @@ Hier können Sie verschiedene Konfigurationsparameter einstellen:
 - **OUTPUT_DIR**: Verzeichnis für Ausgabedaten
 - **CHUNK_SIZE**: Größe der Textabschnitte für die Analyse
 - **CHUNK_OVERLAP**: Überlappung zwischen Textabschnitten
+- **BATCH_SIZE**: Anzahl der parallel zu verarbeitenden Textabschnitte (Standard: 5)
 - **ATTRIBUTE_LABELS**: Bezeichnungen für Attribute, die aus dem Dateinamen extrahiert werden (z.B. "Part1_Part2_Restname.txt")
 - **CODER_SETTINGS**: Einstellungen für automatische Kodierer
+- **ANALYSIS_MODE**: Analysemodus ('full', 'abductive', 'deductive')
+- **CODE_WITH_CONTEXT**: Aktiviert kontextuelle Kodierung (true/false)
 
 
 #### CODE_WITH_CONTEXT
@@ -274,4 +293,3 @@ python -m spacy download de_core_news_sm
 ### 4. Fehler bei der Verarbeitung bestimmter Dokumenttypen
 - Versuchen Sie, das Dokument in das .txt-Format zu konvertieren
 - Prüfen Sie, ob das Dokument Sonderzeichen oder komplexe Formatierungen enthält
-
