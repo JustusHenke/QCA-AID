@@ -4,15 +4,31 @@
 
 Dieses Python-Skript implementiert Mayrings Methode der deduktiven Qualitativen Inhaltsanalyse mit induktiver Erweiterung mit KI-Unterstützung durch die OpenAI API. Es kombiniert traditionelle qualitative Forschungsmethoden mit modernen KI-Fähigkeiten, um Forschende bei der Analyse von Dokumenten- und Interviewdaten zu unterstützen. Das Ziel dieses Tools ist nicht, die menschliche Arbeit der Inhaltsanalyse zu ersetzen, sondern neue Möglichkeiten zu eröffnen, mehr Zeit für die Analyse und Reflexion bereits vorstrukturierter Textdaten zu gewinnen. 
 
-Anwendungsmöglichkeiten:
+## Anwendungsmöglichkeiten
+
 - Es ermöglicht mehr Dokumente in einer Untersuchung zu berücksichtigen als in herkömmlichen Verfahren, bei denen Personalkapazitäten stark begrenzt sind.    
 - Es ermöglicht die Umsetzung von Intercoder-Vergleichen mittels zugeschalteten KI-Coder, wo sonst nur ein menschlicher Coder pro Dokument arbeiten würde, und kann damit zur Qualitätsverbesserung beitragen
 - QCA-AID kann auch ganz ohne KI-Coder genutzt werden, als Alternative zu kostenpflichtigen Programmen.
 - Es ermöglicht zusätzliche explorative Dokumentenanalysen, die sonst aus pragmatischen Gründen mit einfacheren Verfahren umgesetzt würden
 
-Zu beachten ist aber:
+## Zu beachten
+
 - Gefahr der Überkonfidenz in eine automatisiert ermittelte Struktur der Daten 
 - Bei geringer Anzahl von Dokumenten überwiegen weiterhin die Vorteile menschlicher Kodierung (Close-reading, Kontextverständnis, Erfahrung)
+
+__ACHTUNG!__
+Bitte beachten Sie, dass sich dieses Skript noch in der Entwicklung befindet und möglicherweise noch nicht alle Funktionen optimal arbeiten. Es wird aktuell eine Nutzung zu Testzwecken empfohlen, wenn die Ergebnisse einer manuellen Prüfung des Outputs sind, kann eine weiterführende Nutzung in Betracht gezogen werden. Prüfen Sie regelmäßig, ob eine neue Version hier bereitgestellt ist und verfolgen sie die Änderungen.
+Beachten Sie auch, dass KI-Ergebnisse nicht perfekt sind und die Ergebnisse von der Qualität der Eingabedaten (Forschungsfrage, Codesystem, Text-Material) abhängen.
+Sie verwenden das Skript auf eigene Verantwortung, ohne jegliche Gewährleistung.  
+
+--> Feedback ist willkommen! <--
+Kontakt: justus.henke@hof.uni-halle.de
+
+## Hinweis zum Datenschutz
+
+Die KI-gestützte Datenverarbeitung nutzt die Schnittstelle von OpenAI bzw. Mistral. Auch wenn diese Anfragen offiziell nicht für das Training von Modellen genutzt werden, stellt diese eine Verarbeitung durch Dritte dar. Prüfen Sie, ob Ihre Dokumente dafür freigegeben sind und entfernen Sie ggf. sensible Informationen. Eine Nutzung mit hochsensiblen Daten wird ausdrücklich nicht empfohlen. 
+
+Prinzipiell ist die Verarbeitung der Daten per LLM auch auf einem lokalen Rechner möglich. Dafür kann OLLAMA oder LMSTUDIO genutzt werden und das Setup im Client muss etwas angepasst werden. Mehr dazu hier: https://ollama.com/blog/openai-compatibility oder https://lmstudio.ai/docs/api/endpoints/openai
 
 ## Merkmale von QCA-AID
 
@@ -23,7 +39,7 @@ Zu beachten ist aber:
 - Multi-Coder-Unterstützung (AI und Mensch)
 - Fähigkeiten zur Zusammenführung und Aufteilung von Kategorien
 - Berechnung der Intercoder-Zuverlässigkeit
-- Überarbeitung und Optimierung des Kategoriesystems
+- Überarbeitung und Optimierung des Kategoriensystems
 - Iterativer Analyseprozess mit Sättigungsprüfungen
 - Umfassender Analyseexport
 - Export des erweiterten Codebooks
@@ -32,32 +48,17 @@ Zu beachten ist aber:
 - Detaillierte Dokumentation des Kodierungsprozesses
 - Schätzung der verwendeten Input-/Output-Tokens der API-Aufrufe
 
-__ACHTUNG!__
-Bitte beachten Sie, dass sich dieses Skript noch in der Entwicklung befindet und noch nicht alle Funktionen verfügbar sind oder zuverlässig arbeiten. Es wird aktuell eine Nutzung zu Testzwecken empfohlen. Prüfen Sie regelmäßig, ob eine neue Version hier bereitgestellt ist.
-Beachten Sie auch, dass KI-Ergebnisse nicht perfekt sind und die Ergebnisse von der Qualität der Eingabedaten abhängen.
-Verwenden Sie das Skript auf eigene Gefahr! 
-
---> Feedback ist willkommen! <--
-Kontakt: justus.henke@hof.uni-halle.de
-
-## Hinweis zum Datenschutz
-
-Die KI-gestützte Datenverarbeitung nutzt die Schnittstelle von OpenAI bzw. Mistral. Auch wenn diese Anfragen offiziell nicht für das Training von Modellen genutzt werden, stellt diese eine Verarbeitung durch Dritte dar. Prüfen Sie, ob Ihre Dokumente dafür freigegeben sind und entfernen Sie ggf. sensible Informationen. Eine Nutzung mit hochsensiblen Daten wird ausdrücklich nicht empfohlen. 
-
-Prinzipiell ist die Verarbeitung der Daten per LLM auch auf einem lokalen Rechner möglich Dafür kann OLLAMA oder LMSTUDIO genutzt werden und das Setup im Client muss etwas angepasst werden mehr dazu hier: https://ollama.com/blog/openai-compatibility oder https://lmstudio.ai/docs/api/endpoints/openai
-
-
 ## Neu in 0.9.9
 - Abduktivmodus: induktive Codierung nur für Subcodes ohne Hinzufügen von Hauptcodes
 - kann entweder beim starten des Skripts ausgewählt oder im Codebook konfiguriert
 - leicht verschärfte Relevanzprüfung für Textsegmente (aus Interviews)
-- Kodierkonsens: Segmente ohne Konsens als "kein Kodierkonsens" markieren; wenn kein Konsens besteht, wird die  Kodierung mit höherem Konfidenzwert gewählt, sonst "kein Kodierkonsens"
+- Kodierkonsens: Segmente ohne Konsens als "kein Kodierkonsens" markieren; wenn kein Konsens besteht, wird die Kodierung mit höherem Konfidenzwert gewählt, sonst "kein Kodierkonsens"
 
 ## Weitere Hinweise zur Version (0.9.8)
 
 - Progressive Dokumentenzusammenfassung als Kodierungskontext (max. 80 Wörter)
 - Aktivieren durch Setzen des CONFIG-Wertes `CODE_WITH_CONTEXT` im Codebook auf 'true' (Standard: false)
-- Eignet sind sich inbesondere bei deduktivem Kodieren. Es kann Einfluss auf die Kodierung nehmen, daher testen, ob die Funktion zu besseren Ergebnissen führt. Den Kontext beizufügen, erleichtert es dem Sprachmodell einzuschätzen, ob die Inhalte im größeren Zusammenhang des Textes bedeutsam sind. Damit wird gewissermaßen ein Gedächtnis des bisherigen Textes in die Verarbeitung des Textsegments integriert. 
+- Eignet sich insbesondere bei deduktivem Kodieren. Es kann Einfluss auf die Kodierung nehmen, daher testen, ob die Funktion zu besseren Ergebnissen führt. Den Kontext beizufügen, erleichtert es dem Sprachmodell einzuschätzen, ob die Inhalte im größeren Zusammenhang des Textes bedeutsam sind. Damit wird gewissermaßen ein Gedächtnis des bisherigen Textes in die Verarbeitung des Textsegments integriert. 
 
 ## Weitere Hinweise zur Version (0.9.7)
 
@@ -71,15 +72,51 @@ Prinzipiell ist die Verarbeitung der Daten per LLM auch auf einem lokalen Rechne
 - Sollte die induktive Kodierung zu großzügig sein und zu viele Subcodes erstellen, kann können Sie den CONFIG-Wert `Temperature` herunterregeln (z.B. auf '0.1'), dann wird konservativer kodiert. 
 - Beachten Sie, dass die Forschungsfrage am besten alle Aspekte der Hauptkategorien abdeckt bzw. letztere sich aus der Frage ableiten lassen. Damit ist eine zuverlässigere Kodierung möglich, da die Forschungsfrage zentral ist, um ein Textsegment als relevant vorauszuwählen. Die Forschungsfrage sollte die Aspekte der Hauptkategorien möglichst ausgewogen adressieren und nicht bereits eine Hauptkategorie bevorzugen (es sei denn, das ist beabsichtigt).
 - Während der Bearbeitung werden mehrere API-Calls durchgeführt (Relevanzprüfung, Code-Entwicklung, Sättigungsprüfung), die Verarbeitung von Texten ist also relativ langsam: Ca. 400 Textsegmente à 1.000 Zeichen je Stunde, also ca. 200-250 Seiten je Stunde.  
-- Momentan wird nur Konsensentscheidung der Kodierer zugelassen, Mehrheitsvoting (bei n>2 Kodierern) oder Manuelles Review bei unterschiedlichen Kodierungen für ein Segment  ist noch nicht implementiert. 
+- Momentan wird nur Konsensentscheidung der Kodierer zugelassen, Mehrheitsvoting (bei n>2 Kodierern) oder Manuelles Review bei unterschiedlichen Kodierungen für ein Segment ist noch nicht implementiert. 
 - Die Konsensbildung erfolgt in einem mehrstufigen Prozess: Zunächst wird die Hauptkategorie mit der höchsten Übereinstimmung unter den Kodierern bestimmt, wobei bei Gleichstand die Kategorie mit der höchsten durchschnittlichen Konfidenz gewählt wird. Anschließend werden Subkategorien identifiziert, die von mindestens 50 % der Kodierer genutzt wurden, und die finale Konsens-Kodierung basiert auf der qualitativ besten Einzelskodierung mit den ermittelten Konsens-Subkategorien.
+
+## Empfehlungen für die Installation
+
+Bevor Sie mit der Installation beginnen, prüfen Sie folgende Voraussetzungen/Empfehlungen:
+
+1. **GitHub-Konto** (optional): Registrieren Sie sich bei [GitHub](https://github.com/), falls noch nicht geschehen. Dies erleichtert das Synchronisieren von Updates. Synchronisation erfolgt dann mit **Git**: Download verschiedener Clients unter: [https://git-scm.com/downloads](https://git-scm.com/downloads)
+
+2. **OpenAI API-Schlüssel** (sofern nicht Mistral genutzt wird): 
+   - Erstellen Sie einen Schlüssel unter: [https://platform.openai.com/api-keys](https://platform.openai.com/api-keys)
+   - Fügen Sie ein Zahlungsmittel hinzu und laden Sie Ihr Guthaben auf, da die API kostenpflichtig ist.
+
+3. **Python 3.11 oder älter**:
+   - **WICHTIG**: Verwenden Sie Python 3.11 oder älter (z.B. 3.10.12), da QCA-AID aktuell nicht mit Python 3.13 kompatibel ist! Dies liegt daran, dass das Modul spaCy derzeit noch nicht mit Python 3.13 kompatibel ist.
+   - Download unter: [https://www.python.org/downloads/release/python-3110/](https://www.python.org/downloads/release/python-3110/)
+
+4. **Nur für Windows-Nutzer**: Microsoft Visual C++ Build Tools
+   - Download unter: [https://visualstudio.microsoft.com/de/visual-cpp-build-tools/](https://visualstudio.microsoft.com/de/visual-cpp-build-tools/)
+   - Wichtig: Aktivieren Sie im Installer das "C++ Build Tools"-Paket inklusive MSVC und Windows SDK.
+5. **Alternativen für  Microsoft Visual C++ Build Tools**:
+- Wheel-Pakete: Für gängige Plattformen und Python-Versionen bietet spaCy vorkompilierte Binärpakete (Wheels) an. Wenn ein passendes Wheel verfügbar ist, wird dieses automatisch genutzt und die Build Tools werden nicht benötigt.
+- conda-Installation: Bei Verwendung von Anaconda/conda kann spaCy über conda-forge installiert werden, was ebenfalls die Notwendigkeit der Build Tools umgeht
 
 ## Installation
 
-1. Klonen Sie dieses Repository
-2. Installieren Sie die benötigten Pakete:
+1. **Repository klonen**:
+   ```bash
+   git clone https://github.com/JustusHenke/QCA-AID.git
+   cd QCA-AID
+   ```
+
+2. **Abhängigkeiten installieren**:
    ```bash
    pip install -r requirements.txt
+   ```
+
+3. **Sprachmodell für spaCy installieren**:
+   ```bash
+   python -m spacy download de_core_news_sm
+   ```
+
+4. **Bei Nutzung der Mistral API (optional)**:
+   ```bash
+   pip install mistralai
    ```
 
 ## Speichern des API-Schlüssels
@@ -87,37 +124,21 @@ Prinzipiell ist die Verarbeitung der Daten per LLM auch auf einem lokalen Rechne
 Um den API-Schlüssel sicher zu speichern und zu verwenden, folgen Sie diesen Schritten:
 
 1. **Erstellen Sie eine .environ.env Datei**:
-   - Die Datei sollte im Home-Verzeichnis Ihres Benutzers erstellt werden.
+   - Die Datei sollte `.environ.env` im Home-Verzeichnis Ihres Benutzers erstellt werden.
    - Unter Windows ist dies typischerweise: `C:\Users\IhrBenutzername\`
    - Unter macOS und Linux: `/home/IhrBenutzername/`
 
 2. **Dateiinhalt**:
    - Öffnen Sie die .environ.env Datei mit einem Texteditor.
-   - Fügen Sie folgende Zeile hinzu, ersetzen Sie dabei `IhrAPISchlüssel` mit Ihrem tatsächlichen API-Schlüssel:
+   - Fügen Sie folgende Zeilen hinzu, ersetzen Sie dabei `IhrAPISchlüssel` mit Ihren tatsächlichen API-Schlüsseln:
      ```
      OPENAI_API_KEY=IhrAPISchlüssel
-     MISTRAL_API_KEY=IhrAPISchhlüssel
+     MISTRAL_API_KEY=IhrAPISchlüssel
      ```
 
-3. **Speichern der Datei**:
-   - Speichern Sie die Datei und schließen Sie den Texteditor.
-
-4. **Sicherheitshinweis**:
+3. **Sicherheitshinweis**:
    - Stellen Sie sicher, dass die .environ.env Datei nicht in öffentliche Repositories hochgeladen wird.
    - Fügen Sie `.environ.env` zu Ihrer .gitignore Datei hinzu, wenn Sie Git verwenden.
-
-5. **Verwendung im Code**:
-   - Das Programm liest den API-Schlüssel automatisch aus dieser Datei.
-   - Der Pfad zur Datei wird wie folgt definiert:
-     ```python
-     env_path = os.path.join(os.path.expanduser("~"), '.environ.env')
-     ```
-
-6. **Überprüfung**:
-   - Stellen Sie sicher, dass die Umgebungsvariable korrekt geladen wird, indem Sie das Programm starten.
-   - Falls Probleme auftreten, überprüfen Sie den Dateipfad und den Inhalt der .environ.env Datei.
-
-Durch diese Methode wird Ihr API-Schlüssel sicher gespeichert und ist für das Programm zugänglich, ohne dass er direkt im Quellcode erscheint.
 
 ## Unterstützte Eingabedateien
 
@@ -135,7 +156,7 @@ Hinweise zur Verwendung:
 - Das Programm liest alle unterstützten Dateien im Eingabeverzeichnis automatisch ein.
 - Bei der Verwendung von PDF-Dateien wird der Text extrahiert; komplexe Formatierungen oder eingebettete Bilder werden dabei nicht berücksichtigt.
 
-Für optimale Ergebnisse  wird die Verwendung von einfachen Textformaten (.txt) empfohlen, insbesondere für längere Textpassagen oder Transkripte. Entfernen Sie Literaturverzeichnisse und andere Textteile, die nicht kodiert werden sollen.
+Für optimale Ergebnisse wird die Verwendung von einfachen Textformaten (.txt) empfohlen, insbesondere für längere Textpassagen oder Transkripte. Entfernen Sie Literaturverzeichnisse und andere Textteile, die nicht kodiert werden sollen.
 
 **Wichtig**: 
 - Stellen Sie sicher, dass alle Dateien im Eingabeverzeichnis für die Analyse relevant sind, da das Programm versuchen wird, jede unterstützte Datei zu verarbeiten.
@@ -143,11 +164,9 @@ Für optimale Ergebnisse  wird die Verwendung von einfachen Textformaten (.txt) 
 
 ## QCA-AID: Konfiguration und Nutzung
 
-QCA-AID unterstützt die qualitative Inhaltsanalyse nach Mayring mit KI-Unterstützung. Diese Anleitung erklärt die wichtigsten Schritte zur Konfiguration und Nutzung.
-
 ### Codebook.xlsx
 
-Die Excel-Datei `Codebook.xlsx` ist zentral für die Konfiguration der Analyse und enthält:
+Die Excel-Datei `QCA-AID-Codebook.xlsx` ist zentral für die Konfiguration der Analyse und enthält:
 
 #### Tabellenblätter
 - **FORSCHUNGSFRAGE**: Tragen Sie Ihre Forschungsfrage in Zelle B1 ein
@@ -166,14 +185,14 @@ Die Excel-Datei `Codebook.xlsx` ist zentral für die Konfiguration der Analyse u
 
 #### Struktur der CONFIG
 Hier können Sie verschiedene Konfigurationsparameter einstellen:
-- MODEL_PROVIDER: Name des LLM-Anbieters ('OpenAI' oder 'Mistral')
-- MODEL_NAME: Name des zu verwendenden Sprachmodells
-- DATA_DIR: Verzeichnis für Eingabedaten
-- OUTPUT_DIR: Verzeichnis für Ausgabedaten
-- CHUNK_SIZE: Größe der Textabschnitte für die Analyse
-- CHUNK_OVERLAP: Überlappung zwischen Textabschnitten
-- ATTRIBUTE_LABELS: Bezeichnungen für Attribute, die aus dem Dateinamen extrahiert werden (z.B. "Part1_Part2_Restname.txt")
-- CODER_SETTINGS: Einstellungen für automatische Kodierer
+- **MODEL_PROVIDER**: Name des LLM-Anbieters ('OpenAI' oder 'Mistral')
+- **MODEL_NAME**: Name des zu verwendenden Sprachmodells
+- **DATA_DIR**: Verzeichnis für Eingabedaten
+- **OUTPUT_DIR**: Verzeichnis für Ausgabedaten
+- **CHUNK_SIZE**: Größe der Textabschnitte für die Analyse
+- **CHUNK_OVERLAP**: Überlappung zwischen Textabschnitten
+- **ATTRIBUTE_LABELS**: Bezeichnungen für Attribute, die aus dem Dateinamen extrahiert werden (z.B. "Part1_Part2_Restname.txt")
+- **CODER_SETTINGS**: Einstellungen für automatische Kodierer
 
 ### Verzeichnisstruktur
 
@@ -194,16 +213,45 @@ Hier können Sie verschiedene Konfigurationsparameter einstellen:
   - `category_revisions.json`: Protokoll der Kategorienentwicklung
   - `codebook_inductive.json`: Erweitertes Kategoriensystem nach induktiver Phase
 
+### Starten der Analyse
+
+1. Stellen Sie sicher, dass Ihre Eingabedokumente im `input/`-Verzeichnis liegen
+2. Führen Sie das Skript aus:
+   ```bash
+   python QCA-AID.py
+   ```
+3. Folgen Sie den Anweisungen auf dem Bildschirm
+4. Die Ergebnisse werden im `output/`-Verzeichnis gespeichert
+
 ### Wichtige Hinweise
 - Entfernen Sie am besten Literaturverzeichnisse und nicht zu kodierende Textteile aus den Eingabedokumenten
 - Prüfen Sie bei PDF-Dokumenten die korrekte Textextraktion
 - Sichern Sie regelmäßig die QCA-AID-Codebook.xlsx
 - Die Verzeichnispfade können in der CONFIG angepasst werden
 
+## Häufige Probleme und Lösungen
 
-Durch sorgfältige Pflege und Aktualisierung der `QCA-AID-Codebook.xlsx` können Sie die Analyse optimal an Ihre Forschungsfragen und -methoden anpassen. Insbesondere die DEDUKTIVEN_KATEGORIEN sollten gründlich mit Definitionen und Beispielen versorgt werden, um das LLM nötigen Kontext mitzuliefern. 
+### 1. Fehler bei der Installation der Abhängigkeiten
+Wenn `pip install -r requirements.txt` fehlschlägt:
+- Bei Windows-Nutzern: Stellen Sie sicher, dass die C++ Build Tools korrekt installiert sind
+- Bei Mac/Linux: Installieren Sie die erforderlichen Entwicklungsbibliotheken (`build-essential` für Ubuntu/Debian)
 
-### CODE_WITH_CONTEXT
+### 2. Fehler beim Importieren von spaCy
+Wenn das Programm mit einem Fehler beim Importieren von spaCy abbricht:
+```
+Bitte installieren Sie das deutsche Sprachmodell:
+python -m spacy download de_core_news_sm
+```
+
+### 3. API-Schlüssel nicht gefunden
+- Überprüfen Sie, ob die .environ.env Datei im richtigen Verzeichnis liegt
+- Überprüfen Sie, ob der API-Schlüssel gültig ist und noch Guthaben vorhanden ist
+
+### 4. Fehler bei der Verarbeitung bestimmter Dokumenttypen
+- Versuchen Sie, das Dokument in das .txt-Format zu konvertieren
+- Prüfen Sie, ob das Dokument Sonderzeichen oder komplexe Formatierungen enthält
+
+## CODE_WITH_CONTEXT
 ----------------
 Wenn CONFIG-Parameter `CODE_WITH_CONTEXT` aktiviert ist (True), nutzt QCA-AID einen progressiven Dokumentkontext für die Kodierung.
 Dabei wird für jedes Dokument ein fortlaufend aktualisiertes Summary erstellt, das bei
@@ -222,43 +270,3 @@ Nachteile:
 Empfehlung:
 - Für Analysen mit hierarchischen oder relationalen Kategorien aktivieren
 - Für einfache thematische Kategorisierungen kann ohne Kontext gearbeitet werden
-
-
-# QCA-Mayring: Qualitative Content Analysis with AI Support
-
-This Python script implements Mayring's Qualitative Content Analysis methodology with AI support through the OpenAI API. It combines traditional qualitative research methods with modern AI capabilities to assist researchers in analyzing interview data.
-
-__ATTENTION!__
-Please note that this script is still under development and not all functions are available yet. Please also note
-Please also note that AI-Assistance is not perfect and the results depend on the quality of the input data.
-Use the script at your own risk!
-Feedback is welcome!
-
-## Features
-
-- Automated text preprocessing and chunking
-- Deductive category application
-- Inductive category development
-- Multi-coder support (AI and human)
-- Category merging and splitting capabilities
-- Intercoder reliability calculation
-- Category system revision and optimization
-- Iterative analysis process with saturation checks
-- Comprehensive analysis export
-- Attribute-based analysis for demographic or contextual factors
-- Configurable analysis parameters and thresholds
-- Detailed documentation of the coding process
-
-## Note on data protection
-
-AI-supported data processing uses the OpenAI interface. Even if these requests are not officially used for training models, this constitutes processing by third parties. Check whether your documents are approved for this and remove sensitive information if necessary. Use with highly sensitive data is expressly not recommended.
-
-## Installation
-
-1. Clone this repository
-2. Install required packages:
-   ```bash
-   pip install -r requirements.txt
-   ```
-
-
