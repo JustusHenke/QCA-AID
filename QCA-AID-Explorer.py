@@ -1,15 +1,15 @@
 """
 QCA-AID Explorer 
 ========================================================================
-Version:
+Version: 0.4
 --------
-0.3 (2025-02-24)
-New in this version
-- ForceAtlas2 layout for network graphs
-- Enhanced visualization with hierarchical node placement
-- SVG export for better editability
-- Improved node and label styling
-- Fallback to spring layout for stability
+Neue features in version 0.4 (2025-04-07):
+- Konfiguration über Excel-Datei "QCA-AID-Explorer-Config.xlsx"
+- Heatmap-Visualisierung von Codes entlang von Dokumentattributen
+- Mehrere Analysetypen konfigurierbar (Netzwerk, Heatmap, verschiedene Zusammenfassungen)
+- Anpassbare Parameter für jede Analyse
+- Verbessertes ForceAtlas2-Layout für Netzwerkvisualisierungen
+- SVG-Export für bessere Editierbarkeit
 
 QCA-AID Explorer ist ein Tool zur Analyse von qualitativen Kodierungsdaten.
 Es ermöglicht die Visualisierung von Kodierungsnetzwerken mit Hauptkategorien,
@@ -19,6 +19,31 @@ von kodierten Textsegmenten mit Hilfe von LLM-Modellen.
 Das ForceAtlas2-Layout bietet eine verbesserte Netzwerkvisualisierung,
 bei der zusammengehörige Elemente näher beieinander platziert werden
 und die hierarchische Struktur der Daten besser sichtbar wird.
+
+Folgende Pakete sollten vor der ersten Nutzung installiert werden:
+pip install networkx reportlab scikit-learn pandas openpyxl matplotlib seaborn
+
+"""
+
+"""
+QCA-AID Explorer 
+========================================================================
+Version:
+--------
+0.4 (2025-04-07)
+New in this version
+- Configuration through Excel file "QCA-AID-Explorer-Config.xlsx"
+- Heatmap visualization of codes along document attributes
+- Multiple analysis types configurable from Excel
+- Customizable parameters for each analysis
+
+QCA-AID Explorer ist ein Tool zur Analyse von qualitativen Kodierungsdaten.
+Es ermöglicht die Visualisierung von Kodierungsnetzwerken mit Hauptkategorien,
+Subkategorien und Schlüsselwörtern sowie die automatisierte Zusammenfassung
+von kodierten Textsegmenten mit Hilfe von LLM-Modellen.
+
+Folgende Pakete sollten vor der ersten Nutzung installiert werden:
+pip install networkx reportlab scikit-learn pandas openpyxl matplotlib seaborn
 """
 
 import pandas as pd
@@ -26,7 +51,7 @@ from difflib import SequenceMatcher
 import networkx as nx
 import matplotlib.pyplot as plt
 from pathlib import Path
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Union
 import asyncio
 import json
 from datetime import datetime
@@ -41,6 +66,8 @@ from reportlab.pdfgen import canvas
 import numpy as np
 from sklearn.manifold import MDS
 from scipy.sparse import csgraph
+import seaborn as sns
+import re
 
 class LLMProvider(ABC):
     """Abstrakte Basisklasse für LLM Provider"""
@@ -174,14 +201,108 @@ class LLMResponse:
             print(f"Fehler beim Extrahieren des Response Contents: {str(e)}")
             return ""
 
+class ConfigLoader:
+    """Lädt die Konfiguration aus einer Excel-Datei"""
+    
+    def __init__(self, config_path: str):
+        """
+        Initialisiert den ConfigLoader
+        
+        Args:
+            config_path: Pfad zur Excel-Konfigurationsdatei
+        """
+        self.config_path = config_path
+        self.base_config = {}
+        self.analysis_configs = []
+        self._load_config()
+        
+    def _load_config(self):
+        """Lädt die Konfiguration aus der Excel-Datei"""
+        try:
+            print(f"\nLade Konfiguration aus: {self.config_path}")
+            
+            # Prüfe, ob die Datei existiert
+            if not os.path.exists(self.config_path):
+                raise FileNotFoundError(f"Konfigurationsdatei nicht gefunden: {self.config_path}")
+            
+            # Lese das Basis-Sheet
+            base_df = pd.read_excel(self.config_path, sheet_name='Basis')
+            
+            # Konvertiere zu Dictionary
+            self.base_config = {}
+            for _, row in base_df.iterrows():
+                param_name = str(row['Parameter'])
+                param_value = row['Wert']
+                
+                # Leere Werte als None behandeln
+                if pd.isna(param_value):
+                    param_value = None
+                    
+                self.base_config[param_name] = param_value
+            
+            print("Basis-Konfiguration geladen:")
+            for key, value in self.base_config.items():
+                print(f"  {key}: {value}")
+            
+            # Lese alle anderen Sheets für Auswertungskonfigurationen
+            excel = pd.ExcelFile(self.config_path)
+            sheet_names = excel.sheet_names
+            
+            # Überspringe das Basis-Sheet
+            for sheet_name in sheet_names:
+                if sheet_name.lower() != 'basis':
+                    analysis_df = pd.read_excel(self.config_path, sheet_name=sheet_name)
+                    
+                    # Extrahiere die Parameter für diese Auswertung
+                    analysis_config = {'name': sheet_name}
+                    filter_params = {}
+                    other_params = {}
+                    
+                    for _, row in analysis_df.iterrows():
+                        param_name = str(row['Parameter'])
+                        param_value = row['Wert']
+                        
+                        # Leere Werte als None behandeln
+                        if pd.isna(param_value):
+                            param_value = None
+                        
+                        # Unterscheide zwischen Filter-Parametern und anderen Parametern
+                        if param_name.startswith('filter_'):
+                            # Entferne 'filter_' Präfix und speichere als Filter
+                            filter_name = param_name[7:]  # Länge von 'filter_' ist 7
+                            filter_params[filter_name] = param_value
+                        else:
+                            other_params[param_name] = param_value
+                    
+                    analysis_config['filters'] = filter_params
+                    analysis_config['params'] = other_params
+                    self.analysis_configs.append(analysis_config)
+            
+            print(f"\n{len(self.analysis_configs)} Auswertungskonfigurationen gefunden:")
+            for config in self.analysis_configs:
+                print(f"  - {config['name']}")
+                
+        except Exception as e:
+            print(f"Fehler beim Laden der Konfiguration: {str(e)}")
+            raise
+
+    def get_base_config(self) -> Dict[str, Any]:
+        """Gibt die Basis-Konfiguration zurück"""
+        return self.base_config
+    
+    def get_analysis_configs(self) -> List[Dict[str, Any]]:
+        """Gibt die Auswertungskonfigurationen zurück"""
+        return self.analysis_configs
+
 class QCAAnalyzer:
-    def __init__(self, excel_path: str, llm_provider: LLMProvider):
+    def __init__(self, excel_path: str, llm_provider: LLMProvider, config: Dict[str, Any]):
         """
         Initialize the QCA Analyzer
         
         Args:
-            excel_path: Path to the Excel file
+            excel_path: Path to the Excel file with coded segments
             llm_provider: Instance of LLMProvider
+            config: Dictionary with base configuration
         """
         # Read specifically from 'Kodierte_Segmente' sheet
         self.df = pd.read_excel(excel_path, sheet_name='Kodierte_Segmente')
@@ -191,9 +312,10 @@ class QCAAnalyzer:
         # Get the input filename without extension
         input_filename = Path(excel_path).stem
 
-        # Set output directory relative to script location
-        script_dir = os.path.dirname(os.path.abspath(__file__))
-        self.base_output_dir = Path(script_dir) / 'output'
+        # Set output directory from config or use default
+        script_dir = config.get('script_dir') or os.path.dirname(os.path.abspath(__file__))
+        output_dir = config.get('output_dir', 'output')
+        self.base_output_dir = Path(script_dir) / output_dir
         self.base_output_dir.mkdir(exist_ok=True)
 
         # Create analysis-specific subdirectory
@@ -272,327 +394,6 @@ class QCAAnalyzer:
         output_path = self.output_dir / filename
         with open(output_path, 'w', encoding='utf-8') as f:
             f.write(summary)
-
-    def create_network_graph(self, filtered_df: pd.DataFrame, output_filename: str):
-        """Create network graph using harmonized keywords"""
-        print("Erstelle Netzwerkgraph...")
-        
-        G = nx.DiGraph()
-        
-        # Debug: Print mappings
-        print("\nAktive Keyword-Mappings:")
-        for original, harmonized in self.keyword_mappings.items():
-            if original != harmonized:
-                print(f"  '{original}' → '{harmonized}'")
-        
-        # Count occurrences for node sizing
-        category_counts = {}
-        subcategory_counts = {}
-        keyword_counts = {}
-        
-        # Color mapping for main categories with default color
-        unique_main_categories = filtered_df['Hauptkategorie'].unique()
-        if len(unique_main_categories) > 0:
-            colors = plt.cm.Set3(np.linspace(0, 1, len(unique_main_categories)))
-            main_category_colors = dict(zip(unique_main_categories, colors))
-            default_color = colors[0]  # Use first color as default
-        else:
-            # If no main categories, use a default color
-            default_color = plt.cm.Set3(0)
-            main_category_colors = {}
-        
-        nodes_data = []
-        edges_data = []
-        
-        # Process each row
-        for _, row in filtered_df.iterrows():
-            if pd.isna(row['Hauptkategorie']):
-                continue
-                
-            main_category = str(row['Hauptkategorie'])
-            category_counts[main_category] = category_counts.get(main_category, 0) + 1
-            
-            if main_category not in [node[0] for node in nodes_data]:
-                G.add_node(main_category, node_type='main')
-                nodes_data.append([main_category, 'main', category_counts[main_category]])
-
-            # Handle subcategories
-            if pd.notna(row['Subkategorien']):
-                sub_categories = [cat.strip() for cat in str(row['Subkategorien']).split(',') if cat.strip()]
-                
-                for sub_cat in sub_categories:
-                    subcategory_counts[sub_cat] = subcategory_counts.get(sub_cat, 0) + 1
-                    
-                    if sub_cat not in [node[0] for node in nodes_data]:
-                        G.add_node(sub_cat, node_type='sub')
-                        nodes_data.append([sub_cat, 'sub', subcategory_counts[sub_cat]])
-                    
-                    if not G.has_edge(main_category, sub_cat):
-                        G.add_edge(main_category, sub_cat)
-                        edges_data.append([main_category, sub_cat, 'main_to_sub'])
-                    
-                    # Handle keywords
-                    if pd.notna(row['Schlüsselwörter']):
-                        keywords = [kw.strip() for kw in str(row['Schlüsselwörter']).split(',') if kw.strip()]
-                        
-                        for keyword in keywords:
-                            # Use harmonized version of keyword if available
-                            harmonized_keyword = self.keyword_mappings.get(keyword, keyword)
-                            
-                            # Update counts using harmonized keyword
-                            keyword_counts[harmonized_keyword] = keyword_counts.get(harmonized_keyword, 0) + 1
-                            
-                            # Add node using harmonized keyword
-                            if harmonized_keyword not in [node[0] for node in nodes_data]:
-                                G.add_node(harmonized_keyword, node_type='keyword')
-                                nodes_data.append([harmonized_keyword, 'keyword', keyword_counts[harmonized_keyword]])
-                            
-                            # Add edge using harmonized keyword
-                            if not G.has_edge(sub_cat, harmonized_keyword):
-                                G.add_edge(sub_cat, harmonized_keyword)
-                                edges_data.append([sub_cat, harmonized_keyword, 'sub_to_keyword'])
-        
-        # Export network data
-        print("\nExportiere Netzwerkdaten...")
-        nodes_df = pd.DataFrame(nodes_data, columns=['Node', 'Type', 'Count'])
-        edges_df = pd.DataFrame(edges_data, columns=['Source', 'Target', 'Type'])
-        
-        # Print statistics
-        print(f"\nStatistiken:")
-        print(f"Anzahl Knoten: {len(nodes_df)}")
-        print(f"Anzahl Kanten: {len(edges_df)}")
-        print("\nKnotentypen Verteilung:")
-        print(nodes_df['Type'].value_counts())
-        
-        # Export to Excel
-        excel_output_path = self.output_dir / f"{output_filename}_network_data.xlsx"
-        with pd.ExcelWriter(excel_output_path, engine='openpyxl') as writer:
-            nodes_df.to_excel(writer, sheet_name='Nodes', index=False)
-            edges_df.to_excel(writer, sheet_name='Edges', index=False)
-        print(f"Netzwerkdaten exportiert nach: {excel_output_path}")
-        
-        # Create visualization
-        print("\nErstelle Visualisierung...")
-        plt.figure(figsize=(24, 20))
-
-        # --- NEUER CODE: Verwendung des ForceAtlas2-ähnlichen Layouts ---
-        print("\nBerechne Knotenpositionen mit ForceAtlas2-ähnlichem Layout...")
-        
-        # Erstelle initiale Positionen für bessere Konvergenz
-        initial_pos = {}
-        
-        # Positioniere Hauptkategorien im Zentrum
-        main_nodes = [n for n, d in G.nodes(data=True) if d['node_type'] == 'main']
-        num_main = len(main_nodes)
-        for i, node in enumerate(main_nodes):
-            if num_main > 1:
-                angle = 2 * np.pi * i / num_main
-                initial_pos[node] = (0.2 * np.cos(angle), 0.2 * np.sin(angle))
-            else:
-                initial_pos[node] = (0, 0)
-        
-        # Positioniere Subkategorien in einem mittleren Ring
-        sub_nodes = [n for n, d in G.nodes(data=True) if d['node_type'] == 'sub']
-        num_sub = len(sub_nodes)
-        for i, node in enumerate(sub_nodes):
-            if num_sub > 1:
-                angle = 2 * np.pi * i / num_sub
-                initial_pos[node] = (0.5 * np.cos(angle), 0.5 * np.sin(angle))
-            else:
-                initial_pos[node] = (0.5, 0)
-        
-        # Positioniere Keywords in einem äußeren Ring
-        keyword_nodes = [n for n, d in G.nodes(data=True) if d['node_type'] == 'keyword']
-        num_kw = len(keyword_nodes)
-        for i, node in enumerate(keyword_nodes):
-            if num_kw > 1:
-                angle = 2 * np.pi * i / num_kw
-                initial_pos[node] = (1.0 * np.cos(angle), 1.0 * np.sin(angle))
-            else:
-                initial_pos[node] = (1.0, 0)
-        
-        # Berechne das Layout mit unserer ForceAtlas2-ähnlichen Funktion
-        # Sie können diese Parameter anpassen, um das Layout zu optimieren
-        pos = create_forceatlas_like_layout(
-            G,
-            iterations=100,    # Mehr Iterationen = besseres Layout, aber langsamer
-            gravity=0.05,      # Stärke der Anziehung zum Zentrum (0.01-0.1 empfohlen)
-            scaling=2.0        # Skalierungsfaktor (1.0-10.0 empfohlen)
-        )
-        # --- ENDE NEUER CODE ---
-
-        # Define label placement function
-        def get_smart_label_pos(node_pos, node_type, node_size):
-            """Berechne intelligente Label-Position basierend auf Position im Plot und Knotengröße"""
-            x, y = node_pos
-            
-            # Berechne den Radius des Knotens aus der Knotengröße
-            node_radius = np.sqrt(node_size/np.pi) / 1000
-            base_offset = max(0.05, node_radius * 1.2)  # Etwas größerer Offset für bessere Lesbarkeit
-            
-            if node_type == 'main':
-                # Hauptkategorien: Labels oberhalb
-                return (x, y + base_offset), 'center'
-            elif node_type == 'sub':
-                # Subkategorien: Links oder rechts, je nach x-Position
-                if x >= 0:
-                    return (x + base_offset, y), 'left'
-                else:
-                    return (x - base_offset, y), 'right'
-            else:
-                # Keywords mit kleinerem Abstand
-                offset = base_offset * 0.5  # Etwas kleinerer Abstand für Keywords
-                # Bestimme Quadranten
-                if x >= 0 and y >= 0:  # Quadrant 1 (oben rechts)
-                    return (x + offset, y), 'left'
-                elif x < 0 and y >= 0:  # Quadrant 2 (oben links)
-                    return (x - offset, y), 'right'
-                elif x < 0 and y < 0:  # Quadrant 3 (unten links)
-                    return (x - offset, y), 'right'
-                else:  # Quadrant 4 (unten rechts)
-                    return (x + offset, y), 'left'
-
-        # Berechne Label-Positionen und Ausrichtungen
-        label_pos = {}
-        label_alignments = {}
-        for node, node_pos in pos.items():
-            node_type = G.nodes[node]['node_type']
-            # Berechne Knotengröße für diesen Node
-            if node_type == 'main':
-                node_size = 3000 * (category_counts.get(node, 1) / max(category_counts.values()))
-            elif node_type == 'sub':
-                node_size = 2000 * (subcategory_counts.get(node, 1) / max(subcategory_counts.values()))
-            else:
-                node_size = 1000 * (keyword_counts.get(node, 1) / max(keyword_counts.values()))
-            
-            label_position, alignment = get_smart_label_pos(node_pos, node_type, node_size)
-            label_pos[node] = label_position
-            label_alignments[node] = alignment
-        
-        # Zeichne Kanten mit angepasstem Stil
-        nx.draw_networkx_edges(G, pos,
-                            edge_color='gray',
-                            alpha=0.4,
-                            arrows=True,
-                            arrowsize=10,
-                            width=0.5,
-                            connectionstyle="arc3,rad=0.1")  # Reduzierter Bogen für besseres Layout
-        
-        # Zeichne Knoten
-        for node_type, counts, base_size, shape in [
-            ('main', category_counts, 3000, 'o'),
-            ('sub', subcategory_counts, 2000, 's'),
-            ('keyword', keyword_counts, 1000, 'd')
-        ]:
-            node_list = [n for n, d in G.nodes(data=True) if d['node_type'] == node_type]
-            
-            if node_list:
-                node_sizes = [base_size * (counts.get(node, 1) / max(counts.values()))
-                            for node in node_list]
-                
-                if node_type == 'main':
-                    node_colors = [main_category_colors[node] for node in node_list]
-                else:
-                    node_colors = 'lightgreen' if node_type == 'sub' else 'lightpink'
-                
-                nx.draw_networkx_nodes(G, pos,
-                                    nodelist=node_list,
-                                    node_color=node_colors,
-                                    node_size=node_sizes,
-                                    node_shape=shape,
-                                    alpha=0.8)
-        
-        # Zeichne Labels für jeden Node-Typ separat mit verbesserten Textboxen
-        for node_type in ['main', 'sub', 'keyword']:
-            nodes = [n for n, d in G.nodes(data=True) if d['node_type'] == node_type]
-            for node in nodes:
-                label_position = label_pos[node]
-                alignment = label_alignments[node]
-                
-                # Angepasste Texteigenschaften nach Knotentyp
-                if node_type == 'main':
-                    fontweight = 'bold'
-                    fontsize = 10
-                    alpha = 0.85
-                elif node_type == 'sub':
-                    fontweight = 'medium'
-                    fontsize = 9
-                    alpha = 0.8
-                else:
-                    fontweight = 'normal'
-                    fontsize = 8
-                    alpha = 0.75
-                    
-                plt.text(label_position[0], label_position[1], 
-                        node,
-                        horizontalalignment=alignment,
-                        fontsize=fontsize,
-                        fontweight=fontweight,
-                        bbox=dict(facecolor='white',
-                                edgecolor='none',
-                                alpha=alpha,
-                                pad=0.5))
-        
-        plt.title("Code Network Analysis (ForceAtlas2-Style Layout)", pad=20, fontsize=16)
-        plt.axis('off')
-        
-        # Legende
-        legend_elements = [
-            plt.Line2D([0], [0], marker='o', color='w',
-                    markerfacecolor=default_color,
-                    markersize=10, label='Hauptkategorien'),
-            plt.Line2D([0], [0], marker='s', color='w',
-                    markerfacecolor='lightgreen', markersize=10,
-                    label='Subkategorien'),
-            plt.Line2D([0], [0], marker='d', color='w',
-                    markerfacecolor='lightpink', markersize=10,
-                    label='Schlüsselwörter')
-        ]
-        plt.legend(handles=legend_elements, loc='upper right', fontsize=10)
-        
-        # Speichern
-        print(f"Speichere Netzwerk-Visualisierung...")
-        output_path = self.output_dir / f"{output_filename}.pdf"
-        plt.savefig(output_path, format='pdf', bbox_inches='tight', dpi=300)
-        
-        # Zusätzlich als SVG speichern für bessere Bearbeitbarkeit
-        svg_output_path = self.output_dir / f"{output_filename}.svg"
-        plt.savefig(svg_output_path, format='svg', bbox_inches='tight')
-        
-        plt.close()
-        print(f"Netzwerk-Visualisierung erfolgreich erstellt")
-
-    def _format_filters_for_prompt(self, filters: Dict[str, str]) -> str:
-        """
-        Formatiert Filter-Dictionary in einen lesbaren Text
-        
-        Args:
-            filters: Dictionary mit Spaltenname-Wert Paaren
-            
-        Returns:
-            Formatierter Text der aktiven Filter
-        """
-        active_filters = []
-        for column, value in filters.items():
-            if value:  # Nur aktive Filter einbeziehen
-                # Sonderbehandlung für bestimmte Spaltennamen
-                if column == "Hauptkategorie":
-                    active_filters.append(f"der Hauptkategorie '{value}'")
-                elif column == "Subkategorien":
-                    active_filters.append(f"der Subkategorie '{value}'")
-                elif column == "Dokument":
-                    active_filters.append(f"aus dem Dokument '{value}'")
-                else:
-                    active_filters.append(f"mit {column} = '{value}'")
-        
-        if not active_filters:
-            return "ohne spezifische Filterkriterien"
-            
-        if len(active_filters) == 1:
-            return active_filters[0]
-            
-        # Für mehrere Filter: Alle außer dem letzten mit Komma, letzter mit "und"
-        return ", ".join(active_filters[:-1]) + " und " + active_filters[-1]
 
     def harmonize_keywords(self, similarity_threshold: float = 0.60) -> pd.DataFrame:
         """
@@ -732,11 +533,712 @@ class QCAAnalyzer:
                 print(f"Varianten: {', '.join(variants)}")
                 print("------")
 
-# --- Helper functions --- #
+    def create_network_graph(self, filtered_df: pd.DataFrame, output_filename: str, params: Dict[str, Any] = None):
+        """Create network graph using harmonized keywords"""
+        
+        print("Erstelle Netzwerkgraph...")
+        
+        # Verwende Parameter aus der Konfiguration oder Default-Werte
+        if params is None:
+            params = {}
+        
+        # Extrahiere Parameter mit Fallback-Werten
+        node_size_factor = float(params.get('node_size_factor', 10))  # Default-Wert 10
+        iterations = int(params.get('layout_iterations', 100))
+        gravity = float(params.get('gravity', 0.05))
+        scaling = float(params.get('scaling', 2.0))
+        
+        # Optional: setze Hintergrundfarbe aus Parameter
+        bg_color = params.get('bg_color', 'white')  # Default: weißer Hintergrund statt pink
+        
+        G = nx.DiGraph()
+        
+        # Debug: Print mappings
+        print("\nAktive Keyword-Mappings:")
+        for original, harmonized in self.keyword_mappings.items():
+            if original != harmonized:
+                print(f"  '{original}' → '{harmonized}'")
+        
+        # Count occurrences for node sizing
+        category_counts = {}
+        subcategory_counts = {}
+        keyword_counts = {}
+        
+        # Color mapping for main categories with default color
+        unique_main_categories = filtered_df['Hauptkategorie'].unique()
+        if len(unique_main_categories) > 0:
+            colors = plt.cm.Set3(np.linspace(0, 1, len(unique_main_categories)))
+            main_category_colors = dict(zip(unique_main_categories, colors))
+            default_color = colors[0]  # Use first color as default
+        else:
+            # If no main categories, use a default color
+            default_color = plt.cm.Set3(0)
+            main_category_colors = {}
+        
+        nodes_data = []
+        edges_data = []
+        
+        # Process each row
+        for _, row in filtered_df.iterrows():
+            if pd.isna(row['Hauptkategorie']):
+                continue
+                    
+            main_category = str(row['Hauptkategorie'])
+            category_counts[main_category] = category_counts.get(main_category, 0) + 1
+            
+            if main_category not in [node[0] for node in nodes_data]:
+                G.add_node(main_category, node_type='main')
+                nodes_data.append([main_category, 'main', category_counts[main_category]])
 
-def create_filter_string(filters: Dict[str, str]) -> str:
-    """Create a string representation of the filters for filenames"""
-    return '_'.join(f"{k}-{v}" for k, v in filters.items() if v)
+            # Handle subcategories
+            if pd.notna(row['Subkategorien']):
+                sub_categories = [cat.strip() for cat in str(row['Subkategorien']).split(',') if cat.strip()]
+                
+                for sub_cat in sub_categories:
+                    subcategory_counts[sub_cat] = subcategory_counts.get(sub_cat, 0) + 1
+                    
+                    if sub_cat not in [node[0] for node in nodes_data]:
+                        G.add_node(sub_cat, node_type='sub')
+                        nodes_data.append([sub_cat, 'sub', subcategory_counts[sub_cat]])
+                    
+                    if not G.has_edge(main_category, sub_cat):
+                        G.add_edge(main_category, sub_cat)
+                        edges_data.append([main_category, sub_cat, 'main_to_sub'])
+                    
+                    # Handle keywords
+                    if pd.notna(row['Schlüsselwörter']):
+                        keywords = [kw.strip() for kw in str(row['Schlüsselwörter']).split(',') if kw.strip()]
+                        
+                        for keyword in keywords:
+                            # Use harmonized version of keyword if available
+                            harmonized_keyword = self.keyword_mappings.get(keyword, keyword)
+                            
+                            # Update counts using harmonized keyword
+                            keyword_counts[harmonized_keyword] = keyword_counts.get(harmonized_keyword, 0) + 1
+                            
+                            # Add node using harmonized keyword
+                            if harmonized_keyword not in [node[0] for node in nodes_data]:
+                                G.add_node(harmonized_keyword, node_type='keyword')
+                                nodes_data.append([harmonized_keyword, 'keyword', keyword_counts[harmonized_keyword]])
+                            
+                            # Add edge using harmonized keyword
+                            if not G.has_edge(sub_cat, harmonized_keyword):
+                                G.add_edge(sub_cat, harmonized_keyword)
+                                edges_data.append([sub_cat, harmonized_keyword, 'sub_to_keyword'])
+        
+        # Export network data
+        print("\nExportiere Netzwerkdaten...")
+        nodes_df = pd.DataFrame(nodes_data, columns=['Node', 'Type', 'Count'])
+        edges_df = pd.DataFrame(edges_data, columns=['Source', 'Target', 'Type'])
+        
+        # Print statistics
+        print(f"\nStatistiken:")
+        print(f"Anzahl Knoten: {len(nodes_df)}")
+        print(f"Anzahl Kanten: {len(edges_df)}")
+        print("\nKnotentypen Verteilung:")
+        print(nodes_df['Type'].value_counts())
+        
+        # Export to Excel
+        excel_output_path = self.output_dir / f"{output_filename}_network_data.xlsx"
+        with pd.ExcelWriter(excel_output_path, engine='openpyxl') as writer:
+            nodes_df.to_excel(writer, sheet_name='Nodes', index=False)
+            edges_df.to_excel(writer, sheet_name='Edges', index=False)
+        print(f"Netzwerkdaten exportiert nach: {excel_output_path}")
+        
+        # Create visualization
+        print("\nErstelle Visualisierung...")
+        plt.figure(figsize=(24, 20), facecolor=bg_color)
+
+        # --- NEUER CODE: Verwendung des ForceAtlas2-ähnlichen Layouts ---
+        print("\nBerechne Knotenpositionen mit ForceAtlas2-ähnlichem Layout...")
+        
+        # Erstelle initiale Positionen für bessere Konvergenz
+        initial_pos = {}
+        
+        # Positioniere Hauptkategorien im Zentrum
+        main_nodes = [n for n, d in G.nodes(data=True) if d['node_type'] == 'main']
+        num_main = len(main_nodes)
+        for i, node in enumerate(main_nodes):
+            if num_main > 1:
+                angle = 2 * np.pi * i / num_main
+                initial_pos[node] = (0.2 * np.cos(angle), 0.2 * np.sin(angle))
+            else:
+                initial_pos[node] = (0, 0)
+        
+        # Positioniere Subkategorien in einem mittleren Ring
+        sub_nodes = [n for n, d in G.nodes(data=True) if d['node_type'] == 'sub']
+        num_sub = len(sub_nodes)
+        for i, node in enumerate(sub_nodes):
+            if num_sub > 1:
+                angle = 2 * np.pi * i / num_sub
+                initial_pos[node] = (0.5 * np.cos(angle), 0.5 * np.sin(angle))
+            else:
+                initial_pos[node] = (0.5, 0)
+        
+        # Positioniere Keywords in einem äußeren Ring
+        keyword_nodes = [n for n, d in G.nodes(data=True) if d['node_type'] == 'keyword']
+        num_kw = len(keyword_nodes)
+        for i, node in enumerate(keyword_nodes):
+            if num_kw > 1:
+                angle = 2 * np.pi * i / num_kw
+                initial_pos[node] = (1.0 * np.cos(angle), 1.0 * np.sin(angle))
+            else:
+                initial_pos[node] = (1.0, 0)
+        
+        # Berechne das Layout mit unserer ForceAtlas2-ähnlichen Funktion
+        # Verwende Parameter aus der Konfiguration
+        pos = create_forceatlas_like_layout(
+            G,
+            iterations=iterations,
+            gravity=gravity,
+            scaling=scaling
+        )
+    
+        # Define label placement function
+        def get_smart_label_pos(node_pos, node_type, node_size):
+            """Berechne intelligente Label-Position basierend auf Position im Plot und Knotengröße"""
+            x, y = node_pos
+            
+            # Berechne den Radius des Knotens aus der Knotengröße
+            node_radius = np.sqrt(node_size/np.pi) / 1000
+            base_offset = max(0.02, node_radius * 1.2)  # Kleinerer Offset für bessere Lesbarkeit
+            
+            if node_type == 'main':
+                # Hauptkategorien: Labels oberhalb
+                return (x, y + base_offset), 'center'
+            elif node_type == 'sub':
+                # Subkategorien: Links oder rechts, je nach x-Position
+                if x >= 0:
+                    return (x + base_offset, y), 'left'
+                else:
+                    return (x - base_offset, y), 'right'
+            else:
+                # Keywords mit kleinerem Abstand
+                offset = base_offset * 0.5  # Etwas kleinerer Abstand für Keywords
+                # Bestimme Quadranten
+                if x >= 0 and y >= 0:  # Quadrant 1 (oben rechts)
+                    return (x + offset, y), 'left'
+                elif x < 0 and y >= 0:  # Quadrant 2 (oben links)
+                    return (x - offset, y), 'right'
+                elif x < 0 and y < 0:  # Quadrant 3 (unten links)
+                    return (x - offset, y), 'right'
+                else:  # Quadrant 4 (unten rechts)
+                    return (x + offset, y), 'left'
+
+        # Berechne Label-Positionen und Ausrichtungen
+        label_pos = {}
+        label_alignments = {}
+        
+        # KNOTENGRÖSSEN
+        main_base_size = 500 
+        sub_base_size = 300
+        keyword_base_size = 200  
+
+        for node, node_pos in pos.items():
+            node_type = G.nodes[node]['node_type']
+            # Berechne Knotengröße für diesen Node - MIT DRASTISCH KLEINEREN BASISWERTEN
+            if node_type == 'main':
+                node_size = main_base_size * node_size_factor * (category_counts.get(node, 1) / max(category_counts.values()))
+            elif node_type == 'sub':
+                node_size = sub_base_size * node_size_factor * (subcategory_counts.get(node, 1) / max(subcategory_counts.values()))
+            else:
+                node_size = keyword_base_size * node_size_factor * (keyword_counts.get(node, 1) / max(keyword_counts.values()))
+            
+            label_position, alignment = get_smart_label_pos(node_pos, node_type, node_size)
+            label_pos[node] = label_position
+            label_alignments[node] = alignment
+        
+        # Zeichne Kanten mit angepasstem Stil
+        nx.draw_networkx_edges(G, pos,
+                            edge_color='gray',
+                            alpha=0.4,
+                            arrows=True,
+                            arrowsize=10,  # Kleinere Pfeile
+                            width=0.5,    # Dünnere Linien
+                            connectionstyle="arc3,rad=0.1")  # Reduzierter Bogen für besseres Layout
+        
+        # Zeichne Knoten mit EXTREM KLEINEN BASISGRÖSSEN
+        for node_type, counts, base_size, shape in [
+            ('main', category_counts, main_base_size, 'o'),
+            ('sub', subcategory_counts, sub_base_size, 's'),
+            ('keyword', keyword_counts, keyword_base_size, 'd')
+        ]:
+            node_list = [n for n, d in G.nodes(data=True) if d['node_type'] == node_type]
+            
+            if node_list:
+                # Berechne die Knotengröße mit Skalierungsfaktor und Normalisierung
+                node_sizes = [base_size * node_size_factor * (counts.get(node, 1) / max(counts.values()))
+                            for node in node_list]
+                
+                if node_type == 'main':
+                    node_colors = [main_category_colors.get(node, default_color) for node in node_list]
+                else:
+                    node_colors = 'lightgreen' if node_type == 'sub' else 'lightpink'
+                
+                nx.draw_networkx_nodes(G, pos,
+                                    nodelist=node_list,
+                                    node_color=node_colors,
+                                    node_size=node_sizes,
+                                    node_shape=shape,
+                                    alpha=0.8)
+        
+        # Zeichne nur die Knoten-Labels ohne Rahmen für ein aufgeräumteres Aussehen
+        # Knoten-Labels direkt zeichnen ohne Hintergrundboxen
+        for node_type in ['main', 'sub', 'keyword']:
+            nodes = [n for n, d in G.nodes(data=True) if d['node_type'] == node_type]
+            for node in nodes:
+                label_position = label_pos[node]
+                alignment = label_alignments[node]
+                
+                # Angepasste Texteigenschaften nach Knotentyp
+                if node_type == 'main':
+                    fontweight = 'bold'
+                    fontsize = 12  # Kleinere Schrift
+                    alpha = 0.9
+                elif node_type == 'sub':
+                    fontweight = 'normal'
+                    fontsize = 12 # Kleinere Schrift
+                    alpha = 0.9
+                else:
+                    fontweight = 'light'
+                    fontsize = 12 # Kleinere Schrift
+                    alpha = 0.9
+                        
+                plt.text(label_position[0], label_position[1], 
+                        node,
+                        horizontalalignment=alignment,
+                        fontsize=fontsize,
+                        fontweight=fontweight,
+                        bbox=dict(facecolor='white',
+                                edgecolor='none',
+                                alpha=alpha,
+                                pad=0.3))
+        
+        plt.title("Code Network Analysis (ForceAtlas2-Style Layout)", pad=20, fontsize=16)
+        plt.axis('off')
+        
+        # Legende
+        legend_elements = [
+            plt.Line2D([0], [0], marker='o', color='w',
+                    markerfacecolor=default_color,
+                    markersize=8, label='Hauptkategorien'),
+            plt.Line2D([0], [0], marker='s', color='w',
+                    markerfacecolor='lightgreen', markersize=8,
+                    label='Subkategorien'),
+            plt.Line2D([0], [0], marker='d', color='w',
+                    markerfacecolor='lightpink', markersize=8,
+                    label='Schlüsselwörter')
+        ]
+        plt.legend(handles=legend_elements, loc='upper right', fontsize=10)
+        
+        # Speichern
+        print(f"Speichere Netzwerk-Visualisierung...")
+        output_path = self.output_dir / f"{output_filename}.pdf"
+        plt.savefig(output_path, format='pdf', bbox_inches='tight', dpi=300)
+        
+        # Zusätzlich als SVG speichern für bessere Bearbeitbarkeit
+        svg_output_path = self.output_dir / f"{output_filename}.svg"
+        plt.savefig(svg_output_path, format='svg', bbox_inches='tight')
+        
+        plt.close()
+        print(f"Netzwerk-Visualisierung erfolgreich erstellt")
+
+    def create_heatmap(self, filtered_df: pd.DataFrame, output_filename: str, params: Dict[str, Any] = None):
+        """
+        Erstellt eine Heatmap der Codes entlang der Dokumentattribute
+        
+        Args:
+            filtered_df: Gefilterte DataFrame
+            output_filename: Ausgabedateiname
+            params: Parameter für die Heatmap-Erstellung
+        """
+        print("\nErstelle Heatmap der Codes entlang der Dokumentattribute...")
+        
+        # Verwende Parameter aus der Konfiguration oder Default-Werte
+        if params is None:
+            params = {}
+        
+        # Extrahiere Parameter mit Fallback-Werten
+        x_attribute = params.get('x_attribute', 'Dokument')
+        y_attribute = params.get('y_attribute', 'Hauptkategorie')
+        z_attribute = params.get('z_attribute', 'count')  # 'count' oder 'percentage'
+        use_subcodes = params.get('use_subcodes', True)
+        cmap = params.get('cmap', 'YlGnBu')
+        
+        # Sicherstellen, dass figsize ein Tuple ist
+        figsize_param = params.get('figsize', (14, 10))
+        
+        # Standard-Figsize
+        default_figsize = (14, 10)
+        figsize = default_figsize
+        
+        if isinstance(figsize_param, (int, float)):
+            # Falls nur ein einzelner Wert, verwende quadratische Dimension
+            figsize = (float(figsize_param), float(figsize_param))
+        elif isinstance(figsize_param, str):
+            # Falls ein String, versuche zu parsen
+            try:
+                # Entferne alle Leerzeichen
+                clean_param = figsize_param.strip()
+                
+                # Deutsche Dezimalkomma-Notation abfangen
+                if ',' in clean_param and 'x' not in clean_param:
+                    # Prüfe, ob es sich um eine deutsche Dezimalzahl handelt
+                    parts = clean_param.split(',')
+                    if len(parts) == 2:
+                        try:
+                            # Wenn der zweite Teil eine Zahl ist und kurz, betrachte es als dt. Dezimalzahl
+                            float(parts[1])
+                            if len(parts[1]) <= 2:  # Typischerweise 1-2 Nachkommastellen
+                                print(f"Warnung: '{figsize_param}' scheint eine Dezimalzahl zu sein, nicht ein Tupel.")
+                                print(f"Verwende Default-Figsize: {default_figsize}")
+                                figsize = default_figsize
+                            else:
+                                # Sonst behandle es als Tupel-Separator
+                                width, height = float(parts[0]), float(parts[1])
+                                figsize = (width, height)
+                        except ValueError:
+                            # Wenn der zweite Teil keine Zahl ist, behandle es als Tupel-Separator
+                            width, height = float(parts[0]), float(parts[1])
+                            figsize = (width, height)
+                    else:
+                        # Mehrere Kommas, behandle als Tupel-Separator
+                        print(f"Warnung: Mehrere Kommas in '{figsize_param}'. Verwende erstes als Separator.")
+                        width, height = float(parts[0]), float(parts[1])
+                        figsize = (width, height)
+                elif 'x' in clean_param:
+                    # Format "14x10"
+                    width, height = map(float, clean_param.split('x'))
+                    figsize = (width, height)
+                else:
+                    # Fallback
+                    print(f"Warnung: Konnte figsize '{figsize_param}' nicht parsen. Verwende Default.")
+                    figsize = default_figsize
+            except Exception as e:
+                print(f"Warnung: Fehler beim Parsen von figsize '{figsize_param}': {str(e)}")
+                print(f"Verwende Default-Figsize: {default_figsize}")
+                figsize = default_figsize
+        else:
+            # Sollte bereits ein Tupel oder ähnliches sein
+            try:
+                # Sicherstellen, dass es wirklich ein Tupel mit zwei Werten ist
+                if len(figsize_param) == 2:
+                    figsize = (float(figsize_param[0]), float(figsize_param[1]))
+                else:
+                    print(f"Warnung: figsize hat falsche Anzahl von Werten: {figsize_param}")
+                    figsize = default_figsize
+            except:
+                print(f"Warnung: figsize ist kein gültiges Tupel: {figsize_param}")
+                figsize = default_figsize
+        
+        # Parameter für Annotationen
+        annot_param = params.get('annot', True)
+        if isinstance(annot_param, str):
+            # Konvertiere String zu Boolean
+            annot = annot_param.lower() in ('true', 'ja', 'yes', '1')
+        else:
+            annot = bool(annot_param)
+        
+        fmt = params.get('fmt', '.0f')
+        
+        # Prüfe, ob die benötigten Attribute vorhanden sind
+        if x_attribute not in filtered_df.columns:
+            print(f"Warnung: Attribut '{x_attribute}' nicht in Daten vorhanden.")
+            return
+        
+        if y_attribute not in filtered_df.columns and not (y_attribute == 'Subcodes' and 'Subkategorien' in filtered_df.columns):
+            print(f"Warnung: Attribut '{y_attribute}' nicht in Daten vorhanden.")
+            return
+        
+        # Spezielle Behandlung für Subcodes, wenn aktiviert
+        if use_subcodes or y_attribute == 'Subcodes':
+            print("Verwende Subkategorien für die Heatmap...")
+            
+            # Prüfe, ob Subkategorien verfügbar sind
+            if 'Subkategorien' not in filtered_df.columns:
+                print("Warnung: Spalte 'Subkategorien' nicht gefunden. Kann keine Subcode-Heatmap erstellen.")
+                return
+                
+            # Erstelle eine kopie des DataFrames zur Bearbeitung
+            working_df = filtered_df.copy()
+            
+            # Explode the Subkategorien column (split comma-separated values into separate rows)
+            working_df['Subcodes'] = working_df['Subkategorien'].str.split(',')
+            working_df = working_df.explode('Subcodes')
+            
+            # Clean up the subcodes (remove whitespace)
+            working_df['Subcodes'] = working_df['Subcodes'].str.strip()
+            
+            # Remove empty subcodes
+            working_df = working_df[working_df['Subcodes'].notna() & (working_df['Subcodes'] != '')]
+            
+            # Override y_attribute to use our new column
+            y_attribute = 'Subcodes'
+            
+            # Use the processed DataFrame
+            heatmap_df = working_df
+        else:
+            # Use the original DataFrame
+            heatmap_df = filtered_df
+        
+        # Erzeuge Pivot-Tabelle für die Heatmap
+        # Zähle Vorkommen von y_attribute für jedes x_attribute
+        pivot_df = pd.crosstab(heatmap_df[y_attribute], heatmap_df[x_attribute])
+        
+        # Debug: Zeige Dimensionen der Pivot-Tabelle
+        print(f"Pivot-Tabelle Dimensionen: {pivot_df.shape} (Zeilen: {pivot_df.shape[0]}, Spalten: {pivot_df.shape[1]})")
+        
+        # Passe die Figsize basierend auf der Größe der Pivot-Tabelle an
+        # Wenn es viele Kategorien gibt, vergrößere die Höhe
+        if pivot_df.shape[0] > 10:
+            # Berechne eine angemessene Höhe basierend auf der Anzahl der Zeilen
+            # Mindestens 10, plus 0.5 für jede zusätzliche Zeile über 10
+            adjusted_height = 10 + (pivot_df.shape[0] - 10) * 0.5
+            figsize = (figsize[0], adjusted_height)
+            print(f"Viele Kategorien entdeckt, passe Figsize an: {figsize}")
+        
+        # Konvertiere zu Prozent pro Spalte, falls gewünscht
+        if z_attribute == 'percentage':
+            pivot_df = pivot_df.apply(lambda x: x / x.sum() * 100, axis=0)
+            fmt = '.1f'  # Eine Dezimalstelle für Prozentangaben
+        
+        # Debug-Ausgabe
+        print(f"Verwende figsize: {figsize}")
+        
+        # Erzeuge Heatmap
+        plt.figure(figsize=figsize)
+        
+        # Erzeuge Heatmap mit oder ohne Annotationen
+        if annot:
+            ax = sns.heatmap(pivot_df, 
+                        annot=True,  # Explizit True setzen
+                        fmt=fmt, 
+                        cmap=cmap,
+                        linewidths=0.5,
+                        cbar_kws={'label': 'Anzahl' if z_attribute == 'count' else 'Prozent (%)'})
+        else:
+            ax = sns.heatmap(pivot_df, 
+                        annot=False,  # Explizit False setzen
+                        cmap=cmap,
+                        linewidths=0.5,
+                        cbar_kws={'label': 'Anzahl' if z_attribute == 'count' else 'Prozent (%)'})
+        
+        # Setze Titel und Labels
+        plt.title(f"Verteilung: {y_attribute} nach {x_attribute}", fontsize=14)
+        plt.xlabel(x_attribute, fontsize=12)
+        plt.ylabel(y_attribute, fontsize=12)
+        
+        # Verbessere Lesbarkeit der Achsenbeschriftungen
+        plt.xticks(rotation=45, ha='right')
+        plt.yticks(rotation=0)
+        
+        # Anpassen des Layouts
+        plt.tight_layout()
+        
+        # Speichern
+        output_path = self.output_dir / f"{output_filename}.pdf"
+        plt.savefig(output_path, format='pdf', bbox_inches='tight', dpi=300)
+        
+        # Zusätzlich als PNG speichern für einfachere Verwendung
+        png_output_path = self.output_dir / f"{output_filename}.png"
+        plt.savefig(png_output_path, format='png', bbox_inches='tight', dpi=300)
+        
+        # Daten als Excel exportieren
+        excel_output_path = self.output_dir / f"{output_filename}_data.xlsx"
+        with pd.ExcelWriter(excel_output_path, engine='openpyxl') as writer:
+            pivot_df.to_excel(writer, sheet_name='Heatmap')
+        
+        plt.close()
+        print(f"Heatmap erfolgreich erstellt und gespeichert unter: {output_path}")
+        print(f"Daten exportiert nach: {excel_output_path}")
+    
+    async def create_custom_summary(self, 
+                            filtered_df: pd.DataFrame, 
+                            prompt_template: str, 
+                            output_filename: str,
+                            model: str,
+                            temperature: float = 0.7,
+                            filters: Dict[str, str] = None,
+                            params: Dict[str, Any] = None):
+        """
+        Erstellt eine benutzerdefinierte Zusammenfassung der gefilterten Daten
+        unter Verwendung eines LLM.
+        
+        Args:
+            filtered_df: Gefilterte DataFrame
+            prompt_template: Vorlage für den Prompt
+            output_filename: Ausgabedateiname
+            model: Name des LLM-Modells
+            temperature: Temperature-Parameter für das LLM
+            filters: Filter, die auf die Daten angewendet wurden
+            params: Zusätzliche Parameter aus der Konfiguration
+        """
+        print("\nErstelle benutzerdefinierte Zusammenfassung...")
+        
+        # Sicherstellen, dass params existiert
+        if params is None:
+            params = {}
+        
+        if len(filtered_df) == 0:
+            print("Warnung: Keine Daten für die Zusammenfassung vorhanden!")
+            return
+        
+        # Prüfen ob prompt_template None ist
+        if prompt_template is None:
+            print("Warnung: Kein Prompt-Template angegeben! Verwende Standard-Prompt.")
+            prompt_template = """
+    Bitte analysieren Sie die folgenden Textsegmente:
+
+    {text}
+
+    Erstellen Sie eine umfassende Zusammenfassung der Hauptthemen und Konzepte.
+            """
+        
+        # Sammle den Text für die Zusammenfassung
+        text_segments = []
+        
+        # Verwende die in params angegebene Textspalte, wenn vorhanden
+        text_column = params.get('text_column', None)
+        
+        # Wenn keine Spalte explizit angegeben wurde, versuche passende Spalten zu finden
+        if not text_column or text_column not in filtered_df.columns:
+            if not text_column:
+                print("Keine Textspalte in der Konfiguration angegeben. Suche nach passenden Spalten...")
+            else:
+                print(f"Angegebene Textspalte '{text_column}' nicht gefunden. Suche nach Alternativen...")
+            
+            # Standard-Suchprioritäten je nach Analysetyp (aus params)
+            analysis_type = params.get('analysis_type', '').lower()
+            
+            if analysis_type == 'summary_reasoning':
+                # Für Begründungsanalyse bevorzuge Spalten mit Begründungen
+                preferred_columns = ['Begründung', 'Reasoning', 'Rationale', 'Kodierungsbegründung']
+            else:
+                # Für andere Analysen bevorzuge Paraphrasen/Textsegmente
+                preferred_columns = ['Paraphrase', 'Text', 'Textsegment', 'Segment', 'Kodiertext']
+                
+            # Erweitere um allgemeine Textspalten als Fallback
+            preferred_columns.extend(['Inhalt', 'Content', 'Kommentar', 'Comment'])
+            
+            # Suche in der Reihenfolge der bevorzugten Spalten
+            for column_name in preferred_columns:
+                if column_name in filtered_df.columns:
+                    text_column = column_name
+                    break
+                    
+            if not text_column:
+                # Fallback: Verwende die erste Spalte, die "text", "inhalt", oder "content" im Namen hat
+                for col in filtered_df.columns:
+                    col_lower = col.lower()
+                    if any(term in col_lower for term in ['text', 'inhalt', 'content', 'comment', 'grund']):
+                        text_column = col
+                        break
+        
+            if not text_column:
+                # Letzter Fallback: Verwende irgendeine Spalte, die nicht Hauptkategorie oder Subkategorie ist
+                for col in filtered_df.columns:
+                    if col not in ['Hauptkategorie', 'Subkategorien', 'Schlüsselwörter']:
+                        text_column = col
+                        break
+        
+        if not text_column:
+            print("Fehler: Keine geeignete Spalte für Textdaten gefunden!")
+            return
+            
+        print(f"Verwende Spalte '{text_column}' für die Textzusammenfassung")
+        
+        # Extrahiere die Textsegmente
+        for _, row in filtered_df.iterrows():
+            if pd.notna(row[text_column]):
+                # Füge Hauptkategorie und Subkategorien hinzu, wenn verfügbar
+                segment_info = []
+                
+                if 'Hauptkategorie' in row and pd.notna(row['Hauptkategorie']):
+                    segment_info.append(f"Hauptkategorie: {row['Hauptkategorie']}")
+                    
+                if 'Subkategorien' in row and pd.notna(row['Subkategorien']):
+                    segment_info.append(f"Subkategorien: {row['Subkategorien']}")
+                    
+                if 'Schlüsselwörter' in row and pd.notna(row['Schlüsselwörter']):
+                    segment_info.append(f"Schlüsselwörter: {row['Schlüsselwörter']}")
+                    
+                # Füge Dokumentinfo hinzu, wenn verfügbar
+                if 'Dokument' in row and pd.notna(row['Dokument']):
+                    segment_info.append(f"Dokument: {row['Dokument']}")
+                    
+                # Formatiere das Segment mit den Metadaten
+                if segment_info:
+                    segment_header = " | ".join(segment_info)
+                    text_segments.append(f"[{segment_header}]\n{row[text_column]}\n")
+                else:
+                    text_segments.append(f"{row[text_column]}\n")
+        
+        # Kombiniere alle Textsegmente
+        combined_text = "\n".join(text_segments)
+        
+        # Bereite den Prompt vor
+        format_args = {'text': combined_text}
+        
+        # Füge Filter-Info hinzu, wenn vorhanden
+        if filters:
+            filter_str = ", ".join([f"{k}: {v}" for k, v in filters.items() if v])
+            format_args['filters'] = filter_str
+        
+        # Formatiere den Prompt mit den Daten
+        try:
+            prompt = prompt_template.format(**format_args)
+        except KeyError as e:
+            print(f"Warnung: Fehler beim Formatieren des Prompts: {str(e)}")
+            # Versuche eine einfachere Formatierung
+            try:
+                prompt = prompt_template.replace("{text}", combined_text)
+                if 'filters' in format_args:
+                    prompt = prompt.replace("{filters}", format_args['filters'])
+            except Exception as e:
+                print(f"Fehler bei der Fallback-Formatierung: {str(e)}")
+                # Absoluter Fallback: Verwende den Rohtext mit einem einfachen Prompt
+                prompt = f"Bitte analysieren Sie die folgenden Textsegmente und erstellen Sie eine Zusammenfassung:\n\n{combined_text}"
+        
+        # Führe die LLM-Anfrage durch
+        print(f"Sende Anfrage an LLM ({model})...")
+        system_prompt = "Sie sind ein hilfreicher Forschungsassistent, der sich mit der Analyse qualitativer Daten auskennt."
+        
+        try:
+            messages = [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": prompt}
+            ]
+            
+            response = await self.llm_provider.create_completion(
+                messages=messages,
+                model=model,
+                temperature=temperature
+            )
+            
+            llm_response = LLMResponse(response)
+            summary = llm_response.content
+            
+            # Speichere die Zusammenfassung
+            output_path = self.output_dir / f"{output_filename}.txt"
+            with open(output_path, 'w', encoding='utf-8') as f:
+                f.write(summary)
+                
+            print(f"Zusammenfassung erfolgreich erstellt und gespeichert unter: {output_path}")
+            
+            # Speichere zusätzlich den verwendeten Prompt zur Dokumentation
+            prompt_path = self.output_dir / f"{output_filename}_prompt.txt"
+            with open(prompt_path, 'w', encoding='utf-8') as f:
+                f.write(f"System:\n{system_prompt}\n\nUser:\n{prompt}")
+                
+            return summary
+            
+        except Exception as e:
+            print(f"Fehler bei der LLM-Anfrage: {str(e)}")
+            # Speichere die Fehlermeldung
+            error_path = self.output_dir / f"{output_filename}_error.txt"
+            with open(error_path, 'w', encoding='utf-8') as f:
+                f.write(f"Fehler bei der LLM-Anfrage: {str(e)}\n\nPrompt:\n{prompt}")
+            return None
 
 def create_forceatlas_like_layout(G, iterations=100, gravity=0.01, scaling=10.0):
     """Erzeugt ein ForceAtlas2-ähnliches Layout mit NetworkX und scikit-learn
@@ -929,58 +1431,87 @@ def create_forceatlas_like_layout(G, iterations=100, gravity=0.01, scaling=10.0)
         
         return pos
 
+def create_filter_string(filters: Dict[str, str]) -> str:
+        """Create a string representation of the filters for filenames"""
+        return '_'.join(f"{k}-{v}" for k, v in filters.items() if v)
+
+
+def get_default_prompts() -> Dict[str, str]:
+    """Gibt die Standard-Prompts für verschiedene Analysetypen zurück"""
+    prompts = {
+        "paraphrase": """
+Bitte analysieren Sie die folgenden paraphrasierten Textabschnitte und erstellen Sie einen thematischen Überblick:
+
+{text}
+
+Bitte geben Sie an:
+1. Zusammanfassung identifizierter Hauptthemen. Ergänze dies anschließend mit konkreten Beispieln
+2. Zusammanfassung wichtiger Muster und Beziehungen. Ergänze dies anschließend mit konkreten Beispieln
+3. Zusammenfassung der Ergebnisse
+        """,
+        
+        "reasoning": """
+Bitte analysieren Sie die folgenden Begründungen für die Inklusion von Textsegementen in diesen Kategorien: {filters} 
+
+Erstellen Sie eine umfassende Zusammenfassung:
+
+{text}
+
+Bitte geben Sie an:
+1. Identifizierte Hauptargumente, die zur Inklusion in die Kategorien führten
+2. Gemeinsame Muster in der Argumentation
+3. Zusammenfassung der wichtigsten Begründungen
+        """
+    }
+    return prompts
 
 # ------------------------------------ #
-# ---      ANPASSUNGEN AB HIER     --- #
+# ---      HAUPTFUNKTION           --- #
 # ------------------------------------ #
 async def main():
-    print("\n=== QCA Analyse Start ===")
-    # LLM Configuration
-    PROVIDER_NAME = "openai"  # or "mistral"
-    MODEL_NAME = "gpt-4o-mini"  # or "mistral-medium" etc.
-    TEMPERATURE = 0.7
+    print("\n=== QCA-AID Explorer v0.4 Start ===")
+    print("Konfiguration über Excel-Datei")
+    
+    # Pfad zur Konfigurations-Excel-Datei
     SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-    OUTPUT_DIR = "output"
-
-    # --- KONFIGURATIONSMÖGLICHKEITEN --- #
-    CLEAN_KEYWORDS = True  # Auf True setzen, um die Harmonisierung von Schlüsselwörtern zu aktivieren
-    SIMILARITY_THRESHOLD = 0.7  # Anpassen des Ähnlichkeitsschwellenwerts für den Schlüsselwortabgleich
-
-    # --- HIER DATEINAMEN EINTRAGEN --- #
-    # --- DATEI SCHLIESSEN VOR START DES SKRIPTS --- #
-    EXPLORE_FILE = "QCA-AID_Analysis_20250224_201708.xlsx"  
-    # -------------------------------------------------
-
-
-    # Path Configuration
+    CONFIG_FILE = "QCA-AID-Explorer-Config.xlsx"
+    CONFIG_PATH = os.path.join(SCRIPT_DIR, CONFIG_FILE)
+    
+    # Lade Konfiguration
+    config_loader = ConfigLoader(CONFIG_PATH)
+    base_config = config_loader.get_base_config()
+    analysis_configs = config_loader.get_analysis_configs()
+    
+    # Extrahiere Basis-Parameter
+    PROVIDER_NAME = base_config.get('provider', 'openai')
+    MODEL_NAME = base_config.get('model', 'gpt-4o-mini')
+    TEMPERATURE = float(base_config.get('temperature', 0.7))
+    SCRIPT_DIR = base_config.get('script_dir') or os.path.dirname(os.path.abspath(__file__))
+    OUTPUT_DIR = base_config.get('output_dir', 'output')
+    EXPLORE_FILE = base_config.get('explore_file', '')
+    CLEAN_KEYWORDS = str(base_config.get('clean_keywords', 'True')).lower() == 'true'
+    SIMILARITY_THRESHOLD = float(base_config.get('similarity_threshold', 0.7))
+    
+    # Prüfe, ob die Explorationsdatei angegeben wurde
+    if not EXPLORE_FILE:
+        print("Fehler: Keine Explorationsdatei in der Konfiguration angegeben.")
+        return
+    
+    # Pfadkonfiguration
     EXCEL_PATH = os.path.join(SCRIPT_DIR, OUTPUT_DIR, EXPLORE_FILE)
     print(f"\nLese Excel-Datei: {EXCEL_PATH}")
     
-     # Initialize LLM provider
+    # Initialize LLM provider
     print("\nInitialisiere LLM Provider...")
     llm_provider = LLMProviderFactory.create_provider(PROVIDER_NAME)
     
     # Initialize analyzer
-    analyzer = QCAAnalyzer(EXCEL_PATH, llm_provider)
+    analyzer = QCAAnalyzer(EXCEL_PATH, llm_provider, base_config)
     print(f"Verfügbare Spalten: {', '.join(analyzer.columns)}")
     
-    # Get the column names dynamically
-    second_column = analyzer.columns[1] if len(analyzer.columns) > 1 else None
-    third_column = analyzer.columns[2] if len(analyzer.columns) > 2 else None
+    # Standardprompts laden
+    default_prompts = get_default_prompts()
     
-
-    # -------------------------------------------------
-    # HIER FILTER DEFINIEREN (nach Bedarf anpassen)
-    # -------------------------------------------------
-    filters = {
-        "Dokument": None,  # Optional: set to None if not filtering
-        "Hauptkategorie": "Strukturelle Rahmenbedingungen",
-        "Subkategorien" : "Finanzierung",
-        second_column: None,  # Spalte mit "Attribut_1"
-        third_column: None    # Spalte mit "Attribut_2"
-    }
-    # -------------------------------------------------
-
     # Schlüsselwörter harmonisieren, falls aktiviert
     if CLEAN_KEYWORDS:
         print("\nStarte Keyword-Harmonisierung...")
@@ -988,85 +1519,112 @@ async def main():
         analyzer.df = analyzer.harmonize_keywords(similarity_threshold=SIMILARITY_THRESHOLD)
         analyzer.validate_keyword_mapping()
         print("Keyword-Harmonisierung abgeschlossen.")
-
-    # Filter data
-    filtered_df = analyzer.filter_data(filters)
     
-    # Create filter string for filenames
-    filter_str = create_filter_string(filters)
-
-    # Schlüsselwort-Harmonisierungsinfo zum Filterstring hinzufügen, falls aktiviert
-    if CLEAN_KEYWORDS:
-        filter_str = f"harmonized_{filter_str}" if filter_str else "harmonized"
+    # Analysekonfigurationen durchlaufen
+    print(f"\nFühre {len(analysis_configs)} Auswertungen durch...")
     
-    # 1. Paraphrasenzusammenfassung erstellen und speichern
-    # -------------------------------------------------
-    paraphrase_prompt = """
-    Bitte analysieren Sie die folgenden paraphrasierten Textabschnitte und erstellen Sie einen thematischen Überblick:
-
-    {text}
-
-    Bitte geben Sie an:
-    1. Zusammanfassung identifizierter Hauptthemen. Ergänze dies anschließend mit konkreten Beispieln
-    2. Zusammanfassung wichtiger Muster und Beziehungen. Ergänze dies anschließend mit konkreten Beispieln
-    3. Zusammenfassung der Ergebnisse
-    """
-    
-    paraphrase_text = '\n'.join(filtered_df['Paraphrase'].dropna())
-    print("Sende Anfrage an LLM...")
-    paraphrase_summary = await analyzer.generate_summary(
-        text=paraphrase_text,
-        prompt_template=paraphrase_prompt,
-        model=MODEL_NAME,
-        temperature=TEMPERATURE
-    )
-    output_file = f"Summary_Paraphrase_{filter_str}.txt"
-    analyzer.save_text_summary(
-        paraphrase_summary,
-        output_file
-    )
-    print(f"Zusammenfassung gespeichert in: {output_file}")
-    
-    # 2. Zusammenfassung der Argumentation generieren und speichern
-    # -------------------------------------------------
-    reasoning_prompt = """
-    Bitte analysieren Sie die folgenden Begründungen für die Inklusion von Textsegementen in diesen Kategorien: {filters} 
-    
-    Erstellen Sie eine umfassende Zusammenfassung:
-
-    {text}
-
-    Bitte geben Sie an:
-    1. Identifizierte Hauptargumente, die zur Inklusion in die Kategorien führten
-    2. Gemeinsame Muster in der Argumentation
-    3. Zusammenfassung der wichtigsten Begründungen
-    """
-    
-    reasoning_text = '\n'.join(filtered_df['Begründung'].dropna())
-    print("Sende Anfrage an LLM...")
-    reasoning_summary = await analyzer.generate_summary(
-        text=reasoning_text,
-        prompt_template=reasoning_prompt,
-        model=MODEL_NAME,
-        temperature=TEMPERATURE,
-        filters=filters
-    )
-    output_file = f"Summary_Begründung_{filter_str}.txt"
-    analyzer.save_text_summary(
-        reasoning_summary,
-        output_file
-    )
-    print(f"Zusammenfassung gespeichert in: {output_file}")
-    
-    # 3. Netzwerkvisualisierung erstellen und speichern
-    # -------------------------------------------------
-    print("\nErstelle Netzwerk-Visualisierung...")
-    output_file = f"Code-Network_{filter_str}.pdf"
-    analyzer.create_network_graph(
-        filtered_df,
-        f"Code-Network_{filter_str}"
-    )
-    print(f"Netzwerk-Visualisierung gespeichert in: {output_file}")
+    for config_idx, analysis_config in enumerate(analysis_configs, 1):
+        analysis_name = analysis_config['name']
+        print(f"\n--- Auswertung {config_idx}/{len(analysis_configs)}: {analysis_name} ---")
+        
+        # Extrahiere Filter und Parameter
+        filters = analysis_config['filters']
+        params = analysis_config['params']
+        
+        # Füge analysis_type zu params hinzu, falls nicht vorhanden
+        if 'analysis_type' not in params:
+            params['analysis_type'] = analysis_config.get('analysis_type', '')
+        
+        # Filtere die Daten
+        filtered_df = analyzer.filter_data(filters)
+        
+        # Erzeuge Filterstring für Dateinamen
+        filter_str = create_filter_string(filters)
+        
+        # Schlüsselwort-Harmonisierungsinfo zum Filterstring hinzufügen, falls aktiviert
+        if CLEAN_KEYWORDS:
+            filter_str = f"harmonized_{filter_str}" if filter_str else "harmonized"
+        
+        # Füge Analysenamen zum Filterstring hinzu
+        output_prefix = f"{analysis_name}_{filter_str}" if filter_str else analysis_name
+        
+        # Bestimme den Analysetyp
+        analysis_type = params.get('analysis_type', '').lower()
+        
+        if analysis_type == 'netzwerk':
+            # Netzwerkvisualisierung erstellen
+            print("\nErstelle Netzwerk-Visualisierung...")
+            analyzer.create_network_graph(
+                filtered_df,
+                f"Code-Network_{output_prefix}",
+                params
+            )
+            
+        elif analysis_type == 'heatmap':
+            # Heatmap erstellen
+            print("\nErstelle Heatmap...")
+            analyzer.create_heatmap(
+                filtered_df,
+                f"Heatmap_{output_prefix}",
+                params
+            )
+            
+        elif analysis_type == 'summary_paraphrase':
+            # Paraphrasenzusammenfassung erstellen
+            print("\nErstelle Paraphrasen-Zusammenfassung...")
+            # Verwende benutzerdefinierten Prompt, falls vorhanden
+            prompt_template = params.get('prompt_template', default_prompts.get('paraphrase', None))
+            
+            # ÜBERGEBE AUCH DIE PARAMETER
+            await analyzer.create_custom_summary(
+                filtered_df,
+                prompt_template,
+                f"Summary_Paraphrase_{output_prefix}",
+                MODEL_NAME,
+                TEMPERATURE,
+                filters,
+                params  # Übergebe die Parameter an die Methode
+            )
+            
+        elif analysis_type == 'summary_reasoning':
+            # Begründungszusammenfassung erstellen
+            print("\nErstelle Begründungs-Zusammenfassung...")
+            # Verwende benutzerdefinierten Prompt, falls vorhanden
+            prompt_template = params.get('prompt_template', default_prompts.get('reasoning', None))
+            
+            # ÜBERGEBE AUCH DIE PARAMETER
+            await analyzer.create_custom_summary(
+                filtered_df,
+                prompt_template,
+                f"Summary_Begruendung_{output_prefix}",
+                MODEL_NAME,
+                TEMPERATURE,
+                filters,
+                params  # Übergebe die Parameter an die Methode
+            )
+            
+        elif analysis_type == 'custom_summary':
+            # Benutzerdefinierte Zusammenfassung erstellen
+            print("\nErstelle benutzerdefinierte Zusammenfassung...")
+            # Muss einen benutzerdefinierten Prompt haben
+            prompt_template = params.get('prompt_template', '')
+            if not prompt_template:
+                print("Warnung: Kein Prompt-Template für benutzerdefinierte Zusammenfassung angegeben. Überspringe.")
+                continue
+                
+            # ÜBERGEBE AUCH DIE PARAMETER
+            await analyzer.create_custom_summary(
+                filtered_df,
+                prompt_template,
+                f"Summary_Custom_{output_prefix}",
+                MODEL_NAME,
+                TEMPERATURE,
+                filters,
+                params  # Übergebe die Parameter an die Methode
+            )
+            
+        else:
+            print(f"Warnung: Unbekannter Analysetyp '{analysis_type}'. Überspringe.")
     
     print("\n=== QCA Analyse abgeschlossen ===\n")
 
