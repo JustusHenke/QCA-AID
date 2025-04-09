@@ -7,8 +7,18 @@ enhanced with AI capabilities through the OpenAI API.
 
 Version:
 --------
-0.9.9 (2025-04-01)
+0.9.10 (2025-04-08)
 
+New in 0.9.10
+QCA-AID-Explorer.py 
+- can be configured with Excel and no longer needs to be customized manually.
+- Configuration via Excel file "QCA-AID-Explorer-Config.xlsx"
+- Heatmap visualization of codes along document attributes
+- Multiple analysis types configurable (network, heatmap, various summaries)
+- Customizable parameters for each analysis
+QCA-AID.py
+- add prefix to chunk number for unique segment IDs 
+- more concise progessive summaries, less lossy
 
 New in 0.9.9
 - abductive mode: inductive coding just for subcodes without adding main codes 
@@ -829,12 +839,12 @@ class ConfigLoader:
             if 'ANALYSIS_MODE' in config:
                 valid_modes = {'full', 'abductive', 'deductive'}
                 if config['ANALYSIS_MODE'] not in valid_modes:
-                    print(f"Warnung: Ungültiger ANALYSIS_MODE '{config['ANALYSIS_MODE']}' im Codebook. Verwende 'full'.")
-                    config['ANALYSIS_MODE'] = 'full'
+                    print(f"Warnung: Ungültiger ANALYSIS_MODE '{config['ANALYSIS_MODE']}' im Codebook. Verwende 'deductive'.")
+                    config['ANALYSIS_MODE'] = 'deductive'
                 else:
                     print(f"ANALYSIS_MODE aus Codebook geladen: {config['ANALYSIS_MODE']}")
             else:
-                config['ANALYSIS_MODE'] = 'full'  # Standardwert
+                config['ANALYSIS_MODE'] = 'deductive'  # Standardwert
                 print(f"ANALYSIS_MODE nicht im Codebook gefunden, verwende Standard: {config['ANALYSIS_MODE']}")
 
             self.config['CONFIG'] = self._sanitize_config(config)
@@ -1124,6 +1134,31 @@ class MaterialLoader:
         
         return chunks
 
+    def clean_problematic_characters(self, text: str) -> str:
+        """
+        Bereinigt Text von problematischen Zeichen, die später beim Excel-Export
+        zu Fehlern führen könnten.
+        
+        Args:
+            text (str): Zu bereinigender Text
+            
+        Returns:
+            str: Bereinigter Text
+        """
+        if not text:
+            return ""
+            
+        # Entferne problematische Steuerzeichen
+        import re
+        cleaned_text = re.sub(r'[\x00-\x08\x0B\x0C\x0E-\x1F\uFFFE\uFFFF]', '', text)
+        
+        # Ersetze bekannte problematische Sonderzeichen
+        problematic_chars = ['☺', '☻', '♥', '♦', '♣', '♠']
+        for char in problematic_chars:
+            cleaned_text = cleaned_text.replace(char, '')
+        
+        return cleaned_text
+
     def preprocess_text(self, text: str) -> str:
         """
         Bereinigt und normalisiert Textdaten.
@@ -1146,8 +1181,8 @@ class MaterialLoader:
         # Ersetze verschiedene Bindestriche durch einheitliche
         text = text.replace('–', '-').replace('—', '-')
         
-        # Entferne spezielle Steuerzeichen
-        text = ''.join(char for char in text if ord(char) >= 32)
+        # Entferne spezielle Steuerzeichen und problematische Zeichen
+        text = self.clean_problematic_characters(text)
         
         return text
 
@@ -3962,43 +3997,56 @@ class DeductiveCoder:
             print(f"Summary-Reifephase: {reifephase}, max. Änderung: {max_aenderung}")
             
             # Angepasster Prompt basierend auf dem dreistufigen Reifungsmodell
+            # Verbesserter summary_update_prompt für die _code_chunk_with_progressive_context Methode
+
             summary_update_prompt = f"""
             ## AUFGABE 2: SUMMARY-UPDATE ({reifephase}, {int(document_progress*100)}%)
 
             """
 
-            # Änderungen für bessere Einhaltung der Änderungsraten und Redundanzkontrolle
+            # Robustere Phasen-spezifische Anweisungen
             if document_progress < 0.3:
                 summary_update_prompt += """
-            SAMMLUNG (0-30%):
-            - Erfasse Kernthemen, zentrale Akteure und grundlegende Strukturen
-            - Prüfe VOR jeder Ergänzung: Ist die Information wirklich neu?
-            - STRIKT: Max. 50% des bisherigen Summaries ändern, zähle Wörter!
+            SAMMLUNG (0-30%) - STRUKTURIERTER AUFBAU:
+            - SCHLÜSSELINFORMATIONEN: Beginne mit einer LISTE wichtigster Konzepte im Telegrammstil
+            - FORMAT: "Thema1: Kernaussage; Thema2: Kernaussage" 
+            - SPEICHERSTRUKTUR: Speichere alle Informationen in KATEGORIEN (z.B. Akteure, Prozesse, Faktoren)
+            - KEINE EINLEITUNGEN oder narrative Elemente, NUR Fakten und Verbindungen
+            - BEHALTE IMMER: Bereits dokumentierte Schlüsselkonzepte müssen bestehen bleiben
             """
             elif document_progress < 0.7:
                 summary_update_prompt += """
-            KONSOLIDIERUNG (30-70%):
-            - Verdichte das Summary thematisch, erkenne Muster statt Einzelbeispiele
-            - Nur substantielle neue Erkenntnisse integrieren 
-            - STRIKT: Max. 30% des bisherigen Summaries ändern, Ersetzungen bevorzugen
+            KONSOLIDIERUNG (30-70%) - HIERARCHISCHE ORGANISATION:
+            - SCHLÜSSELINFORMATIONEN BEWAHREN: Alle bisherigen Hauptkategorien beibehalten
+            - NEUE STRUKTUR: Als hierarchische Liste mit Kategorien und Unterpunkten organisieren
+            - KOMPRIMIEREN: Details aus gleichen Themenbereichen zusammenführen
+            - PRIORITÄTSFORMAT: "Kategorie: Hauptpunkt1; Hauptpunkt2 → Detail"
+            - STATT LÖSCHEN: Verwandte Inhalte zusammenfassen, aber KEINE Kategorien eliminieren
             """
             else:
                 summary_update_prompt += """
-            PRÄZISIERUNG (70-100%):
-            - HÖCHSTE ABSTRAKTION: Explizit Einzelfälle durch Prinzipien und Muster ersetzen
-            - Fast keine Ergänzungen mehr - stattdessen präzisieren und verdichten des Summaries
-            - STRIKT: Max. 10% Änderungen, nur für essenzielle neue Erkenntnisse
+            PRÄZISIERUNG (70-100%) - VERDICHTUNG MIT THESAURUS:
+            - THESAURUS-METHODE: Jede Kategorie braucht genau 1-2 Sätze im Telegrammstil
+            - HAUPTKONZEPTE STABIL HALTEN: Alle identifizierten Kategorien müssen enthalten bleiben
+            - ABSTRAHIEREN: Einzelinformationen innerhalb einer Kategorie verdichten
+            - STABILITÄTSPRINZIP: Einmal erkannte wichtige Zusammenhänge dürfen nicht verloren gehen
+            - PRIORITÄTSORDNUNG: Wichtigste Informationen IMMER am Anfang jeder Kategorie
             """
 
-            # Verstärkte allgemeine Kriterien
+            # Allgemeine Kriterien für Stabilität und Komprimierung
             summary_update_prompt += """
 
-            ALLGEMEINE KRITERIEN:
-            - Exakt max. 70 Wörter - zähle nach der Erstellung
-            - Die Relevanz von Informationen ergibt sich aus der Forschungsfrage
-            - Redundanzprüfung: Auch synonyme oder ähnliche Aussagen identifizieren
-            - Bei jeder Information fragen: Ist sie unverzichtbar für das Gesamtverständnis?
-            - Lieber unverändert lassen als marginale Änderungen vornehmen
+            INFORMATIONSERHALTUNGS-SYSTEM:
+            - MAXIMUM 80 WÖRTER - Komprimiere alte statt neue Informationen zu verwerfen
+            - KATEGORIEBASIERT: Jedes Summary muss immer in 3-5 klare Themenkategorien strukturiert sein
+            - SCHLÜSSELPRINZIP: Bilde das Summary als INFORMATIONALE HIERARCHIE:
+            1. Stufe: Immer stabile Themenkategorien
+            2. Stufe: Zentrale Aussagen zu jeder Kategorie
+            3. Stufe: Ergänzende Details (diese können komprimiert werden)
+            - STABILITÄTSGARANTIE: Neue Iteration darf niemals vorherige Kategorie-Level-1-Information verlieren
+            - KOMPRIMIERUNGSSTRATEGIE: Bei Platzmangel Details (Stufe 3) zusammenfassen statt zu entfernen
+            - FORMAT: "Kategorie1: Hauptpunkt; Hauptpunkt. Kategorie2: Hauptpunkt; Detail." (mit Doppelpunkten)
+            - GRUNDREGEL: Neue Informationen ergänzen bestehende Kategorien statt sie zu ersetzen
             """
             
             # Prompt mit erweiterter Aufgabe für Summary-Update
@@ -6860,6 +6908,46 @@ class ResultsExporter:
     #     print(f"Merge-Analyse exportiert nach: {analysis_path}")
     #     pass
     
+    def _sanitize_text_for_excel(self, text):
+        """
+        Bereinigt Text für Excel-Export, entfernt ungültige Zeichen.
+        
+        Args:
+            text: Zu bereinigender Text
+            
+        Returns:
+            str: Bereinigter Text ohne problematische Zeichen
+        """
+        if text is None:
+            return ""
+            
+        if not isinstance(text, str):
+            # Konvertiere zu String falls nötig
+            text = str(text)
+        
+        # Liste von problematischen Zeichen, die in Excel Probleme verursachen können
+        # Hier definieren wir Steuerzeichen und einige bekannte Problemzeichen
+        problematic_chars = [
+            # ASCII-Steuerzeichen 0-31 außer Tab (9), LF (10) und CR (13)
+            *[chr(i) for i in range(0, 9)],
+            *[chr(i) for i in range(11, 13)],
+            *[chr(i) for i in range(14, 32)],
+            # Einige bekannte problematische Sonderzeichen
+            '\u0000', '\u0001', '\u0002', '\u0003', '\ufffe', '\uffff',
+            # Emojis und andere Sonderzeichen, die Probleme verursachen könnten
+            '☺', '☻', '♥', '♦', '♣', '♠'
+        ]
+        
+        # Ersetze alle problematischen Zeichen
+        for char in problematic_chars:
+            text = text.replace(char, '')
+        
+        # Alternative Methode mit Regex für Steuerzeichen
+        import re
+        text = re.sub(r'[\x00-\x08\x0B\x0C\x0E-\x1F\uFFFE\uFFFF]', '', text)
+        
+        return text
+
     def _prepare_coding_for_export(self, coding: dict, chunk: str, chunk_id: int, doc_name: str) -> dict:
         """
         Bereitet eine Kodierung für den Export vor.
@@ -6868,6 +6956,18 @@ class ResultsExporter:
         try:
             # Extrahiere Attribute aus dem Dateinamen
             attribut1, attribut2 = self._extract_metadata(doc_name)
+            
+            # Erstelle eindeutigen Präfix für Chunk-Nr
+            chunk_prefix = ""
+            if attribut1 and attribut2:
+                # Nehme die ersten beiden Buchstaben von attribut1 und attribut2
+                chunk_prefix = (attribut1[:2] + attribut2[:2]).upper()
+            else:
+                # Fallback: Nehme die ersten fünf Buchstaben des Dateinamens
+                chunk_prefix = doc_name[:5].upper()
+            
+            # Erstelle eindeutige Chunk-ID mit Präfix
+            unique_chunk_id = f"{chunk_prefix}-{chunk_id}"
             
             # Prüfe ob eine gültige Kategorie vorhanden ist
             category = coding.get('category', '')
@@ -6957,40 +7057,41 @@ class ResultsExporter:
                 competing_cats_text = str(competing_cats)
 
             # Export-Dictionary mit allen erforderlichen Feldern
+            # WICHTIG: Hier wenden wir nun die Bereinigungsfunktion auf alle Textfelder an
             export_data = {
-                'Dokument': doc_name,
-                self.attribute_labels['attribut1']: attribut1,
-                self.attribute_labels['attribut2']: attribut2,
-                'Chunk_Nr': chunk_id,
-                'Text': chunk,
-                'Paraphrase': coding.get('paraphrase', ''),
+                'Dokument': self._sanitize_text_for_excel(doc_name),
+                self.attribute_labels['attribut1']: self._sanitize_text_for_excel(attribut1),
+                self.attribute_labels['attribut2']: self._sanitize_text_for_excel(attribut2),
+                'Chunk_Nr': unique_chunk_id,  # Hier verwenden wir jetzt die eindeutige Chunk-ID
+                'Text': self._sanitize_text_for_excel(chunk),
+                'Paraphrase': self._sanitize_text_for_excel(coding.get('paraphrase', '')),
                 'Kodiert': is_coded,
-                'Hauptkategorie': category,
+                'Hauptkategorie': self._sanitize_text_for_excel(category),
                 'Kategorietyp': kategorie_typ,
-                'Subkategorien': (', '.join(coding.get('subcategories', []))
+                'Subkategorien': self._sanitize_text_for_excel(', '.join(coding.get('subcategories', []))
                 if isinstance(coding.get('subcategories'), (list, tuple)) 
                 else str(coding.get('subcategories', ''))),
-                'Schlüsselwörter': ', '.join(formatted_keywords),
-                'Begründung': justification,
-                'Konfidenz': self._format_confidence(coding.get('confidence', {})),
+                'Schlüsselwörter': self._sanitize_text_for_excel(', '.join(formatted_keywords)),
+                'Begründung': self._sanitize_text_for_excel(justification),
+                'Konfidenz': self._sanitize_text_for_excel(self._format_confidence(coding.get('confidence', {}))),
                 'Mehrfachkodierung': ('Ja' if isinstance(coding.get('subcategories'), (list, tuple)) 
                     and len(coding.get('subcategories', [])) > 1 else 'Nein'),
-                'Textstellen': formatted_references,
-                'Definition_Übereinstimmungen': formatted_def_matches,
-                'Konkurrierende_Kategorien': competing_cats_text
+                'Textstellen': self._sanitize_text_for_excel(formatted_references),
+                'Definition_Übereinstimmungen': self._sanitize_text_for_excel(formatted_def_matches),
+                'Konkurrierende_Kategorien': self._sanitize_text_for_excel(competing_cats_text)
             }
 
             # Füge Konsensinformationen hinzu wenn vorhanden
             if consensus_info:
                 export_data['Übereinstimmungsgrad'] = consensus_info.get('category_agreement', 0) * 100
-                export_data['Konsenstyp'] = selection_type
+                export_data['Konsenstyp'] = self._sanitize_text_for_excel(selection_type)
 
             # Nur Kontext-bezogene Felder hinzufügen, wenn vorhanden
             if 'context_summary' in coding and coding['context_summary']:
-                export_data['Progressive_Context'] = coding.get('context_summary', '')
+                export_data['Progressive_Context'] = self._sanitize_text_for_excel(coding.get('context_summary', ''))
             
             if 'context_influence' in coding and coding['context_influence']:
-                export_data['Context_Influence'] = coding.get('context_influence', '')
+                export_data['Context_Influence'] = self._sanitize_text_for_excel(coding.get('context_influence', ''))
 
             return export_data
                 
@@ -7000,14 +7101,14 @@ class ResultsExporter:
             import traceback
             traceback.print_exc()
             return {
-                'Dokument': doc_name,
-                'Chunk_Nr': chunk_id,
-                'Text': chunk,
+                'Dokument': self._sanitize_text_for_excel(doc_name),
+                'Chunk_Nr': f"{doc_name[:5].upper()}-{chunk_id}",  # Fallback im Fehlerfall
+                'Text': self._sanitize_text_for_excel(chunk),
                 'Paraphrase': '',
                 'Kodiert': 'Nein',
                 'Hauptkategorie': 'Fehler bei Verarbeitung',
                 'Kategorietyp': 'unbekannt',
-                'Begründung': f'Fehler: {str(e)}',
+                'Begründung': self._sanitize_text_for_excel(f'Fehler: {str(e)}'),
                 'Subkategorien': '',
                 'Konfidenz': '',
                 'Mehrfachkodierung': 'Nein',
@@ -7015,7 +7116,7 @@ class ResultsExporter:
                 'Definition_Übereinstimmungen': '',
                 'Konkurrierende_Kategorien': ''
             }
-
+    
     def _format_confidence(self, confidence: dict) -> str:
         """Formatiert die Konfidenz-Werte für den Export"""
         try:
@@ -7664,9 +7765,30 @@ class ResultsExporter:
                 print("Fehler: Keine validen Export-Daten vorhanden")
                 return
 
-            # Erstelle DataFrames
-            df_details = pd.DataFrame(export_data)
-            df_coded = df_details[df_details['Kodiert'] == 'Ja'].copy()
+            # Erstelle DataFrames mit zusätzlicher Bereinigung für Zeilen und Spalten
+            try:
+                # Bereinige Spaltennamen für DataFrame
+                sanitized_export_data = []
+                for entry in export_data:
+                    sanitized_entry = {}
+                    for key, value in entry.items():
+                        # Bereinige auch die Schlüssel (falls nötig)
+                        sanitized_key = self._sanitize_text_for_excel(key)
+                        sanitized_entry[sanitized_key] = value
+                    sanitized_export_data.append(sanitized_entry)
+                    
+                print(f"Export-Daten bereinigt: {len(sanitized_export_data)} Einträge")
+                
+                df_details = pd.DataFrame(sanitized_export_data)
+                df_coded = df_details[df_details['Kodiert'] == 'Ja'].copy()
+                
+                print(f"DataFrames erstellt: {len(df_details)} Gesamt, {len(df_coded)} Kodiert")
+                
+            except Exception as e:
+                print(f"Fehler bei der Erstellung des DataFrame: {str(e)}")
+                print("Details:")
+                traceback.print_exc()
+                return
 
             # Initialisiere Farbzuordnung einmalig für alle Sheets
             self._initialize_category_colors(df_details)
@@ -9150,6 +9272,31 @@ class DocumentReader:
         print(f"Verzeichnis: {os.path.abspath(data_dir)}")
         print(f"Unterstützte Formate: {', '.join(self.supported_formats)}")
 
+    def clean_problematic_characters(self, text: str) -> str:
+        """
+        Bereinigt Text von problematischen Zeichen, die später beim Excel-Export
+        zu Fehlern führen könnten.
+        
+        Args:
+            text (str): Zu bereinigender Text
+            
+        Returns:
+            str: Bereinigter Text
+        """
+        if not text:
+            return ""
+            
+        # Entferne problematische Steuerzeichen
+        import re
+        cleaned_text = re.sub(r'[\x00-\x08\x0B\x0C\x0E-\x1F\uFFFE\uFFFF]', '', text)
+        
+        # Ersetze bekannte problematische Sonderzeichen
+        problematic_chars = ['☺', '☻', '♥', '♦', '♣', '♠']
+        for char in problematic_chars:
+            cleaned_text = cleaned_text.replace(char, '')
+        
+        return cleaned_text
+
     async def read_documents(self) -> Dict[str, str]:
         documents = {}
         try:
@@ -9223,6 +9370,7 @@ class DocumentReader:
     def _read_docx(self, filepath: str) -> str:
         """
         Liest eine DOCX-Datei ein und extrahiert den Text mit ausführlicher Diagnose.
+        Enthält zusätzliche Bereinigung für problematische Zeichen.
         """
         try:
             from docx import Document
@@ -9250,8 +9398,9 @@ class DocumentReader:
             for i, paragraph in enumerate(doc.paragraphs):
                 text = paragraph.text.strip()
                 if text:
-                    # print(f"  Paragraph {i+1}: {len(text)} Zeichen")
-                    paragraphs.append(text)
+                    # Hier bereinigen wir Steuerzeichen und problematische Zeichen
+                    clean_text = self.clean_problematic_characters(text)
+                    paragraphs.append(clean_text)
                 else:
                     print(f"  Paragraph {i+1}: Leer")
 
@@ -9272,9 +9421,12 @@ class DocumentReader:
                 print(f"  Prüfe Tabelle {i+1}:")
                 for row in table.rows:
                     for cell in row.cells:
-                        if cell.text.strip():
-                            table_texts.append(cell.text.strip())
-                            print(f"    Zelleninhalt gefunden: {len(cell.text)} Zeichen")
+                        cell_text = cell.text.strip()
+                        if cell_text:
+                            # Auch hier bereinigen
+                            clean_text = self.clean_problematic_characters(cell_text)
+                            table_texts.append(clean_text)
+                            print(f"    Zelleninhalt gefunden: {len(cell_text)} Zeichen")
             
             if table_texts:
                 full_text = '\n'.join(table_texts)
@@ -9299,22 +9451,108 @@ class DocumentReader:
             raise
 
     def _read_pdf(self, filepath: str) -> str:
-        """Liest eine PDF-Datei ein und extrahiert den Text."""
+        """
+        Liest eine PDF-Datei ein und extrahiert den Text mit verbesserter Fehlerbehandlung.
+        
+        Args:
+            filepath: Pfad zur PDF-Datei
+                
+        Returns:
+            str: Extrahierter und bereinigter Text
+        """
         try:
             import PyPDF2
+            print(f"\nLese PDF: {os.path.basename(filepath)}")
+            
             text_content = []
             with open(filepath, 'rb') as file:
-                pdf_reader = PyPDF2.PdfReader(file)
-                for page in pdf_reader.pages:
-                    if text := page.extract_text():
-                        text_content.append(text)
-            return '\n'.join(text_content)
+                try:
+                    pdf_reader = PyPDF2.PdfReader(file)
+                    total_pages = len(pdf_reader.pages)
+                    print(f"  Gefundene Seiten: {total_pages}")
+                    
+                    for page_num, page in enumerate(pdf_reader.pages, 1):
+                        try:
+                            page_text = page.extract_text()
+                            if page_text:
+                                # Bereinige den Text von problematischen Zeichen
+                                cleaned_text = self.clean_problematic_characters(page_text)
+                                text_content.append(cleaned_text)
+                                print(f"  Seite {page_num}/{total_pages}: {len(cleaned_text)} Zeichen extrahiert")
+                            else:
+                                print(f"  Seite {page_num}/{total_pages}: Kein Text gefunden")
+                                
+                        except Exception as page_error:
+                            print(f"  Fehler bei Seite {page_num}: {str(page_error)}")
+                            # Versuche es mit alternativer Methode
+                            try:
+                                # Fallback: Extrahiere einzelne Textfragmente
+                                print("  Versuche alternative Extraktionsmethode...")
+                                if hasattr(page, 'extract_text'):
+                                    fragments = []
+                                    for obj in page.get_text_extraction_elements():
+                                        if hasattr(obj, 'get_text'):
+                                            fragments.append(obj.get_text())
+                                    if fragments:
+                                        fallback_text = ' '.join(fragments)
+                                        cleaned_text = self.clean_problematic_characters(fallback_text)
+                                        text_content.append(cleaned_text)
+                                        print(f"  Alternative Methode erfolgreich: {len(cleaned_text)} Zeichen")
+                            except:
+                                print("  Alternative Methode fehlgeschlagen")
+                                continue
+                    
+                except PyPDF2.errors.PdfReadError as pdf_error:
+                    print(f"  PDF Lesefehler: {str(pdf_error)}")
+                    print("  Versuche Fallback-Methode...")
+                    
+                    # Fallback-Methode, wenn direkte Lesemethode fehlschlägt
+                    try:
+                        from pdf2image import convert_from_path
+                        from pytesseract import image_to_string
+                        
+                        print("  Verwende OCR-Fallback via pdf2image und pytesseract")
+                        # Konvertiere PDF-Seiten zu Bildern
+                        images = convert_from_path(filepath)
+                        
+                        for i, image in enumerate(images):
+                            try:
+                                # Extrahiere Text über OCR
+                                ocr_text = image_to_string(image, lang='deu')
+                                if ocr_text:
+                                    # Bereinige den Text
+                                    cleaned_text = self.clean_problematic_characters(ocr_text)
+                                    text_content.append(cleaned_text)
+                                    print(f"  OCR Seite {i+1}: {len(cleaned_text)} Zeichen extrahiert")
+                                else:
+                                    print(f"  OCR Seite {i+1}: Kein Text gefunden")
+                            except Exception as ocr_error:
+                                print(f"  OCR-Fehler bei Seite {i+1}: {str(ocr_error)}")
+                                continue
+                    
+                    except ImportError:
+                        print("  OCR-Fallback nicht verfügbar. Bitte installieren Sie pdf2image und pytesseract")
+                    
+            # Zusammenfassen des extrahierten Textes
+            if text_content:
+                full_text = '\n'.join(text_content)
+                print(f"\nErgebnis:")
+                print(f"  ✓ {len(text_content)} Textabschnitte extrahiert")
+                print(f"  ✓ Gesamtlänge: {len(full_text)} Zeichen")
+                return full_text
+            else:
+                print("\n✗ Kein Text aus PDF extrahiert")
+                return ""
+                
         except ImportError:
             print("PyPDF2 nicht installiert. Bitte installieren Sie: pip install PyPDF2")
             raise
         except Exception as e:
             print(f"Fehler beim PDF-Lesen: {str(e)}")
-            raise
+            import traceback
+            traceback.print_exc()
+            return ""  # Leerer String im Fehlerfall, damit der Rest funktioniert
+    
     def _extract_metadata(self, filename: str) -> Tuple[str, str]:
         """
         Extrahiert Metadaten aus dem Dateinamen.
