@@ -66,6 +66,18 @@ Prinzipiell ist die Verarbeitung der Daten per LLM auch auf einem lokalen Rechne
 - **Temperaturstufen**: Steuerung der "Kreativität" bei der induktiven Kategorienentwicklung
 - **Anpassbarer Analysemodus**: Wahl zwischen vollständiger, abduktiver oder rein deduktiver Analyse
 
+
+## Neu in 0.9.10
+QCA-AID-Explorer.py
+- kann mit Excel konfiguriert werden und muss nicht mehr manuell angepasst werden.
+- Konfiguration über Excel-Datei "QCA-AID-Explorer-Config.xlsx"
+- Heatmap-Visualisierung von Codes entlang von Dokumentattributen
+- Mehrere Analysetypen konfigurierbar (Netzwerk, Heatmap, verschiedene Zusammenfassungen)
+- Anpassbare Parameter für jede Analyse
+QCA-AID.py
+- Hinzufügen eines Präfixes zur Chunk-Nummer für eindeutige Segment-IDs
+- prägnantere progessive Zusammenfassungen, weniger verlustbehaftet
+
 ## Neu in 0.9.9
 - Abduktivmodus: induktive Codierung nur für Subcodes ohne Hinzufügen von Hauptcodes
 - kann entweder beim starten des Skripts ausgewählt oder im Codebook konfiguriert
@@ -87,6 +99,7 @@ Prinzipiell ist die Verarbeitung der Daten per LLM auch auf einem lokalen Rechne
 - Verbesserte Relevanzprüfung, Rechtfertigung und Aufforderung zur Kodierung von Segmenten
 - NEU: Erstellen von Zusammenfassungen und Diagrammen aus Ihren kodierten Daten mit 'QCA-AID-Explorer.py'.
 
+## Weitere Hinweise 
 - Sollte die induktive Kodierung zu großzügig sein und zu viele Subcodes erstellen, kann können Sie den CONFIG-Wert `Temperature` herunterregeln (z.B. auf '0.1'), dann wird konservativer kodiert. 
 - Beachten Sie, dass die Forschungsfrage am besten alle Aspekte der Hauptkategorien abdeckt bzw. letztere sich aus der Frage ableiten lassen. Damit ist eine zuverlässigere Kodierung möglich, da die Forschungsfrage zentral ist, um ein Textsegment als relevant vorauszuwählen. Die Forschungsfrage sollte die Aspekte der Hauptkategorien möglichst ausgewogen adressieren und nicht bereits eine Hauptkategorie bevorzugen (es sei denn, das ist beabsichtigt).
 - Während der Bearbeitung werden mehrere API-Calls durchgeführt (Relevanzprüfung, Code-Entwicklung, Sättigungsprüfung), die Verarbeitung von Texten ist also relativ langsam: Ca. 400 Textsegmente à 1.000 Zeichen je Stunde, also ca. 200-250 Seiten je Stunde.  
