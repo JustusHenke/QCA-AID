@@ -1,8 +1,14 @@
 """
 QCA-AID Explorer 
 ========================================================================
-Version: 0.4
+Version: 0.5
 --------
+
+Neu in Version 0.5 (2025-04-10)
+- Neue Schlüsselwort-basierte Sentiment-Analyse: Visualisiert die wichtigsten Begriffe aus Textsegmenten als Bubbles, eingefärbt nach ihrem Sentiment (positiv/negativ oder benutzerdefinierte Kategorien).
+- Flexible Konfiguration: Anpassbare Sentiment-Kategorien, Farbschemata und Prompts über die Excel-Konfigurationsdatei für domänenspezifische Analysen.
+- Umfassende Ergebnisexporte: Detaillierte Excel-Tabellen mit Sentiment-Verteilungen, Kreuztabellen und Schlüsselwort-Rankings sowie PDF/PNG-Visualisierungen.
+
 Neue features in version 0.4 (2025-04-07):
 - Konfiguration über Excel-Datei "QCA-AID-Explorer-Config.xlsx"
 - Heatmap-Visualisierung von Codes entlang von Dokumentattributen
@@ -68,6 +74,11 @@ from sklearn.manifold import MDS
 from scipy.sparse import csgraph
 import seaborn as sns
 import re
+from collections import Counter, defaultdict
+from pathlib import Path
+import random
+import matplotlib.cm as cm
+from matplotlib.colors import LinearSegmentedColormap
 
 class LLMProvider(ABC):
     """Abstrakte Basisklasse für LLM Provider"""
@@ -1239,6 +1250,572 @@ class QCAAnalyzer:
             with open(error_path, 'w', encoding='utf-8') as f:
                 f.write(f"Fehler bei der LLM-Anfrage: {str(e)}\n\nPrompt:\n{prompt}")
             return None
+    async def create_sentiment_analysis(
+        self, 
+        filtered_df: pd.DataFrame, 
+        output_filename: str, 
+        params: Dict[str, Any] = None
+    ):
+        """
+        Führt eine LLM-basierte Sentiment-Analyse der gefilterten Daten durch
+        und erstellt sowohl eine Excel-Tabelle als auch eine Bubble-Chart-Visualisierung.
+        
+        Args:
+            filtered_df: Gefilterte DataFrame
+            output_filename: Ausgabedateiname
+            params: Parameter für die Sentiment-Analyse
+        """
+        print("\nFühre Sentiment-Analyse durch...")
+        
+        # Verwende Parameter aus der Konfiguration oder Default-Werte
+        if params is None:
+            params = {}
+        
+        # Extrahiere Parameter mit Fallback-Werten
+        model = params.get('model', 'gpt-4o-mini')  # Standard direkt angeben
+        temperature = float(params.get('temperature', 0.3))  # Niedriger für konsistentere Ergebnisse
+        
+        # Sentiment-Kategorien aus den Parametern holen
+        # Format sollte sein: "Kategorie1, Kategorie2, Kategorie3" oder ["Kategorie1", "Kategorie2", ...]
+        sentiment_categories_raw = params.get('sentiment_categories', "Positiv, Negativ, Neutral")
+        if isinstance(sentiment_categories_raw, str):
+            sentiment_categories = [cat.strip() for cat in sentiment_categories_raw.split(',')]
+        elif isinstance(sentiment_categories_raw, list):
+            sentiment_categories = sentiment_categories_raw
+        else:
+            print(f"Warnung: Unerwartetes Format für sentiment_categories: {type(sentiment_categories_raw)}")
+            sentiment_categories = ["Positiv", "Negativ", "Neutral"]
+        
+        # Zeige Sentiment-Kategorien
+        print(f"Verwende Sentiment-Kategorien: {', '.join(sentiment_categories)}")
+        
+        # Farben für Visualisierung aus den Parametern oder Defaults
+        color_mapping_raw = params.get('color_mapping', None)
+        
+        # Default-Farbschema
+        default_colors = {
+            "Positiv": "#4CAF50",  # Grün
+            "Negativ": "#F44336",  # Rot
+            "Neutral": "#9E9E9E",  # Grau
+            "Kritisch": "#FF5722",  # Orange
+            "Befürwortend": "#2196F3",  # Blau
+            "Ambivalent": "#9C27B0",  # Lila
+        }
+        
+        # Erstelle Farb-Mapping basierend auf den angegebenen Kategorien
+        color_mapping = {}
+        if color_mapping_raw and isinstance(color_mapping_raw, str):
+            # Versuche, das JSON-String zu parsen
+            try:
+                color_mapping = json.loads(color_mapping_raw)
+            except json.JSONDecodeError:
+                print(f"Warnung: Ungültiges JSON-Format für color_mapping: {color_mapping_raw}")
+                # Erstelle automatisches Mapping
+        elif color_mapping_raw and isinstance(color_mapping_raw, dict):
+            # Verwende angegebenes Mapping
+            color_mapping = color_mapping_raw
+        
+        # Wenn kein gültiges Mapping erstellt wurde, erstelle ein automatisches
+        if not color_mapping:
+            # Erstelle automatisches Mapping basierend auf Default-Farben
+            for i, category in enumerate(sentiment_categories):
+                if category in default_colors:
+                    color_mapping[category] = default_colors[category]
+                else:
+                    # Zufällige Farbe für unbekannte Kategorien
+                    import random
+                    color_mapping[category] = f"#{random.randint(0, 255):02X}{random.randint(0, 255):02X}{random.randint(0, 255):02X}"
+        
+        # Bestimme die Textspalte für die Analyse
+        text_column = params.get('text_column', None)
+        
+        if not text_column or text_column not in filtered_df.columns:
+            # Suche nach passenden Spalten
+            preferred_columns = ['Text', 'Paraphrase', 'Textsegment', 'Segment', 'Kodiertext', 'Begründung']
+            for column_name in preferred_columns:
+                if column_name in filtered_df.columns:
+                    text_column = column_name
+                    break
+            
+            if not text_column:
+                # Fallback: Verwende die erste Spalte, die "text" enthält
+                for col in filtered_df.columns:
+                    if 'text' in col.lower():
+                        text_column = col
+                        break
+        
+        if not text_column:
+            print("Fehler: Keine geeignete Spalte für Textdaten gefunden!")
+            return
+            
+        print(f"Verwende Spalte '{text_column}' für die Sentiment-Analyse")
+        
+        # ANGEPASSTER PROMPT, der jetzt auch Schlüsselwörter anfordert
+        default_prompt = """
+        Du bist ein Experte für qualitative Textanalyse und Sentimentbewertung.
+        
+        Analysiere den folgenden Text und klassifiziere ihn anhand des Sentiments in eine der folgenden Kategorien: {sentiment_categories}
+        
+        Achte bei deiner Analyse besonders auf:
+        1. Explizite Bewertungen und Emotionsausdrücke
+        2. Implizite Wertungen (durch Wortwahl, Vergleiche etc.)
+        3. Den Gesamtkontext des Textes
+        
+        Text:
+        ---
+        {text}
+        ---
+        
+        Antworte mit einem JSON-Objekt im folgenden Format:
+        {{
+            "sentiment": "Kategorie", // Eine der vorgegebenen Kategorien
+            "keywords": ["wort1", "wort2", "wort3"], // maximal drei Schlüsselwörter, die für das Sentiment im Text entscheidend sind
+            "explanation": "Kurze Begründung" // Kurze Erklärung (1-2 Sätze)
+        }}
+        """
+        
+        prompt_template = params.get('prompt_template', default_prompt)
+        
+        # Analyse für jedes Textsegment durchführen
+        results = []
+        total_segments = len(filtered_df)
+        
+        print(f"Analysiere {total_segments} Textsegmente...")
+        
+        # Sammle alle Texte und Metadaten
+        analysis_tasks = []
+        for idx, row in filtered_df.iterrows():
+            if pd.isna(row[text_column]):
+                continue
+                
+            # Extrahiere Text und Metadaten
+            text = row[text_column]
+            
+            # Sammle Metadaten
+            metadata = {}
+            for col in filtered_df.columns:
+                if col != text_column and not pd.isna(row[col]):
+                    metadata[col] = row[col]
+            
+            # Formatiere den Prompt mit den Daten
+            formatted_prompt = prompt_template.format(
+                sentiment_categories=", ".join(sentiment_categories),
+                text=text
+            )
+            
+            # Erstelle Task mit Text und Metadaten
+            analysis_tasks.append({
+                'text': text,
+                'prompt': formatted_prompt,
+                'metadata': metadata
+            })
+        
+        # Führe Analyse asynchron durch
+        sentiment_results = []
+        
+        # Asynchrones Batch-Processing für schnellere Verarbeitung
+        async def process_batch(batch, batch_idx, total_batches):
+            batch_results = []
+            for i, task in enumerate(batch):
+                try:
+                    messages = [
+                        {"role": "system", "content": "Du bist ein hilfreicher Forschungsassistent, der sich mit der Analyse qualitativer Daten auskennt. Antworte im JSON-Format."},
+                        {"role": "user", "content": task['prompt']}
+                    ]
+                    
+                    response = await self.llm_provider.create_completion(
+                        messages=messages,
+                        model=model,
+                        temperature=temperature,
+                        response_format={"type": "json_object"}  # Erzwinge JSON-Antwort
+                    )
+                    
+                    llm_response = LLMResponse(response)
+                    response_text = llm_response.content.strip()
+                    
+                    # Parse die JSON-Antwort
+                    try:
+                        response_json = json.loads(response_text)
+                        sentiment = response_json.get('sentiment', '')
+                        keywords = response_json.get('keywords', [])
+                        explanation = response_json.get('explanation', '')
+                        
+                        # Normalisiere Sentiment
+                        sentiment = sentiment.strip().rstrip('.')
+                        
+                        # Prüfe, ob die Antwort in den erlaubten Kategorien ist
+                        if sentiment not in sentiment_categories:
+                            # Versuche, die ähnlichste Kategorie zu finden
+                            for category in sentiment_categories:
+                                if category.lower() in sentiment.lower():
+                                    print(f"Korrigiere Sentiment '{sentiment}' zu '{category}'")
+                                    sentiment = category
+                                    break
+                            else:
+                                # Wenn immer noch nicht gefunden, verwende "Neutral" oder die erste Kategorie
+                                if "Neutral" in sentiment_categories:
+                                    sentiment = "Neutral"
+                                else:
+                                    sentiment = sentiment_categories[0]
+                                    print(f"Warnung: Sentiment '{sentiment}' wurde auf '{sentiment_categories[0]}' zurückgesetzt")
+                        
+                        # Speichere Ergebnis mit Metadaten
+                        result = {
+                            'text': task['text'],
+                            'sentiment': sentiment,
+                            'keywords': keywords,
+                            'explanation': explanation,
+                            **task['metadata']
+                        }
+                        
+                        batch_results.append(result)
+                        
+                    except json.JSONDecodeError:
+                        print(f"Fehler beim Parsen der JSON-Antwort: {response_text[:100]}...")
+                        # Versuche, eine einfachere Antwort zu extrahieren
+                        sentiment = None
+                        
+                        # Suche nach einer der Sentiment-Kategorien im Text
+                        for category in sentiment_categories:
+                            if category in response_text:
+                                sentiment = category
+                                break
+                        
+                        if not sentiment:
+                            # Fallback: Verwende "Neutral" oder erste Kategorie
+                            sentiment = "Neutral" if "Neutral" in sentiment_categories else sentiment_categories[0]
+                        
+                        # Erstelle ein minimales Ergebnis
+                        result = {
+                            'text': task['text'],
+                            'sentiment': sentiment,
+                            'keywords': ["Error", "Parsing", "Failed"],
+                            'explanation': "Failed to parse JSON response",
+                            **task['metadata']
+                        }
+                        batch_results.append(result)
+                    
+                    # Zeige Fortschritt an
+                    overall_progress = ((batch_idx * len(batch) + i + 1) / total_segments) * 100
+                    if (i + 1) % 5 == 0 or i == len(batch) - 1:
+                        print(f"Fortschritt: {overall_progress:.1f}% - Batch {batch_idx+1}/{total_batches}, Element {i+1}/{len(batch)}")
+                    
+                except Exception as e:
+                    print(f"Fehler bei der Sentiment-Analyse: {str(e)}")
+                    # Füge Eintrag mit Fehlerstatus hinzu
+                    batch_results.append({
+                        'text': task['text'],
+                        'sentiment': "Fehler",
+                        'keywords': ["Error"],
+                        'explanation': str(e),
+                        **task['metadata']
+                    })
+            
+            return batch_results
+        
+        # Batches für asynchrone Verarbeitung erstellen
+        batch_size = 5  # Anpassen nach Bedarf
+        batches = [analysis_tasks[i:i+batch_size] for i in range(0, len(analysis_tasks), batch_size)]
+        
+        # Verarbeite alle Batches
+        for batch_idx, batch in enumerate(batches):
+            batch_results = await process_batch(batch, batch_idx, len(batches))
+            sentiment_results.extend(batch_results)
+        
+        if not sentiment_results:
+            print("Keine Ergebnisse von der Sentiment-Analyse erhalten.")
+            return
+        
+        # Erstelle DataFrame mit den Ergebnissen
+        results_df = pd.DataFrame(sentiment_results)
+        
+        # Zähle die Häufigkeiten der Sentiments
+        sentiment_counts = Counter(results_df['sentiment'])
+        
+        print("\nSentiment-Verteilung:")
+        for sentiment, count in sentiment_counts.most_common():
+            percentage = (count / len(results_df)) * 100
+            print(f"- {sentiment}: {count} ({percentage:.1f}%)")
+        
+        # Sammle alle Schlüsselwörter mit ihren Sentiments
+        keyword_sentiments = {}
+        all_keywords = []
+        
+        for _, row in results_df.iterrows():
+            if 'keywords' in row and isinstance(row['keywords'], list):
+                for keyword in row['keywords']:
+                    if isinstance(keyword, str) and keyword.strip():
+                        clean_keyword = keyword.strip().lower()
+                        all_keywords.append(clean_keyword)
+                        keyword_sentiments[clean_keyword] = row['sentiment']
+        
+        # Zähle die Häufigkeiten der Schlüsselwörter
+        keyword_counts = Counter(all_keywords)
+        
+        print("\nTop 10 Schlüsselwörter:")
+        for keyword, count in keyword_counts.most_common(10):
+            print(f"- {keyword}: {count}")
+        
+        # Erstelle Ergebnisdatei
+        output_path = self.output_dir / f"{output_filename}_results.xlsx"
+        
+        # Speichere Ergebnisse in Excel
+        with pd.ExcelWriter(output_path, engine='openpyxl') as writer:
+            # Speichere die detaillierten Ergebnisse
+            results_df.to_excel(writer, sheet_name='Detailergebnisse', index=False)
+            
+            # Erstelle und speichere eine Zusammenfassung der Sentiments
+            summary_data = []
+            for sentiment, count in sentiment_counts.most_common():
+                percentage = (count / len(results_df)) * 100
+                summary_data.append({
+                    'Sentiment': sentiment,
+                    'Anzahl': count,
+                    'Prozent': percentage
+                })
+            
+            summary_df = pd.DataFrame(summary_data)
+            summary_df.to_excel(writer, sheet_name='Sentiment-Zusammenfassung', index=False)
+            
+            # Erstelle und speichere eine Zusammenfassung der Schlüsselwörter
+            keyword_data = []
+            for keyword, count in keyword_counts.most_common(30):  # Top 30
+                keyword_data.append({
+                    'Schlüsselwort': keyword,
+                    'Sentiment': keyword_sentiments.get(keyword, 'Unbekannt'),
+                    'Anzahl': count,
+                    'Prozent': (count / len(all_keywords)) * 100
+                })
+            
+            keyword_df = pd.DataFrame(keyword_data)
+            keyword_df.to_excel(writer, sheet_name='Schlüsselwort-Zusammenfassung', index=False)
+            
+            # Erstelle Kreuztabellen für interessante Dimensionen
+            for dimension in params.get('crosstab_dimensions', []):
+                if dimension in results_df.columns:
+                    try:
+                        # Erstelle Kreuztabelle
+                        crosstab = pd.crosstab(
+                            results_df[dimension], 
+                            results_df['sentiment'],
+                            normalize='index'  # Prozentuale Verteilung pro Zeile
+                        ) * 100  # In Prozent umwandeln
+                        
+                        # Speichere in Excel
+                        crosstab.to_excel(writer, sheet_name=f'Kreuztabelle_{dimension[:20]}')
+                    except Exception as e:
+                        print(f"Fehler bei Kreuztabelle für {dimension}: {str(e)}")
+        
+        print(f"Ergebnisse gespeichert: {output_path}")
+        
+        # Erstelle Visualisierung (Bubble Chart) mit Schlüsselwörtern als Bubbles
+        self._create_keyword_bubble_chart(
+            keyword_data=keyword_data[:30],  # Verwende die Top 30 Keywords
+            output_filename=output_filename,
+            color_mapping=color_mapping,
+            params=params
+        )
+        
+        return results_df
+
+    def _create_keyword_bubble_chart(
+        self,
+        keyword_data: List[Dict[str, Any]],
+        output_filename: str,
+        color_mapping: Dict[str, str],
+        params: Dict[str, Any] = None
+    ):
+        """
+        Erstellt eine Bubble-Chart-Visualisierung der Schlüsselwörter, gefärbt nach Sentiment.
+        
+        Args:
+            keyword_data: Liste von Dictionaries mit Schlüsselwort-Informationen
+            output_filename: Ausgabedateiname
+            color_mapping: Mapping von Sentiment-Kategorien zu Farben
+            params: Zusätzliche Parameter für die Visualisierung
+        """
+        import matplotlib.pyplot as plt
+        import numpy as np
+        from datetime import datetime
+        import random
+        
+        if params is None:
+            params = {}
+        
+        # Extrahiere Parameter
+        title = params.get('chart_title', 'Sentiment-Analyse: Schlüsselwörter')
+        
+        # Figsize kann ein String oder ein Tuple sein
+        figsize_param = params.get('figsize', (14, 10))
+        
+        # Standard-Figsize
+        default_figsize = (14, 10)
+        figsize = default_figsize
+        
+        # Verarbeite figsize_param
+        if isinstance(figsize_param, (int, float)):
+            # Falls nur ein einzelner Wert, verwende quadratische Dimension
+            figsize = (float(figsize_param), float(figsize_param))
+        elif isinstance(figsize_param, str):
+            # Falls ein String, versuche zu parsen
+            try:
+                if 'x' in figsize_param:
+                    # Format "14x10"
+                    width, height = map(float, figsize_param.split('x'))
+                    figsize = (width, height)
+                else:
+                    # Fallback
+                    print(f"Warnung: Konnte figsize '{figsize_param}' nicht parsen. Verwende Default.")
+                    figsize = default_figsize
+            except Exception as e:
+                print(f"Warnung: Fehler beim Parsen von figsize '{figsize_param}': {str(e)}")
+                figsize = default_figsize
+        else:
+            # Sollte bereits ein Tuple oder ähnliches sein
+            try:
+                # Sicherstellen, dass es wirklich ein Tuple mit zwei Werten ist
+                if len(figsize_param) == 2:
+                    figsize = (float(figsize_param[0]), float(figsize_param[1]))
+                else:
+                    print(f"Warnung: figsize hat falsche Anzahl von Werten: {figsize_param}")
+                    figsize = default_figsize
+            except:
+                print(f"Warnung: figsize ist kein gültiges Tupel: {figsize_param}")
+                figsize = default_figsize
+        
+        # Extrahiere Daten aus keyword_data
+        keywords = [item['Schlüsselwort'] for item in keyword_data]
+        sentiments = [item['Sentiment'] for item in keyword_data]
+        counts = [item['Anzahl'] for item in keyword_data]
+        percentages = [item['Prozent'] for item in keyword_data]
+        
+        # Erstelle Farben basierend auf dem Sentiment-Mapping
+        colors = [color_mapping.get(sentiment, "#CCCCCC") for sentiment in sentiments]
+
+        # Prüfe, ob counts nicht leer ist, bevor max() aufgerufen wird
+        if not counts:
+            print(f"Warnung: Keine Schlüsselwort-Zählungen vorhanden.")
+            # Erstelle eine leere Visualisierung mit Hinweis
+            plt.figure(figsize=(10, 6), facecolor='white')
+            plt.text(0.5, 0.5, "Keine Schlüsselwörter gefunden", 
+                    ha='center', va='center', fontsize=14)
+            plt.axis('off')
+            
+            # Speichere die leere Visualisierung
+            output_path = self.output_dir / f"{output_filename}_keyword_bubble_chart.png"
+            plt.savefig(output_path, format='png', bbox_inches='tight', dpi=300)
+            plt.close()
+            print(f"Leeres Keyword-Bubble-Chart erstellt: {output_path}")
+            return
+        
+        # Berechne die Größen der Bubbles
+        max_count = max(counts)
+        base_size = 5000  # Basisgröße für die größte Bubble
+        sizes = [base_size * (count / max_count) for count in counts]
+        
+        # Erstelle die Visualisierung
+        plt.figure(figsize=figsize, facecolor='white')
+        
+        # Berechne optimale Positionierung für Schlüsselwörter (2D-Anordnung)
+        n_keywords = len(keywords)
+        
+        # Verwende ein Grid-Layout
+        n_cols = int(np.sqrt(n_keywords))
+        n_rows = (n_keywords + n_cols - 1) // n_cols  # Aufrunden
+        
+        # Erzeuge die Positionen mit etwas Zufälligkeit für ein natürlicheres Aussehen
+        positions = []
+        for i in range(n_keywords):
+            row = i // n_cols
+            col = i % n_cols
+            # Füge etwas Zufälligkeit hinzu und versetze die Zeilen für besseres Layout
+            x = col + random.uniform(-0.2, 0.2)
+            y = row + random.uniform(-0.2, 0.2)
+            # Normalisiere auf Bereich [0, 1]
+            x_norm = x / max(1, n_cols - 1)
+            y_norm = 1 - (y / max(1, n_rows - 1))  # Invertiere y für natürlicheres Layout
+            positions.append((x_norm, y_norm))
+        
+        # Plotte die Bubbles und gruppiere Schlüsselwörter nach Sentiment
+        sentiment_groups = {}
+        for sentiment, color in color_mapping.items():
+            sentiment_groups[sentiment] = []
+        
+        # Erstelle die Bubbles
+        for i, (keyword, count, size, sentiment, color, position) in enumerate(
+            zip(keywords, counts, sizes, sentiments, colors, positions)
+        ):
+            x, y = position
+            # Verwende angepasste Skalierung der x und y Positionen
+            # Reduziere die Spanne, um Überlappungen mit dem Rand zu vermeiden
+            x_scaled = 0.1 + x * 0.8  # Bereich von 0.1 bis 0.9
+            y_scaled = 0.1 + y * 0.8  # Bereich von 0.1 bis 0.9
+            
+            # Gruppe für die Legende
+            if sentiment in sentiment_groups:
+                sentiment_groups[sentiment].append((x_scaled, y_scaled, size))
+            
+            # Plotte die Bubble
+            plt.scatter(
+                x_scaled, 
+                y_scaled, 
+                s=size, 
+                color=color, 
+                alpha=0.7, 
+                edgecolors='black', 
+                linewidth=1
+            )
+            
+            # Füge Text hinzu
+            plt.annotate(
+                f"{keyword}\n({count})",
+                (x_scaled, y_scaled),
+                ha='center',
+                va='center',
+                fontsize=10,
+                fontweight='bold',
+                color='black'
+            )
+        
+        # Entferne Achsen
+        plt.axis('off')
+        
+        # Füge Titel hinzu
+        plt.title(title, fontsize=16, pad=20)
+        
+        # Erstelle Legende für Sentiments
+        legend_elements = []
+        for sentiment, color in color_mapping.items():
+            if sentiment in sentiments:  # Nur Sentiments, die tatsächlich vorkommen
+                legend_elements.append(
+                    plt.Line2D([0], [0], marker='o', color='w',
+                            markerfacecolor=color, markersize=10,
+                            label=sentiment)
+                )
+        
+        # Platziere Legende
+        if legend_elements:
+            plt.legend(handles=legend_elements, loc='upper right', fontsize=10)
+        
+        # Füge Informationen hinzu
+        total_keywords = len(keywords)
+        total_text = f"Top {total_keywords} Schlüsselwörter"
+        plt.figtext(0.5, 0.05, total_text, ha='center', fontsize=12)
+        
+        # Füge aktuelle Datum hinzu
+        date_text = f"Erstellt: {datetime.now().strftime('%d.%m.%Y')}"
+        plt.figtext(0.95, 0.05, date_text, ha='right', fontsize=10)
+        
+        # Speichere die Visualisierung
+        output_path = self.output_dir / f"{output_filename}_keyword_bubble_chart.png"
+        plt.savefig(output_path, format='png', bbox_inches='tight', dpi=300)
+        
+        # Zusätzlich als PDF für bessere Qualität
+        pdf_output_path = self.output_dir / f"{output_filename}_keyword_bubble_chart.pdf"
+        plt.savefig(pdf_output_path, format='pdf', bbox_inches='tight')
+        
+        plt.close()
+        print(f"Keyword-Bubble-Chart erstellt: {output_path}")
 
 def create_forceatlas_like_layout(G, iterations=100, gravity=0.01, scaling=10.0):
     """Erzeugt ein ForceAtlas2-ähnliches Layout mit NetworkX und scikit-learn
@@ -1622,7 +2199,15 @@ async def main():
                 filters,
                 params  # Übergebe die Parameter an die Methode
             )
-            
+
+        elif analysis_type == 'sentiment_analysis':
+            # Sentiment-Analyse erstellen
+            print("\nFühre Sentiment-Analyse durch...")
+            await analyzer.create_sentiment_analysis(
+                filtered_df,
+                f"Sentiment_{output_prefix}",
+                params
+            )  
         else:
             print(f"Warnung: Unbekannter Analysetyp '{analysis_type}'. Überspringe.")
     

@@ -3,7 +3,12 @@
 ## Überblick
 QCA-AID Explorer ist ein leistungsstarkes Tool zur Analyse qualitativer Kodierungsdaten. Es ermöglicht die Visualisierung von Kodiernetzwerken mit Hauptkategorien, Subkategorien und Schlüsselwörtern sowie die automatisierte Zusammenfassung von kodierten Textsegmenten mithilfe von Large Language Models (LLMs).
 
-**Version:** 0.4 (2025-04-07)
+**Version:** 0.5 (2025-04-10)
+
+**Neu in Version 0.5 (2025-04-10)**
+- Neue Schlüsselwort-basierte Sentiment-Analyse: Visualisiert die wichtigsten Begriffe aus Textsegmenten als Bubbles, eingefärbt nach ihrem Sentiment (positiv/negativ oder benutzerdefinierte Kategorien).
+- Flexible Konfiguration: Anpassbare Sentiment-Kategorien, Farbschemata und Prompts über die Excel-Konfigurationsdatei für domänenspezifische Analysen.
+- Umfassende Ergebnisexporte: Detaillierte Excel-Tabellen mit Sentiment-Verteilungen, Kreuztabellen und Schlüsselwort-Rankings sowie PDF/PNG-Visualisierungen.
 
 **Neuerungen in Version 0.4:**
 - Konfiguration über Excel-Datei "QCA-AID-Explorer-Config.xlsx"
