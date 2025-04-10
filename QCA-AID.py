@@ -19,6 +19,7 @@ QCA-AID-Explorer.py
 QCA-AID.py
 - add prefix to chunk number for unique segment IDs 
 - more concise progessive summaries, less lossy
+- add third document attribute to Codebook (optional)
 
 New in 0.9.9
 - abductive mode: inductive coding just for subcodes without adding main codes 
@@ -289,8 +290,9 @@ CONFIG = {
     'CODE_WITH_CONTEXT': False,
     'ANALYSIS_MODE': 'deductive',
     'ATTRIBUTE_LABELS': {
-        'attribut1': 'Hochschulprofil',
-        'attribut2': 'Akteur'
+        'attribut1': 'Typ',
+        'attribut2': 'Akteur',
+        'attribut3': ''  # Leerer String als Default-Wert
     },
     'CODER_SETTINGS': [
         {
@@ -846,6 +848,17 @@ class ConfigLoader:
             else:
                 config['ANALYSIS_MODE'] = 'deductive'  # Standardwert
                 print(f"ANALYSIS_MODE nicht im Codebook gefunden, verwende Standard: {config['ANALYSIS_MODE']}")
+
+            # Stelle sicher, dass ATTRIBUTE_LABELS vorhanden ist
+            if 'ATTRIBUTE_LABELS' not in config:
+                config['ATTRIBUTE_LABELS'] = {'attribut1': 'Hochschulprofil', 'attribut2': 'Akteur', 'attribut3': ''}
+            elif 'attribut3' not in config['ATTRIBUTE_LABELS']:
+                # Füge attribut3 hinzu wenn noch nicht vorhanden
+                config['ATTRIBUTE_LABELS']['attribut3'] = ''
+            
+            # Debug für attribut3
+            if config['ATTRIBUTE_LABELS']['attribut3']:
+                print(f"Drittes Attribut-Label geladen: {config['ATTRIBUTE_LABELS']['attribut3']}")
 
             self.config['CONFIG'] = self._sanitize_config(config)
             return True  # Explizite Rückgabe von True
@@ -6952,10 +6965,11 @@ class ResultsExporter:
         """
         Bereitet eine Kodierung für den Export vor.
         Erweitert um zusätzliche Felder für detailliertere Analysedokumentation.
+        Das dritte Attribut wird direkt neben dem zweiten Attribut platziert.
         """
         try:
             # Extrahiere Attribute aus dem Dateinamen
-            attribut1, attribut2 = self._extract_metadata(doc_name)
+            attribut1, attribut2, attribut3 = self._extract_metadata(doc_name)
             
             # Erstelle eindeutigen Präfix für Chunk-Nr
             chunk_prefix = ""
@@ -7057,29 +7071,38 @@ class ResultsExporter:
                 competing_cats_text = str(competing_cats)
 
             # Export-Dictionary mit allen erforderlichen Feldern
-            # WICHTIG: Hier wenden wir nun die Bereinigungsfunktion auf alle Textfelder an
+            # Die Reihenfolge hier bestimmt die Spaltenreihenfolge im Excel
             export_data = {
                 'Dokument': self._sanitize_text_for_excel(doc_name),
                 self.attribute_labels['attribut1']: self._sanitize_text_for_excel(attribut1),
                 self.attribute_labels['attribut2']: self._sanitize_text_for_excel(attribut2),
-                'Chunk_Nr': unique_chunk_id,  # Hier verwenden wir jetzt die eindeutige Chunk-ID
+            }
+            
+            # Füge attribut3 hinzu, wenn es in den Labels definiert und nicht leer ist
+            if 'attribut3' in self.attribute_labels and self.attribute_labels['attribut3']:
+                export_data[self.attribute_labels['attribut3']] = self._sanitize_text_for_excel(attribut3)
+            
+            # Rest der Daten in der gewünschten Reihenfolge
+            additional_fields = {
+                'Chunk_Nr': unique_chunk_id,
                 'Text': self._sanitize_text_for_excel(chunk),
                 'Paraphrase': self._sanitize_text_for_excel(coding.get('paraphrase', '')),
                 'Kodiert': is_coded,
                 'Hauptkategorie': self._sanitize_text_for_excel(category),
                 'Kategorietyp': kategorie_typ,
                 'Subkategorien': self._sanitize_text_for_excel(', '.join(coding.get('subcategories', []))
-                if isinstance(coding.get('subcategories'), (list, tuple)) 
-                else str(coding.get('subcategories', ''))),
+                    if isinstance(coding.get('subcategories'), (list, tuple)) 
+                    else str(coding.get('subcategories', ''))),
                 'Schlüsselwörter': self._sanitize_text_for_excel(', '.join(formatted_keywords)),
                 'Begründung': self._sanitize_text_for_excel(justification),
                 'Konfidenz': self._sanitize_text_for_excel(self._format_confidence(coding.get('confidence', {}))),
                 'Mehrfachkodierung': ('Ja' if isinstance(coding.get('subcategories'), (list, tuple)) 
                     and len(coding.get('subcategories', [])) > 1 else 'Nein'),
-                'Textstellen': self._sanitize_text_for_excel(formatted_references),
-                'Definition_Übereinstimmungen': self._sanitize_text_for_excel(formatted_def_matches),
+                #'Textstellen': self._sanitize_text_for_excel(formatted_references),
+                #'Definition_Übereinstimmungen': self._sanitize_text_for_excel(formatted_def_matches),
                 'Konkurrierende_Kategorien': self._sanitize_text_for_excel(competing_cats_text)
             }
+            export_data.update(additional_fields)
 
             # Füge Konsensinformationen hinzu wenn vorhanden
             if consensus_info:
@@ -7112,11 +7135,11 @@ class ResultsExporter:
                 'Subkategorien': '',
                 'Konfidenz': '',
                 'Mehrfachkodierung': 'Nein',
-                'Textstellen': '',
-                'Definition_Übereinstimmungen': '',
+                #'Textstellen': '',
+                #'Definition_Übereinstimmungen': '',
                 'Konkurrierende_Kategorien': ''
             }
-    
+
     def _format_confidence(self, confidence: dict) -> str:
         """Formatiert die Konfidenz-Werte für den Export"""
         try:
@@ -7193,7 +7216,8 @@ class ResultsExporter:
         tokens = Path(filename).stem.split("_")
         attribut1 = tokens[0] if len(tokens) >= 1 else ""
         attribut2 = tokens[1] if len(tokens) >= 2 else ""
-        return attribut1, attribut2
+        attribut3 = tokens[2] if len(tokens) >= 3 else "" 
+        return attribut1, attribut2, attribut3
 
     def _initialize_category_colors(self, df: pd.DataFrame) -> None:
         """
@@ -7490,7 +7514,44 @@ class ResultsExporter:
 
             current_row += 2
 
-            # 3.3 Kreuztabelle der Attribute
+            # 3.3 Attribut 3 (nur wenn definiert)
+            attribut3_label = self.attribute_labels.get('attribut3', '')
+            if attribut3_label and attribut3_label in df_coded.columns:
+                cell = worksheet.cell(row=current_row, column=1, value=f"3.3 Verteilung nach {attribut3_label}")
+                cell.font = title_font
+                current_row += 1
+
+                # Analyse für Attribut 3
+                attr3_counts = df_coded[attribut3_label].value_counts()
+                attr3_counts['Gesamt'] = attr3_counts.sum()
+
+                # Header
+                headers = [attribut3_label, 'Anzahl']
+                for col, header in enumerate(headers, 1):
+                    cell = worksheet.cell(row=current_row, column=col, value=header)
+                    cell.font = header_font
+                    cell.border = thin_border
+                current_row += 1
+
+                # Daten für Attribut 3
+                for idx, value in attr3_counts.items():
+                    # Wert-Zelle
+                    cell = worksheet.cell(row=current_row, column=1, value=idx)
+                    cell.border = thin_border
+                    if idx == 'Gesamt':
+                        cell.font = total_font
+                    
+                    # Anzahl-Zelle
+                    cell = worksheet.cell(row=current_row, column=2, value=value)
+                    cell.border = thin_border
+                    if idx == 'Gesamt':
+                        cell.font = total_font
+                    
+                    current_row += 1
+
+                current_row += 2
+
+            # 3.4 Kreuztabelle der Attribute
             cell = worksheet.cell(row=current_row, column=1, value="3.3 Kreuztabelle der Attribute")
             cell.font = title_font
             current_row += 1
@@ -7529,6 +7590,80 @@ class ResultsExporter:
                 
                 current_row += 1
 
+            # Füge erweitere Kreuztabelle für Attribut 3 hinzu, wenn vorhanden
+            if attribut3_label and attribut3_label in df_coded.columns:
+                # Erstelle zusätzliche Kreuztabelle für Attribut 1 und 3
+                cross_tab_1_3 = pd.crosstab(
+                    df_coded[attribut1_label], 
+                    df_coded[attribut3_label],
+                    margins=True,
+                    margins_name='Gesamt'
+                )
+
+                # Header für Kreuztabelle 1-3
+                headers = [attribut1_label] + list(cross_tab_1_3.columns)
+                for col, header in enumerate(headers, 1):
+                    cell = worksheet.cell(row=current_row, column=col, value=header)
+                    cell.font = header_font
+                    cell.border = thin_border
+                current_row += 1
+
+                # Daten für Kreuztabelle 1-3
+                for idx, row in cross_tab_1_3.iterrows():
+                    # Index-Zelle
+                    cell = worksheet.cell(row=current_row, column=1, value=idx)
+                    cell.border = thin_border
+                    if idx == 'Gesamt':
+                        cell.font = total_font
+                    
+                    # Datenzellen
+                    for col, value in enumerate(row, 2):
+                        cell = worksheet.cell(row=current_row, column=col, value=value)
+                        cell.border = thin_border
+                        # Fettdruck für Randsummen (letzte Zeile oder letzte Spalte)
+                        if idx == 'Gesamt' or col == len(row) + 2:
+                            cell.font = total_font
+                    
+                    current_row += 1
+                    
+                current_row += 2
+                
+                # Erstelle zusätzliche Kreuztabelle für Attribut 2 und 3
+                cross_tab_2_3 = pd.crosstab(
+                    df_coded[attribut2_label], 
+                    df_coded[attribut3_label],
+                    margins=True,
+                    margins_name='Gesamt'
+                )
+
+                # Header für Kreuztabelle 2-3
+                headers = [attribut2_label] + list(cross_tab_2_3.columns)
+                for col, header in enumerate(headers, 1):
+                    cell = worksheet.cell(row=current_row, column=col, value=header)
+                    cell.font = header_font
+                    cell.border = thin_border
+                current_row += 1
+
+                # Daten für Kreuztabelle 2-3
+                for idx, row in cross_tab_2_3.iterrows():
+                    # Index-Zelle
+                    cell = worksheet.cell(row=current_row, column=1, value=idx)
+                    cell.border = thin_border
+                    if idx == 'Gesamt':
+                        cell.font = total_font
+                    
+                    # Datenzellen
+                    for col, value in enumerate(row, 2):
+                        cell = worksheet.cell(row=current_row, column=col, value=value)
+                        cell.border = thin_border
+                        # Fettdruck für Randsummen (letzte Zeile oder letzte Spalte)
+                        if idx == 'Gesamt' or col == len(row) + 2:
+                            cell.font = total_font
+                    
+                    current_row += 1
+                    
+                current_row += 2
+            
             # Passe Spaltenbreiten an
             for col in worksheet.columns:
                 max_length = 0
@@ -7539,6 +7674,7 @@ class ResultsExporter:
                     except:
                         pass
                     worksheet.column_dimensions[col[0].column_letter].width = min(max_length + 2, 20)
+
 
             print("Häufigkeitsanalysen erfolgreich exportiert")
             
@@ -7926,20 +8062,20 @@ class ResultsExporter:
             traceback.print_exc()
 
     def _format_worksheet(self, worksheet, as_table: bool = False) -> None:
-        """Formatiert das Detail-Worksheet"""
+        """
+        Formatiert das Detail-Worksheet mit flexibler Farbkodierung und adaptiven Spaltenbreiten
+        für eine variable Anzahl von Attributen.
+        """
         try:
             # Prüfe ob Daten vorhanden sind
             if worksheet.max_row < 2:
                 print(f"Warnung: Worksheet '{worksheet.title}' enthält keine Daten")
                 return
 
-            # Spaltenbreiten definieren
-            column_widths = {
-                'A': 30, 'B': 15, 'C': 15, 'D': 5, 'E': 40, 
-                'F': 40, 'G': 5, 'H': 20, 'I': 15, 'J': 40, 
-                'K': 40, 'L': 40, 'M': 15, 'N': 15
-            }
-
+            from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+            from openpyxl.utils import get_column_letter
+            from openpyxl.worksheet.table import Table, TableStyleInfo
+            
             # Hole alle Zeilen als DataFrame für Farbzuordnung
             data = []
             headers = []
@@ -7951,14 +8087,69 @@ class ResultsExporter:
             
             df = pd.DataFrame(data, columns=headers)
             
-            # Setze Spaltenbreiten
-            for col, width in column_widths.items():
-                worksheet.column_dimensions[col].width = width
-
-            from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
-            from openpyxl.utils import get_column_letter
-            from openpyxl.worksheet.table import Table, TableStyleInfo
+            # Zähle die Anzahl der Attributspalten (attribut1, attribut2, attribut3, ...)
+            attribut_count = 0
+            for header in headers:
+                if header in self.attribute_labels.values() and header:
+                    attribut_count += 1
             
+            print(f"Erkannte Attributspalten: {attribut_count}")
+            
+            # Definiere Standardbreiten für verschiedene Spaltentypen
+            width_defaults = {
+                'dokument': 30,       # Dokument
+                'attribut': 15,       # Attributspalte
+                'chunk_nr': 10,       # Chunk_Nr
+                'text': 40,           # Text, Paraphrase, etc.
+                'kategorie': 20,      # Hauptkategorie
+                'typ': 15,            # Kategorietyp
+                'boolean': 5,         # Ja/Nein-Spalten
+                'medium': 25,         # Mittellange Textfelder
+                'large': 40,          # Lange Textfelder
+                'default': 15         # Standardbreite
+            }
+            
+            # Bestimme dynamisch, welche Spalte welche Breite erhält,
+            # basierend auf den Spaltenüberschriften
+            col_widths = {}
+            
+            for idx, header in enumerate(headers, 1):
+                col_letter = get_column_letter(idx)
+                
+                # Dokumentspalte
+                if header == 'Dokument':
+                    col_widths[col_letter] = width_defaults['dokument']
+                # Attributspalten
+                elif header in self.attribute_labels.values() and header:
+                    col_widths[col_letter] = width_defaults['attribut']
+                # Chunk-Nummer
+                elif header == 'Chunk_Nr':
+                    col_widths[col_letter] = width_defaults['chunk_nr']
+                # Text und ähnliche lange Felder
+                elif header in ['Text', 'Paraphrase', 'Begründung', 'Textstellen', 
+                            'Definition_Übereinstimmungen', 'Konkurrierende_Kategorien',
+                            'Progressive_Context', 'Context_Influence']:
+                    col_widths[col_letter] = width_defaults['text']
+                # Hauptkategorie
+                elif header == 'Hauptkategorie':
+                    col_widths[col_letter] = width_defaults['kategorie']
+                # Kategorietyp
+                elif header == 'Kategorietyp':
+                    col_widths[col_letter] = width_defaults['typ']
+                # Ja/Nein-Spalten
+                elif header in ['Kodiert', 'Mehrfachkodierung']:
+                    col_widths[col_letter] = width_defaults['boolean']
+                # Mittellange Textfelder
+                elif header in ['Subkategorien', 'Schlüsselwörter', 'Konfidenz', 'Konsenstyp']:
+                    col_widths[col_letter] = width_defaults['medium']
+                # Defaultwert für alle anderen
+                else:
+                    col_widths[col_letter] = width_defaults['default']
+            
+            # Setze die berechneten Spaltenbreiten
+            for col_letter, width in col_widths.items():
+                worksheet.column_dimensions[col_letter].width = width
+
             # Definiere Styles
             thin_border = Border(
                 left=Side(style='thin'),
@@ -7969,11 +8160,30 @@ class ResultsExporter:
             header_font = Font(bold=True)
             header_fill = PatternFill(start_color='EEEEEE', end_color='EEEEEE', fill_type='solid')
             
-            # Eindeutige Hauptkategorien extrahieren
-            main_categories = set(worksheet.cell(row=row, column=8).value 
-                                for row in range(2, worksheet.max_row + 1) 
-                                if worksheet.cell(row=row, column=8).value)
+            # Finde den Index der Hauptkategorie-Spalte dynamisch
+            hauptkategorie_idx = None
+            for idx, header in enumerate(headers, 1):
+                if header == 'Hauptkategorie':
+                    hauptkategorie_idx = idx
+                    break
 
+            # Wenn Hauptkategorie-Spalte nicht gefunden wurde, benutze Fallback-Methode
+            if hauptkategorie_idx is None:
+                print("Warnung: Spalte 'Hauptkategorie' nicht gefunden")
+                # Versuche alternative Methode, falls der Header-Name unterschiedlich ist
+                for idx, val in enumerate(worksheet[1], 1):
+                    if val.value and 'kategorie' in str(val.value).lower():
+                        hauptkategorie_idx = idx
+                        break
+            
+            # Extrahiere eindeutige Hauptkategorien wenn möglich
+            main_categories = set()
+            if hauptkategorie_idx:
+                for row in range(2, worksheet.max_row + 1):
+                    category = worksheet.cell(row=row, column=hauptkategorie_idx).value
+                    if category and category != "Nicht kodiert" and category != "Kein Kodierkonsens":
+                        main_categories.add(category)
+            
             # Header formatieren
             for cell in worksheet[1]:
                 cell.font = header_font
@@ -7987,8 +8197,8 @@ class ResultsExporter:
                     cell.alignment = Alignment(wrap_text=False, vertical='top')
                     cell.border = thin_border
 
-                    # Farbkodierung für Hauptkategorien (8. Spalte)
-                    if cell.column == 8 and cell.value in self.category_colors:
+                    # Farbkodierung für Hauptkategorien mit flexibler Spaltenposition
+                    if hauptkategorie_idx and cell.column == hauptkategorie_idx and cell.value in self.category_colors:
                         cell.fill = PatternFill(
                             start_color=self.category_colors[cell.value], 
                             end_color=self.category_colors[cell.value], 
@@ -8040,7 +8250,8 @@ class ResultsExporter:
                     # Fallback: Nur Formatierung ohne Tabelle
                     print("Tabellenerstellung übersprungen - nur Formatierung angewendet")
 
-            print(f"Worksheet '{worksheet.title}' erfolgreich formatiert")
+            print(f"Worksheet '{worksheet.title}' erfolgreich formatiert" + 
+                (f" mit Farbkodierung für Hauptkategorien (Spalte {hauptkategorie_idx})" if hauptkategorie_idx else ""))
             
         except Exception as e:
             print(f"Fehler bei der Formatierung von {worksheet.title}: {str(e)}")
@@ -9553,27 +9764,30 @@ class DocumentReader:
             traceback.print_exc()
             return ""  # Leerer String im Fehlerfall, damit der Rest funktioniert
     
-    def _extract_metadata(self, filename: str) -> Tuple[str, str]:
+    def _extract_metadata(self, filename: str) -> Tuple[str, str, str]:
         """
         Extrahiert Metadaten aus dem Dateinamen.
-        Erwartet Format: attribut1_attribut2.extension
+        Erwartet Format: attribut1_attribut2_attribut3.extension
         
         Args:
             filename (str): Name der Datei
             
         Returns:
-            Tuple[str, str]: (attribut1, attribut2)
+            Tuple[str, str, str]: (attribut1, attribut2, attribut3)
         """
         try:
             name_without_ext = os.path.splitext(filename)[0]
             parts = name_without_ext.split('_')
-            if len(parts) >= 2:
-                return parts[0], parts[1]
-            else:
-                return name_without_ext, ""
+            
+            # Extrahiere bis zu drei Attribute, wenn verfügbar
+            attribut1 = parts[0] if len(parts) >= 1 else ""
+            attribut2 = parts[1] if len(parts) >= 2 else ""
+            attribut3 = parts[2] if len(parts) >= 3 else ""
+            
+            return attribut1, attribut2, attribut3
         except Exception as e:
             print(f"Fehler beim Extrahieren der Metadaten aus {filename}: {str(e)}")
-            return filename, ""
+            return filename, "", ""
 
 # --- Klasse: TokenCounter ---
 class TokenCounter:
