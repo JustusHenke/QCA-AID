@@ -112,7 +112,7 @@ QCA-AID.py
 Henke, J. (2025). QCA-AID: Qualitative Content Analysis with AI Support (Version 0.9.10) [Software]. 
 Institut für Hochschulforschung Halle-Wittenberg. https://github.com/JustusHenke/QCA-AID
 
-````BibTex
+```BibTex
 @software{Henke_QCA-AID_2025,
   author       = {Henke, Justus},
   title        = {{QCA-AID: Qualitative Content Analysis with AI Support}},
@@ -122,7 +122,7 @@ Institut für Hochschulforschung Halle-Wittenberg. https://github.com/JustusHenk
   version      = {0.9.10},
   url          = {https://github.com/JustusHenke/QCA-AID}
 }
-``
+```
 
 ## Empfehlungen für die Installation
 
