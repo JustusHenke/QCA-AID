@@ -8,6 +8,7 @@ Neu in Version 0.5 (2025-04-10)
 - Neue Schlüsselwort-basierte Sentiment-Analyse: Visualisiert die wichtigsten Begriffe aus Textsegmenten als Bubbles, eingefärbt nach ihrem Sentiment (positiv/negativ oder benutzerdefinierte Kategorien).
 - Flexible Konfiguration: Anpassbare Sentiment-Kategorien, Farbschemata und Prompts über die Excel-Konfigurationsdatei für domänenspezifische Analysen.
 - Umfassende Ergebnisexporte: Detaillierte Excel-Tabellen mit Sentiment-Verteilungen, Kreuztabellen und Schlüsselwort-Rankings sowie PDF/PNG-Visualisierungen.
+- Deaktiviere einzelne Auswertungen temporär über active-Parameter = "false" (Sheet muss dann nicht gelöscht werden) 
 
 Neue features in version 0.4 (2025-04-07):
 - Konfiguration über Excel-Datei "QCA-AID-Explorer-Config.xlsx"
@@ -269,9 +270,19 @@ class ConfigLoader:
                     filter_params = {}
                     other_params = {}
                     
+                    is_active = True  # Standard: Aktiviert
                     for _, row in analysis_df.iterrows():
                         param_name = str(row['Parameter'])
                         param_value = row['Wert']
+
+                        if param_name.lower() == 'active' or param_name.lower() == 'enabled':
+                            if isinstance(param_value, str):
+                                is_active = param_value.lower() in ('true', 'ja', 'yes', '1')
+                            else:
+                                is_active = bool(param_value)
+                                
+                            # Speichere in other_params
+                            other_params[param_name] = is_active
                         
                         # Leere Werte als None behandeln
                         if pd.isna(param_value):
@@ -287,6 +298,7 @@ class ConfigLoader:
                     
                     analysis_config['filters'] = filter_params
                     analysis_config['params'] = other_params
+                    other_params['active'] = is_active
                     self.analysis_configs.append(analysis_config)
             
             print(f"\n{len(self.analysis_configs)} Auswertungskonfigurationen gefunden:")
@@ -2102,6 +2114,18 @@ async def main():
     
     for config_idx, analysis_config in enumerate(analysis_configs, 1):
         analysis_name = analysis_config['name']
+
+        # Prüfe, ob die Analyse aktiviert ist
+        is_active = analysis_config.get('params', {}).get('active', True)
+        if isinstance(is_active, str):
+            is_active = is_active.lower() in ('true', 'ja', 'yes', '1')
+        else:
+            is_active = bool(is_active)
+        
+        if not is_active:
+            print(f"\n--- Überspringe deaktivierte Auswertung: {analysis_name} ---")
+            continue
+        
         print(f"\n--- Auswertung {config_idx}/{len(analysis_configs)}: {analysis_name} ---")
         
         # Extrahiere Filter und Parameter
