@@ -106,6 +106,24 @@ QCA-AID.py
 - Momentan wird nur Konsensentscheidung der Kodierer zugelassen, Mehrheitsvoting (bei n>2 Kodierern) oder Manuelles Review bei unterschiedlichen Kodierungen für ein Segment ist noch nicht implementiert. 
 - Die Konsensbildung erfolgt in einem mehrstufigen Prozess: Zunächst wird die Hauptkategorie mit der höchsten Übereinstimmung unter den Kodierern bestimmt, wobei bei Gleichstand die Kategorie mit der höchsten durchschnittlichen Konfidenz gewählt wird. Anschließend werden Subkategorien identifiziert, die von mindestens 50 % der Kodierer genutzt wurden, und die finale Konsens-Kodierung basiert auf der qualitativ besten Einzelskodierung mit den ermittelten Konsens-Subkategorien.
 
+## Zitiervorschlag
+
+
+Henke, J. (2025). QCA-AID: Qualitative Content Analysis with AI Support (Version 0.9.10) [Software]. 
+Institut für Hochschulforschung Halle-Wittenberg. https://github.com/JustusHenke/QCA-AID
+
+````BibTex
+@software{Henke_QCA-AID_2025,
+  author       = {Henke, Justus},
+  title        = {{QCA-AID: Qualitative Content Analysis with AI Support}},
+  month        = apr,
+  year         = {2025},
+  publisher    = {Institut für Hochschulforschung Halle-Wittenberg},
+  version      = {0.9.10},
+  url          = {https://github.com/JustusHenke/QCA-AID}
+}
+``
+
 ## Empfehlungen für die Installation
 
 Bevor Sie mit der Installation beginnen, prüfen Sie folgende Voraussetzungen/Empfehlungen:
