@@ -2488,10 +2488,6 @@ class IntegratedAnalysisManager:
     async def _process_batch_inductively(self, 
                                     batch: List[Tuple[str, str]], 
                                     current_categories: Dict[str, CategoryDefinition]) -> Dict[str, CategoryDefinition]:
-        """
-        Entwickelt neue Kategorien aus relevanten Textsegmenten.
-        Verbessert mit spezieller Behandlung des abduktiven Modus.
-        """
         try:
             # Prüfe Relevanz für ganzen Batch auf einmal
             relevance_results = await self.relevance_checker.check_relevance_batch(batch)
@@ -2514,7 +2510,9 @@ class IntegratedAnalysisManager:
             print(f"Aktiver Analyse-Modus: {analysis_mode}")
             
             # Induktive Kategorienentwicklung
-            new_categories = await self.inductive_coder.develop_category_system(relevant_segments)
+            new_categories = await self.inductive_coder.develop_category_system(
+                relevant_segments,
+                current_categories)
             
             # Extrahiere den Analysemodus aus der Config
             analysis_mode = CONFIG.get('ANALYSIS_MODE', 'full')
@@ -4507,7 +4505,8 @@ class InductiveCoder:
             for i in range(0, len(segments), batch_size)
         ]
        
-    async def develop_category_system(self, segments: List[str]) -> Dict[str, CategoryDefinition]:
+    async def develop_category_system(self, segments: List[str], initial_categories: Dict[str, CategoryDefinition] = None) -> Dict[str, CategoryDefinition]:
+
         """Entwickelt induktiv neue Kategorien mit inkrementeller Erweiterung."""
         try:
             # Voranalyse und Filterung der Segmente
@@ -4517,7 +4516,9 @@ class InductiveCoder:
             batches = self._create_batches(relevant_segments)
             
             # Initialisiere Dict für das erweiterte Kategoriensystem
-            extended_categories = {}
+            # extended_categories = {}
+            # Initialisiere Dict für das erweiterte Kategoriensystem mit den übergebenen Kategorien
+            extended_categories = initial_categories.copy() if initial_categories else {}
             
             # Hole den konfigurierten Analyse-Modus
             #analysis_mode = self.analysis_mode
@@ -4549,8 +4550,13 @@ class InductiveCoder:
                                 if 'refinements' in updates:
                                     refinements = updates['refinements']
                                     if refinements['confidence'] > 0.7:  # Nur bei hoher Konfidenz
-                                        current_cat = current_cat._replace(
+                                        current_cat = CategoryDefinition(  # Neuer Code
+                                            name=current_cat.name,
                                             definition=refinements['definition'],
+                                            examples=current_cat.examples,
+                                            rules=current_cat.rules,
+                                            subcategories=current_cat.subcategories,
+                                            added_date=current_cat.added_date,
                                             modified_date=datetime.now().strftime("%Y-%m-%d")
                                         )
                                 
@@ -4568,24 +4574,26 @@ class InductiveCoder:
                                                 print(f"   ✓ Neue Subkategorie im abduktiven Modus: {sub['name']} (Konfidenz: {sub['confidence']:.2f})")
                                     
                                     if new_subcats:
-                                        current_cat = current_cat._replace(
+                                        current_cat = CategoryDefinition(
+                                            name=current_cat.name,
+                                            definition=current_cat.definition,
+                                            examples=current_cat.examples,
+                                            rules=current_cat.rules,
                                             subcategories={**current_cat.subcategories, **new_subcats},
+                                            added_date=current_cat.added_date,
                                             modified_date=datetime.now().strftime("%Y-%m-%d")
                                         )
                                         extended_categories[cat_name] = current_cat
                                         # Für abduktiven Modus: Spezifisches Logging
-                                        if analysis_mode == 'abductive':
-                                            print(f"✓ Kategorie '{cat_name}' im abduktiven Modus mit {len(new_subcats)} neuen Subkategorien aktualisiert")
-                                    
-                                extended_categories[cat_name] = current_cat
-                                print(f"✓ Kategorie '{cat_name}' aktualisiert")
-                    
+                                        # if analysis_mode == 'abductive':
+                                            # print(f"✓ Kategorie '{cat_name}' im abduktiven Modus mit {len(new_subcats)} neuen Subkategorien aktualisiert")
+                                        
                     # 2. Füge neue Kategorien hinzu (nur im 'full' Modus)
                     if analysis_mode == 'full' and 'new_categories' in batch_analysis:
                         for new_cat in batch_analysis['new_categories']:
                             if new_cat['confidence'] < 0.7:  # Prüfe Konfidenz
                                 continue
-                                
+
                             cat_name = new_cat['name']
                             if cat_name not in extended_categories:  # Nur wenn wirklich neu
                                 # Erstelle neue CategoryDefinition
@@ -4602,7 +4610,7 @@ class InductiveCoder:
                                     modified_date=datetime.now().strftime("%Y-%m-%d")
                                 )
                                 print(f"✓ Neue Kategorie erstellt: '{cat_name}'")
-                    
+                        
                     # Prüfe Sättigung
                     is_saturated, metrics = self.saturation_checker.check_saturation(
                         current_categories=extended_categories,
@@ -4637,7 +4645,7 @@ class InductiveCoder:
             print("Details:")
             traceback.print_exc()
             return {}
-
+    
     async def analyze_category_batch(self, 
                                 category: Dict[str, CategoryDefinition], 
                                 segments: List[str],
@@ -4658,11 +4666,26 @@ class InductiveCoder:
         """
         try:
             # Cache-Key erstellen
-            cache_key = (
-                frozenset(category.items()) if isinstance(category, dict) else str(category),
-                tuple(segments),
-                analysis_mode  # Modus zum Cache-Key hinzugefügt für korrekte Differenzierung
-            )
+            if isinstance(category, dict):
+                # Wenn es ein Dict von CategoryDefinition-Objekten ist, wandle es in einen String um
+                if all(isinstance(v, CategoryDefinition) for v in category.values()):
+                    cache_key = (
+                        frozenset((k, str(v)) for k, v in category.items()),
+                        tuple(segments),
+                        analysis_mode
+                    )
+                else:
+                    cache_key = (
+                        frozenset(category.items()),
+                        tuple(segments),
+                        analysis_mode
+                    )
+            else:
+                cache_key = (
+                    str(category),
+                    tuple(segments),
+                    analysis_mode
+                )
             
             # Prüfe Cache
             if cache_key in self.analysis_cache:
