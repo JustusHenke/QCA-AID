@@ -2597,8 +2597,9 @@ class IntegratedAnalysisManager:
                                 for sub_name in new_subcats.keys():
                                     print(f"    • {sub_name}")
                         else:
-                            # Im abduktiven Modus werden keine neuen Hauptkategorien hinzugefügt
-                            print(f"ℹ️ '{cat_name}' nicht als Hauptkategorie hinzugefügt (abduktiver Modus)")
+                            print(f"⚠️ Achtung: Kategorie '{cat_name}' nicht im Hauptkategoriensystem gefunden.")
+                            print(f"    Die abduktiv erzeugten Subkategorien werden ignoriert.")
+                            print(f"    Verfügbare Hauptkategorien: {', '.join(current_categories.keys())}")
                 
                 else:  # deduktiver Modus
                     # Im deduktiven Modus: Keine Änderungen am Kategoriensystem
@@ -3033,7 +3034,7 @@ class IntegratedAnalysisManager:
                 for doc_name, summary in self.document_summaries.items():
                     print(f"\n📄 {doc_name}:")
                     print(f"  {summary}")
-                    
+
             # Dokumentiere Abschluss
             self.history.log_analysis_completion(
                 final_categories=current_categories,
@@ -3047,6 +3048,21 @@ class IntegratedAnalysisManager:
             print(f"- API-Calls gespart: {total_segments - final_stats['api_calls']}")
             print(f"- Cache-Nutzung: {final_stats['cache_size']} Einträge")
             
+            # Finalisiere Kategoriensystem mit ausführlicher Ausgabe
+            print("\nFinalisiere Kategoriensystem...")
+            print(f"- Kategorien vor Speicherung: {len(current_categories)}")
+            for cat_name, category in current_categories.items():
+                subcat_count = len(category.subcategories)
+                print(f"  • {cat_name}: {subcat_count} Subkategorien")
+                # Zeige alle Subkategorien für bessere Nachverfolgbarkeit
+                if subcat_count > 0:
+                    print(f"    Subkategorien:")
+                    for subcat_name in category.subcategories.keys():
+                        print(f"      - {subcat_name}")
+                        
+            total_subcats = sum(len(cat.subcategories) for cat in current_categories.values())
+            print(f"- Insgesamt {total_subcats} Subkategorien")
+
             return current_categories, self.coding_results
                 
         except Exception as e:
@@ -4671,7 +4687,7 @@ class InductiveCoder:
                 mode_instructions = """
                 BESONDERE ANWEISUNGEN FÜR DEN ABDUKTIVEN MODUS:
                 - KEINE NEUEN HAUPTKATEGORIEN entwickeln
-                - NUR bestehende Kategorien durch neue Subkategorien erweitern
+                - Du DARFST NUR die folgenden existierenden Hauptkategorien mit Subkategorien erweitern: {', '.join(category.keys())}
                 - Konzentriere dich AUSSCHLIESSLICH auf die Verfeinerung des bestehenden Systems
                 - Prüfe JEDE bestehende Hauptkategorie auf mögliche neue Subkategorien
                 - Subkategorien sollen differenzierend, präzise und klar definiert sein
@@ -10344,12 +10360,23 @@ async def main() -> None:
                 reliability = 0.0
 
             # 10. Speichere induktiv erweitertes Codebook
+            # Hier die Zusammenfassung der finalen Kategorien vor dem Speichern:
+            print("\nFinales Kategoriensystem komplett:")
+            print(f"- Insgesamt {len(final_categories)} Hauptkategorien")
+            print(f"- Davon {len(final_categories) - len(initial_categories)} neu entwickelt")
+            
+            # Zähle Subkategorien für zusammenfassende Statistik
+            total_subcats = sum(len(cat.subcategories) for cat in final_categories.values())
+            print(f"- Insgesamt {total_subcats} Subkategorien")
+            
+            # 10. Speichere induktiv erweitertes Codebook
             if final_categories:
                 category_manager = CategoryManager(CONFIG['OUTPUT_DIR'])
                 category_manager.save_codebook(
                     categories=final_categories,
                     filename="codebook_inductive.json"
                 )
+                print(f"\nCodebook erfolgreich gespeichert mit {len(final_categories)} Hauptkategorien und {total_subcats} Subkategorien")
 
             # 11. Export der Ergebnisse
             print("\n9. Exportiere Ergebnisse...")
