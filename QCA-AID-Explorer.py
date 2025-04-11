@@ -1638,7 +1638,8 @@ class QCAAnalyzer:
         params: Dict[str, Any] = None
     ):
         """
-        Erstellt eine Bubble-Chart-Visualisierung der Schlüsselwörter, gefärbt nach Sentiment.
+        Erstellt eine Bubble-Chart-Visualisierung der Schlüsselwörter mit circlify für ein optimales Layout,
+        gefärbt nach Sentiment.
         
         Args:
             keyword_data: Liste von Dictionaries mit Schlüsselwort-Informationen
@@ -1649,7 +1650,7 @@ class QCAAnalyzer:
         import matplotlib.pyplot as plt
         import numpy as np
         from datetime import datetime
-        import random
+        import circlify  # Neue Abhängigkeit
         
         if params is None:
             params = {}
@@ -1657,56 +1658,31 @@ class QCAAnalyzer:
         # Extrahiere Parameter
         title = params.get('chart_title', 'Sentiment-Analyse: Schlüsselwörter')
         
-        # Figsize kann ein String oder ein Tuple sein
+        # Figsize verarbeiten
         figsize_param = params.get('figsize', (14, 10))
-        
-        # Standard-Figsize
         default_figsize = (14, 10)
-        figsize = default_figsize
         
-        # Verarbeite figsize_param
-        if isinstance(figsize_param, (int, float)):
-            # Falls nur ein einzelner Wert, verwende quadratische Dimension
-            figsize = (float(figsize_param), float(figsize_param))
-        elif isinstance(figsize_param, str):
-            # Falls ein String, versuche zu parsen
-            try:
+        # Versuche, figsize aus verschiedenen Formaten zu extrahieren
+        try:
+            if isinstance(figsize_param, (int, float)):
+                figsize = (float(figsize_param), float(figsize_param))
+            elif isinstance(figsize_param, str):
                 if 'x' in figsize_param:
-                    # Format "14x10"
                     width, height = map(float, figsize_param.split('x'))
                     figsize = (width, height)
                 else:
-                    # Fallback
-                    print(f"Warnung: Konnte figsize '{figsize_param}' nicht parsen. Verwende Default.")
                     figsize = default_figsize
-            except Exception as e:
-                print(f"Warnung: Fehler beim Parsen von figsize '{figsize_param}': {str(e)}")
+            elif isinstance(figsize_param, (list, tuple)) and len(figsize_param) == 2:
+                figsize = (float(figsize_param[0]), float(figsize_param[1]))
+            else:
                 figsize = default_figsize
-        else:
-            # Sollte bereits ein Tuple oder ähnliches sein
-            try:
-                # Sicherstellen, dass es wirklich ein Tuple mit zwei Werten ist
-                if len(figsize_param) == 2:
-                    figsize = (float(figsize_param[0]), float(figsize_param[1]))
-                else:
-                    print(f"Warnung: figsize hat falsche Anzahl von Werten: {figsize_param}")
-                    figsize = default_figsize
-            except:
-                print(f"Warnung: figsize ist kein gültiges Tupel: {figsize_param}")
-                figsize = default_figsize
+        except Exception as e:
+            print(f"Warnung: Fehler beim Parsen von figsize '{figsize_param}': {str(e)}")
+            figsize = default_figsize
         
-        # Extrahiere Daten aus keyword_data
-        keywords = [item['Schlüsselwort'] for item in keyword_data]
-        sentiments = [item['Sentiment'] for item in keyword_data]
-        counts = [item['Anzahl'] for item in keyword_data]
-        percentages = [item['Prozent'] for item in keyword_data]
-        
-        # Erstelle Farben basierend auf dem Sentiment-Mapping
-        colors = [color_mapping.get(sentiment, "#CCCCCC") for sentiment in sentiments]
-
-        # Prüfe, ob counts nicht leer ist, bevor max() aufgerufen wird
-        if not counts:
-            print(f"Warnung: Keine Schlüsselwort-Zählungen vorhanden.")
+        # Prüfe, ob Daten vorhanden sind
+        if not keyword_data:
+            print(f"Warnung: Keine Schlüsselwort-Daten für Bubble-Chart vorhanden.")
             # Erstelle eine leere Visualisierung mit Hinweis
             plt.figure(figsize=(10, 6), facecolor='white')
             plt.text(0.5, 0.5, "Keine Schlüsselwörter gefunden", 
@@ -1720,103 +1696,119 @@ class QCAAnalyzer:
             print(f"Leeres Keyword-Bubble-Chart erstellt: {output_path}")
             return
         
-        # Berechne die Größen der Bubbles
-        max_count = max(counts)
-        base_size = 5000  # Basisgröße für die größte Bubble
-        sizes = [base_size * (count / max_count) for count in counts]
+        # Transformiere die Daten in das für circlify benötigte Format
+        # Jedes Element braucht ein 'datum' für die Größe und eine 'id' zur Identifikation
+        elements = [
+            {
+                'datum': item['Anzahl'],  # Verwende 'Anzahl' als Größenwert
+                'id': i,                  # Index als ID
+                'sentiment': item['Sentiment']  # Speichere auch das Sentiment
+            }
+            for i, item in enumerate(keyword_data)
+        ]
+        
+        # Berechne das Kreis-Layout mit circlify
+        circles = circlify.circlify(
+            elements,
+            show_enclosure=False,  # Kein umfassender äußerer Kreis
+            target_enclosure=circlify.Circle(x=0, y=0, r=1),  # Zielbereich (normalisiert)
+            datum_field='datum',  # Feld für die Größe
+            id_field='id'        # Feld für die ID
+        )
         
         # Erstelle die Visualisierung
-        plt.figure(figsize=figsize, facecolor='white')
+        fig, ax = plt.subplots(figsize=figsize, facecolor='white')
         
-        # Berechne optimale Positionierung für Schlüsselwörter (2D-Anordnung)
-        n_keywords = len(keywords)
+        # Achsen ausschalten
+        plt.axis('off')
         
-        # Verwende ein Grid-Layout
-        n_cols = int(np.sqrt(n_keywords))
-        n_rows = (n_keywords + n_cols - 1) // n_cols  # Aufrunden
-        
-        # Erzeuge die Positionen mit etwas Zufälligkeit für ein natürlicheres Aussehen
-        positions = []
-        for i in range(n_keywords):
-            row = i // n_cols
-            col = i % n_cols
-            # Füge etwas Zufälligkeit hinzu und versetze die Zeilen für besseres Layout
-            x = col + random.uniform(-0.2, 0.2)
-            y = row + random.uniform(-0.2, 0.2)
-            # Normalisiere auf Bereich [0, 1]
-            x_norm = x / max(1, n_cols - 1)
-            y_norm = 1 - (y / max(1, n_rows - 1))  # Invertiere y für natürlicheres Layout
-            positions.append((x_norm, y_norm))
-        
-        # Plotte die Bubbles und gruppiere Schlüsselwörter nach Sentiment
-        sentiment_groups = {}
-        for sentiment, color in color_mapping.items():
-            sentiment_groups[sentiment] = []
-        
-        # Erstelle die Bubbles
-        for i, (keyword, count, size, sentiment, color, position) in enumerate(
-            zip(keywords, counts, sizes, sentiments, colors, positions)
-        ):
-            x, y = position
-            # Verwende angepasste Skalierung der x und y Positionen
-            # Reduziere die Spanne, um Überlappungen mit dem Rand zu vermeiden
-            x_scaled = 0.1 + x * 0.8  # Bereich von 0.1 bis 0.9
-            y_scaled = 0.1 + y * 0.8  # Bereich von 0.1 bis 0.9
-            
-            # Gruppe für die Legende
-            if sentiment in sentiment_groups:
-                sentiment_groups[sentiment].append((x_scaled, y_scaled, size))
-            
-            # Plotte die Bubble
-            plt.scatter(
-                x_scaled, 
-                y_scaled, 
-                s=size, 
-                color=color, 
-                alpha=0.7, 
-                edgecolors='black', 
-                linewidth=1
+        # Berechne die Grenzen für das Diagramm
+        lim = max(
+            max(
+                abs(circle.x) + circle.r,
+                abs(circle.y) + circle.r,
             )
+            for circle in circles
+        )
+        plt.xlim(-lim * 1.05, lim * 1.05)  # Etwas Platz an den Rändern lassen
+        plt.ylim(-lim * 1.05, lim * 1.05)
+        
+        # Zeichne die Kreise
+        legend_handles = {}
+        for circle in circles:
+            # Extrahiere die Kreisparameter
+            x, y, r = circle.x, circle.y, circle.r
             
-            # Füge Text hinzu
-            plt.annotate(
-                f"{keyword}\n({count})",
-                (x_scaled, y_scaled),
-                ha='center',
-                va='center',
-                fontsize=10,
+            # Hole die Originaldaten über die ID
+            original_index = circle.ex['id']
+            original_data = keyword_data[original_index]
+            
+            # Hole relevante Daten
+            keyword = original_data['Schlüsselwort']
+            count = original_data['Anzahl']
+            sentiment = original_data['Sentiment']
+            
+            # Bestimme die Farbe basierend auf dem Sentiment
+            color = color_mapping.get(sentiment, "#CCCCCC")  # Grau als Fallback
+            
+            # Zeichne den Kreis
+            circle_patch = plt.Circle(
+                (x, y), r,
+                facecolor=color,
+                edgecolor='white',
+                linewidth=1,
+                alpha=0.8  # Leicht transparent für bessere Lesbarkeit
+            )
+            ax.add_patch(circle_patch)
+            
+            # Dynamische Schriftgröße basierend auf Kreisradius
+            font_size_keyword = max(8, r * 30)  # Mindestens 8pt, skaliert mit Radius
+            font_size_count = max(6, r * 25)   # Etwas kleiner für die Zahl
+            
+            # Leichten Versatz für bessere Platzierung
+            offset_y = r * 0.2
+            
+            # Zeichne den Schlüsselwort-Text
+            ax.text(
+                x, y + offset_y, keyword,
+                ha='center', va='center',
+                fontsize=font_size_keyword,
                 fontweight='bold',
                 color='black'
             )
-        
-        # Entferne Achsen
-        plt.axis('off')
+            
+            # Zeichne die Anzahl
+            ax.text(
+                x, y - offset_y, f"({count})",
+                ha='center', va='center',
+                fontsize=font_size_count,
+                color='black'
+            )
+            
+            # Füge zur Legende hinzu, falls nicht bereits vorhanden
+            if sentiment not in legend_handles:
+                legend_handles[sentiment] = circle_patch
         
         # Füge Titel hinzu
         plt.title(title, fontsize=16, pad=20)
         
-        # Erstelle Legende für Sentiments
-        legend_elements = []
-        for sentiment, color in color_mapping.items():
-            if sentiment in sentiments:  # Nur Sentiments, die tatsächlich vorkommen
-                legend_elements.append(
-                    plt.Line2D([0], [0], marker='o', color='w',
-                            markerfacecolor=color, markersize=10,
-                            label=sentiment)
-                )
+        # Füge Legende hinzu
+        if legend_handles:
+            plt.legend(
+                handles=list(legend_handles.values()),
+                labels=list(legend_handles.keys()),
+                loc='upper right',
+                fontsize=10
+            )
         
-        # Platziere Legende
-        if legend_elements:
-            plt.legend(handles=legend_elements, loc='upper right', fontsize=10)
-        
-        # Füge Informationen hinzu
-        total_keywords = len(keywords)
+        # Füge Gesamtinformationen hinzu
+        total_keywords = len(keyword_data)
         total_text = f"Top {total_keywords} Schlüsselwörter"
-        plt.figtext(0.5, 0.05, total_text, ha='center', fontsize=12)
+        plt.figtext(0.5, 0.02, total_text, ha='center', fontsize=12)
         
-        # Füge aktuelle Datum hinzu
+        # Füge Datum hinzu
         date_text = f"Erstellt: {datetime.now().strftime('%d.%m.%Y')}"
-        plt.figtext(0.95, 0.05, date_text, ha='right', fontsize=10)
+        plt.figtext(0.95, 0.02, date_text, ha='right', fontsize=10)
         
         # Speichere die Visualisierung
         output_path = self.output_dir / f"{output_filename}_keyword_bubble_chart.png"
@@ -1827,7 +1819,8 @@ class QCAAnalyzer:
         plt.savefig(pdf_output_path, format='pdf', bbox_inches='tight')
         
         plt.close()
-        print(f"Keyword-Bubble-Chart erstellt: {output_path}")
+        print(f"Keyword-Bubble-Chart mit circlify erstellt: {output_path}")
+    
 
 def create_forceatlas_like_layout(G, iterations=100, gravity=0.01, scaling=10.0):
     """Erzeugt ein ForceAtlas2-ähnliches Layout mit NetworkX und scikit-learn
