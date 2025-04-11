@@ -16,10 +16,12 @@ QCA-AID-Explorer.py
 - Heatmap visualization of codes along document attributes
 - Multiple analysis types configurable (network, heatmap, various summaries)
 - Customizable parameters for each analysis
+
 QCA-AID.py
 - add prefix to chunk number for unique segment IDs 
 - more concise progessive summaries, less lossy
 - add third document attribute to Codebook (optional)
+- fix for abductive mode not correctly creating new subcodes
 
 New in 0.9.9
 - abductive mode: inductive coding just for subcodes without adding main codes 
@@ -2488,6 +2490,7 @@ class IntegratedAnalysisManager:
                                     current_categories: Dict[str, CategoryDefinition]) -> Dict[str, CategoryDefinition]:
         """
         Entwickelt neue Kategorien aus relevanten Textsegmenten.
+        Verbessert mit spezieller Behandlung des abduktiven Modus.
         """
         try:
             # Prüfe Relevanz für ganzen Batch auf einmal
@@ -2500,36 +2503,119 @@ class IntegratedAnalysisManager:
             ]
 
             if not relevant_segments:
-                print("   ℹ️ Keine relevanten Segmente für induktive Kategorienentwicklung")
+                print("   ℹ️ Keine relevanten Segmente für Kategorienentwicklung")
                 return {}
 
             print(f"\nEntwickle Kategorien aus {len(relevant_segments)} relevanten Segmenten")
             
+            # Hole den aktuellen Analyse-Modus
+            analysis_mode = CONFIG.get('ANALYSIS_MODE', 'full')
+            # analysis_mode = self.analysis_mode
+            print(f"Aktiver Analyse-Modus: {analysis_mode}")
             
             # Induktive Kategorienentwicklung
             new_categories = await self.inductive_coder.develop_category_system(relevant_segments)
             
+            # Extrahiere den Analysemodus aus der Config
+            analysis_mode = CONFIG.get('ANALYSIS_MODE', 'full')
+            
+            # Erstelle Dictionary für das erweiterte Kategoriensystem
+            extended_categories = current_categories.copy()
+            
             if new_categories:
-                print("\nNeue/aktualisierte Kategorien gefunden:")
+                # Verarbeite je nach Analysemodus
+                if analysis_mode == 'full':
+                    # Im vollen Modus: Neue Kategorien hinzufügen und bestehende aktualisieren
+                    for cat_name, category in new_categories.items():
+                        if cat_name in current_categories:
+                            # Bestehende Kategorie aktualisieren
+                            current_cat = current_categories[cat_name]
+                            
+                            # Neue Subkategorien hinzufügen
+                            merged_subcats = {**current_cat.subcategories, **category.subcategories}
+                            
+                            # Definition aktualisieren wenn die neue aussagekräftiger ist
+                            new_definition = category.definition
+                            if len(new_definition) > len(current_cat.definition):
+                                print(f"✓ Definition für '{cat_name}' aktualisiert")
+                            else:
+                                new_definition = current_cat.definition
+                            
+                            # Kombiniere Beispiele
+                            merged_examples = list(set(current_cat.examples + category.examples))
+                            
+                            # Erstelle aktualisierte Kategorie
+                            extended_categories[cat_name] = CategoryDefinition(
+                                name=cat_name,
+                                definition=new_definition,
+                                examples=merged_examples,
+                                rules=current_cat.rules,
+                                subcategories=merged_subcats,
+                                added_date=current_cat.added_date,
+                                modified_date=datetime.now().strftime("%Y-%m-%d")
+                            )
+                            
+                            print(f"✓ Kategorie '{cat_name}' aktualisiert")
+                            if len(merged_subcats) > len(current_cat.subcategories):
+                                print(f"  - {len(merged_subcats) - len(current_cat.subcategories)} neue Subkategorien")
+                        else:
+                            # Neue Kategorie hinzufügen
+                            extended_categories[cat_name] = category
+                            print(f"🆕 Neue Hauptkategorie hinzugefügt: {cat_name}")
+                            print(f"  - Definition: {category.definition[:100]}...")
+                            print(f"  - Subkategorien: {len(category.subcategories)}")
                 
-                for cat_name, category in new_categories.items():
-                    print(f"\n🆕 Neue Hauptkategorie: {cat_name}")
-                    print(f"   Definition: {category.definition[:100]}...")
-                    # if category.subcategories:
-                    #     print(f"   Subkategorien:")
-                    #     for sub_name in category.subcategories:
-                    #         print(f"   - {sub_name}")
+                elif analysis_mode == 'abductive':
+                    # Im abduktiven Modus: KEINE neuen Hauptkategorien, NUR Subkategorien zu bestehenden hinzufügen
+                    print("\nVerarbeite im abduktiven Modus - nur Subkategorien werden erweitert")
+                    
+                    for cat_name, category in new_categories.items():
+                        if cat_name in current_categories:
+                            # Bestehende Kategorie aktualisieren - NUR Subkategorien
+                            current_cat = current_categories[cat_name]
+                            
+                            # Neue Subkategorien zählen
+                            new_subcats = {}
+                            for sub_name, sub_def in category.subcategories.items():
+                                if sub_name not in current_cat.subcategories:
+                                    new_subcats[sub_name] = sub_def
+                            
+                            if new_subcats:
+                                # Erstelle aktualisierte Kategorie mit neuen Subkategorien
+                                extended_categories[cat_name] = CategoryDefinition(
+                                    name=cat_name,
+                                    definition=current_cat.definition,  # Behalte ursprüngliche Definition
+                                    examples=current_cat.examples,      # Behalte ursprüngliche Beispiele
+                                    rules=current_cat.rules,            # Behalte ursprüngliche Regeln
+                                    subcategories={**current_cat.subcategories, **new_subcats},
+                                    added_date=current_cat.added_date,
+                                    modified_date=datetime.now().strftime("%Y-%m-%d")
+                                )
+                                
+                                print(f"✓ Kategorie '{cat_name}' abduktiv erweitert")
+                                print(f"  - {len(new_subcats)} neue Subkategorien:")
+                                for sub_name in new_subcats.keys():
+                                    print(f"    • {sub_name}")
+                        else:
+                            # Im abduktiven Modus werden keine neuen Hauptkategorien hinzugefügt
+                            print(f"ℹ️ '{cat_name}' nicht als Hauptkategorie hinzugefügt (abduktiver Modus)")
+                
+                else:  # deduktiver Modus
+                    # Im deduktiven Modus: Keine Änderungen am Kategoriensystem
+                    print("\nDeduktiver Modus - keine Kategorienentwicklung")
+                    return {}
+                
+                return extended_categories
             else:
                 print("   ℹ️ Keine neuen Kategorien in diesem Batch identifiziert")
-            
-            return new_categories
+                return {}
             
         except Exception as e:
-            print(f"Fehler bei induktiver Kategorienentwicklung: {str(e)}")
+            print(f"Fehler bei Kategorienentwicklung: {str(e)}")
             print("Details:")
             traceback.print_exc()
             return {}
-        
+
     async def _code_batch_deductively(self,
                                     batch: List[Tuple[str, str]],
                                     categories: Dict[str, CategoryDefinition]) -> List[Dict]:
@@ -2803,6 +2889,9 @@ class IntegratedAnalysisManager:
             total_segments = len(all_segments)
             print(f"Verarbeite {total_segments} Segmente mit Batch-Größe {batch_size}...")
             self.history.log_analysis_start(total_segments, len(initial_categories))
+
+            analysis_mode = CONFIG.get('ANALYSIS_MODE', 'full')
+            print(f"\nAnalyse-Modus: {analysis_mode}")
             
             while True:
                 batch = await self._get_next_batch(all_segments, batch_size)
@@ -4415,7 +4504,8 @@ class InductiveCoder:
             extended_categories = {}
             
             # Hole den konfigurierten Analyse-Modus
-            analysis_mode = self.analysis_mode
+            #analysis_mode = self.analysis_mode
+            analysis_mode = CONFIG.get('ANALYSIS_MODE', 'full')
             print(f"\nAnalyse-Modus: {analysis_mode}")
             
             for batch_idx, batch in enumerate(batches):
@@ -4448,17 +4538,28 @@ class InductiveCoder:
                                             modified_date=datetime.now().strftime("%Y-%m-%d")
                                         )
                                 
-                                # Füge neue Subkategorien hinzu
+                                # Verbesserte Verarbeitung von Subkategorien, besonders wichtig für den abduktiven Modus
                                 if 'new_subcategories' in updates:
-                                    new_subcats = {
-                                        sub['name']: sub['definition']
-                                        for sub in updates['new_subcategories']
-                                        if sub['confidence'] > 0.7  # Nur bei hoher Konfidenz
-                                    }
-                                    current_cat = current_cat._replace(
-                                        subcategories={**current_cat.subcategories, **new_subcats},
-                                        modified_date=datetime.now().strftime("%Y-%m-%d")
-                                    )
+                                    new_subcats = {}
+                                    for sub in updates['new_subcategories']:
+                                        # Erhöhte Schwelle für den abduktiven Modus, da dieser sich auf Subkategorien konzentriert
+                                        confidence_threshold = 0.7 if analysis_mode != 'abductive' else 0.6
+                                        
+                                        if sub['confidence'] > confidence_threshold:
+                                            new_subcats[sub['name']] = sub['definition']
+                                            # Für abduktiven Modus: Ausführlichere Logging
+                                            if analysis_mode == 'abductive':
+                                                print(f"   ✓ Neue Subkategorie im abduktiven Modus: {sub['name']} (Konfidenz: {sub['confidence']:.2f})")
+                                    
+                                    if new_subcats:
+                                        current_cat = current_cat._replace(
+                                            subcategories={**current_cat.subcategories, **new_subcats},
+                                            modified_date=datetime.now().strftime("%Y-%m-%d")
+                                        )
+                                        extended_categories[cat_name] = current_cat
+                                        # Für abduktiven Modus: Spezifisches Logging
+                                        if analysis_mode == 'abductive':
+                                            print(f"✓ Kategorie '{cat_name}' im abduktiven Modus mit {len(new_subcats)} neuen Subkategorien aktualisiert")
                                     
                                 extended_categories[cat_name] = current_cat
                                 print(f"✓ Kategorie '{cat_name}' aktualisiert")
@@ -4528,6 +4629,7 @@ class InductiveCoder:
                                 analysis_mode: str = 'full') -> Dict[str, Any]:  
         """
         Verbesserte Batch-Analyse mit Berücksichtigung des aktuellen Kategoriensystems und Analyse-Modus.
+        Spezielle Unterstützung für den abduktiven Modus hinzugefügt.
         
         Args:
             category: Aktuelles Kategoriensystem
@@ -4543,7 +4645,7 @@ class InductiveCoder:
             cache_key = (
                 frozenset(category.items()) if isinstance(category, dict) else str(category),
                 tuple(segments),
-                self.analysis_mode  # Füge den Modus zum Cache-Key hinzu
+                analysis_mode  # Modus zum Cache-Key hinzugefügt für korrekte Differenzierung
             )
             
             # Prüfe Cache
@@ -4563,13 +4665,33 @@ class InductiveCoder:
                         for sub_name, sub_def in cat.subcategories.items():
                             current_categories_text += f"  • {sub_name}: {sub_def}\n"
 
-            # Definiere JSON-Schema abhängig vom Analyse-Modus
-            if analysis_mode == 'deductive':
+            # Definiere modusbasierte Anweisungen
+            mode_instructions = ""
+            if analysis_mode == 'abductive':
+                mode_instructions = """
+                BESONDERE ANWEISUNGEN FÜR DEN ABDUKTIVEN MODUS:
+                - KEINE NEUEN HAUPTKATEGORIEN entwickeln
+                - NUR bestehende Kategorien durch neue Subkategorien erweitern
+                - Konzentriere dich AUSSCHLIESSLICH auf die Verfeinerung des bestehenden Systems
+                - Prüfe JEDE bestehende Hauptkategorie auf mögliche neue Subkategorien
+                - Subkategorien sollen differenzierend, präzise und klar definiert sein
+                - Bei JEDER Hauptkategorie mindestens eine mögliche neue Subkategorie in Betracht ziehen
+                - Setze niedrigere Konfidenzschwelle für Subkategorien als für Hauptkategorien
+                """
+            elif analysis_mode == 'full':
+                mode_instructions = """
+                ANWEISUNGEN FÜR DEN VOLLEN INDUKTIVEN MODUS:
+                - Sowohl neue Hauptkategorien als auch neue Subkategorien entwickeln
+                - Bestehende Kategorien verfeinern und erweitern
+                - Vollständig neue Kategorien nur bei wirklich neuen Phänomenen hinzufügen
+                """
+            elif analysis_mode == 'deductive':
                 # Bei rein deduktiver Analyse kein neues Schema benötigt, da keine Kategorien entwickelt werden
                 return {"existing_categories": {}, "new_categories": []}
-                
-            elif analysis_mode == 'abductive':
-                # Modifiziere Schema um neue Hauptkategorien zu vermeiden
+
+            # Definiere JSON-Schema abhängig vom Analyse-Modus
+            if analysis_mode == 'abductive':
+                # Modifiziertes Schema für abduktiven Modus - keine neuen Hauptkategorien
                 json_schema = '''{
                     "existing_categories": {
                         "kategorie_name": {
@@ -4639,15 +4761,6 @@ class InductiveCoder:
                 }'''
 
             # Anpassung des Prompt-Texts abhängig vom Analyse-Modus
-            mode_instructions = ""
-            if analysis_mode == 'abductive':
-                mode_instructions = """
-                BESONDERE ANWEISUNGEN FÜR DEN ABDUKTIVEN MODUS:
-                - KEINE NEUEN HAUPTKATEGORIEN entwickeln
-                - NUR bestehende Kategorien durch neue Subkategorien erweitern
-                - Konzentriere dich ausschließlich auf die Verfeinerung des bestehenden Systems
-                """
-            
             prompt = f"""
             Führe eine vollständige Kategorienanalyse basierend auf den Textsegmenten durch.
             Berücksichtige dabei das bestehende Kategoriensystem und erweitere es.
@@ -4662,17 +4775,41 @@ class InductiveCoder:
             
             {mode_instructions}
             
+            """
+            
+            # Ergänze den Prompt je nach Analyse-Modus
+            if analysis_mode == 'abductive':
+                prompt += """
+            Analysiere systematisch mit FOKUS AUF SUBKATEGORIEN:
+            1. BESTEHENDE HAUPTKATEGORIEN
+            - Prüfe jede einzelne Hauptkategorie auf mögliche neue Subkategorien
+            - Schlage konkrete, differenzierende neue Subkategorien vor
+            - Belege jeden Vorschlag mit konkreten Textstellen
+            - WICHTIG: Wende eine niedrigere Konfidenzschwelle für Subkategorien an (ab 0.6 verwertbar)
+            - Gib für jeden Vorschlag eine präzise Definition
+            
+            2. VERMEIDUNG NEUER HAUPTKATEGORIEN
+            - Statt neue Hauptkategorien vorzuschlagen, ordne Phänomene als Subkategorien ein
+            - Sofern ein Phänomen nicht als Subkategorie passt, explizit erläutern warum
+            
+            3. BEGRÜNDUNG UND EVIDENZ
+            - Belege alle Vorschläge mit konkreten Textstellen
+            - Dokumentiere Entscheidungsgründe transparent
+            - Gib Konfidenzwerte zwischen 0 und 1 für jeden Vorschlag an
+
+            4. SÄTTIGUNGSANALYSE
+            - Bewerte, ob neue inhaltliche Aspekte gefunden wurden
+            - Prüfe, ob bestehende Haupt- und Subkategorien ausreichen
+            - Beurteile, ob weitere Subkategorienentwicklung nötig ist
+                """
+            else:  # full mode
+                prompt += """
             Analysiere systematisch:
             1. BESTEHENDE KATEGORIEN
             - Prüfe ob neue Aspekte zu bestehenden Kategorien passen
             - Schlage Erweiterungen/Verfeinerungen vor
             - Identifiziere neue Subkategorien für bestehende Hauptkategorien
-            
-            """
-            
-            # Ergänze den Prompt je nach Analyse-Modus
-            if analysis_mode == 'full':
-                prompt += """
+
             2. NEUE KATEGORIEN
             - Identifiziere gänzlich neue Aspekte
             - die für die Beantwortung der Forschungsfrage UNBEDINGT NOTWENDIG sind
@@ -4681,9 +4818,7 @@ class InductiveCoder:
             - Prüfe bei jedem Vorschlag kritisch: Trägt diese neue Kategorie wesentlich zur Beantwortung der Forschungsfrage bei oder handelt es sich um einen Aspekt, 
             der als Subkategorie bestehender Hauptkategorien besser aufgehoben wäre?
             - Stelle Trennschärfe zu bestehenden Kategorien sicher
-                """
-                
-            prompt += """
+
             3. BEGRÜNDUNG UND EVIDENZ
             - Belege alle Vorschläge mit Textstellen
             - Dokumentiere Entscheidungsgründe
@@ -4693,7 +4828,9 @@ class InductiveCoder:
             - Bewerte ob neue inhaltliche Aspekte gefunden wurden
             - Prüfe ob bestehende Haupt- und Sub-Kategorien ausreichen
             - Beurteile ob weitere Kategorienentwicklung nötig ist
+                """
 
+            prompt += f"""
             Antworte NUR mit einem JSON-Objekt:
             {json_schema}
             """
@@ -4720,10 +4857,55 @@ class InductiveCoder:
             # Cache das Ergebnis
             self.analysis_cache[cache_key] = result
             
-            # Debug-Ausgaben
-            print("\nAnalyseergebnisse:")
+            # Debug-Ausgaben basierend auf Analyse-Modus
+            print(f"\n{analysis_mode.upper()} Mode Analyseergebnisse:")
 
-            # Sättigungsmetriken extrahieren und speichern
+            # Gemeinsame Debug-Ausgaben für alle Modi
+            if 'existing_categories' in result:
+                updates_count = len(result['existing_categories'])
+                print(f"\n{updates_count} bestehende Kategorien analysiert")
+                
+                if updates_count > 0:
+                    for cat_name, updates in result['existing_categories'].items():
+                        print(f"\nAktualisierung für '{cat_name}':")
+                        
+                        if 'refinements' in updates:
+                            confidence = updates['refinements'].get('confidence', 0)
+                            print(f"- Definition erweitert (Konfidenz: {confidence:.2f})")
+                        
+                        if 'new_subcategories' in updates:
+                            subcats = updates['new_subcategories']
+                            print(f"- {len(subcats)} neue Subkategorien gefunden:")
+                            
+                            # Ausführlichere Ausgabe für den abduktiven Modus
+                            if analysis_mode == 'abductive':
+                                for sub in subcats:
+                                    print(f"  • {sub['name']} (Konfidenz: {sub['confidence']:.2f})")
+                                    print(f"    Definition: {sub['definition'][:100]}...")
+                                    
+                                    # Niedrigere Schwelle für abduktiven Modus hervorheben
+                                    if 0.6 <= sub['confidence'] < 0.7:
+                                        print(f"    ⚠️ Konfidenz unter Standardschwelle, aber akzeptabel im abduktiven Modus")
+                            else:
+                                for sub in subcats:
+                                    print(f"  • {sub['name']} (Konfidenz: {sub['confidence']:.2f})")
+            
+            # Nur im vollen Modus: Ausgabe neuer Hauptkategorien
+            if analysis_mode == 'full' and 'new_categories' in result:
+                print("\nNeue Hauptkategorien:")
+                for new_cat in result['new_categories']:
+                    print(f"- {new_cat['name']} (Konfidenz: {new_cat['confidence']:.2f})")
+                    if 'subcategories' in new_cat:
+                        print("  Subkategorien:")
+                        for sub in new_cat['subcategories']:
+                            print(f"  • {sub['name']}")
+            
+            # Für abduktiven Modus: Hinweis dass keine neuen Hauptkategorien entwickelt werden
+            elif analysis_mode == 'abductive' and 'new_categories' in result:
+                print("\nHinweis: Im abduktiven Modus werden keine neuen Hauptkategorien hinzugefügt,")
+                print("selbst wenn potenzielle neue Kategorien identifiziert wurden.")
+
+            # Sättigungsmetriken extrahieren und speichern wenn vorhanden
             if 'saturation_metrics' in result:
                 # Erweiterte Sättigungsanalyse
                 category_usage = {
@@ -4763,6 +4945,7 @@ class InductiveCoder:
                         'subcategory_coverage': 0.0,
                         'avg_confidence': 0.0
                     }
+                    
                 # Gewichtete Gesamtabdeckung
                 total_coverage = (
                     theoretical_coverage['category_coverage'] * 0.4 +
@@ -4783,16 +4966,15 @@ class InductiveCoder:
                 # Übergebe Metriken an SaturationChecker
                 self.saturation_checker.add_saturation_metrics(result['saturation_metrics'])
             
-                saturation_info = result['saturation_metrics']
-
                 # Speichere Metriken in der History
                 self.history.log_saturation_check(
                     material_percentage=material_percentage,
-                    result="saturated" if saturation_info['categories_sufficient'] else "not_saturated",
-                    metrics=saturation_info
+                    result="saturated" if result['saturation_metrics']['categories_sufficient'] else "not_saturated",
+                    metrics=result['saturation_metrics']
                 )
                 
                 # Gebe Sättigungsinfo in Konsole aus
+                saturation_info = result['saturation_metrics']
                 if saturation_info['categories_sufficient']:
                     print("\nSättigungsanalyse:")
                     print(f"- Neue Aspekte gefunden: {'Ja' if saturation_info['new_aspects_found'] else 'Nein'}")
@@ -4804,27 +4986,6 @@ class InductiveCoder:
                     print(f"  • Durchschn. Konfidenz: {theoretical_coverage['avg_confidence']:.2f}")
                     print(f"- Begründung: {saturation_info['justification']}")
 
-            # Zeige Erweiterungen bestehender Kategorien
-            if 'existing_categories' in result:
-                for cat_name, updates in result['existing_categories'].items():
-                    print(f"\nAktualisierung für '{cat_name}':")
-                    if 'refinements' in updates:
-                        print(f"- Definition erweitert (Konfidenz: {updates['refinements']['confidence']:.2f})")
-                    if 'new_subcategories' in updates:
-                        print("- Neue Subkategorien:")
-                        for sub in updates['new_subcategories']:
-                            print(f"  • {sub['name']} (Konfidenz: {sub['confidence']:.2f})")
-                            
-            # Zeige neue Kategorien
-            if 'new_categories' in result:
-                print("\nNeue Hauptkategorien:")
-                for new_cat in result['new_categories']:
-                    print(f"- {new_cat['name']} (Konfidenz: {new_cat['confidence']:.2f})")
-                    if 'subcategories' in new_cat:
-                        print("  Subkategorien:")
-                        for sub in new_cat['subcategories']:
-                            print(f"  • {sub['name']}")
-
             return result
 
         except Exception as e:
@@ -4832,7 +4993,7 @@ class InductiveCoder:
             print("Details:")
             traceback.print_exc()
             return None
-        
+
     async def _prefilter_segments(self, segments: List[str]) -> List[str]:
         """
         Filtert Segmente nach Relevanz für Kategorienentwicklung.
