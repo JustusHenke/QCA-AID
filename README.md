@@ -67,6 +67,16 @@ Prinzipiell ist die Verarbeitung der Daten per LLM auch auf einem lokalen Rechne
 - **Anpassbarer Analysemodus**: Wahl zwischen vollständiger, abduktiver oder rein deduktiver Analyse
 
 
+## Neu in 0.9.11  (2025-04-12)
+- Neuer 'grounded' Analysemodus hinzugefügt, inspiriert von Grounded Theory und Kuckartz
+- Im 'grounded' Modus werden die Subcodes schrittweise gesammelt, ohne sie den Hauptkategorien zuzuordnen
+- Die gesammelten Subcodes werden vom deduktiven Kodierer direkt zur Kodierung verwendet
+- Nach der Verarbeitung aller Segmente werden aus den Subcodes anhand von Schlüsselwörtern Hauptkategorien generiert
+- Die Subcodes werden im endgültigen Export mit den generierten Hauptkategorien abgeglichen
+- Die Ausgabe wird im Codebuch und in den Exporten als "grounded" (nicht "induktiv") gekennzeichnet
+- Verbesserte Fortschrittsvisualisierung während der Subcode-Erfassung
+- Verbesserte Handhabung von Schlüsselwörtern mit direkter Verbindung zu Subcodes
+
 ## Neu in 0.9.10
 QCA-AID-Explorer.py
 - kann mit Excel konfiguriert werden und muss nicht mehr manuell angepasst werden.
@@ -212,6 +222,8 @@ Für optimale Ergebnisse wird die Verwendung von einfachen Textformaten (.txt) e
 - Andere Dateiformate wie .csv, .md, .srt oder .vtt werden derzeit nicht unterstützt. Konvertieren Sie diese gegebenenfalls in eines der unterstützten Formate.
 
 ## QCA-AID: Konfiguration und Nutzung
+
+![Analyse-Modi](analysis-modes.png)
 
 ### Codebook.xlsx
 

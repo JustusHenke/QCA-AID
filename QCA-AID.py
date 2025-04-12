@@ -7,7 +7,17 @@ enhanced with AI capabilities through the OpenAI API.
 
 Version:
 --------
-0.9.10 (2025-04-08)
+0.9.11 (2025-04-15)
+
+New in 0.9.11
+- New 'grounded' analysis mode added, inspired by Grounded Theory and Kuckartz
+- In 'grounded' mode, subcodes are incrementally collected without assigning to main categories
+- Collected subcodes are directly used for coding by the deductive coder
+- After processing all segments, main categories are generated from subcodes based on keywords
+- Subcodes are matched to generated main categories in the final export
+- Output is marked as 'grounded' (not 'inductive') in codebook and exports
+- Improved progress visualization during subcode collection
+- Enhanced keyword handling with direct connection to subcodes
 
 New in 0.9.10
 QCA-AID-Explorer.py 
@@ -1934,46 +1944,56 @@ class CategoryManager:
             traceback.print_exc()
             return None
     
-    def save_codebook(self, 
-                        categories: Dict[str, CategoryDefinition], 
-                        filename: str = "codebook_inductive.json") -> None:
-            """Speichert das vollständige Codebook inkl. deduktiver und induktiver Kategorien"""
-            try:
-                codebook_data = {
-                    "metadata": {
-                        "created": datetime.now().isoformat(),
-                        "version": "2.0",
-                        "total_categories": len(categories),
-                        "research_question": FORSCHUNGSFRAGE
-                    },
-                    "categories": {}
-                }
-                
-                for name, category in categories.items():
-                    codebook_data["categories"][name] = {
-                        "definition": category.definition,
-                        # Wandle examples in eine Liste um, falls es ein Set ist
-                        "examples": list(category.examples) if isinstance(category.examples, set) else category.examples,
-                        # Wandle rules in eine Liste um, falls es ein Set ist
-                        "rules": list(category.rules) if isinstance(category.rules, set) else category.rules,
-                        # Wandle subcategories in ein Dictionary um, falls nötig
-                        "subcategories": dict(category.subcategories) if isinstance(category.subcategories, set) else category.subcategories,
-                        "development_type": "deductive" if name in DEDUKTIVE_KATEGORIEN else "inductive",
-                        "added_date": category.added_date,
-                        "last_modified": category.modified_date
-                    }
-                
-                output_path = os.path.join(self.output_dir, filename)
-                with open(output_path, 'w', encoding='utf-8') as f:
-                    json.dump(codebook_data, f, indent=2, ensure_ascii=False)
+    def save_codebook(self, categories: Dict[str, CategoryDefinition], filename: str = "codebook_inductive.json") -> None:
+        """Speichert das vollständige Codebook inkl. deduktiver, induktiver und grounded Kategorien"""
+        try:
+            codebook_data = {
+                "metadata": {
+                    "created": datetime.now().isoformat(),
+                    "version": "2.0",
+                    "total_categories": len(categories),
+                    "research_question": FORSCHUNGSFRAGE,
+                    "analysis_mode": CONFIG.get('ANALYSIS_MODE', 'deductive')  # Speichere den Analysemodus
+                },
+                "categories": {}
+            }
+            
+            for name, category in categories.items():
+                # Bestimme den Kategorietyp je nach Analysemodus
+                if name in DEDUKTIVE_KATEGORIEN:
+                    development_type = "deductive"
+                elif CONFIG.get('ANALYSIS_MODE') == 'grounded':
+                    development_type = "grounded"  # Neue Markierung für grounded Kategorien
+                else:
+                    development_type = "inductive"
                     
-                print(f"\nInduktiv erweitertes Codebook gespeichert unter: {output_path}")
+                codebook_data["categories"][name] = {
+                    "definition": category.definition,
+                    # Wandle examples in eine Liste um, falls es ein Set ist
+                    "examples": list(category.examples) if isinstance(category.examples, set) else category.examples,
+                    # Wandle rules in eine Liste um, falls es ein Set ist
+                    "rules": list(category.rules) if isinstance(category.rules, set) else category.rules,
+                    # Wandle subcategories in ein Dictionary um, falls nötig
+                    "subcategories": dict(category.subcategories) if isinstance(category.subcategories, set) else category.subcategories,
+                    "development_type": development_type,
+                    "added_date": category.added_date,
+                    "last_modified": category.modified_date
+                }
+            
+            output_path = os.path.join(self.output_dir, filename)
+            with open(output_path, 'w', encoding='utf-8') as f:
+                json.dump(codebook_data, f, indent=2, ensure_ascii=False)
                 
-            except Exception as e:
-                print(f"Fehler beim Speichern des Codebooks: {str(e)}")
-                # Zusätzliche Fehlerdiagnose
-                import traceback
-                traceback.print_exc()
+            print(f"\nCodebook gespeichert unter: {output_path}")
+            print(f"- Deduktive Kategorien: {sum(1 for c in codebook_data['categories'].values() if c['development_type'] == 'deductive')}")
+            print(f"- Induktive Kategorien: {sum(1 for c in codebook_data['categories'].values() if c['development_type'] == 'inductive')}")
+            print(f"- Grounded Kategorien: {sum(1 for c in codebook_data['categories'].values() if c['development_type'] == 'grounded')}")
+            
+        except Exception as e:
+            print(f"Fehler beim Speichern des Codebooks: {str(e)}")
+            # Zusätzliche Fehlerdiagnose
+            import traceback
+            traceback.print_exc()
 
 class CategoryCleaner:
     """Helferklasse zum Bereinigen problematischer Kategorien."""
@@ -2848,10 +2868,10 @@ class IntegratedAnalysisManager:
             return (segment_id, 0)
     
     async def analyze_material(self, 
-                                chunks: Dict[str, List[str]], 
-                                initial_categories: Dict,
-                                skip_inductive: bool = False,
-                                batch_size: Optional[int] = None) -> Tuple[Dict, List]:
+                            chunks: Dict[str, List[str]], 
+                            initial_categories: Dict,
+                            skip_inductive: bool = False,
+                            batch_size: Optional[int] = None) -> Tuple[Dict, List]:
         """Verbesserte Hauptanalyse mit expliziter Kategorienintegration."""
         try:
             self.start_time = datetime.now()
@@ -2873,8 +2893,6 @@ class IntegratedAnalysisManager:
                 self.document_summaries = {}
             else:
                 print("\n🔄 Standardkodierung ohne Kontext aktiviert")
-
-            
             
             # Reset Tracking-Variablen
             self.coding_results = []
@@ -2892,6 +2910,24 @@ class IntegratedAnalysisManager:
             analysis_mode = CONFIG.get('ANALYSIS_MODE', 'full')
             print(f"\nAnalyse-Modus: {analysis_mode}")
             
+            # Spezielle Behandlung für 'grounded' Modus
+            grounded_subcodes = {}  # Dictionary für gesammelte Subcodes im grounded Modus
+            if analysis_mode == 'grounded':
+                print("\nVerarbeitung im 'grounded' Modus:")
+                print("1. Sammeln von Subcodes ohne Hauptkategorien")
+                print("2. Fortlaufende Verwendung der gesammelten Subcodes durch den deduktiven Kodierer")
+                print("3. Nach Abschluss aller Segmente: Generierung von Hauptkategorien")
+                
+                # Ersetze initiale Kategorien durch ein leeres Set im grounded Modus
+                if not skip_inductive:
+                    print("\n⚠️ Im grounded Modus werden die deduktiven Kategorien aus dem Codebook nicht verwendet!")
+                    current_categories = {}  # Leeres Kategoriensystem zu Beginn
+                
+                # Initialisiere Sammler für Subcodes
+                if not hasattr(self.inductive_coder, 'collected_subcodes'):
+                    self.inductive_coder.collected_subcodes = []
+                    self.inductive_coder.segment_analyses = []
+
             while True:
                 batch = await self._get_next_batch(all_segments, batch_size)
                 if not batch:
@@ -2919,28 +2955,83 @@ class IntegratedAnalysisManager:
                     
                     print(f"Relevanzprüfung: {len(relevant_batch)} von {len(batch)} Segmenten relevant")
                     
-                    # Induktive Analyse wenn nicht übersprungen
+                    # Induktive oder Grounded Analyse wenn nicht übersprungen
                     if not skip_inductive and relevant_batch:
-                        print(f"\nStarte induktive Kategorienentwicklung für {len(relevant_batch)} relevante Segmente...")
-                        
-                        new_categories = await self._process_batch_inductively(
-                            relevant_batch, 
-                            current_categories
-                        )
-                        
-                        if new_categories:
-                            print("\nNeue/aktualisierte Kategorien gefunden:")
+                        if analysis_mode == 'grounded':
+                            print(f"\nStarte Grounded-Analyse für {len(relevant_batch)} relevante Segmente...")
                             
-                            # Kategorien integrieren
-                            current_categories = self._merge_category_systems(
-                                current_categories,
-                                new_categories
+                            # Extrahiere nur die Texte für die Grounded-Analyse
+                            relevant_texts = [text for _, text in relevant_batch]
+                            
+                            # Verwende die Methode für Grounded-Analyse
+                            grounded_analysis = await self.inductive_coder.analyze_grounded_batch(
+                                segments=relevant_texts,
+                                material_percentage=material_percentage
                             )
+                            
+                            if grounded_analysis and 'segment_analyses' in grounded_analysis:
+                                # Neue Subcodes aus diesem Batch extrahieren
+                                new_batch_subcodes = []
+                                for segment_analysis in grounded_analysis['segment_analyses']:
+                                    for subcode in segment_analysis.get('subcodes', []):
+                                        new_batch_subcodes.append(subcode)
+                                
+                                # Speichere für die Hauptkategoriengenerierung am Ende
+                                self.inductive_coder.collected_subcodes.extend(new_batch_subcodes)
+                                self.inductive_coder.segment_analyses.append(grounded_analysis)
+                                
+                                # Erstelle/aktualisiere Kategorien-Dictionary für den deduktiven Kodierer
+                                for subcode in new_batch_subcodes:
+                                    subcode_name = subcode.get('name', '')
+                                    if subcode_name and subcode_name not in grounded_subcodes:
+                                        subcode_definition = subcode.get('definition', '')
+                                        subcode_keywords = subcode.get('keywords', [])
+                                        subcode_evidence = subcode.get('evidence', [])
+                                        
+                                        # Erstelle eine minimale CategoryDefinition
+                                        grounded_subcodes[subcode_name] = CategoryDefinition(
+                                            name=subcode_name,
+                                            definition=subcode_definition,
+                                            examples=subcode_evidence,
+                                            rules=[f"Identifizierte Keywords: {', '.join(subcode_keywords)}"],
+                                            subcategories={},  # Keine Subkategorien für Subcodes
+                                            added_date=datetime.now().strftime("%Y-%m-%d"),
+                                            modified_date=datetime.now().strftime("%Y-%m-%d")
+                                        )
+                                
+                                print(f"\nGrounded-Analyse für Batch abgeschlossen:")
+                                print(f"- {len(new_batch_subcodes)} neue Subcodes in diesem Batch identifiziert")
+                                print(f"- Gesamtzahl Subcodes: {len(grounded_subcodes)}")
+                                
+                                # Aktualisiere das aktuelle Kategoriensystem für die Kodierung
+                                current_categories = grounded_subcodes.copy()
+                                
+                                # Aktualisiere ALLE Kodierer mit dem neuen System
+                                for coder in self.deductive_coders:
+                                    await coder.update_category_system(current_categories)
+                                print(f"\nAlle Kodierer mit aktuellem Subcode-System ({len(current_categories)} Subcodes) aktualisiert")
+                        else:
+                            # Standard induktive Kategorienentwicklung für andere Modi
+                            print(f"\nStarte induktive Kategorienentwicklung für {len(relevant_batch)} relevante Segmente...")
+                            
+                            new_categories = await self._process_batch_inductively(
+                                relevant_batch, 
+                                current_categories
+                            )
+                            
+                            if new_categories:
+                                print("\nNeue/aktualisierte Kategorien gefunden:")
+                                
+                                # Kategorien integrieren
+                                current_categories = self._merge_category_systems(
+                                    current_categories,
+                                    new_categories
+                                )
 
-                            # Aktualisiere ALLE Kodierer mit dem neuen System
-                            for coder in self.deductive_coders:
-                                await coder.update_category_system(current_categories)
-                            print(f"\nAlle Kodierer mit aktuellem System ({len(current_categories)} Kategorien) aktualisiert")
+                                # Aktualisiere ALLE Kodierer mit dem neuen System
+                                for coder in self.deductive_coders:
+                                    await coder.update_category_system(current_categories)
+                                print(f"\nAlle Kodierer mit aktuellem System ({len(current_categories)} Kategorien) aktualisiert")
                     
                     # Deduktive Kodierung für alle Segmente
                     print("\nStarte deduktive Kodierung...")
@@ -2953,7 +3044,6 @@ class IntegratedAnalysisManager:
                         batch_results = await self._code_batch_deductively(batch, current_categories)
                 
                     self.coding_results.extend(batch_results)
-                    self.processed_segments.update(sid for sid, _ in batch)
                     
                     # Performance-Tracking
                     batch_time = time.time() - batch_start
@@ -2974,27 +3064,10 @@ class IntegratedAnalysisManager:
                     print(f"- Relevanzrate: {relevance_stats['relevance_rate']*100:.1f}%")
                     print(f"- API-Calls: {relevance_stats['api_calls']}")
                     
-                    # Sättigungsprüfung nur bei aktivierter induktiver Analyse
-                    if not skip_inductive:
-                        # Hole Sättigungsmetriken vom SaturationChecker
-                        is_saturated, saturation_metrics = self.saturation_checker.check_saturation(
-                            current_categories=current_categories,
-                            coded_segments=self.coding_results,
-                            material_percentage=material_percentage
-                        )
-                        
-                        if is_saturated:
-                            print("\nSättigung erreicht!")
-                            if saturation_metrics:
-                                print("Sättigungsmetriken:")
-                                for key, value in saturation_metrics.items():
-                                    print(f"- {key}: {value}")
-                            break
-
                     # Status-Update für History
                     self._log_iteration_status(
                         material_percentage=material_percentage,
-                        saturation_metrics=saturation_metrics if not skip_inductive else None,
+                        saturation_metrics=None,  # Im grounded Modus verwenden wir keine Sättigungsmetriken
                         num_results=len(batch_results)
                     )
                     
@@ -3003,6 +3076,76 @@ class IntegratedAnalysisManager:
                     print("Details:")
                     traceback.print_exc()
                     continue
+            
+            # Nach Abschluss aller Segmente im 'grounded' Modus
+            # müssen wir die Hauptkategorien generieren lassen
+            if analysis_mode == 'grounded' and len(self.processed_segments) >= total_segments * 0.9:
+                print("\nAlle Segmente verarbeitet. Generiere Hauptkategorien im 'grounded' Modus...")
+                
+                # Konvertiere das Dictionary zurück in eine Liste von Subcodes
+                subcodes_for_generation = []
+                for subcode_name, category in grounded_subcodes.items():
+                    # Extrahiere Keywords aus den Rules
+                    keywords = []
+                    for rule in category.rules:
+                        if "Identifizierte Keywords:" in rule:
+                            keywords_str = rule.replace("Identifizierte Keywords:", "").strip()
+                            keywords = [kw.strip() for kw in keywords_str.split(',')]
+                            break
+                    
+                    subcodes_for_generation.append({
+                        'name': subcode_name,
+                        'definition': category.definition,
+                        'keywords': keywords,
+                        'evidence': category.examples,
+                        'confidence': 0.8  # Default-Konfidenz
+                    })
+                
+                # Setze die Subcodes für die Hauptkategoriengenerierung
+                self.inductive_coder.collected_subcodes = subcodes_for_generation
+                
+                # Generiere Hauptkategorien (leeres Dict als initial_categories)
+                main_categories = await self.inductive_coder._generate_main_categories_from_subcodes({})
+                
+                # Speichere die Zuordnung von Subcodes zu Hauptkategorien für das spätere Matching
+                subcode_to_main_category = {}
+                for main_name, main_category in main_categories.items():
+                    for subcode_name in main_category.subcategories.keys():
+                        subcode_to_main_category[subcode_name] = main_name
+                
+                print("\n🔄 Ordne bestehende Kodierungen den neuen Hauptkategorien zu...")
+                
+                # Aktualisiere alle Kodierungen mit Hauptkategorienzuordnungen
+                updated_codings = []
+                for coding in self.coding_results:
+                    updated_coding = coding.copy()
+                    
+                    # Wenn der Code ein Subcode ist, ordne die entsprechende Hauptkategorie zu
+                    subcode = coding.get('category', '')
+                    if subcode in subcode_to_main_category:
+                        main_category = subcode_to_main_category[subcode]
+                        # Füge Hauptkategorie hinzu und verschiebe den bisherigen Code zu den Subcodes
+                        updated_coding['main_category'] = main_category
+                        if subcode not in updated_coding.get('subcategories', []):
+                            updated_coding['subcategories'] = list(updated_coding.get('subcategories', [])) + [subcode]
+                    else:
+                        # Wenn kein Matching gefunden wurde, behalte den ursprünglichen Code als Hauptkategorie
+                        updated_coding['main_category'] = subcode
+                    
+                    updated_codings.append(updated_coding)
+                
+                # Ersetze die Kodierungen mit den aktualisierten
+                self.coding_results = updated_codings
+                
+                print(f"✅ Kodierungen aktualisiert mit Hauptkategorie-Zuordnungen")
+                
+                # Finales Kategoriensystem
+                current_categories = main_categories
+                
+                # Aktualisiere ALLE Kodierer mit dem neuen System
+                for coder in self.deductive_coders:
+                    await coder.update_category_system(current_categories)
+                print(f"\nAlle Kodierer mit finalem 'grounded' System ({len(current_categories)} Hauptkategorien) aktualisiert")
             
             # Finaler Analysebericht
             final_metrics = self._finalize_analysis(
@@ -3021,10 +3164,16 @@ class IntegratedAnalysisManager:
             print(f"- Durchschnittliche Zeit pro Segment: {processing_time/total_segments:.2f}s")
             
             if not skip_inductive:
-                print(f"- Kategorienentwicklung:")
-                print(f"  • Initial: {len(initial_categories)} Kategorien")
-                print(f"  • Final: {len(current_categories)} Kategorien")
-                print(f"  • Neu entwickelt: {len(current_categories) - len(initial_categories)} Kategorien")
+                if analysis_mode == 'grounded':
+                    print(f"- Grounded Kategorienentwicklung:")
+                    print(f"  • Initial: 0 Kategorien (im grounded Modus wird ohne initiale Kategorien begonnen)")
+                    print(f"  • Gesammelte Subcodes: {len(grounded_subcodes)}")
+                    print(f"  • Generierte Hauptkategorien: {len(current_categories)}")
+                else:
+                    print(f"- Kategorienentwicklung:")
+                    print(f"  • Initial: {len(initial_categories)} Kategorien")
+                    print(f"  • Final: {len(current_categories)} Kategorien")
+                    print(f"  • Neu entwickelt: {len(current_categories) - len(initial_categories)} Kategorien")
             
             # Bei kontextueller Kodierung: Zeige Zusammenfassung der Dokument-Summaries
             if use_context and self.document_summaries:
@@ -3068,8 +3217,8 @@ class IntegratedAnalysisManager:
             print(f"Fehler in der Analyse: {str(e)}")
             print("Details:")
             traceback.print_exc()
-            raise
-    
+            raise    
+
     def _merge_category_systems(self, 
                             current: Dict[str, CategoryDefinition], 
                             new: Dict[str, CategoryDefinition]) -> Dict[str, CategoryDefinition]:
@@ -4524,6 +4673,42 @@ class InductiveCoder:
             #analysis_mode = self.analysis_mode
             analysis_mode = CONFIG.get('ANALYSIS_MODE', 'full')
             print(f"\nAnalyse-Modus: {analysis_mode}")
+
+            # Anpassung für 'grounded' Modus
+            if analysis_mode == 'grounded':
+                # Im 'grounded' Modus speichern wir alle identifizierten Subkategorien und Keywords
+                # ohne sie sofort Hauptkategorien zuzuordnen
+                self.collected_subcodes = []
+                self.collected_keywords = []
+                self.segment_analyses = []
+                
+                # Alternative Verarbeitung für 'grounded' Modus
+                for batch_idx, batch in enumerate(batches):
+                    print(f"\nAnalysiere Batch {batch_idx + 1}/{len(batches)} im 'grounded' Modus...")
+                    
+                    # Berechne Material-Prozentsatz
+                    material_percentage = ((batch_idx + 1) * len(batch) / len(segments)) * 100
+                    
+                    # Grounded Analyse des Batches
+                    batch_analysis = await self.analyze_grounded_batch(
+                        segments=batch,
+                        material_percentage=material_percentage
+                    )
+                    
+                    if batch_analysis:
+                        # Sammle Subkategorien und Keywords
+                        self.collected_subcodes.extend(batch_analysis.get('subcodes', []))
+                        self.collected_keywords.extend(batch_analysis.get('keywords', []))
+                        self.segment_analyses.append(batch_analysis)
+                
+                # Nach Abschluss aller Batches: Generiere Hauptkategorien aus gesammelten Daten
+                if len(segments) == len(self.processed_segments):
+                    print("\nVerarbeitung aller Segmente abgeschlossen. Generiere Hauptkategorien...")
+                    extended_categories = await self._generate_main_categories_from_subcodes(initial_categories)
+                    return extended_categories
+                
+                # Falls noch nicht alle Segmente verarbeitet wurden, geben wir das initiale System zurück
+                return initial_categories or {}
             
             for batch_idx, batch in enumerate(batches):
                 print(f"\nAnalysiere Batch {batch_idx + 1}/{len(batches)}...")
@@ -5033,6 +5218,451 @@ class InductiveCoder:
             traceback.print_exc()
             return None
 
+    async def analyze_grounded_batch(self, segments: List[str], material_percentage: float) -> Dict[str, Any]:
+        """
+        Analysiert einen Batch von Segmenten im 'grounded' Modus.
+        Extrahiert Subcodes und Keywords ohne direkte Zuordnung zu Hauptkategorien.
+        Angepasst für die kontinuierliche Anreicherung des Subcode-Sets.
+        
+        Args:
+            segments: Liste der Textsegmente
+            material_percentage: Prozentsatz des verarbeiteten Materials
+            
+        Returns:
+            Dict[str, Any]: Analyseergebnisse mit Subcodes und Keywords
+        """
+        try:
+            # Cache-Key erstellen
+            cache_key = (
+                tuple(segments),
+                'grounded'
+            )
+            
+            # Prüfe Cache
+            if cache_key in self.analysis_cache:
+                print("Nutze gecachte Analyse")
+                return self.analysis_cache[cache_key]
+
+            # Bestehende Subcodes sammeln
+            existing_subcodes = []
+            if hasattr(self, 'collected_subcodes'):
+                existing_subcodes = [sc.get('name', '') for sc in self.collected_subcodes if isinstance(sc, dict)]
+            
+            # Definiere JSON-Schema für den grounded Modus
+            json_schema = '''{
+                "segment_analyses": [
+                    {
+                        "segment_text": "Textsegment",
+                        "subcodes": [
+                            {
+                                "name": "Subcode-Name",
+                                "definition": "Definition des Subcodes",
+                                "evidence": ["Textbelege"],
+                                "keywords": ["Schlüsselwörter des Subcodes"],
+                                "confidence": 0.0-1.0
+                            }
+                        ],
+                        "memo": "Analytische Notizen zum Segment"
+                    }
+                ],
+                "saturation_metrics": {
+                    "new_aspects_found": true/false,
+                    "coverage": 0.0-1.0,
+                    "justification": "Begründung"
+                }
+            }'''
+
+            prompt = f"""
+            Analysiere folgende Textsegmente im Sinne der Grounded Theory.
+            Identifiziere Subcodes und Keywords, ohne sie bereits Hauptkategorien zuzuordnen.
+            
+            FORSCHUNGSFRAGE:
+            {FORSCHUNGSFRAGE}
+            
+            {"BEREITS IDENTIFIZIERTE SUBCODES:" if existing_subcodes else ""}
+            {json.dumps(existing_subcodes, indent=2, ensure_ascii=False) if existing_subcodes else ""}
+            
+            TEXTSEGMENTE:
+            {json.dumps(segments, indent=2, ensure_ascii=False)}
+            
+            ANWEISUNGEN FÜR DEN GROUNDED THEORY MODUS:
+            
+            1. OFFENES KODIEREN:
+            - Identifiziere wichtige Konzepte/Phänomene in jedem Textsegment
+            - Entwickle präzise benannte Subcodes mit klaren Definitionen
+            - Dokumentiere relevante Textbelege für jeden Subcode
+            - Extrahiere aussagekräftige Keywords für jeden Subcode (WICHTIG: Keywords gehören immer zu einem Subcode)
+            - Schreibe analytische Memos zu jedem Segment
+            
+            2. WICHTIG - PROGRESSIVE ANREICHERUNG DES SUBCODE-SETS:
+            - Berücksichtige die bereits identifizierten Subcodes
+            - Fokussiere auf NEUE KOMPLEMENTÄRE Subcodes, die noch nicht erfasst wurden
+            - Bei thematischer Überschneidung mit bestehenden Subcodes: verfeinere oder differenziere
+            - Keine Duplikate zu bestehenden Subcodes erstellen
+            
+            3. QUALITÄTSKRITERIEN FÜR SUBCODES:
+            - Empirisch gut belegt durch Textstellen
+            - Präzise und eindeutig benannt
+            - Analytisch wertvoll für die Forschungsfrage
+            - Trennscharf zu anderen Subcodes
+            - Nicht zu allgemein oder zu spezifisch
+            
+            4. KEYWORDS IMMER MIT SUBCODES VERKNÜPFEN:
+            - Jeder Subcode muss mindestens 3 Keywords erhalten
+            - Keywords müssen den Kern des Subcodes präzise wiedergeben
+            - Keywords werden später für die Kategorienbildung verwendet
+            - Keine allgemeinen Keywords ohne Subcode-Zugehörigkeit
+            
+            Antworte NUR mit einem JSON-Objekt:
+            {json_schema}
+            """
+
+            input_tokens = estimate_tokens(prompt)
+
+            response = await self.llm_provider.create_completion(
+                    model=self.model_name,
+                    messages=[
+                        {"role": "system", "content": "Du bist ein Experte für qualitative Inhaltsanalyse. Du antwortest auf deutsch."},
+                        {"role": "user", "content": prompt}
+                    ],
+                    temperature=0.3,
+                    response_format={"type": "json_object"}
+                )
+                
+            # Verarbeite Response mit Wrapper
+            llm_response = LLMResponse(response)
+            result = json.loads(llm_response.content)
+            
+            output_tokens = estimate_tokens(response.choices[0].message.content)
+            token_counter.add_tokens(input_tokens, output_tokens)
+
+            # Cache das Ergebnis
+            self.analysis_cache[cache_key] = result
+            
+            # Debug-Ausgabe und verbesserte Fortschrittsanzeige
+            segment_count = len(result.get('segment_analyses', []))
+            
+            # Zähle Subcodes und ihre Keywords
+            subcode_count = 0
+            keyword_count = 0
+            new_subcodes = []
+            
+            for analysis in result.get('segment_analyses', []):
+                subcodes = analysis.get('subcodes', [])
+                subcode_count += len(subcodes)
+                
+                for subcode in subcodes:
+                    new_subcodes.append(subcode)
+                    keyword_count += len(subcode.get('keywords', []))
+            
+            # Erweiterte Fortschrittsanzeige
+            print(f"\nGrounded Analyse für {segment_count} Segmente abgeschlossen:")
+            print(f"- {subcode_count} neue Subcodes identifiziert")
+            print(f"- {keyword_count} Keywords mit Subcodes verknüpft")
+            print(f"- Material-Fortschritt: {material_percentage:.1f}%")
+            
+            # Prüfe auf Überschneidungen mit bestehenden Subcodes
+            if existing_subcodes and new_subcodes:
+                new_names = [sc.get('name', '') for sc in new_subcodes]
+                overlap = set(existing_subcodes) & set(new_names)
+                if overlap:
+                    print(f"⚠️ Hinweis: {len(overlap)} überlappende Subcodes mit vorherigen Batches")
+                    print(f"   Dies ist kein Problem, da nur neue Subcodes hinzugefügt werden")
+            
+            # Erweiterte Darstellung der neuen Subcodes
+            if new_subcodes:
+                print("\nNeu identifizierte Subcodes in diesem Batch:")
+                for i, subcode in enumerate(new_subcodes, 1):
+                    code_name = subcode.get('name', 'Unbenannt')
+                    keywords = subcode.get('keywords', [])
+                    confidence = subcode.get('confidence', 0)
+                    
+                    keyword_str = ", ".join(keywords[:3])
+                    if len(keywords) > 3:
+                        keyword_str += f" (+{len(keywords)-3} weitere)"
+                        
+                    print(f"{i}. {code_name} ({confidence:.2f}): {keyword_str}")
+            
+            # Progress Bar für Gesamtfortschritt der Subcode-Sammlung
+            if hasattr(self, 'collected_subcodes'):
+                total_collected = len(self.collected_subcodes) + subcode_count
+                # Einfache ASCII Progress Bar
+                bar_length = 30
+                filled_length = int(bar_length * material_percentage / 100)
+                bar = '█' * filled_length + '░' * (bar_length - filled_length)
+                
+                print(f"\nGesamtfortschritt Grounded-Analyse:")
+                print(f"[{bar}] {material_percentage:.1f}%")
+                print(f"Bisher gesammelt: {total_collected} Subcodes mit ihren Keywords")
+            
+            # Speichere Sättigungsmetriken
+            saturation = result.get('saturation_metrics', {})
+            if saturation:
+                print(f"\nSättigungsmetriken:")
+                print(f"- Neue Aspekte gefunden: {'Ja' if saturation.get('new_aspects_found', False) else 'Nein'}")
+                print(f"- Abdeckung: {saturation.get('coverage', 0):.2f}")
+                
+            return result
+            
+        except Exception as e:
+            print(f"Fehler bei Grounded-Analyse: {str(e)}")
+            print("Details:")
+            traceback.print_exc()
+            return {}
+    
+    async def _generate_main_categories_from_subcodes(self, initial_categories: Dict[str, CategoryDefinition] = None) -> Dict[str, CategoryDefinition]:
+        """
+        Generiert Hauptkategorien aus den gesammelten Subcodes und ihren Keywords.
+        Wird nach Abschluss der Verarbeitung aller Segmente im 'grounded' Modus aufgerufen.
+        Verbessert für die Nachverfolgung der Subcode-Zuordnung zu Hauptkategorien.
+        
+        Args:
+            initial_categories: Initiale Kategorien (bei grounded typischerweise leer)
+            
+        Returns:
+            Dict[str, CategoryDefinition]: Generierte Hauptkategorien
+        """
+        try:
+            # Prüfe, ob genügend Subcodes gesammelt wurden
+            if not hasattr(self, 'collected_subcodes') or len(self.collected_subcodes) < 5:
+                print(f"\n⚠️ Zu wenige Subcodes für Kategorienbildung. Mindestens 5 Subcodes benötigt.")
+                return initial_categories or {}
+
+            print(f"\n🔍 Generiere Hauptkategorien aus {len(self.collected_subcodes)} Subcodes mit ihren Keywords...")
+            
+            # Bereite die Daten für die Analyse vor - WICHTIG: Keywords bleiben mit Subcodes verknüpft
+            subcodes_data = []
+            for subcode in self.collected_subcodes:
+                if isinstance(subcode, dict) and 'name' in subcode and 'definition' in subcode:
+                    subcodes_data.append({
+                        'name': subcode['name'],
+                        'definition': subcode['definition'],
+                        'keywords': subcode.get('keywords', []),
+                        'evidence': subcode.get('evidence', []),
+                        'confidence': subcode.get('confidence', 0.7)
+                    })
+            
+            # Fortschrittsanzeige
+            print("\n📊 Subcode-Statistik für Hauptkategorienbildung:")
+            confidence_values = [s.get('confidence', 0) for s in subcodes_data]
+            avg_confidence = sum(confidence_values) / len(confidence_values) if confidence_values else 0
+            keyword_counts = [len(s.get('keywords', [])) for s in subcodes_data]
+            avg_keywords = sum(keyword_counts) / len(keyword_counts) if keyword_counts else 0
+            
+            print(f"- {len(subcodes_data)} Subcodes mit durchschnittlich {avg_keywords:.1f} Keywords pro Subcode")
+            print(f"- Durchschnittliche Konfidenz: {avg_confidence:.2f}")
+            
+            # Zeige die häufigsten Keywords zur Übersicht
+            all_keywords = [kw for s in subcodes_data for kw in s.get('keywords', [])]
+            keyword_counter = Counter(all_keywords)
+            top_keywords = keyword_counter.most_common(10)
+            
+            print("\n🔑 Häufigste Keywords (Top 10):")
+            for kw, count in top_keywords:
+                print(f"- {kw}: {count}x")
+            
+            # Erstelle ein finales Kategoriensystem
+            prompt = f"""
+            Entwickle ein STARK VERDICHTETES Kategoriensystem basierend auf den folgenden induktiv identifizierten Subcodes.
+            Diese Subcodes wurden durch offenes Kodieren im Sinne der Grounded Theory aus dem Datenmaterial gewonnen.
+
+            FORSCHUNGSFRAGE:
+            {FORSCHUNGSFRAGE}
+
+            IDENTIFIZIERTE SUBCODES MIT IHREN KEYWORDS:
+            {json.dumps(subcodes_data, indent=2, ensure_ascii=False)}
+
+            AUFGABE:
+            1. Analysiere die thematischen Zusammenhänge zwischen den Subcodes unter besonderer Berücksichtigung IHRER KEYWORDS
+            2. WICHTIG - STARKE VERDICHTUNG: Gruppiere die Subcodes zu nur 4-6 KLAR ABGEGRENZTEN Hauptkategorien
+            3. WICHTIG - ABSTRAKTIONSEBENE ERHÖHEN: Wähle eine höhere Abstraktionsebene für die Hauptkategorien als bisher
+            4. Suche bewusst nach Möglichkeiten, ähnliche Konzepte ZUSAMMENZUFÜHREN anstatt sie in separaten Kategorien zu halten
+            5. Die Keywords der Subcodes sind entscheidend für die Gruppierung! Subcodes mit TEILWEISE überlappenden Keywords sollten in EINER Hauptkategorie zusammengefasst werden
+            6. Jede Hauptkategorie muss folgende Kriterien erfüllen:
+            - Präziser, aussagekräftiger Name auf höherer Abstraktionsebene
+            - Umfassende Definition, die verschiedene Aspekte integriert
+            - Klare Abgrenzung zu anderen Hauptkategorien
+            - Theoretische Relevanz für die Forschungsfrage
+            - Robuste empirische Sättigung durch zahlreiche zugeordnete Subcodes
+            7. Weise ALLE Subcodes den passenden Hauptkategorien zu - KEINER darf ohne Zuordnung bleiben
+            8. Entwickle für jede Hauptkategorie 3-4 klare Kodierregeln
+            9. Leite typische Beispiele für jede Hauptkategorie aus den Textbelegen der Subcodes ab
+
+            STRATEGIE FÜR STÄRKERE VERDICHTUNG:
+            - Identifiziere übergeordnete theoretische Konzepte, die mehrere ähnliche Phänomene zusammenfassen
+            - Bevorzuge breitere Kategorien mit mehr Subcodes gegenüber eng definierten Kategorien mit wenigen Subcodes
+            - Verwende für die Hauptkategorien Begriffe mit höherem Abstraktionsgrad
+            - Erstelle eine konzeptionelle Hierarchie, die Zusammenhänge zwischen den Kategorien verdeutlicht
+            - Ordne grenzwertige Subcodes der jeweils passenderen Hauptkategorie zu
+
+            WICHTIG - REDUZIERUNG DER GESAMTANZAHL:
+            - Identifiziere Redundanzen oder konzeptionelle Überlappungen zwischen möglichen Hauptkategorien
+            - Erstelle WENIGER, dafür BREITERE Hauptkategorien (maximal 6)
+            - Vermeide rein deskriptive oder zu eng gefasste Hauptkategorien
+            - Arbeite auf höherer theoretischer Abstraktionsebene
+
+            WICHTIG - VOLLSTÄNDIGES MAPPING:
+            - Für das spätere Matching ist es ZWINGEND ERFORDERLICH, dass JEDER Subcode einer Hauptkategorie zugeordnet wird
+            - Es muss eine klare 1:n Beziehung zwischen Hauptkategorien und Subcodes geben
+            - Jeder Subcode muss genau einer Hauptkategorie zugeordnet sein
+
+            Antworte mit einem JSON-Objekt:
+            {{
+                "main_categories": [
+                    {{
+                        "name": "Name der Hauptkategorie (höhere Abstraktionsebene)",
+                        "definition": "Umfassende Definition der Hauptkategorie, die verschiedene Aspekte zusammenführt",
+                        "characteristic_keywords": ["Übergeordnete Keywords dieser Hauptkategorie"],
+                        "rules": ["Kodierregel 1", "Kodierregel 2", "Kodierregel 3", "Kodierregel 4"],
+                        "subcodes": [
+                            {{
+                                "name": "Name des Subcodes",
+                                "definition": "Definition des Subcodes",
+                                "keywords": ["Keywords des Subcodes"]
+                            }}
+                        ],
+                        "examples": ["Beispiel 1", "Beispiel 2"],
+                        "justification": "Theoretische Begründung für diese Kategorie und die Zusammenführung ihrer Aspekte"
+                    }}
+                ],
+                "subcode_mappings": {{
+                    "subcode_name1": "hauptkategorie_name1",
+                    "subcode_name2": "hauptkategorie_name1",
+                    "subcode_name3": "hauptkategorie_name2"
+                }},
+                "category_relationships": {{
+                    "hauptkategorie_name1": ["Beziehung zu andere Kategorien", "Abgrenzungskriterien"],
+                    "hauptkategorie_name2": ["Beziehung zu andere Kategorien", "Abgrenzungskriterien"]
+                }},
+                "meta_analysis": {{
+                    "theoretical_saturation": 0.0-1.0,
+                    "coverage": 0.0-1.0,
+                    "theoretical_density": 0.0-1.0,
+                    "justification": "Begründung des verdichteten Kategoriensystems und seiner Vorteile"
+                }}
+            }}
+            """
+
+            # Zeige Fortschrittsanzeige
+            print("\n⏳ Generiere Hauptkategorien aus den gesammelten Subcodes und Keywords...")
+            print("Dies kann einen Moment dauern, da die Gruppierung komplex ist.")
+            
+            # Zeige "Animation" für Verarbeitung
+            progress_chars = ['⣾', '⣽', '⣻', '⢿', '⡿', '⣟', '⣯', '⣷']
+            for _ in range(3):
+                for char in progress_chars:
+                    sys.stdout.write(f"\r{char} Analysiere Subcodes und Keywords...   ")
+                    sys.stdout.flush()
+                    await asyncio.sleep(0.1)
+
+            input_tokens = estimate_tokens(prompt)
+
+            response = await self.llm_provider.create_completion(
+                    model=self.model_name,
+                    messages=[
+                        {"role": "system", "content": "Du bist ein Experte für qualitative Inhaltsanalyse. Du antwortest auf deutsch."},
+                        {"role": "user", "content": prompt}
+                    ],
+                    temperature=0.3,
+                    response_format={"type": "json_object"}
+                )
+                
+            # Verarbeite Response mit Wrapper
+            llm_response = LLMResponse(response)
+            result = json.loads(llm_response.content)
+            
+            output_tokens = estimate_tokens(llm_response.content)
+            token_counter.add_tokens(input_tokens, output_tokens)
+            
+            # Konvertiere das Ergebnis in CategoryDefinition-Objekte
+            grounded_categories = {}
+            
+            print("\n✅ Hauptkategorien erfolgreich generiert:")
+            print(f"- {len(result.get('main_categories', []))} Hauptkategorien erstellt")
+            
+            # Speichere das Mapping von Subcodes zu Hauptkategorien
+            self.subcode_to_main_mapping = result.get('subcode_mappings', {})
+            print(f"- {len(self.subcode_to_main_mapping)} Subcodes zu Hauptkategorien zugeordnet")
+            
+            # Meta-Analyse Informationen
+            meta = result.get('meta_analysis', {})
+            if meta:
+                print("\n📊 Meta-Analyse des generierten Kategoriensystems:")
+                print(f"- Theoretische Sättigung: {meta.get('theoretical_saturation', 0):.2f}")
+                print(f"- Abdeckung: {meta.get('coverage', 0):.2f}")
+                print(f"- Theoretische Dichte: {meta.get('theoretical_density', 0):.2f}")
+                print(f"- Begründung: {meta.get('justification', '')}")
+            
+            for i, category in enumerate(result.get('main_categories', []), 1):
+                name = category.get('name', '')
+                definition = category.get('definition', '')
+                examples = category.get('examples', [])
+                rules = category.get('rules', [])
+                char_keywords = category.get('characteristic_keywords', [])
+                
+                # Erstelle Subcategorien-Dictionary
+                subcategories = {}
+                subcodes = category.get('subcodes', [])
+                for subcode in subcodes:
+                    subcode_name = subcode.get('name', '')
+                    subcode_definition = subcode.get('definition', '')
+                    if subcode_name:
+                        subcategories[subcode_name] = subcode_definition
+                
+                # Detaillierte Ausgabe für jede Hauptkategorie
+                print(f"\n📁 {i}. Hauptkategorie: {name}")
+                print(f"- Definition: {definition[:100]}..." if len(definition) > 100 else f"- Definition: {definition}")
+                print(f"- Charakteristische Keywords: {', '.join(char_keywords)}")
+                print(f"- {len(subcategories)} Subcodes zugeordnet")
+                
+                # Zeige die zugeordneten Subcodes
+                if subcategories:
+                    print("  Zugeordnete Subcodes:")
+                    for j, (subname, subdefinition) in enumerate(subcategories.items(), 1):
+                        if j <= 3 or len(subcategories) <= 5:  # Zeige maximal 3 Subcodes oder alle wenn weniger als 5
+                            print(f"  {j}. {subname}")
+                    if len(subcategories) > 5:
+                        print(f"  ... und {len(subcategories) - 3} weitere")
+                
+                # Erstelle CategoryDefinition
+                if name and definition:
+                    grounded_categories[name] = CategoryDefinition(
+                        name=name,
+                        definition=definition,
+                        examples=examples,
+                        rules=rules,
+                        subcategories=subcategories,
+                        added_date=datetime.now().strftime("%Y-%m-%d"),
+                        modified_date=datetime.now().strftime("%Y-%m-%d")
+                    )
+            
+            # Prüfe ob alle Subcodes zugeordnet wurden
+            all_subcodes = set(s.get('name', '') for s in subcodes_data)
+            mapped_subcodes = set(self.subcode_to_main_mapping.keys())
+            unmapped_subcodes = all_subcodes - mapped_subcodes
+            
+            if unmapped_subcodes:
+                print(f"\n⚠️ {len(unmapped_subcodes)} Subcodes wurden nicht zugeordnet!")
+                print("Nicht zugeordnete Subcodes:")
+                for subcode in unmapped_subcodes:
+                    print(f"- {subcode}")
+                print("Diese Subcodes werden keiner Hauptkategorie zugeordnet.")
+            
+            # Kombiniere die generierten Kategorien mit den initialen, falls vorhanden
+            if initial_categories:
+                combined_categories = initial_categories.copy()
+                for name, category in grounded_categories.items():
+                    combined_categories[name] = category
+                return combined_categories
+            
+            return grounded_categories
+            
+        except Exception as e:
+            print(f"Fehler bei der Hauptkategoriengenerierung: {str(e)}")
+            print("Details:")
+            traceback.print_exc()
+            return initial_categories or {}
+    
     async def _prefilter_segments(self, segments: List[str]) -> List[str]:
         """
         Filtert Segmente nach Relevanz für Kategorienentwicklung.
@@ -7164,8 +7794,7 @@ class ResultsExporter:
     def _prepare_coding_for_export(self, coding: dict, chunk: str, chunk_id: int, doc_name: str) -> dict:
         """
         Bereitet eine Kodierung für den Export vor.
-        Erweitert um zusätzliche Felder für detailliertere Analysedokumentation.
-        Das dritte Attribut wird direkt neben dem zweiten Attribut platziert.
+        Angepasst für grounded-Modus mit Hauptkategorie-Matching.
         """
         try:
             # Extrahiere Attribute aus dem Dateinamen
@@ -7186,21 +7815,44 @@ class ResultsExporter:
             # Prüfe ob eine gültige Kategorie vorhanden ist
             category = coding.get('category', '')
             
+            # Prüfe auf Hauptkategorie im grounded Modus
+            main_category = coding.get('main_category', '')
+            if main_category and main_category != category:
+                # Im grounded Modus wurde eine Hauptkategorie zugeordnet
+                if CONFIG.get('ANALYSIS_MODE') == 'grounded':
+                    # Verwende die Hauptkategorie als primäre Kategorie
+                    display_category = main_category
+                    # Stelle sicher, dass der ursprüngliche Subcode in den Subkategorien ist
+                    if category and category not in coding.get('subcategories', []):
+                        subcategories = list(coding.get('subcategories', [])) + [category]
+                    else:
+                        subcategories = coding.get('subcategories', [])
+                else:
+                    # Für andere Modi: Verwende die normale Kategorie
+                    display_category = category
+                    subcategories = coding.get('subcategories', [])
+            else:
+                # Normale Verarbeitung
+                display_category = category
+                subcategories = coding.get('subcategories', [])
+            
             # Hole Consensus-Info für erweiterte Informationen
             consensus_info = coding.get('consensus_info', {})
             selection_type = consensus_info.get('selection_type', '')
             
             # Bestimme den Kategorietyp und Kodiertstatus
-            if category == "Kein Kodierkonsens":
+            if display_category == "Kein Kodierkonsens":
                 kategorie_typ = "unkodiert"
                 is_coded = 'Nein'
-            elif category == "Nicht kodiert":
+            elif display_category == "Nicht kodiert":
                 kategorie_typ = "unkodiert"
                 is_coded = 'Nein'
             else:
-                # Bestimme den Kategorietyp (deduktiv/induktiv)
-                if category in DEDUKTIVE_KATEGORIEN:
+                # Bestimme den Kategorietyp (deduktiv/induktiv/grounded)
+                if display_category in DEDUKTIVE_KATEGORIEN:
                     kategorie_typ = "deduktiv"
+                elif CONFIG.get('ANALYSIS_MODE') == 'grounded':
+                    kategorie_typ = "grounded"
                 else:
                     kategorie_typ = "induktiv"
                     
@@ -7222,7 +7874,7 @@ class ResultsExporter:
 
             # Formatiere die Begründung
             justification = coding.get('justification', '')
-            if category == "Nicht kodiert" and relevance_details:
+            if display_category == "Nicht kodiert" and relevance_details:
                 justification = relevance_details.get('justification', justification)
 
             # Formatiere Textreferenzen
@@ -7270,6 +7922,12 @@ class ResultsExporter:
             else:
                 competing_cats_text = str(competing_cats)
 
+            # Bereite Subkategorien auf
+            if isinstance(subcategories, (list, tuple)):
+                subcats_text = ', '.join(subcategories)
+            else:
+                subcats_text = str(subcategories)
+
             # Export-Dictionary mit allen erforderlichen Feldern
             # Die Reihenfolge hier bestimmt die Spaltenreihenfolge im Excel
             export_data = {
@@ -7288,18 +7946,14 @@ class ResultsExporter:
                 'Text': self._sanitize_text_for_excel(chunk),
                 'Paraphrase': self._sanitize_text_for_excel(coding.get('paraphrase', '')),
                 'Kodiert': is_coded,
-                'Hauptkategorie': self._sanitize_text_for_excel(category),
+                'Hauptkategorie': self._sanitize_text_for_excel(display_category),
                 'Kategorietyp': kategorie_typ,
-                'Subkategorien': self._sanitize_text_for_excel(', '.join(coding.get('subcategories', []))
-                    if isinstance(coding.get('subcategories'), (list, tuple)) 
-                    else str(coding.get('subcategories', ''))),
+                'Subkategorien': self._sanitize_text_for_excel(subcats_text),
                 'Schlüsselwörter': self._sanitize_text_for_excel(', '.join(formatted_keywords)),
                 'Begründung': self._sanitize_text_for_excel(justification),
                 'Konfidenz': self._sanitize_text_for_excel(self._format_confidence(coding.get('confidence', {}))),
-                'Mehrfachkodierung': ('Ja' if isinstance(coding.get('subcategories'), (list, tuple)) 
-                    and len(coding.get('subcategories', [])) > 1 else 'Nein'),
-                #'Textstellen': self._sanitize_text_for_excel(formatted_references),
-                #'Definition_Übereinstimmungen': self._sanitize_text_for_excel(formatted_def_matches),
+                'Mehrfachkodierung': ('Ja' if isinstance(subcategories, (list, tuple)) 
+                    and len(subcategories) > 1 else 'Nein'),
                 'Konkurrierende_Kategorien': self._sanitize_text_for_excel(competing_cats_text)
             }
             export_data.update(additional_fields)
@@ -7335,11 +7989,10 @@ class ResultsExporter:
                 'Subkategorien': '',
                 'Konfidenz': '',
                 'Mehrfachkodierung': 'Nein',
-                #'Textstellen': '',
-                #'Definition_Übereinstimmungen': '',
                 'Konkurrierende_Kategorien': ''
             }
 
+    
     def _format_confidence(self, confidence: dict) -> str:
         """Formatiert die Konfidenz-Werte für den Export"""
         try:
@@ -10231,15 +10884,16 @@ async def main() -> None:
 
         if not skip_inductive:
             default_mode = CONFIG.get('ANALYSIS_MODE', 'deductive')
-            print(f"\nAktueller Analysemodus aus Codebook: {default_mode}")
+            print("\nAktueller Analysemodus aus Codebook: {default_mode}")
             print("Sie haben 10 Sekunden Zeit für die Eingabe.")
             print("Optionen:")
             print("1 = full (volle induktive Analyse)")
             print("2 = abductive (nur Subkategorien entwickeln)")
             print("3 = deductive (nur deduktiv)")
+            print("4 = grounded (Subkategorien sammeln, später Hauptkategorien generieren)")
 
             analysis_mode = get_input_with_timeout(
-                f"\nWelchen Analysemodus möchten Sie verwenden? [1/2/3] (Standard: {CONFIG['ANALYSIS_MODE']})", 
+                f"\nWelchen Analysemodus möchten Sie verwenden? [1/2/3/4] (Standard: {CONFIG['ANALYSIS_MODE']})", 
                 timeout=10
             )
 
@@ -10247,7 +10901,8 @@ async def main() -> None:
             mode_mapping = {
                 '1': 'full',
                 '2': 'abductive',
-                '3': 'deductive'
+                '3': 'deductive',
+                '4': 'grounded'
             }
 
             # Verarbeite Zahlen oder direkte Modusangaben, behalte Default wenn leere oder ungültige Eingabe
@@ -10261,12 +10916,21 @@ async def main() -> None:
                     # Keine Änderung an CONFIG['ANALYSIS_MODE'], Default bleibt bestehen
             else:
                 print(f"Keine Eingabe. Verwende Default-Modus '{default_mode}'.")
-                # Keine Änderung an CONFIG['ANALYSIS_MODE'], Default bleibt bestehen
 
             # Bestimme, ob induktive Analyse übersprungen wird
             skip_inductive = CONFIG['ANALYSIS_MODE'] == 'deductive'
 
             print(f"\nAnalysemodus: {CONFIG['ANALYSIS_MODE']} {'(Skip induktiv)' if skip_inductive else ''}")
+
+            # Bei Modus 'grounded' zusätzliche Informationen anzeigen
+            if CONFIG['ANALYSIS_MODE'] == 'grounded':
+                print("""
+            Grounded Theory Modus ausgewählt:
+            - Zunächst werden Subcodes und Keywords gesammelt, ohne Hauptkategorien zu bilden
+            - Erst nach Abschluss aller Segmente werden die Hauptkategorien generiert
+            - Die Subcodes werden anhand ihrer Keywords zu thematisch zusammenhängenden Hauptkategorien gruppiert
+            - Im Export werden diese als 'grounded' (statt 'induktiv') markiert
+            """)
 
         # 5. Kodierer konfigurieren
         print("\n4. Konfiguriere Kodierer...")
