@@ -7,7 +7,12 @@ enhanced with AI capabilities through the OpenAI API.
 
 Version:
 --------
-0.9.11 (2025-04-15)
+0.9.11.1 (2025-05-02)
+
+New in 0.9.11.1
+- Fixes an issue with illegal characters in intercoder analysis excel export
+- improves abstraction level for sub categories in grounded mode
+
 
 New in 0.9.11
 - New 'grounded' analysis mode added, inspired by Grounded Theory and Kuckartz
@@ -5222,7 +5227,7 @@ class InductiveCoder:
         """
         Analysiert einen Batch von Segmenten im 'grounded' Modus.
         Extrahiert Subcodes und Keywords ohne direkte Zuordnung zu Hauptkategorien.
-        Angepasst für die kontinuierliche Anreicherung des Subcode-Sets.
+        Sorgt für angemessenen Abstand zwischen Keywords und Subcodes.
         
         Args:
             segments: Liste der Textsegmente
@@ -5265,6 +5270,10 @@ class InductiveCoder:
                         "memo": "Analytische Notizen zum Segment"
                     }
                 ],
+                "abstraction_quality": {
+                    "keyword_subcode_distinction": 0.0-1.0,
+                    "comment": "Bewertung der Abstraktionshierarchie"
+                },
                 "saturation_metrics": {
                     "new_aspects_found": true/false,
                     "coverage": 0.0-1.0,
@@ -5272,6 +5281,7 @@ class InductiveCoder:
                 }
             }'''
 
+            # Verbesserter Prompt mit Fokus auf die Abstraktionshierarchie
             prompt = f"""
             Analysiere folgende Textsegmente im Sinne der Grounded Theory.
             Identifiziere Subcodes und Keywords, ohne sie bereits Hauptkategorien zuzuordnen.
@@ -5287,12 +5297,12 @@ class InductiveCoder:
             
             ANWEISUNGEN FÜR DEN GROUNDED THEORY MODUS:
             
-            1. OFFENES KODIEREN:
-            - Identifiziere wichtige Konzepte/Phänomene in jedem Textsegment
-            - Entwickle präzise benannte Subcodes mit klaren Definitionen
-            - Dokumentiere relevante Textbelege für jeden Subcode
-            - Extrahiere aussagekräftige Keywords für jeden Subcode (WICHTIG: Keywords gehören immer zu einem Subcode)
-            - Schreibe analytische Memos zu jedem Segment
+            1. OFFENES KODIEREN MIT KLARER ABSTRAKTIONSHIERARCHIE:
+            - KEYWORDS: Extrahiere TEXTNAHE, KONKRETE Begriffe und Phrasen direkt aus dem Text
+            - SUBCODES: Entwickle eine ERSTE ABSTRAKTIONSEBENE basierend auf den Keywords
+            * Fasse ähnliche Keywords zu einem gemeinsamen, leicht abstrahierten Subcode zusammen
+            * Verwende eine präzisere Sprache als für spätere Hauptkategorien
+            * Formuliere Subcodes als analytische Konzepte, NICHT als bloße Wiederholung der Keywords
             
             2. WICHTIG - PROGRESSIVE ANREICHERUNG DES SUBCODE-SETS:
             - Berücksichtige die bereits identifizierten Subcodes
@@ -5305,13 +5315,21 @@ class InductiveCoder:
             - Präzise und eindeutig benannt
             - Analytisch wertvoll für die Forschungsfrage
             - Trennscharf zu anderen Subcodes
+            - ABSTRAKTION: Erkennbar abstrakter als die Keywords, aber konkreter als spätere Hauptkategorien
             - Nicht zu allgemein oder zu spezifisch
             
             4. KEYWORDS IMMER MIT SUBCODES VERKNÜPFEN:
-            - Jeder Subcode muss mindestens 3 Keywords erhalten
-            - Keywords müssen den Kern des Subcodes präzise wiedergeben
+            - Jeder Subcode muss mindestens 3-5 Keywords erhalten
+            - Keywords sollen DIREKTER TEXTAUSZUG sein, während Subcodes erste Interpretation darstellen
             - Keywords werden später für die Kategorienbildung verwendet
             - Keine allgemeinen Keywords ohne Subcode-Zugehörigkeit
+            
+            5. UNTERSCHIED KEYWORDS VS. SUBCODES - BEISPIEL:
+            Keywords: "Antragsverfahren", "Bewertungskriterien", "Fördermittelbeantragung"
+            Subcode: "Formale Verfahrensstruktur"
+            
+            Keywords: "mangelnde Abstimmung", "fehlende Kommunikation", "keine Rückmeldung" 
+            Subcode: "Kommunikationsdefizite"
             
             Antworte NUR mit einem JSON-Objekt:
             {json_schema}
@@ -5319,6 +5337,7 @@ class InductiveCoder:
 
             input_tokens = estimate_tokens(prompt)
 
+            # API-Call
             response = await self.llm_provider.create_completion(
                     model=self.model_name,
                     messages=[
@@ -5339,6 +5358,14 @@ class InductiveCoder:
             # Cache das Ergebnis
             self.analysis_cache[cache_key] = result
             
+            # Bewertung der Abstraktionsqualität
+            abstraction_quality = result.get('abstraction_quality', {})
+            if abstraction_quality and 'keyword_subcode_distinction' in abstraction_quality:
+                quality_score = abstraction_quality['keyword_subcode_distinction']
+                quality_comment = abstraction_quality.get('comment', '')
+                print(f"\nAbstraktionsqualität: {quality_score:.2f}/1.0")
+                print(f"Kommentar: {quality_comment}")
+            
             # Debug-Ausgabe und verbesserte Fortschrittsanzeige
             segment_count = len(result.get('segment_analyses', []))
             
@@ -5354,34 +5381,19 @@ class InductiveCoder:
                 for subcode in subcodes:
                     new_subcodes.append(subcode)
                     keyword_count += len(subcode.get('keywords', []))
+                    
+                    # Zeige Abstraktionsbeispiele für besseres Monitoring
+                    keywords = subcode.get('keywords', [])
+                    if keywords and len(keywords) > 0:
+                        print(f"\nAbstraktionsbeispiel:")
+                        print(f"Keywords: {', '.join(keywords[:3])}" + ("..." if len(keywords) > 3 else ""))
+                        print(f"Subcode: {subcode.get('name', '')}")
             
             # Erweiterte Fortschrittsanzeige
             print(f"\nGrounded Analyse für {segment_count} Segmente abgeschlossen:")
             print(f"- {subcode_count} neue Subcodes identifiziert")
             print(f"- {keyword_count} Keywords mit Subcodes verknüpft")
             print(f"- Material-Fortschritt: {material_percentage:.1f}%")
-            
-            # Prüfe auf Überschneidungen mit bestehenden Subcodes
-            if existing_subcodes and new_subcodes:
-                new_names = [sc.get('name', '') for sc in new_subcodes]
-                overlap = set(existing_subcodes) & set(new_names)
-                if overlap:
-                    print(f"⚠️ Hinweis: {len(overlap)} überlappende Subcodes mit vorherigen Batches")
-                    print(f"   Dies ist kein Problem, da nur neue Subcodes hinzugefügt werden")
-            
-            # Erweiterte Darstellung der neuen Subcodes
-            if new_subcodes:
-                print("\nNeu identifizierte Subcodes in diesem Batch:")
-                for i, subcode in enumerate(new_subcodes, 1):
-                    code_name = subcode.get('name', 'Unbenannt')
-                    keywords = subcode.get('keywords', [])
-                    confidence = subcode.get('confidence', 0)
-                    
-                    keyword_str = ", ".join(keywords[:3])
-                    if len(keywords) > 3:
-                        keyword_str += f" (+{len(keywords)-3} weitere)"
-                        
-                    print(f"{i}. {code_name} ({confidence:.2f}): {keyword_str}")
             
             # Progress Bar für Gesamtfortschritt der Subcode-Sammlung
             if hasattr(self, 'collected_subcodes'):
@@ -5395,13 +5407,6 @@ class InductiveCoder:
                 print(f"[{bar}] {material_percentage:.1f}%")
                 print(f"Bisher gesammelt: {total_collected} Subcodes mit ihren Keywords")
             
-            # Speichere Sättigungsmetriken
-            saturation = result.get('saturation_metrics', {})
-            if saturation:
-                print(f"\nSättigungsmetriken:")
-                print(f"- Neue Aspekte gefunden: {'Ja' if saturation.get('new_aspects_found', False) else 'Nein'}")
-                print(f"- Abdeckung: {saturation.get('coverage', 0):.2f}")
-                
             return result
             
         except Exception as e:
@@ -5472,26 +5477,34 @@ class InductiveCoder:
             IDENTIFIZIERTE SUBCODES MIT IHREN KEYWORDS:
             {json.dumps(subcodes_data, indent=2, ensure_ascii=False)}
 
-            AUFGABE:
-            1. Analysiere die thematischen Zusammenhänge zwischen den Subcodes unter besonderer Berücksichtigung IHRER KEYWORDS
-            2. WICHTIG - STARKE VERDICHTUNG: Gruppiere die Subcodes zu nur 4-6 KLAR ABGEGRENZTEN Hauptkategorien
-            3. WICHTIG - ABSTRAKTIONSEBENE ERHÖHEN: Wähle eine höhere Abstraktionsebene für die Hauptkategorien als bisher
-            4. Suche bewusst nach Möglichkeiten, ähnliche Konzepte ZUSAMMENZUFÜHREN anstatt sie in separaten Kategorien zu halten
-            5. Die Keywords der Subcodes sind entscheidend für die Gruppierung! Subcodes mit TEILWEISE überlappenden Keywords sollten in EINER Hauptkategorie zusammengefasst werden
-            6. Jede Hauptkategorie muss folgende Kriterien erfüllen:
-            - Präziser, aussagekräftiger Name auf höherer Abstraktionsebene
-            - Umfassende Definition, die verschiedene Aspekte integriert
-            - Klare Abgrenzung zu anderen Hauptkategorien
-            - Theoretische Relevanz für die Forschungsfrage
-            - Robuste empirische Sättigung durch zahlreiche zugeordnete Subcodes
-            7. Weise ALLE Subcodes den passenden Hauptkategorien zu - KEINER darf ohne Zuordnung bleiben
-            8. Entwickle für jede Hauptkategorie 3-4 klare Kodierregeln
-            9. Leite typische Beispiele für jede Hauptkategorie aus den Textbelegen der Subcodes ab
+            AUFGABE - DREISTUFIGE ABSTRAKTIONSHIERARCHIE:
+            1. KEYWORDS (bereits vorhanden): Textnahe, spezifische Begriffe und Phrasen direkt aus dem Material
+            2. SUBCODES (bereits vorhanden): Erste Abstraktionsebene, fassen ähnliche Keywords zusammen
+            3. HAUPTKATEGORIEN (zu generieren): DEUTLICH HÖHERE ABSTRAKTIONSEBENE als Subcodes
+
+            RICHTLINIEN FÜR HAUPTKATEGORIEN:
+            1. MAXIMALE ABSTRAKTION: Eine Hauptkategorie sollte deutlich abstrakter sein als die zugeordneten Subcodes
+            2. THEORETISCHE KONZEPTE: Nutze sozialwissenschaftliche Konzepte und Terminologie auf hohem Abstraktionsniveau
+            3. ÜBERGREIFENDE LOGIK: Identifiziere die gemeinsame strukturelle oder prozessuale Logik hinter verschiedenen Subcodes
+            4. ANALYTISCHE DIMENSIONEN: Entwickle Hauptkategorien entlang analytischer Dimensionen wie:
+            - Strukturelle vs. handlungsbezogene Aspekte
+            - Formale vs. informelle Prozesse
+            - Institutionelle vs. individuelle Faktoren
+            - Manifeste vs. latente Funktionen
+
+            BEISPIEL FÜR ABSTRAKTIONSHIERARCHIE:
+            - Keywords: "Stundenplangestaltung", "Raumzuweisung", "Prüfungstermine"
+            - Subcode: "Administrative Koordinationsaufgaben"
+            - Hauptkategorie: "Organisationale Steuerungsmechanismen"
+
+            - Keywords: "Zielvereinbarungen", "Budgetverhandlungen", "Leistungsmessungen" 
+            - Subcode: "Leistungsbezogene Mittelzuweisung"
+            - Hauptkategorie: "Governance durch Anreizstrukturen"
 
             STRATEGIE FÜR STÄRKERE VERDICHTUNG:
             - Identifiziere übergeordnete theoretische Konzepte, die mehrere ähnliche Phänomene zusammenfassen
             - Bevorzuge breitere Kategorien mit mehr Subcodes gegenüber eng definierten Kategorien mit wenigen Subcodes
-            - Verwende für die Hauptkategorien Begriffe mit höherem Abstraktionsgrad
+            - Verwende für die Hauptkategorien Begriffe mit DEUTLICH HÖHEREM Abstraktionsgrad als die Subcodes
             - Erstelle eine konzeptionelle Hierarchie, die Zusammenhänge zwischen den Kategorien verdeutlicht
             - Ordne grenzwertige Subcodes der jeweils passenderen Hauptkategorie zu
 
@@ -5510,7 +5523,7 @@ class InductiveCoder:
             {{
                 "main_categories": [
                     {{
-                        "name": "Name der Hauptkategorie (höhere Abstraktionsebene)",
+                        "name": "Name der Hauptkategorie (DEUTLICH HÖHERE Abstraktionsebene)",
                         "definition": "Umfassende Definition der Hauptkategorie, die verschiedene Aspekte zusammenführt",
                         "characteristic_keywords": ["Übergeordnete Keywords dieser Hauptkategorie"],
                         "rules": ["Kodierregel 1", "Kodierregel 2", "Kodierregel 3", "Kodierregel 4"],
@@ -7969,7 +7982,7 @@ class ResultsExporter:
             
             if 'context_influence' in coding and coding['context_influence']:
                 export_data['Context_Influence'] = self._sanitize_text_for_excel(coding.get('context_influence', ''))
-
+            
             return export_data
                 
         except Exception as e:
@@ -9163,11 +9176,10 @@ class ResultsExporter:
                 text_chunk = codings[0].get('text', '')
                 if text_chunk:
                     text_chunk = text_chunk[:200] + ("..." if len(text_chunk) > 200 else "")
+                    # Bereinige Text für Excel
+                    text_chunk = self._sanitize_text_for_excel(text_chunk)
                 else:
                     text_chunk = "Text nicht verfügbar"
-
-                # Debug-Ausgabe
-                # print(f"Segment ID: {segment_id}, Categories: {categories}, Text Chunk: {text_chunk}")
 
                 # Überprüfen Sie die Struktur der 'justification'-Felder
                 justifications = []
@@ -9182,16 +9194,20 @@ class ResultsExporter:
                     else:
                         # Wenn 'justification' ein unerwarteter Typ ist, setzen Sie ihn auf einen leeren String
                         justification_text = ''
+                    
+                    # Bereinige auch die Begründung
+                    justification_text = self._sanitize_text_for_excel(justification_text)
                     justifications.append(justification_text)
 
-                # print(f"Justifications: {justifications}")
+                # Bereinige die Kategorien
+                sanitized_categories = [self._sanitize_text_for_excel(cat) for cat in set(categories)]
 
                 row_data = [
-                    segment_id,
+                    self._sanitize_text_for_excel(segment_id),
                     text_chunk,
                     len(codings),
                     "Vollständig" if category_agreement else "Keine Übereinstimmung",
-                    ' | '.join(set(categories)),
+                    ' | '.join(sanitized_categories),
                     '\n'.join([j[:100] + '...' for j in justifications])
                 ]
 
@@ -9224,6 +9240,8 @@ class ResultsExporter:
                 text_chunk = codings[0].get('text', '')
                 if text_chunk:
                     text_chunk = text_chunk[:200] + ("..." if len(text_chunk) > 200 else "")
+                    # Bereinige Text für Excel
+                    text_chunk = self._sanitize_text_for_excel(text_chunk)
                 else:
                     text_chunk = "Text nicht verfügbar"
 
@@ -9241,13 +9259,17 @@ class ResultsExporter:
                 else:
                     agreement = "Keine Subkategorien"
 
+                # Bereinige die Subkategorien
+                all_subcats = set.union(*subcategories) if subcategories else set()
+                sanitized_subcats = [self._sanitize_text_for_excel(subcat) for subcat in all_subcats]
+
                 row_data = [
-                    segment_id,
+                    self._sanitize_text_for_excel(segment_id),
                     text_chunk,
                     len(codings),
                     agreement,
-                    ' | '.join(set.union(*subcategories) if subcategories else set()),
-                    '\n'.join([j[:100] + '...' for j in justifications])
+                    ' | '.join(sanitized_subcats),
+                    '\n'.join([self._sanitize_text_for_excel(j[:100] + '...') for j in justifications])
                 ]
 
                 for col, value in enumerate(row_data, 1):
@@ -9269,12 +9291,12 @@ class ResultsExporter:
 
                 # Schreibe Spaltenüberschriften
                 for col, coder in enumerate(coders, 2):
-                    worksheet.cell(row=current_row, column=col, value=coder)
+                    worksheet.cell(row=current_row, column=col, value=self._sanitize_text_for_excel(coder))
                 current_row += 1
 
                 # Fülle Matrix
                 for coder1 in coders:
-                    worksheet.cell(row=current_row, column=1, value=coder1)
+                    worksheet.cell(row=current_row, column=1, value=self._sanitize_text_for_excel(coder1))
 
                     for col, coder2 in enumerate(coders, 2):
                         if coder1 == coder2:
@@ -11166,3 +11188,6 @@ if __name__ == "__main__":
     except Exception as e:
         print(f"Fehler im Hauptprogramm: {str(e)}")
         raise
+
+
+
