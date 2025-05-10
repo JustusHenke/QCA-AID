@@ -1,6 +1,6 @@
 ![QCA-AID](banner-qca-aid.png)
 
-# QCA-AID: Qualitative Content Analysis with AI Support - Deductive Coding
+# QCA-AID: Qualitative Content Analysis - AI Discovery
 
 Dieses Python-Skript implementiert Mayrings Methode der deduktiven Qualitativen Inhaltsanalyse mit induktiver Erweiterung mit KI-Unterstützung durch die OpenAI API. Es kombiniert traditionelle qualitative Forschungsmethoden mit modernen KI-Fähigkeiten, um Forschende bei der Analyse von Dokumenten- und Interviewdaten zu unterstützen. Das Ziel dieses Tools ist nicht, die menschliche Arbeit der Inhaltsanalyse zu ersetzen, sondern neue Möglichkeiten zu eröffnen, mehr Zeit für die Analyse und Reflexion bereits vorstrukturierter Textdaten zu gewinnen. 
 
@@ -66,6 +66,14 @@ Prinzipiell ist die Verarbeitung der Daten per LLM auch auf einem lokalen Rechne
 - **Temperaturstufen**: Steuerung der "Kreativität" bei der induktiven Kategorienentwicklung
 - **Anpassbarer Analysemodus**: Wahl zwischen vollständiger, abduktiver oder rein deduktiver Analyse
 
+
+## Neu in 0.9.11  (2025-05-10)
+- Verbesserter manueller Kodierungsworkflow mit korrekter Handhabung des letzten Segments
+- Verbesserte Funktionalität der Schaltflächen "Kodieren & Abschließen" für eine intuitivere Vervollständigung der Kodierung
+- Robustes manuelles Code-Review-System zur Behebung von Unstimmigkeiten zwischen den Codierern hinzugefügt
+- Die Tkinter-Ressourcenverwaltung wurde verbessert, um Fehler beim Schließen von Fenstern zu vermeiden
+- Verbesserte Fehlerbehandlung für den Export von Überprüfungsentscheidungen
+- Allgemeine Stabilitätsverbesserungen für die Schnittstelle zur manuellen Kodierung
 
 ## Neu in 0.9.11  (2025-04-12)
 - Neuer 'grounded' Analysemodus hinzugefügt, inspiriert von Grounded Theory und Kuckartz
