@@ -7,7 +7,15 @@ enhanced with AI capabilities through the OpenAI API.
 
 Version:
 --------
-0.9.11.1 (2025-05-02)
+0.9.12 (2025-05-10)
+
+New in 0.9.12
+- Improved manual coding workflow with proper handling of the last segment
+- Enhanced "Kodieren & Abschließen" button functionality for more intuitive coding completion
+- Added robust manual code review system for resolving intercoder disagreements
+- Fixed Tkinter resource management to prevent errors when closing windows
+- Improved error handling for review decision exports
+- Overall stability improvements for the manual coding interface
 
 New in 0.9.11.1
 - Fixes an issue with illegal characters in intercoder analysis excel export
@@ -164,6 +172,30 @@ import platform
 import time
 import statistics
 import traceback 
+
+
+def _patch_tkinter_for_threaded_exit():
+    """
+    Patcht die Tkinter Variable.__del__ Methode, um den RuntimeError beim Beenden zu vermeiden.
+    """
+    import tkinter
+    
+    # Originale __del__ Methode speichern
+    original_del = tkinter.Variable.__del__
+    
+    # Neue __del__ Methode definieren, die Ausnahmen abfängt
+    def safe_del(self):
+        try:
+            # Nur aufrufen, wenn _tk existiert und es sich um ein valides Tkinter-Objekt handelt
+            if hasattr(self, '_tk') and self._tk:
+                original_del(self)
+        except (RuntimeError, TypeError, AttributeError):
+            # Diese Ausnahmen stillschweigend ignorieren
+            pass
+    
+    # Die ursprüngliche Methode ersetzen
+    tkinter.Variable.__del__ = safe_del
+    print("Tkinter für sicheres Beenden gepatcht.")
 
 # ============================
 # 2. Globale Variablen
@@ -3983,18 +4015,22 @@ class DeductiveCoder:
             else:
                 return None
             
-    async def code_chunk(self, chunk: str, categories: Dict[str, CategoryDefinition] = None) -> Optional[CodingResult]:
+    async def code_chunk(self, chunk: str, categories: Optional[Dict[str, CategoryDefinition]] = None, is_last_segment: bool = False) -> Optional[CodingResult]:
         """
         Kodiert einen Text-Chunk basierend auf dem aktuellen Kategoriensystem.
         
         Args:
             chunk: Zu kodierender Text
             categories: Optional übergebenes Kategoriensystem (wird nur verwendet wenn kein aktuelles System existiert)
+            is_last_segment: Gibt an, ob dies das letzte zu kodierende Segment ist
             
         Returns:
             Optional[CodingResult]: Kodierungsergebnis oder None bei Fehler
         """
         try:
+            # Speichere Information, ob letztes Segment
+            self.is_last_segment = is_last_segment
+
             # Verwende das interne Kategoriensystem wenn vorhanden, sonst das übergebene
             current_categories = self.current_categories or categories
             
@@ -4103,7 +4139,7 @@ class DeductiveCoder:
 
 
             try:
-                input_tokens = estimate_tokens(prompt + chunk)
+                input_tokens = estimate_tokens(prompt)
 
                 response = await self.llm_provider.create_completion(
                     model=self.model_name,
@@ -4436,7 +4472,7 @@ class DeductiveCoder:
             llm_response = LLMResponse(response)
             result = json.loads(llm_response.content)
 
-            output_tokens = estimate_tokens(llm_response.content)
+            output_tokens = estimate_tokens(response.choices[0].message.content)
             token_counter.add_tokens(input_tokens, output_tokens)
             
             # Extrahiere relevante Teile
@@ -5584,7 +5620,7 @@ class InductiveCoder:
             llm_response = LLMResponse(response)
             result = json.loads(llm_response.content)
             
-            output_tokens = estimate_tokens(llm_response.content)
+            output_tokens = estimate_tokens(response.choices[0].message.content)
             token_counter.add_tokens(input_tokens, output_tokens)
             
             # Konvertiere das Ergebnis in CategoryDefinition-Objekte
@@ -5779,7 +5815,7 @@ class InductiveCoder:
                 
 
                 output_tokens = estimate_tokens(response.choices[0].message.content)
-                token_counter.add_tokens(output_tokens)
+                token_counter.add_tokens(input_tokens,output_tokens)
                 print("\nAPI-Antwort erhalten:")
                 print(raw_response)
 
@@ -6910,39 +6946,91 @@ class ManualCoder:
         self.current_coding = None
         self._is_processing = False
         self.current_categories = {}
+        self.is_last_segment = False  # Neue Variable zur Identifizierung des letzten Segments
         
-    async def code_chunk(self, chunk: str, categories: Optional[Dict[str, CategoryDefinition]]) -> Optional[CodingResult]:
-        """Nutzt das asyncio Event Loop, um tkinter korrekt zu starten"""
+    async def code_chunk(self, chunk: str, categories: Optional[Dict[str, CategoryDefinition]], is_last_segment: bool = False) -> Optional[CodingResult]:
+        """
+        Nutzt das asyncio Event Loop, um tkinter korrekt zu starten.
+        
+        Args:
+            chunk: Zu kodierender Text
+            categories: Kategoriensystem
+            is_last_segment: Gibt an, ob dies das letzte zu kodierende Segment ist
+            
+        Returns:
+            Optional[CodingResult]: Kodierungsergebnis oder None bei Fehler
+        """
         try:
             self.categories = self.current_categories or categories
             self.current_coding = None
+            self.is_last_segment = is_last_segment  # Speichere Information, ob letztes Segment
             
             # Erstelle und starte das Tkinter-Fenster im Hauptthread
             loop = asyncio.get_event_loop()
             await loop.run_in_executor(None, self._run_tk_window, chunk)
             
             # Nach dem Beenden des Fensters
-            if self.root:
-                try:
+            try:
+                # Stelle sicher, dass das Fenster vollständig geschlossen wird
+                if self.root:
                     self.root.destroy()
                     self.root = None
-                except:
-                    pass
+            except Exception as e:
+                print(f"Warnung: Fehler beim Schließen des Fensters: {str(e)}")
+                # Ignorieren, da wir das Fenster trotzdem schließen wollen
+            
+            # Wichtig: Text zum Kodierungsergebnis hinzufügen
+            if self.current_coding:
+                # Text für das CodingResult hinzufügen, falls es nicht bereits enthalten ist
+                # Wir erstellen ein neues CodingResult mit dem Text
+                text_references = list(self.current_coding.text_references)
+                if chunk not in text_references:
+                    text_references.append(chunk)
                 
+                enhanced_coding = CodingResult(
+                    category=self.current_coding.category,
+                    subcategories=self.current_coding.subcategories,
+                    justification=self.current_coding.justification,
+                    confidence=self.current_coding.confidence,
+                    text_references=tuple(text_references),
+                    uncertainties=self.current_coding.uncertainties,
+                    paraphrase=self.current_coding.paraphrase,
+                    keywords=self.current_coding.keywords
+                )
+                
+                # Aktualisiere das current_coding Attribut
+                self.current_coding = enhanced_coding
+                
+            # Debug-Ausgabe
+            result_status = "Kodierung erstellt" if self.current_coding else "Keine Kodierung"
+            print(f"ManualCoder Ergebnis: {result_status}")
+            
+            # Abschließende Bereinigung aller Tkinter-Ressourcen
+            self._cleanup_tkinter_resources()
+            
             return self.current_coding
             
         except Exception as e:
             print(f"Fehler in code_chunk: {str(e)}")
+            print("Details:")
+            import traceback
+            traceback.print_exc()
+            
+            # Stelle sicher, dass das Fenster auch bei Fehlern geschlossen wird
             if self.root:
                 try:
                     self.root.destroy()
                     self.root = None
                 except:
                     pass
+                    
+            # Bereinigung bei Fehlern
+            self._cleanup_tkinter_resources()
+                
             return None
 
     def _run_tk_window(self, chunk: str):
-        """Führt das Tkinter-Fenster im Hauptthread aus"""
+        """Führt das Tkinter-Fenster im Hauptthread aus mit verbessertem Handling des letzten Segments"""
         try:
             if self.root is not None:
                 try:
@@ -6959,6 +7047,21 @@ class ManualCoder:
             self.root.protocol("WM_DELETE_WINDOW", self.on_closing)
         
             # GUI erstellen...
+            # Header mit Fortschrittsinformation
+            header_frame = ttk.Frame(self.root)
+            header_frame.pack(padx=10, pady=5, fill=tk.X)
+            
+            # Wenn letztes Segment, zeige Hinweis an
+            if self.is_last_segment:
+                last_segment_label = ttk.Label(
+                    header_frame, 
+                    text="DIES IST DAS LETZTE SEGMENT",
+                    font=('Arial', 10, 'bold'),
+                    foreground='red'
+                )
+                last_segment_label.pack(side=tk.TOP, padx=5, pady=5)
+            
+
             self.text_chunk = tk.Text(self.root, height=10, wrap=tk.WORD)
             self.text_chunk.pack(padx=10, pady=10, fill=tk.BOTH, expand=True)
             self.text_chunk.insert(tk.END, chunk)
@@ -6976,12 +7079,21 @@ class ManualCoder:
             
             button_frame = ttk.Frame(self.root)
             button_frame.pack(padx=10, pady=10)
-            
-            ttk.Button(button_frame, text="Kodieren", command=self._safe_code_selection).pack(side=tk.LEFT, padx=5)
+
+            if self.is_last_segment:
+                ttk.Button(
+                    button_frame, 
+                    text="Kodieren & Abschließen", 
+                    command=self._safe_finish_coding
+                ).pack(side=tk.LEFT, padx=5)
+            else:
+                ttk.Button(button_frame, text="Kodieren", command=self._safe_code_selection).pack(side=tk.LEFT, padx=5)
+
             ttk.Button(button_frame, text="Neue Hauptkategorie", command=self._safe_new_main_category).pack(side=tk.LEFT, padx=5)
             ttk.Button(button_frame, text="Neue Subkategorie", command=self._safe_new_sub_category).pack(side=tk.LEFT, padx=5)
             ttk.Button(button_frame, text="Überspringen", command=self._safe_skip_chunk).pack(side=tk.LEFT, padx=5)
             ttk.Button(button_frame, text="Abbrechen", command=self._safe_abort_coding).pack(side=tk.LEFT, padx=5)
+            
             
             self.update_category_list()
             
@@ -7005,6 +7117,25 @@ class ManualCoder:
             print(f"Fehler beim Erstellen des Tkinter-Fensters: {str(e)}")
             self.current_coding = None
             return
+
+    def _cleanup_tkinter_resources(self):
+        """Bereinigt alle Tkinter-Ressourcen"""
+        try:
+            # Entferne alle Tkinter-Variablen
+            for attr_name in list(self.__dict__.keys()):
+                if attr_name.startswith('_tk_var_'):
+                    delattr(self, attr_name)
+                    
+            # Setze Fenster-Referenzen auf None
+            self.text_chunk = None
+            self.category_listbox = None
+            
+            # Sammle Garbage-Collection
+            import gc
+            gc.collect()
+            
+        except Exception as e:
+            print(f"Warnung: Fehler bei der Bereinigung von Tkinter-Ressourcen: {str(e)}")
 
     def update_category_list(self):
         """Aktualisiert die Liste der Kategorien in der GUI"""
@@ -7044,26 +7175,48 @@ class ManualCoder:
                 print(f"Index {idx}: Subkategorie '{mapping['name']}' von '{mapping['main_category']}'")
 
     def on_closing(self):
-        """Sicheres Schließen des Fensters"""
+        """Sicheres Schließen des Fensters mit vollständiger Ressourcenfreigabe"""
         try:
             if messagebox.askokcancel("Beenden", "Möchten Sie das Kodieren wirklich beenden?"):
                 self.current_coding = None
                 self._is_processing = False
-                if self.root:
+                
+                # Alle Tkinter-Variablen explizit löschen
+                if hasattr(self, 'root') and self.root:
+                    for attr_name in dir(self):
+                        attr = getattr(self, attr_name) 
+                        # Prüfen, ob es sich um eine Tkinter-Variable handelt
+                        if hasattr(attr, '_tk'):
+                            delattr(self, attr_name)
+                    
+                    # Fenster schließen
                     try:
                         self.root.quit()
+                        self.root.destroy()
+                        self.root = None  # Referenz entfernen
                     except:
                         pass
         except:
-            pass
+            # Stelle sicher, dass Fenster auch bei Fehlern geschlossen wird
+            if hasattr(self, 'root') and self.root:
+                try:
+                    self.root.quit()
+                    self.root.destroy()
+                    self.root = None
+                except:
+                    pass
 
     def _safe_code_selection(self):
         """Thread-sichere Kodierungsauswahl mit korrekter Kategoriezuordnung"""
         if not self._is_processing:
             try:
+                # Flag setzen, um mehrfache Verarbeitung zu verhindern
+                self._is_processing = True
+                
                 selection = self.category_listbox.curselection()
                 if not selection:
                     messagebox.showwarning("Warnung", "Bitte wählen Sie eine Kategorie aus.")
+                    self._is_processing = False
                     return
                 
                 index = selection[0]
@@ -7071,6 +7224,7 @@ class ManualCoder:
                 # Hole die tatsächliche Kategorie aus dem Mapping
                 if index not in self.category_map:
                     messagebox.showerror("Fehler", "Ungültiger Kategorieindex")
+                    self._is_processing = False
                     return
                     
                 category_info = self.category_map[index]
@@ -7088,12 +7242,14 @@ class ManualCoder:
                     messagebox.showerror("Fehler", 
                         f"Hauptkategorie '{main_cat}' nicht gefunden.\n"
                         f"Verfügbare Kategorien: {', '.join(self.categories.keys())}")
+                    self._is_processing = False
                     return
                     
                 if sub_cat and sub_cat not in self.categories[main_cat].subcategories:
                     messagebox.showerror("Fehler", 
                         f"Subkategorie '{sub_cat}' nicht in '{main_cat}' gefunden.\n"
                         f"Verfügbare Subkategorien: {', '.join(self.categories[main_cat].subcategories.keys())}")
+                    self._is_processing = False
                     return
 
                 # Erstelle bereinigte Kodierung
@@ -7109,16 +7265,34 @@ class ManualCoder:
                 print(f"- Hauptkategorie: {main_cat}")
                 if sub_cat:
                     print(f"- Subkategorie: {sub_cat}")
+                    
+                # Bei letztem Segment Hinweis anzeigen
+                if self.is_last_segment:
+                    messagebox.showinfo("Kodierung abgeschlossen", 
+                                    "Die Kodierung des letzten Segments wurde abgeschlossen.\n"
+                                    "Der manuelle Kodierungsprozess wird beendet.")
                 
+                # Setze das Flag zurück
                 self._is_processing = False
-                self.root.quit()
                 
+                # Dann Fenster schließen - in dieser Reihenfolge!
+                if self.root:
+                    try:
+                        # Fenster schließen (wichtig: destroy vor quit)
+                        self.root.destroy()
+                        self.root.quit()
+                    except Exception as e:
+                        print(f"Fehler beim Schließen des Fensters: {str(e)}")
+                        
             except Exception as e:
                 messagebox.showerror("Fehler", f"Fehler bei der Kategorieauswahl: {str(e)}")
                 print(f"Fehler bei der Kategorieauswahl: {str(e)}")
                 print("Details:")
                 import traceback
                 traceback.print_exc()
+                
+                # Setze das Flag zurück
+                self._is_processing = False
                 
 
     def _safe_abort_coding(self):
@@ -7147,7 +7321,89 @@ class ManualCoder:
                 text_references=[self.text_chunk.get("1.0", tk.END)[:100]]
             )
             self._is_processing = False
+            
+            # Bei letztem Segment Hinweis anzeigen
+            if self.is_last_segment:
+                messagebox.showinfo("Kodierung abgeschlossen", 
+                                   "Die Kodierung des letzten Segments wurde übersprungen.\n"
+                                   "Der manuelle Kodierungsprozess wird beendet.")
+            
             self.root.quit()
+
+    def _safe_finish_coding(self):
+        """Thread-sicherer Abschluss der Kodierung (nur für letztes Segment)"""
+        if not self._is_processing and self.is_last_segment:
+            if messagebox.askyesno("Segment kodieren und abschließen", 
+                "Möchten Sie das aktuelle Segment kodieren und den manuellen Kodierungsprozess abschließen?"):
+                
+                # Zuerst die normale Kodierung durchführen
+                selection = self.category_listbox.curselection()
+                if not selection:
+                    messagebox.showwarning("Warnung", "Bitte wählen Sie eine Kategorie aus.")
+                    return
+                
+                # Die gleiche Logik wie in _safe_code_selection verwenden
+                index = selection[0]
+                
+                # Hole die tatsächliche Kategorie aus dem Mapping
+                if index not in self.category_map:
+                    messagebox.showerror("Fehler", "Ungültiger Kategorieindex")
+                    return
+                    
+                category_info = self.category_map[index]
+                
+                if category_info['type'] == 'main':
+                    main_cat = category_info['name']
+                    sub_cat = None
+                else:
+                    main_cat = category_info['main_category']
+                    sub_cat = category_info['name']
+                
+                # Verifiziere die Kategorien
+                if main_cat not in self.categories:
+                    messagebox.showerror("Fehler", 
+                        f"Hauptkategorie '{main_cat}' nicht gefunden.\n"
+                        f"Verfügbare Kategorien: {', '.join(self.categories.keys())}")
+                    return
+                    
+                if sub_cat and sub_cat not in self.categories[main_cat].subcategories:
+                    messagebox.showerror("Fehler", 
+                        f"Subkategorie '{sub_cat}' nicht in '{main_cat}' gefunden.\n"
+                        f"Verfügbare Subkategorien: {', '.join(self.categories[main_cat].subcategories.keys())}")
+                    return
+
+                # Erstelle Kodierung mit der gewählten Kategorie
+                self.current_coding = CodingResult(
+                    category=main_cat,
+                    subcategories=(sub_cat,) if sub_cat else tuple(),
+                    justification="Manuelle Kodierung (Abschluss)",
+                    confidence={'total': 1.0, 'category': 1.0, 'subcategories': 1.0},
+                    text_references=(self.text_chunk.get("1.0", tk.END)[:100],)
+                )
+                
+                self._is_processing = False
+                
+                messagebox.showinfo("Kodierung abgeschlossen", 
+                                f"Das Segment wurde als '{main_cat}' kodiert.\n"
+                                "Der manuelle Kodierungsprozess wird beendet.")
+                
+                # Explizit alle Ressourcen freigeben und Fenster schließen
+                for attr_name in dir(self):
+                    attr = getattr(self, attr_name)
+                    # Prüfen, ob es sich um eine Tkinter-Variable handelt
+                    if hasattr(attr, '_tk'):
+                        delattr(self, attr_name)
+                
+                # Sicherstellen, dass das Fenster wirklich geschlossen wird
+                try:
+                    # Wichtig: Erst destroy aufrufen, dann quit
+                    self.root.destroy()
+                    self.root.quit()
+                except:
+                    pass
+                
+                # Sicherstellen, dass _is_processing zurückgesetzt wird
+                self._is_processing = False
 
     def _safe_new_main_category(self):
         """Thread-sichere neue Hauptkategorie"""
@@ -7190,6 +7446,497 @@ class ManualCoder:
             else:
                 messagebox.showwarning("Warnung", "Bitte geben Sie eine gültige Nummer ein.")
 
+
+class ManualReviewComponent:
+    """
+    Komponente für die manuelle Überprüfung und Entscheidung bei Kodierungsunstimmigkeiten.
+    Zeigt dem Benutzer Textstellen mit abweichenden Kodierungen und lässt ihn die finale Entscheidung treffen.
+    """
+    
+    def __init__(self, output_dir: str):
+        """
+        Initialisiert die Manual Review Komponente.
+        
+        Args:
+            output_dir (str): Verzeichnis für Export-Dokumente
+        """
+        self.output_dir = output_dir
+        self.root = None
+        self.review_results = []
+        self.current_segment = None
+        self.current_codings = None
+        self.current_index = 0
+        self.total_segments = 0
+        self._is_processing = False
+        
+        # Import tkinter innerhalb der Methode, um Abhängigkeiten zu reduzieren
+        self.tk = None
+        self.ttk = None
+        
+    async def review_discrepancies(self, segment_codings: dict) -> list:
+        """
+        Führt einen manuellen Review-Prozess für Segmente mit abweichenden Kodierungen durch.
+        
+        Args:
+            segment_codings: Dictionary mit Segment-ID als Schlüssel und Liste von Kodierungen als Werte
+            
+        Returns:
+            list: Liste der finalen Kodierungsentscheidungen
+        """
+        try:
+            # Importiere tkinter bei Bedarf
+            import tkinter as tk
+            from tkinter import ttk
+            self.tk = tk
+            self.ttk = ttk
+            
+            print("\n=== Manuelle Überprüfung von Kodierungsunstimmigkeiten ===")
+            
+            # Identifiziere Segmente mit abweichenden Kodierungen
+            discrepant_segments = self._identify_discrepancies(segment_codings)
+            
+            if not discrepant_segments:
+                print("Keine Unstimmigkeiten gefunden. Manueller Review nicht erforderlich.")
+                return []
+                
+            self.total_segments = len(discrepant_segments)
+            print(f"\nGefunden: {self.total_segments} Segmente mit Kodierungsabweichungen")
+            
+            # Starte das Tkinter-Fenster für den manuellen Review
+            import asyncio
+            loop = asyncio.get_event_loop()
+            await loop.run_in_executor(None, self._run_review_gui, discrepant_segments)
+            
+            print(f"\nManueller Review abgeschlossen: {len(self.review_results)} Entscheidungen getroffen")
+            
+            return self.review_results
+            
+        except Exception as e:
+            print(f"Fehler beim manuellen Review: {str(e)}")
+            import traceback
+            traceback.print_exc()
+            if self.root:
+                try:
+                    self.root.quit()
+                    self.root.destroy()
+                except:
+                    pass
+            return []
+    
+    def _identify_discrepancies(self, segment_codings: dict) -> list:
+        """
+        Identifiziert Segmente, bei denen verschiedene Kodierer zu unterschiedlichen Ergebnissen kommen.
+        
+        Args:
+            segment_codings: Dictionary mit Segment-ID als Schlüssel und Liste von Kodierungen als Werte
+            
+        Returns:
+            list: Liste von Tuples (segment_id, text, codings) mit Unstimmigkeiten
+        """
+        discrepancies = []
+        
+        for segment_id, codings in segment_codings.items():
+            # Ignoriere Segmente mit nur einer Kodierung
+            if len(codings) <= 1:
+                continue
+                
+            # Prüfe auf Unstimmigkeiten in Hauptkategorien
+            categories = set(coding.get('category', '') for coding in codings)
+            
+            # Prüfe auf menschliche Kodierer
+            has_human_coder = any('human' in coding.get('coder_id', '') for coding in codings)
+            
+            # Wenn mehr als eine Kategorie ODER ein menschlicher Kodierer beteiligt
+            if len(categories) > 1 or has_human_coder:
+                # Hole den Text des Segments
+                text = codings[0].get('text', '')
+                if not text:
+                    # Alternative Textquelle, falls 'text' nicht direkt verfügbar
+                    text = codings[0].get('text_references', [''])[0] if codings[0].get('text_references') else ''
+                
+                discrepancies.append((segment_id, text, codings))
+                
+        print(f"Unstimmigkeiten identifiziert: {len(discrepancies)}/{len(segment_codings)} Segmente")
+        return discrepancies
+    
+    def _run_review_gui(self, discrepant_segments: list):
+        """
+        Führt die grafische Benutzeroberfläche für den manuellen Review aus.
+        
+        Args:
+            discrepant_segments: Liste von Segmenten mit Unstimmigkeiten
+        """
+        if self.root is not None:
+            try:
+                self.root.quit()
+                self.root.destroy()
+            except:
+                pass
+                
+        self.root = self.tk.Tk()
+        self.root.title("QCA-AID Manueller Review")
+        self.root.geometry("1000x700")
+        
+        # Protokoll für das Schließen des Fensters
+        self.root.protocol("WM_DELETE_WINDOW", self._on_closing)
+        
+        # Hauptframe
+        main_frame = self.ttk.Frame(self.root)
+        main_frame.pack(padx=10, pady=10, fill=self.tk.BOTH, expand=True)
+        
+        # Fortschrittsanzeige
+        progress_frame = self.ttk.Frame(main_frame)
+        progress_frame.pack(padx=5, pady=5, fill=self.tk.X)
+        
+        self.ttk.Label(progress_frame, text="Fortschritt:").pack(side=self.tk.LEFT, padx=5)
+        progress_var = self.tk.StringVar()
+        progress_var.set(f"Segment 1/{self.total_segments}")
+        progress_label = self.ttk.Label(progress_frame, textvariable=progress_var)
+        progress_label.pack(side=self.tk.LEFT, padx=5)
+        
+        # Text-Frame
+        text_frame = self.ttk.LabelFrame(main_frame, text="Textsegment")
+        text_frame.pack(padx=5, pady=5, fill=self.tk.BOTH, expand=True)
+        
+        text_widget = self.tk.Text(text_frame, height=10, wrap=self.tk.WORD)
+        text_widget.pack(padx=5, pady=5, fill=self.tk.BOTH, expand=True)
+        text_widget.config(state=self.tk.DISABLED)
+        
+        # Kodierungen-Frame
+        codings_frame = self.ttk.LabelFrame(main_frame, text="Konkurrierende Kodierungen")
+        codings_frame.pack(padx=5, pady=5, fill=self.tk.BOTH, expand=True)
+        
+        codings_canvas = self.tk.Canvas(codings_frame)
+        scrollbar = self.ttk.Scrollbar(codings_frame, orient=self.tk.VERTICAL, command=codings_canvas.yview)
+        
+        codings_scrollable = self.ttk.Frame(codings_canvas)
+        codings_scrollable.bind(
+            "<Configure>",
+            lambda e: codings_canvas.configure(
+                scrollregion=codings_canvas.bbox("all")
+            )
+        )
+        
+        codings_canvas.create_window((0, 0), window=codings_scrollable, anchor="nw")
+        codings_canvas.configure(yscrollcommand=scrollbar.set)
+        
+        codings_canvas.pack(side=self.tk.LEFT, fill=self.tk.BOTH, expand=True)
+        scrollbar.pack(side=self.tk.RIGHT, fill=self.tk.Y)
+        
+        # Button-Frame
+        button_frame = self.ttk.Frame(main_frame)
+        button_frame.pack(padx=5, pady=10, fill=self.tk.X)
+        
+        self.ttk.Button(
+            button_frame, 
+            text="Vorheriges", 
+            command=lambda: self._navigate(-1, text_widget, codings_scrollable, discrepant_segments, progress_var)
+        ).pack(side=self.tk.LEFT, padx=5)
+        
+        self.ttk.Button(
+            button_frame, 
+            text="Nächstes", 
+            command=lambda: self._navigate(1, text_widget, codings_scrollable, discrepant_segments, progress_var)
+        ).pack(side=self.tk.LEFT, padx=5)
+        
+        self.ttk.Button(
+            button_frame, 
+            text="Abbrechen", 
+            command=self._on_closing
+        ).pack(side=self.tk.RIGHT, padx=5)
+        
+        # Begründung eingeben
+        justification_frame = self.ttk.LabelFrame(main_frame, text="Begründung für Ihre Entscheidung")
+        justification_frame.pack(padx=5, pady=5, fill=self.tk.X)
+        
+        justification_text = self.tk.Text(justification_frame, height=3, wrap=self.tk.WORD)
+        justification_text.pack(padx=5, pady=5, fill=self.tk.X)
+        
+        # Initialisiere mit dem ersten Segment
+        if discrepant_segments:
+            self.current_index = 0
+            self._update_display(text_widget, codings_scrollable, discrepant_segments, justification_text, progress_var)
+        
+        # Starte MainLoop
+        self.root.mainloop()
+    
+    def _update_display(self, text_widget, codings_frame, discrepant_segments, justification_text, progress_var):
+        """
+        Aktualisiert die Anzeige für das aktuelle Segment.
+        """
+        # Aktualisiere Fortschrittsanzeige
+        progress_var.set(f"Segment {self.current_index + 1}/{self.total_segments}")
+        
+        # Hole aktuelles Segment und Kodierungen
+        segment_id, text, codings = discrepant_segments[self.current_index]
+        self.current_segment = segment_id
+        self.current_codings = codings
+        
+        # Setze Text
+        text_widget.config(state=self.tk.NORMAL)
+        text_widget.delete(1.0, self.tk.END)
+        text_widget.insert(self.tk.END, text)
+        text_widget.config(state=self.tk.DISABLED)
+        
+        # Begründungsfeld leeren
+        justification_text.delete(1.0, self.tk.END)
+        
+        # Lösche alte Kodierungsoptionen
+        for widget in codings_frame.winfo_children():
+            widget.destroy()
+            
+        # Anzeige-Variable für die ausgewählte Kodierung
+        selection_var = self.tk.StringVar()
+        
+        # Erstelle Radiobuttons für jede Kodierung
+        for i, coding in enumerate(codings):
+            coder_id = coding.get('coder_id', 'Unbekannt')
+            category = coding.get('category', 'Keine Kategorie')
+            subcategories = coding.get('subcategories', [])
+            if isinstance(subcategories, tuple):
+                subcategories = list(subcategories)
+            confidence = 0.0
+            
+            # Extrahiere Konfidenzwert
+            if isinstance(coding.get('confidence'), dict):
+                confidence = coding['confidence'].get('total', 0.0)
+            elif isinstance(coding.get('confidence'), (int, float)):
+                confidence = float(coding['confidence'])
+                
+            # Formatiere die Subkategorien
+            subcats_text = ', '.join(subcategories) if subcategories else 'Keine'
+            
+            # Erstelle Label-Text
+            is_human = 'human' in coder_id
+            coder_prefix = "[Mensch]" if is_human else "[Auto]"
+            radio_text = f"{coder_prefix} {coder_id}: {category} ({confidence:.2f})\nSubkategorien: {subcats_text}"
+            
+            # Radiobutton mit Rahmen für bessere Sichtbarkeit
+            coding_frame = self.ttk.Frame(codings_frame, relief=self.tk.GROOVE, borderwidth=2)
+            coding_frame.pack(padx=5, pady=5, fill=self.tk.X)
+            
+            radio = self.ttk.Radiobutton(
+                coding_frame,
+                text=radio_text,
+                variable=selection_var,
+                value=str(i),
+                command=lambda idx=i, j_text=justification_text: self._select_coding(idx, j_text)
+            )
+            radio.pack(padx=5, pady=5, anchor=self.tk.W)
+            
+            # Begründung anzeigen wenn vorhanden
+            justification = coding.get('justification', '')
+            if justification:
+                just_label = self.ttk.Label(
+                    coding_frame, 
+                    text=f"Begründung: {justification[:150]}..." if len(justification) > 150 else f"Begründung: {justification}",
+                    wraplength=500
+                )
+                just_label.pack(padx=5, pady=5, anchor=self.tk.W)
+        
+        # Eigene Kodierung als Option
+        custom_frame = self.ttk.Frame(codings_frame, relief=self.tk.GROOVE, borderwidth=2)
+        custom_frame.pack(padx=5, pady=5, fill=self.tk.X)
+        
+        custom_radio = self.ttk.Radiobutton(
+            custom_frame,
+            text="Eigene Entscheidung eingeben",
+            variable=selection_var,
+            value="custom",
+            command=lambda: self._create_custom_coding(justification_text)
+        )
+        custom_radio.pack(padx=5, pady=5, anchor=self.tk.W)
+        
+        # Standardmäßig menschliche Kodierung auswählen, falls vorhanden
+        for i, coding in enumerate(codings):
+            if 'human' in coding.get('coder_id', ''):
+                selection_var.set(str(i))
+                self._select_coding(i, justification_text)
+                break
+    
+    def _select_coding(self, coding_index, justification_text):
+        """
+        Ausgewählte Kodierung für das aktuelle Segment speichern.
+        """
+        self.selected_coding_index = coding_index
+        
+        # Hole die ausgewählte Kodierung
+        selected_coding = self.current_codings[coding_index]
+        
+        # Fülle Begründung mit Vorschlag
+        existing_just = selected_coding.get('justification', '')
+        if existing_just:
+            justification_text.delete(1.0, self.tk.END)
+            justification_text.insert(self.tk.END, f"Übernommen von {selected_coding.get('coder_id', 'Kodierer')}: {existing_just}")
+    
+    def _create_custom_coding(self, justification_text):
+        """
+        Erstellt ein benutzerdefiniertes Kodierungsfenster.
+        """
+        custom_window = self.tk.Toplevel(self.root)
+        custom_window.title("Eigene Kodierung")
+        custom_window.geometry("600x500")
+        
+        input_frame = self.ttk.Frame(custom_window)
+        input_frame.pack(padx=10, pady=10, fill=self.tk.BOTH, expand=True)
+        
+        # Hauptkategorie
+        self.ttk.Label(input_frame, text="Hauptkategorie:").grid(row=0, column=0, padx=5, pady=5, sticky=self.tk.W)
+        category_entry = self.ttk.Entry(input_frame, width=30)
+        category_entry.grid(row=0, column=1, padx=5, pady=5, sticky=self.tk.W+self.tk.E)
+        
+        # Subkategorien
+        self.ttk.Label(input_frame, text="Subkategorien (mit Komma getrennt):").grid(row=1, column=0, padx=5, pady=5, sticky=self.tk.W)
+        subcats_entry = self.ttk.Entry(input_frame, width=30)
+        subcats_entry.grid(row=1, column=1, padx=5, pady=5, sticky=self.tk.W+self.tk.E)
+        
+        # Begründung
+        self.ttk.Label(input_frame, text="Begründung:").grid(row=2, column=0, padx=5, pady=5, sticky=self.tk.W)
+        just_text = self.tk.Text(input_frame, height=5, width=30)
+        just_text.grid(row=2, column=1, padx=5, pady=5, sticky=self.tk.W+self.tk.E)
+        
+        # Buttons
+        button_frame = self.ttk.Frame(input_frame)
+        button_frame.grid(row=3, column=0, columnspan=2, pady=10)
+        
+        self.ttk.Button(
+            button_frame, 
+            text="Übernehmen",
+            command=lambda: self._apply_custom_coding(
+                category_entry.get(),
+                subcats_entry.get(),
+                just_text.get(1.0, self.tk.END),
+                justification_text,
+                custom_window
+            )
+        ).pack(side=self.tk.LEFT, padx=5)
+        
+        self.ttk.Button(
+            button_frame,
+            text="Abbrechen",
+            command=custom_window.destroy
+        ).pack(side=self.tk.LEFT, padx=5)
+    
+    def _apply_custom_coding(self, category, subcategories, justification, main_just_text, window):
+        """
+        Übernimmt die benutzerdefinierte Kodierung.
+        """
+        # Erstelle eine benutzerdefinierte Kodierung
+        self.custom_coding = {
+            'category': category,
+            'subcategories': [s.strip() for s in subcategories.split(',') if s.strip()],
+            'justification': justification.strip(),
+            'coder_id': 'human_review',
+            'confidence': {'total': 1.0, 'category': 1.0, 'subcategories': 1.0}
+        }
+        
+        # Aktualisiere das Begründungsfeld im Hauptfenster
+        main_just_text.delete(1.0, self.tk.END)
+        main_just_text.insert(self.tk.END, f"Eigene Entscheidung: {justification.strip()}")
+        
+        # Schließe das Fenster
+        window.destroy()
+    
+    def _navigate(self, direction, text_widget, codings_frame, discrepant_segments, progress_var):
+        """
+        Navigation zwischen den Segmenten und Speicherung der Entscheidung.
+        """
+        if self.current_segment is None or self.current_codings is None:
+            return
+            
+        # Speichere aktuelle Entscheidung
+        self._save_current_decision(text_widget)
+        
+        # Berechne neuen Index
+        new_index = self.current_index + direction
+        
+        # Prüfe Grenzen
+        if 0 <= new_index < len(discrepant_segments):
+            self.current_index = new_index
+            self._update_display(text_widget, codings_frame, discrepant_segments, text_widget, progress_var)
+        elif new_index >= len(discrepant_segments):
+            # Wenn wir am Ende angelangt sind, frage nach Abschluss
+            if self.tk.messagebox.askyesno(
+                "Review abschließen", 
+                "Das war das letzte Segment. Möchten Sie den Review abschließen?"
+            ):
+                self.root.quit()
+    
+    def _save_current_decision(self, justification_text):
+        """
+        Speichert die aktuelle Entscheidung.
+        """
+        try:
+            if hasattr(self, 'selected_coding_index'):
+                # Normale Kodierungsentscheidung
+                selected_coding = self.current_codings[self.selected_coding_index].copy()
+                
+                # Hole Begründung aus Textfeld
+                justification = justification_text.get(1.0, self.tk.END).strip()
+                
+                # Aktualisiere die Kodierung
+                selected_coding['segment_id'] = self.current_segment
+                selected_coding['review_justification'] = justification
+                selected_coding['manual_review'] = True
+                selected_coding['review_date'] = datetime.now().isoformat()
+                
+                self.review_results.append(selected_coding)
+                print(f"Entscheidung für Segment {self.current_segment} gespeichert: {selected_coding['category']}")
+                
+            elif hasattr(self, 'custom_coding'):
+                # Benutzerdefinierte Kodierung
+                custom = self.custom_coding.copy()
+                custom['segment_id'] = self.current_segment
+                custom['manual_review'] = True
+                custom['review_date'] = datetime.now().isoformat()
+                
+                self.review_results.append(custom)
+                print(f"Eigene Entscheidung für Segment {self.current_segment} gespeichert: {custom['category']}")
+        
+        except Exception as e:
+            print(f"Fehler beim Speichern der Entscheidung: {str(e)}")
+            import traceback
+            traceback.print_exc()
+    
+    def _on_closing(self):
+        """Sicheres Schließen des Fensters mit vollständiger Ressourcenfreigabe"""
+        try:
+            if hasattr(self, 'root') and self.root:
+                if self.tk.messagebox.askokcancel(
+                    "Review beenden", 
+                    "Möchten Sie den Review-Prozess wirklich beenden?\nGetroffene Entscheidungen werden gespeichert."
+                ):
+                    # Speichere aktuelle Entscheidung falls vorhanden
+                    if self.current_segment is not None:
+                        justification_text = None
+                        for widget in self.root.winfo_children():
+                            if isinstance(widget, self.tk.Text):
+                                justification_text = widget
+                                break
+                        
+                        if justification_text:
+                            self._save_current_decision(justification_text)
+                    
+                    # Alle Tkinter-Variablen explizit löschen
+                    for attr_name in dir(self):
+                        attr = getattr(self, attr_name)
+                        # Prüfen, ob es sich um eine Tkinter-Variable handelt
+                        if hasattr(attr, '_tk'):
+                            delattr(self, attr_name)
+                    
+                    # Fenster schließen
+                    self.root.quit()
+                    self.root.destroy()
+                    self.root = None  # Wichtig: Referenz entfernen
+        except:
+            # Stelle sicher, dass Fenster auch bei Fehlern geschlossen wird
+            if hasattr(self, 'root') and self.root:
+                try:
+                    self.root.quit()
+                    self.root.destroy()
+                    self.root = None
+                except:
+                    pass
 
 # --- Klasse: SaturationChecker ---
 class SaturationChecker:
@@ -8851,6 +9598,14 @@ class ResultsExporter:
                 if document_summaries:
                     self._export_progressive_summaries(writer, document_summaries)
 
+                # Identifiziere Review-Entscheidungen in den Kodierungen
+                review_decisions = [coding for coding in codings if coding.get('manual_review', False)]
+
+                # 8. Exportiere manuelle Review-Entscheidungen, falls vorhanden
+                if review_decisions:
+                    print("\nExportiere manuelle Review-Entscheidungen...")
+                    self._export_review_decisions(writer, review_decisions)
+                    
                 # Stelle sicher, dass mindestens ein Sheet sichtbar ist
                 if len(writer.book.sheetnames) == 0:
                     writer.book.create_sheet('Leeres_Sheet')
@@ -9126,7 +9881,7 @@ class ResultsExporter:
 
     def _export_intercoder_analysis(self, writer, segment_codings: Dict[str, List[Dict]], reliability: float):
         """
-        Exportiert die Intercoder-Analyse für Haupt- und Subkategorien.
+        Exportiert die Intercoder-Analyse für Haupt- und Subkategorien mit verbesserter Berechnung.
 
         Args:
             writer: Excel Writer Objekt
@@ -9169,7 +9924,9 @@ class ResultsExporter:
 
             # Analyse für Hauptkategorien
             for segment_id, codings in segment_codings.items():
-                categories = [c['category'] for c in codings]
+                # Normalisiere die Kategorie-Namen für besseren Vergleich
+                categories = [self._sanitize_text_for_excel(c.get('category', '')) for c in codings]
+                # Prüfe, ob alle Kategorien identisch sind
                 category_agreement = len(set(categories)) == 1
 
                 # Verbesserte Text-Extraktion
@@ -9232,9 +9989,19 @@ class ResultsExporter:
                 worksheet.cell(row=current_row, column=col, value=header)
             current_row += 1
 
-            # Analyse für Subkategorien
+            # Analyse für Subkategorien mit verbesserter Logik
             for segment_id, codings in segment_codings.items():
-                subcategories = [set(c.get('subcategories', [])) for c in codings]
+                # Extrahiere die Subkategorien für jede Kodierung
+                subcategories_lists = []
+                for c in codings:
+                    subcats = c.get('subcategories', [])
+                    # Normalisiere die Datenstruktur
+                    if isinstance(subcats, (list, tuple)):
+                        subcategories_lists.append(set(subcats))
+                    else:
+                        # Für den Fall, dass subcategories als String kommt
+                        subcats_list = [s.strip() for s in str(subcats).split(',') if s.strip()]
+                        subcategories_lists.append(set(subcats_list))
 
                 # Verbesserte Text-Extraktion
                 text_chunk = codings[0].get('text', '')
@@ -9246,21 +10013,37 @@ class ResultsExporter:
                     text_chunk = "Text nicht verfügbar"
 
                 # Berechne Übereinstimmungsgrad für Subkategorien
-                if subcategories:
-                    all_equal = all(s == subcategories[0] for s in subcategories)
-                    partial_overlap = any(s1 & s2 for s1, s2 in itertools.combinations(subcategories, 2))
-
-                    if all_equal:
-                        agreement = "Vollständig"
-                    elif partial_overlap:
-                        agreement = "Teilweise"
+                if subcategories_lists:
+                    # Prüfe vollständige Übereinstimmung
+                    all_equal = all(s == subcategories_lists[0] for s in subcategories_lists)
+                    
+                    # Prüfe auf teilweise Übereinstimmung, wenn nicht vollständig gleich
+                    if not all_equal:
+                        # Prüfe, ob es überhaupt Subkategorien gibt
+                        has_subcats = any(len(s) > 0 for s in subcategories_lists)
+                        
+                        if has_subcats:
+                            # Prüfe, ob es Überschneidungen gibt
+                            partial_overlap = any(len(s1 & s2) > 0 for s1, s2 in itertools.combinations(subcategories_lists, 2) 
+                                            if len(s1) > 0 and len(s2) > 0)
+                            
+                            if partial_overlap:
+                                agreement = "Teilweise"
+                            else:
+                                agreement = "Keine Übereinstimmung"
+                        else:
+                            # Wenn keine Subkategorien vorhanden sind
+                            agreement = "Keine Subkategorien"
                     else:
-                        agreement = "Keine Übereinstimmung"
+                        # Vollständige Übereinstimmung
+                        agreement = "Vollständig"
                 else:
                     agreement = "Keine Subkategorien"
 
                 # Bereinige die Subkategorien
-                all_subcats = set.union(*subcategories) if subcategories else set()
+                all_subcats = set()
+                for subcat_set in subcategories_lists:
+                    all_subcats.update(subcat_set)
                 sanitized_subcats = [self._sanitize_text_for_excel(subcat) for subcat in all_subcats]
 
                 row_data = [
@@ -9276,10 +10059,14 @@ class ResultsExporter:
                     worksheet.cell(row=current_row, column=col, value=value)
                 current_row += 1
 
-            # 3. Übereinstimmungsmatrix für Codierer
+            # 3. Übereinstimmungsmatrix für Codierer mit verbesserter Berechnung
             current_row += 2
             worksheet.cell(row=current_row, column=1, value="C. Codierer-Vergleichsmatrix")
             current_row += 1
+
+            # Extrahiere alle eindeutigen Codierer-IDs
+            coders = sorted(list({coding.get('coder_id', 'unknown') for segment_codings_list in segment_codings.values() 
+                                for coding in segment_codings_list}))
 
             # Erstelle separate Matrizen für Haupt- und Subkategorien
             for analysis_type in ['Hauptkategorien', 'Subkategorien']:
@@ -9287,44 +10074,74 @@ class ResultsExporter:
                 worksheet.cell(row=current_row, column=1, value=f"Matrix für {analysis_type}")
                 current_row += 1
 
-                coders = sorted(list({coding['coder_id'] for codings in segment_codings.values() for coding in codings}))
-
                 # Schreibe Spaltenüberschriften
                 for col, coder in enumerate(coders, 2):
                     worksheet.cell(row=current_row, column=col, value=self._sanitize_text_for_excel(coder))
                 current_row += 1
 
-                # Fülle Matrix
-                for coder1 in coders:
-                    worksheet.cell(row=current_row, column=1, value=self._sanitize_text_for_excel(coder1))
+                # Initialisiere Zähler für die Übereinstimmungsberechnungen
+                agreement_counts = {coder1: {coder2: {'agreements': 0, 'total': 0} 
+                                        for coder2 in coders} 
+                                for coder1 in coders}
 
-                    for col, coder2 in enumerate(coders, 2):
+                # Berechne Übereinstimmungen für alle Segment-Paare
+                for segment_id, segment_codings_list in segment_codings.items():
+                    # Erstelle ein Dictionary, das jedem Kodierer seine Kodierung für dieses Segment zuordnet
+                    coder_to_coding = {}
+                    for coding in segment_codings_list:
+                        coder_id = coding.get('coder_id', 'unknown')
+                        if analysis_type == 'Hauptkategorien':
+                            # Für Hauptkategorien: Speichere die Kategorie
+                            coder_to_coding[coder_id] = coding.get('category', '')
+                        else:  # Subkategorien
+                            # Für Subkategorien: Speichere die Subkategorien als Set
+                            subcats = coding.get('subcategories', [])
+                            if isinstance(subcats, (list, tuple)):
+                                coder_to_coding[coder_id] = set(subcats)
+                            else:
+                                # Für den Fall, dass subcategories als String kommt
+                                subcats_list = [s.strip() for s in str(subcats).split(',') if s.strip()]
+                                coder_to_coding[coder_id] = set(subcats_list)
+
+                    # Vergleiche alle Paare von Kodierern
+                    for coder1 in coders:
+                        for coder2 in coders:
+                            if coder1 in coder_to_coding and coder2 in coder_to_coding:
+                                # Beide Kodierer haben dieses Segment kodiert
+                                agreement_counts[coder1][coder2]['total'] += 1
+                                
+                                # Überprüfe, ob es eine Übereinstimmung gibt
+                                if analysis_type == 'Hauptkategorien':
+                                    # Für Hauptkategorien: Direkte Gleichheit
+                                    if coder_to_coding[coder1] == coder_to_coding[coder2]:
+                                        agreement_counts[coder1][coder2]['agreements'] += 1
+                                else:  # Subkategorien
+                                    # Für Subkategorien: Überprüfe Set-Gleichheit
+                                    if coder_to_coding[coder1] == coder_to_coding[coder2]:
+                                        agreement_counts[coder1][coder2]['agreements'] += 1
+
+                # Fülle Matrix mit berechneten Übereinstimmungswerten
+                for row_idx, coder1 in enumerate(coders, current_row):
+                    worksheet.cell(row=row_idx, column=1, value=self._sanitize_text_for_excel(coder1))
+
+                    for col_idx, coder2 in enumerate(coders, 2):
+                        # Berechne Prozentsatz der Übereinstimmung
+                        total = agreement_counts[coder1][coder2]['total']
+                        agreements = agreement_counts[coder1][coder2]['agreements']
+                        
                         if coder1 == coder2:
-                            agreement = 1.0
+                            # Diagonale: 100% Übereinstimmung mit sich selbst
+                            agreement_value = 1.0
+                        elif total > 0:
+                            # Berechne Übereinstimmungsquote
+                            agreement_value = agreements / total
                         else:
-                            # Berechne Übereinstimmung
-                            agreements = 0
-                            total = 0
-                            for codings in segment_codings.values():
-                                coding1 = next((c for c in codings if c['coder_id'] == coder1), None)
-                                coding2 = next((c for c in codings if c['coder_id'] == coder2), None)
-
-                                if coding1 and coding2:
-                                    total += 1
-                                    if analysis_type == 'Hauptkategorien':
-                                        if coding1['category'] == coding2['category']:
-                                            agreements += 1
-                                    else:  # Subkategorien
-                                        subcats1 = set(coding1.get('subcategories', []))
-                                        subcats2 = set(coding2.get('subcategories', []))
-                                        if subcats1 == subcats2:
-                                            agreements += 1
-
-                            agreement = agreements / total if total > 0 else 0
-
-                        cell = worksheet.cell(row=current_row, column=col, value=round(agreement, 2))
+                            # Keine gemeinsamen Segmente
+                            agreement_value = 0.0
+                            
+                        cell = worksheet.cell(row=row_idx, column=col_idx, value=agreement_value)
                         # Formatiere Zelle als Prozentsatz
-                        cell.number_format = '0%'
+                        cell.number_format = '0.00'
 
                     current_row += 1
                 current_row += 2
@@ -9336,7 +10153,7 @@ class ResultsExporter:
 
             # Berechne Statistiken
             total_segments = len(segment_codings)
-            total_coders = len({coding['coder_id'] for codings in segment_codings.values() for coding in codings})
+            total_coders = len(coders)
 
             stats = [
                 ('Anzahl analysierter Segmente', total_segments),
@@ -9348,7 +10165,7 @@ class ResultsExporter:
                 worksheet.cell(row=current_row, column=1, value=stat_name)
                 cell = worksheet.cell(row=current_row, column=2, value=stat_value)
                 if isinstance(stat_value, float):
-                    cell.number_format = '0.00%'
+                    cell.number_format = '0.00'
                 current_row += 1
 
             # Formatierung
@@ -9424,7 +10241,178 @@ class ResultsExporter:
             print(f"Warnung: Formatierung des Intercoder-Worksheets fehlgeschlagen: {str(e)}")
             import traceback
             traceback.print_exc()
+    
+    def _export_review_decisions(self, writer, review_decisions: List[Dict]):
+        """
+        Exportiert die manuellen Review-Entscheidungen in ein separates Excel-Sheet.
+        Verbessert zur korrekten Erfassung aller Entscheidungen.
+        
+        Args:
+            writer: Excel Writer Objekt
+            review_decisions: Liste der manuellen Review-Entscheidungen
+        """
+        try:
+            # Prüfen, ob Review-Entscheidungen vorhanden sind
+            if not review_decisions:
+                print("Keine manuellen Review-Entscheidungen zum Exportieren vorhanden")
+                return
+                
+            print(f"\nExportiere {len(review_decisions)} manuelle Review-Entscheidungen...")
+            
+            # Erstelle Worksheet für Review-Entscheidungen falls es noch nicht existiert
+            if 'Manuelle_Entscheidungen' not in writer.sheets:
+                writer.book.create_sheet('Manuelle_Entscheidungen')
+            
+            worksheet = writer.sheets['Manuelle_Entscheidungen']
+            
+            # Lösche eventuell bestehende Daten
+            if worksheet.max_row > 0:
+                worksheet.delete_rows(1, worksheet.max_row)
+            
+            # Erstelle Daten für den Export
+            review_data = []
+            for decision in review_decisions:
+                # Extrahiere wesentliche Informationen
+                segment_id = decision.get('segment_id', '')
+                text = decision.get('text', '')
+                
+                # Extrahiere Dokumentnamen und Metadaten
+                doc_name, chunk_id = self._extract_doc_and_chunk_id(segment_id)
+                attribut1, attribut2, attribut3 = self._extract_metadata(doc_name)
+                
+                # Extrahiere Kategorie und Subkategorien
+                category = decision.get('category', '')
+                subcategories = decision.get('subcategories', [])
+                if isinstance(subcategories, tuple):
+                    subcategories = list(subcategories)
+                subcats_text = ', '.join(subcategories) if subcategories else ''
+                
+                # Extrahiere Kodierer und Review-Information
+                coder_id = decision.get('coder_id', 'Unbekannt')
+                original_coder = coder_id
+                review_date = decision.get('review_date', '')
+                review_justification = decision.get('review_justification', '')
+                
+                # Sammle Informationen über konkurrierende Kodierungen, falls verfügbar
+                competing_codings = decision.get('competing_codings', [])
+                competing_text = ""
+                if competing_codings:
+                    competing_lines = []
+                    for comp_coding in competing_codings:
+                        comp_coder = comp_coding.get('coder_id', 'Unbekannt')
+                        comp_cat = comp_coding.get('category', '')
+                        competing_lines.append(f"{comp_coder}: {comp_cat}")
+                    competing_text = '; '.join(competing_lines)
+                
+                # Erstelle einen Eintrag für die Tabelle
+                review_data.append({
+                    'Dokument': self._sanitize_text_for_excel(doc_name),
+                    self.attribute_labels['attribut1']: self._sanitize_text_for_excel(attribut1),
+                    self.attribute_labels['attribut2']: self._sanitize_text_for_excel(attribut2),
+                    'Chunk_Nr': f"{chunk_id}",
+                    'Text': self._sanitize_text_for_excel(text[:500] + ('...' if len(text) > 500 else '')),
+                    'Gewählte_Kategorie': self._sanitize_text_for_excel(category),
+                    'Gewählte_Subkategorien': self._sanitize_text_for_excel(subcats_text),
+                    'Ursprünglicher_Kodierer': self._sanitize_text_for_excel(original_coder),
+                    'Review_Datum': review_date,
+                    'Review_Begründung': self._sanitize_text_for_excel(review_justification),
+                    'Konkurrierende_Kodierungen': self._sanitize_text_for_excel(competing_text)
+                })
+                
+                # Füge attribut3 hinzu, wenn es in den Labels definiert und nicht leer ist
+                if 'attribut3' in self.attribute_labels and self.attribute_labels['attribut3']:
+                    review_data[-1][self.attribute_labels['attribut3']] = self._sanitize_text_for_excel(attribut3)
+            
+            # Erstelle DataFrame und exportiere in Excel
+            if review_data:
+                # Erstelle DataFrame
+                df_review = pd.DataFrame(review_data)
+                
+                # Exportiere in das Excel-Sheet
+                for r_idx, row in enumerate(dataframe_to_rows(df_review, index=False, header=True), 1):
+                    for c_idx, value in enumerate(row, 1):
+                        worksheet.cell(row=r_idx, column=c_idx, value=value)
+                
+                # Formatiere das Worksheet
+                self._format_review_worksheet(worksheet)
+                
+                print(f"Manuelle Review-Entscheidungen exportiert: {len(review_data)} Einträge")
+            else:
+                # Wenn keine Daten vorhanden sind, füge mindestens einen Hinweis ein
+                worksheet.cell(row=1, column=1, value="Keine manuellen Review-Entscheidungen vorhanden")
+                
+        except Exception as e:
+            print(f"Fehler beim Export der Review-Entscheidungen: {str(e)}")
+            import traceback
+            traceback.print_exc()
 
+    def _format_review_worksheet(self, worksheet) -> None:
+        """
+        Formatiert das Review-Entscheidungen Worksheet für bessere Lesbarkeit.
+        
+        Args:
+            worksheet: Das zu formatierende Worksheet-Objekt
+        """
+        try:
+            from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+            
+            # Definiere Spaltenbreiten
+            column_widths = {
+                'A': 30,  # Dokument
+                'B': 15,  # Attribut1
+                'C': 15,  # Attribut2
+                'D': 10,  # Chunk_Nr
+                'E': 50,  # Text
+                'F': 25,  # Gewählte_Kategorie
+                'G': 25,  # Gewählte_Subkategorien
+                'H': 15,  # Ursprünglicher_Kodierer
+                'I': 20,  # Review_Datum
+                'J': 40,  # Review_Begründung
+                'K': 40   # Konkurrierende_Kodierungen
+            }
+            
+            # Setze Spaltenbreiten
+            for i, width in enumerate(column_widths.values(), 1):
+                col_letter = get_column_letter(i)
+                worksheet.column_dimensions[col_letter].width = width
+            
+            # Formatiere Überschriften
+            header_font = Font(bold=True)
+            header_fill = PatternFill(start_color='EEEEEE', end_color='EEEEEE', fill_type='solid')
+            
+            for cell in worksheet[1]:
+                cell.font = header_font
+                cell.fill = header_fill
+                cell.alignment = Alignment(wrap_text=True, vertical='center')
+            
+            # Formatiere Datenzeilen
+            for row in worksheet.iter_rows(min_row=2):
+                for cell in row:
+                    cell.alignment = Alignment(wrap_text=True, vertical='top')
+                    
+            # Automatische Filterung aktivieren
+            if worksheet.max_row > 1:
+                worksheet.auto_filter.ref = f"A1:{get_column_letter(worksheet.max_column)}{worksheet.max_row}"
+                
+        except Exception as e:
+            print(f"Warnung: Formatierung des Review-Worksheets fehlgeschlagen: {str(e)}")
+
+    def _extract_doc_and_chunk_id(self, segment_id: str) -> tuple:
+        """
+        Extrahiert Dokumentnamen und Chunk-ID aus einer Segment-ID.
+        
+        Args:
+            segment_id: Segment-ID im Format "dokument_chunk_X"
+                
+        Returns:
+            tuple: (doc_name, chunk_id)
+        """
+        parts = segment_id.split('_chunk_')
+        if len(parts) == 2:
+            return parts[0], parts[1]
+        else:
+            # Fallback für ungültige Segment-IDs
+            return segment_id, "unknown"
 
 
 
@@ -10695,8 +11683,36 @@ token_counter = TokenCounter()
 
 # Hilfsfunktion zur Token-Schätzung
 def estimate_tokens(text: str) -> int:
-    """Schätzt die Anzahl der Tokens in einem Text."""
-    return len(text.split())
+    """
+    Schätzt die Anzahl der Tokens in einem Text mit verbesserter Genauigkeit.
+    Berücksichtigt verschiedene Zeichentypen, nicht nur Wortgrenzen.
+    
+    Args:
+        text: Zu schätzender Text
+        
+    Returns:
+        int: Geschätzte Tokenanzahl
+    """
+    if not text:
+        return 0
+        
+    # Grundlegende Schätzung: 1 Token ≈ 4 Zeichen für englischen Text
+    # Für deutsche Texte (mit längeren Wörtern) etwas anpassen: 1 Token ≈ 4.5 Zeichen
+    char_per_token = 4.5
+    
+    # Anzahl der Sonderzeichen, die oft eigene Tokens bilden
+    special_chars = sum(1 for c in text if not c.isalnum() and not c.isspace())
+    
+    # Anzahl der Wörter
+    words = len(text.split())
+    
+    # Gewichtete Berechnung
+    estimated_tokens = int(
+        (len(text) / char_per_token) * 0.7 +  # Zeichenbasierte Schätzung (70% Gewichtung)
+        (words + special_chars) * 0.3          # Wort- und Sonderzeichenbasierte Schätzung (30% Gewichtung)
+    )
+    
+    return max(1, estimated_tokens)  # Mindestens 1 Token
 
 def get_input_with_timeout(prompt: str, timeout: int = 30) -> str:
     """
@@ -10771,28 +11787,95 @@ def get_input_with_timeout(prompt: str, timeout: int = 30) -> str:
     return answer['value']
 
 async def perform_manual_coding(chunks, categories, manual_coders):
-    """Führt die manuelle Kodierung durch"""
+    """
+    Führt die manuelle Kodierung durch und bereitet Ergebnisse für späteren Review vor.
+    Stellt sicher, dass der Prozess nach dem letzten Segment sauber beendet wird.
+    
+    Args:
+        chunks: Dictionary mit Chunks für jedes Dokument
+        categories: Kategoriensystem
+        manual_coders: Liste der manuellen Kodierer
+        
+    Returns:
+        list: Manuelle Kodierungen
+    """
     manual_codings = []
+    total_segments = sum(len(chunks[doc]) for doc in chunks)
+    processed_segments = 0
+    
+    # Erstelle eine flache Liste aller zu kodierenden Segmente
+    all_segments = []
     for document_name, document_chunks in chunks.items():
         for chunk_id, chunk in enumerate(document_chunks):
-            print(f"\nManuelles Codieren: Dokument {document_name}, Chunk {chunk_id + 1}/{len(document_chunks)}")
+            all_segments.append((document_name, chunk_id, chunk))
+    
+    print(f"\nManuelles Kodieren: Insgesamt {total_segments} Segmente zu kodieren")
+    
+    try:
+        # Verarbeite alle Segmente
+        for idx, (document_name, chunk_id, chunk) in enumerate(all_segments):
+            processed_segments += 1
+            progress_percentage = (processed_segments / total_segments) * 100
             
-            for manual_coder in manual_coders:
+            print(f"\nManuelles Codieren: Dokument {document_name}, "
+                  f"Chunk {chunk_id + 1}/{len(chunks[document_name])} "
+                  f"(Gesamt: {processed_segments}/{total_segments}, {progress_percentage:.1f}%)")
+            
+            # Prüfe, ob es das letzte Segment ist
+            last_segment = (processed_segments == total_segments)
+            
+            for coder_idx, manual_coder in enumerate(manual_coders):
                 try:
-                    coding_result = await manual_coder.code_chunk(chunk, categories)
+                    # Informiere den Benutzer über den Fortschritt
+                    if last_segment:
+                        print(f"Dies ist das letzte zu kodierende Segment!")
+                    
+                    # Übergabe des last_segment Parameters an die code_chunk Methode
+                    coding_result = await manual_coder.code_chunk(chunk, categories, is_last_segment=last_segment)
+                    
                     if coding_result == "ABORT_ALL":
                         print("Manuelles Kodieren wurde vom Benutzer abgebrochen.")
+                        
+                        # Schließe alle verbliebenen GUI-Fenster
+                        for coder in manual_coders:
+                            if hasattr(coder, 'root') and coder.root:
+                                try:
+                                    coder.root.quit()
+                                    coder.root.destroy()
+                                except:
+                                    pass
+                        
                         return manual_codings
                         
                     if coding_result:
+                        # Erstelle ein detailliertes Dictionary für die spätere Verarbeitung
                         coding_entry = {
                             'segment_id': f"{document_name}_chunk_{chunk_id}",
                             'coder_id': manual_coder.coder_id,
                             'category': coding_result.category,
                             'subcategories': coding_result.subcategories,
-                            'confidence': coding_result.confidence.get('total', 0),
-                            'justification': coding_result.justification
+                            'confidence': coding_result.confidence,
+                            'justification': coding_result.justification,
+                            'text': chunk,  # Wichtig: Den vollständigen Text speichern!
+                            'document_name': document_name,
+                            'chunk_id': chunk_id,
+                            'manual_coding': True,  # Markierung für manuelle Kodierung
+                            'coding_date': datetime.now().isoformat()
                         }
+                        
+                        # Füge weitere CodingResult-Attribute hinzu, falls vorhanden
+                        if hasattr(coding_result, 'paraphrase') and coding_result.paraphrase:
+                            coding_entry['paraphrase'] = coding_result.paraphrase
+                            
+                        if hasattr(coding_result, 'keywords') and coding_result.keywords:
+                            coding_entry['keywords'] = coding_result.keywords
+                            
+                        if hasattr(coding_result, 'text_references') and coding_result.text_references:
+                            coding_entry['text_references'] = list(coding_result.text_references)
+                            
+                        if hasattr(coding_result, 'uncertainties') and coding_result.uncertainties:
+                            coding_entry['uncertainties'] = list(coding_result.uncertainties)
+                        
                         manual_codings.append(coding_entry)
                         print(f"✓ Manuelle Kodierung erfolgreich: {coding_entry['category']}")
                     else:
@@ -10807,8 +11890,70 @@ async def perform_manual_coding(chunks, categories, manual_coders):
                 # Kurze Pause zwischen den Chunks
                 await asyncio.sleep(0.5)
     
+        print("\n✅ Manueller Kodierungsprozess abgeschlossen")
+        print(f"- {len(manual_codings)}/{total_segments} Segmente erfolgreich kodiert")
+        
+        # Sicherstellen, dass alle Fenster geschlossen sind
+        for coder in manual_coders:
+            if hasattr(coder, 'root') and coder.root:
+                try:
+                    coder.root.quit()
+                    coder.root.destroy()
+                    coder.root = None
+                except:
+                    pass
+    
+    except Exception as e:
+        print(f"Fehler im manuellen Kodierungsprozess: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        
+        # Versuche, alle Fenster zu schließen, selbst im Fehlerfall
+        for coder in manual_coders:
+            if hasattr(coder, 'root') and coder.root:
+                try:
+                    coder.root.quit()
+                    coder.root.destroy()
+                    coder.root = None
+                except:
+                    pass
+    
     return manual_codings
 
+async def perform_manual_review(segment_codings, output_dir):
+    """
+    Führt den manuellen Review für Segmente mit Kodierungsunstimmigkeiten durch.
+    Erweitert um bessere Informationsspeicherung für den Export.
+    
+    Args:
+        segment_codings: Dictionary mit Segment-ID und zugehörigen Kodierungen
+        output_dir: Verzeichnis für Exportdaten
+        
+    Returns:
+        list: Liste der Review-Entscheidungen
+    """
+    review_component = ManualReviewComponent(output_dir)
+    review_decisions = await review_component.review_discrepancies(segment_codings)
+    
+    # Erweitere die Review-Entscheidungen um zusätzliche Informationen
+    enhanced_decisions = []
+    for decision in review_decisions:
+        segment_id = decision.get('segment_id', '')
+        # Finde die ursprünglichen Kodierungen für dieses Segment
+        original_codings = segment_codings.get(segment_id, [])
+        
+        # Erweitere die Entscheidung um ursprüngliche Kodierungen
+        enhanced_decision = decision.copy()
+        enhanced_decision['competing_codings'] = original_codings
+        enhanced_decision['manual_review'] = True
+        
+        # Extrahiere den Text aus einer der ursprünglichen Kodierungen
+        if original_codings:
+            enhanced_decision['text'] = original_codings[0].get('text', '')
+        
+        enhanced_decisions.append(enhanced_decision)
+    
+    return enhanced_decisions
 
 # ============================ 
 # 5. Hauptprogramm
@@ -10999,16 +12144,31 @@ async def main() -> None:
         manual_codings = []
         if manual_coders:
             print("\n6. Starte manuelle Kodierung...")
+            
+            # Verwende die verbesserte perform_manual_coding Funktion
             manual_coding_result = await perform_manual_coding(
                 chunks=chunks, 
                 categories=initial_categories,
                 manual_coders=manual_coders
             )
+            
             if manual_coding_result == "ABORT_ALL":
                 print("Manuelle Kodierung abgebrochen. Beende Programm.")
                 return
+                
             manual_codings = manual_coding_result
             print(f"Manuelle Kodierung abgeschlossen: {len(manual_codings)} Kodierungen")
+            
+            # Stelle sicher, dass alle Kodierer-Fenster geschlossen sind
+            for coder in manual_coders:
+                if hasattr(coder, 'root') and coder.root:
+                    try:
+                        coder.root.quit()
+                        coder.root.destroy()
+                        coder.root = None
+                    except:
+                        pass
+
 
         # 8. Integrierte Analyse starten
         print("\n7. Starte integrierte Analyse...")
@@ -11037,8 +12197,6 @@ async def main() -> None:
 
             # Kombiniere alle Kodierungen
             all_codings = []
-            
-            # Füge automatische Kodierungen hinzu
             if coding_results and len(coding_results) > 0:
                 print(f"\nFüge {len(coding_results)} automatische Kodierungen hinzu")
                 for coding in coding_results:
@@ -11046,13 +12204,40 @@ async def main() -> None:
                         all_codings.append(coding)
                     else:
                         print(f"Überspringe ungültige Kodierung: {coding}")
-            
+
             # Füge manuelle Kodierungen hinzu
             if manual_codings and len(manual_codings) > 0:
                 print(f"Füge {len(manual_codings)} manuelle Kodierungen hinzu")
                 all_codings.extend(manual_codings)
-            
+
             print(f"\nGesamtzahl Kodierungen: {len(all_codings)}")
+
+            # NEU: Vorbereitung für manuellen Review
+            # Gruppiere Kodierungen nach Segmenten für Review
+            segment_codings = {}
+            for coding in all_codings:
+                segment_id = coding.get('segment_id')
+                if segment_id:
+                    if segment_id not in segment_codings:
+                        segment_codings[segment_id] = []
+                    segment_codings[segment_id].append(coding)
+
+            # NEU: Führe manuellen Review bei Unstimmigkeiten durch, falls autocoders UND human coder aktiv waren
+            if manual_coders and auto_coders:
+                print("\nPrüfe auf Kodierungsunstimmigkeiten für manuellen Review...")
+                review_decisions = await perform_manual_review(segment_codings, CONFIG['OUTPUT_DIR'])
+                
+                if review_decisions:
+                    print(f"\n{len(review_decisions)} manuelle Review-Entscheidungen getroffen")
+                    
+                    # Entferne alte Kodierungen für Segmente mit Review-Entscheidung
+                    reviewed_segments = set(decision.get('segment_id', '') for decision in review_decisions)
+                    all_codings = [coding for coding in all_codings if coding.get('segment_id', '') not in reviewed_segments]
+                    
+                    # Füge Review-Entscheidungen hinzu
+                    all_codings.extend(review_decisions)
+                    print(f"Aktualisierte Gesamtzahl Kodierungen: {len(all_codings)}")
+
 
             # 9. Berechne Intercoder-Reliabilität
             if all_codings:
@@ -11173,6 +12358,8 @@ async def monitor_progress(analysis_manager: IntegratedAnalysisManager):
             
     except asyncio.CancelledError:
         print("\nFortschrittsüberwachung beendet.")
+
+_patch_tkinter_for_threaded_exit()
 
 if __name__ == "__main__":
     try:
