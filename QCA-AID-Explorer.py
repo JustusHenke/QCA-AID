@@ -1,8 +1,16 @@
 """
 QCA-AID Explorer 
 ========================================================================
-Version: 0.5
+Version: 0.5.1
+Datum: 2025-05-15
 --------
+
+Neu in Version 0.5.1 (2025-05-15)
+- Robuste Filter-Logik: Automatisches Mapping von Attribut_1-3 zu tatsächlichen Spaltennamen in Positionen B-D
+- Selektive Keyword-Harmonisierung: Harmonisierung erfolgt nur noch für Analysetypen, die sie benötigen
+- Verbesserte Fehlerbehandlung: Filter für nicht existierende Spalten werden übersprungen statt Fehler zu werfen
+- Debug-Ausgaben: Detaillierte Informationen über angewendete Filter und Spalten-Mappings
+- Performance-Optimierung: Unnötige Keyword-Verarbeitung für nicht-keyword-basierte Analysen vermieden
 
 Neu in Version 0.5 (2025-04-10)
 - Neue Schlüsselwort-basierte Sentiment-Analyse: Visualisiert die wichtigsten Begriffe aus Textsegmenten als Bubbles, eingefärbt nach ihrem Sentiment (positiv/negativ oder benutzerdefinierte Kategorien).
@@ -28,29 +36,8 @@ bei der zusammengehörige Elemente näher beieinander platziert werden
 und die hierarchische Struktur der Daten besser sichtbar wird.
 
 Folgende Pakete sollten vor der ersten Nutzung installiert werden:
-pip install networkx reportlab scikit-learn pandas openpyxl matplotlib seaborn
+pip install networkx reportlab scikit-learn pandas openpyxl matplotlib seaborn circlify
 
-"""
-
-"""
-QCA-AID Explorer 
-========================================================================
-Version:
---------
-0.4 (2025-04-07)
-New in this version
-- Configuration through Excel file "QCA-AID-Explorer-Config.xlsx"
-- Heatmap visualization of codes along document attributes
-- Multiple analysis types configurable from Excel
-- Customizable parameters for each analysis
-
-QCA-AID Explorer ist ein Tool zur Analyse von qualitativen Kodierungsdaten.
-Es ermöglicht die Visualisierung von Kodierungsnetzwerken mit Hauptkategorien,
-Subkategorien und Schlüsselwörtern sowie die automatisierte Zusammenfassung
-von kodierten Textsegmenten mit Hilfe von LLM-Modellen.
-
-Folgende Pakete sollten vor der ersten Nutzung installiert werden:
-pip install networkx reportlab scikit-learn pandas openpyxl matplotlib seaborn
 """
 
 import pandas as pd
@@ -351,6 +338,7 @@ class QCAAnalyzer:
     def filter_data(self, filters: Dict[str, str]) -> pd.DataFrame:
         """
         Filter the dataframe based on provided column-value pairs
+        Unterstützt sowohl Spaltennamen als auch generische Attribut-Bezeichnungen
         
         Args:
             filters: Dictionary with column-value pairs
@@ -360,28 +348,141 @@ class QCAAnalyzer:
         """
         filtered_df = self.df.copy()
         
+        # Erstelle ein Mapping von generischen Attributnamen zu tatsächlichen Spaltennamen
+        # Spalten B, C, D entsprechen Attribut_1, Attribut_2, Attribut_3
+        attribute_mapping = {
+            'Attribut_1': self.df.columns[1] if len(self.df.columns) > 1 else None,  # Spalte B (Index 1)
+            'Attribut_2': self.df.columns[2] if len(self.df.columns) > 2 else None,  # Spalte C (Index 2)
+            'Attribut_3': self.df.columns[3] if len(self.df.columns) > 3 else None,  # Spalte D (Index 3)
+        }
+        
+        # Zeige das Mapping für Debug-Zwecke
+        print("\nSpalten-Mapping:")
+        for attr, col in attribute_mapping.items():
+            if col:
+                print(f"  {attr} → {col}")
+        
+        # Prüfe zuerst, welche Filter angewendet werden können
+        applicable_filters = {}
         for col, value in filters.items():
-            if not value:  # Skip empty filters
+            # Überspringe leere Filter
+            if not value or pd.isna(value):
                 continue
                 
-            if col == "Subkategorien":
-                # Spezielle Behandlung für Subkategorien
-                # Prüfe ob der gesuchte Wert in der kommagetrennten Liste vorkommt
+            # Prüfe, ob es ein generisches Attribut ist
+            actual_col = col
+            if col in attribute_mapping and attribute_mapping[col]:
+                actual_col = attribute_mapping[col]
+                print(f"Filter '{col}' wird auf Spalte '{actual_col}' angewendet")
+                
+            # Prüfe, ob die Spalte existiert
+            if actual_col not in self.df.columns:
+                print(f"Warnung: Spalte '{actual_col}' (von Filter '{col}') nicht in den Daten gefunden. Filter wird übersprungen.")
+                continue
+                
+            applicable_filters[actual_col] = value
+        
+        if not applicable_filters:
+            print("Keine gültigen Filter gefunden. Verwende ungefilterte Daten.")
+            return filtered_df
+        
+        # Wende die gültigen Filter an
+        for col, value in applicable_filters.items():
+            # Spezialbehandlung je nach Spaltentyp
+            if col in ['Subkategorien', 'Subkategorie']:
+                # Spezielle Behandlung für Subkategorien (kommagetrennte Listen)
                 filtered_df = filtered_df[filtered_df[col].fillna('').str.split(',').apply(
                     lambda x: value.strip() in [item.strip() for item in x]
                 )]
             else:
-                # Standardfilterung für andere Spalten
-                filtered_df = filtered_df[filtered_df[col] == value]
+                # Konvertiere beide Seiten zu String für robusteren Vergleich
+                value_str = str(value).strip()
+                
+                # Prüfe verschiedene Matching-Strategien
+                if value_str == '*' or value_str.lower() == 'alle':
+                    # Wenn der Filter-Wert '*' oder 'alle' ist, überspringen
+                    continue
+                elif '*' in value_str:
+                    # Wildcard-Matching (z.B. "Text*" für Textanfang)
+                    pattern = value_str.replace('*', '.*')
+                    filtered_df = filtered_df[filtered_df[col].fillna('').astype(str).str.match(pattern, case=False)]
+                else:
+                    # Exaktes Matching - konvertiere beide Seiten zu String
+                    filtered_df = filtered_df[filtered_df[col].astype(str) == value_str]
         
         # Debug-Ausgabe
         print(f"\nFilter angewendet:")
-        for col, value in filters.items():
-            if value:
-                print(f"- {col}: {value}")
+        for col, value in applicable_filters.items():
+            print(f"- {col}: {value}")
+        print(f"Anzahl der ursprünglichen Zeilen: {len(self.df)}")
         print(f"Anzahl der gefilterten Zeilen: {len(filtered_df)}")
         
+        # Warnung bei leerem Ergebnis
+        if len(filtered_df) == 0:
+            print("WARNUNG: Die Filterung ergab keine Ergebnisse!")
+            # Zeige verfügbare Werte für die Filter-Spalten
+            print("\nVerfügbare Werte in den Filter-Spalten:")
+            for col in applicable_filters.keys():
+                if col in self.df.columns:
+                    unique_values = self.df[col].value_counts().head(10)
+                    print(f"\n{col} (Top 10):")
+                    for val, count in unique_values.items():
+                        print(f"  - {val}: {count} Vorkommen")
+        
         return filtered_df
+
+    def get_column_mapping(self) -> Dict[str, str]:
+        """
+        Gibt das Mapping von generischen Attributnamen zu tatsächlichen Spaltennamen zurück
+        
+        Returns:
+            Dictionary mit Attribut-zu-Spalten-Mapping
+        """
+        return {
+            'Attribut_1': self.df.columns[1] if len(self.df.columns) > 1 else None,
+            'Attribut_2': self.df.columns[2] if len(self.df.columns) > 2 else None,
+            'Attribut_3': self.df.columns[3] if len(self.df.columns) > 3 else None,
+        }
+
+    def print_available_filters(self):
+        """
+        Zeigt alle verfügbaren Spalten und deren Werte an, die als Filter verwendet werden können
+        """
+        print("\n=== Verfügbare Filter ===")
+        
+        # Zeige generische Attribute
+        attribute_mapping = self.get_column_mapping()
+        print("\nGenerische Attribute:")
+        for attr, col in attribute_mapping.items():
+            if col:
+                print(f"  {attr} → {col}")
+                # Zeige die ersten 5 unique Werte
+                unique_values = self.df[col].value_counts().head(5)
+                for val, count in unique_values.items():
+                    print(f"    - {val} ({count} Vorkommen)")
+        
+        # Zeige Standard-Spalten
+        standard_columns = ['Hauptkategorie', 'Subkategorien', 'Schlüsselwörter', 'Dokument']
+        print("\nStandard-Spalten:")
+        for col in standard_columns:
+            if col in self.df.columns:
+                print(f"  {col}")
+                unique_values = self.df[col].value_counts().head(5)
+                for val, count in unique_values.items():
+                    # Bei Subkategorien zeige nur die ersten 50 Zeichen
+                    val_display = str(val)[:50] + "..." if len(str(val)) > 50 else str(val)
+                    print(f"    - {val_display} ({count} Vorkommen)")
+        
+        # Zeige weitere Spalten
+        other_columns = [col for col in self.df.columns if col not in standard_columns and col not in attribute_mapping.values()]
+        if other_columns:
+            print("\nWeitere Spalten:")
+            for col in other_columns:
+                print(f"  {col}")
+                unique_values = self.df[col].value_counts().head(3)
+                for val, count in unique_values.items():
+                    val_display = str(val)[:50] + "..." if len(str(val)) > 50 else str(val)
+                    print(f"    - {val_display} ({count} Vorkommen)")
 
     async def generate_summary(self, 
                              text: str, 
@@ -418,6 +519,96 @@ class QCAAnalyzer:
         with open(output_path, 'w', encoding='utf-8') as f:
             f.write(summary)
 
+    def needs_keyword_harmonization(self, analysis_type: str, params: Dict[str, Any] = None) -> bool:
+        """
+        Bestimmt, ob für einen bestimmten Analysetyp eine Keyword-Harmonisierung erforderlich ist
+        
+        Args:
+            analysis_type: Der Typ der Analyse
+            params: Zusätzliche Parameter der Analyse
+            
+        Returns:
+            True wenn Harmonisierung benötigt wird, False sonst
+        """
+        # Liste der Analysetypen, die Keyword-Harmonisierung benötigen
+        keyword_dependent_analyses = [
+            'netzwerk',           # Netzwerk-Visualisierung nutzt Schlüsselwörter
+            'network',            # Alternative Schreibweise
+            'keyword_analysis',   # Zukünftige Keyword-Analyse
+            'keyword_cloud',      # Zukünftige Word-Cloud
+            'sentiment_keywords', # Sentiment-Analyse mit Keywords
+        ]
+        
+        # Prüfe den Analysetyp
+        if analysis_type.lower() in keyword_dependent_analyses:
+            return True
+        
+        # Prüfe Parameter für spezielle Fälle
+        if params:
+            # Wenn explizit Keywords in Parametern erwähnt werden
+            if params.get('use_keywords', False):
+                return True
+            
+            # Wenn die Analyse Keywords in irgendeiner Form nutzt
+            if any('keyword' in str(key).lower() or 'schlüsselwört' in str(key).lower() 
+                for key in params.keys()):
+                return True
+        
+        return False
+
+    def perform_selective_harmonization(self, analysis_configs: List[Dict[str, Any]], 
+                                    clean_keywords: bool, 
+                                    similarity_threshold: float) -> bool:
+        """
+        Führt Keyword-Harmonisierung nur durch, wenn mindestens eine Analyse sie benötigt
+        
+        Args:
+            analysis_configs: Liste der Analysekonfigurationen
+            clean_keywords: Ob Harmonisierung grundsätzlich aktiviert ist
+            similarity_threshold: Schwellenwert für Ähnlichkeit
+            
+        Returns:
+            True wenn Harmonisierung durchgeführt wurde, False sonst
+        """
+        if not clean_keywords:
+            print("Keyword-Harmonisierung ist global deaktiviert.")
+            return False
+        
+        # Prüfe, ob irgendeine aktive Analyse die Harmonisierung benötigt
+        needs_harmonization = False
+        analyses_requiring_harmonization = []
+        
+        for config in analysis_configs:
+            # Prüfe, ob die Analyse aktiviert ist
+            is_active = config.get('params', {}).get('active', True)
+            if isinstance(is_active, str):
+                is_active = is_active.lower() in ('true', 'ja', 'yes', '1')
+            
+            if not is_active:
+                continue
+            
+            analysis_type = config.get('params', {}).get('analysis_type', '')
+            analysis_name = config.get('name', 'Unbekannt')
+            
+            if self.needs_keyword_harmonization(analysis_type, config.get('params', {})):
+                needs_harmonization = True
+                analyses_requiring_harmonization.append(analysis_name)
+        
+        if needs_harmonization:
+            print(f"\nKeyword-Harmonisierung wird durchgeführt für folgende Analysen:")
+            for analysis in analyses_requiring_harmonization:
+                print(f"  - {analysis}")
+            
+            print("\nStarte Keyword-Harmonisierung...")
+            # Update the main DataFrame with harmonized keywords
+            self.df = self.harmonize_keywords(similarity_threshold=similarity_threshold)
+            self.validate_keyword_mapping()
+            print("Keyword-Harmonisierung abgeschlossen.")
+            return True
+        else:
+            print("\nKeyword-Harmonisierung wird übersprungen (von keiner aktiven Analyse benötigt).")
+            return False
+    
     def harmonize_keywords(self, similarity_threshold: float = 0.60) -> pd.DataFrame:
         """
         Harmonize keywords using fuzzy matching while preserving hierarchical relationships.
@@ -2050,8 +2241,9 @@ Bitte geben Sie an:
 # ------------------------------------ #
 # ---      HAUPTFUNKTION           --- #
 # ------------------------------------ #
+
 async def main():
-    print("\n=== QCA-AID Explorer v0.4 Start ===")
+    print("\n=== QCA-AID Explorer v0.5 Start ===")
     print("Konfiguration über Excel-Datei")
     
     # Pfad zur Konfigurations-Excel-Datei
@@ -2094,13 +2286,12 @@ async def main():
     # Standardprompts laden
     default_prompts = get_default_prompts()
     
-    # Schlüsselwörter harmonisieren, falls aktiviert
-    if CLEAN_KEYWORDS:
-        print("\nStarte Keyword-Harmonisierung...")
-        # Update the main DataFrame with harmonized keywords
-        analyzer.df = analyzer.harmonize_keywords(similarity_threshold=SIMILARITY_THRESHOLD)
-        analyzer.validate_keyword_mapping()
-        print("Keyword-Harmonisierung abgeschlossen.")
+    # Führe selektive Keyword-Harmonisierung durch
+    harmonization_performed = analyzer.perform_selective_harmonization(
+        analysis_configs, 
+        CLEAN_KEYWORDS, 
+        SIMILARITY_THRESHOLD
+    )
     
     # Analysekonfigurationen durchlaufen
     print(f"\nFühre {len(analysis_configs)} Auswertungen durch...")
@@ -2135,15 +2326,14 @@ async def main():
         # Erzeuge Filterstring für Dateinamen
         filter_str = create_filter_string(filters)
         
-        # Schlüsselwort-Harmonisierungsinfo zum Filterstring hinzufügen, falls aktiviert
-        if CLEAN_KEYWORDS:
+        # Füge Harmonisierungsinfo nur hinzu, wenn sie tatsächlich durchgeführt wurde
+        # UND für diese spezifische Analyse relevant ist
+        analysis_type = params.get('analysis_type', '').lower()
+        if harmonization_performed and analyzer.needs_keyword_harmonization(analysis_type, params):
             filter_str = f"harmonized_{filter_str}" if filter_str else "harmonized"
         
         # Füge Analysenamen zum Filterstring hinzu
         output_prefix = f"{analysis_name}_{filter_str}" if filter_str else analysis_name
-        
-        # Bestimme den Analysetyp
-        analysis_type = params.get('analysis_type', '').lower()
         
         if analysis_type == 'netzwerk':
             # Netzwerkvisualisierung erstellen
@@ -2169,7 +2359,6 @@ async def main():
             # Verwende benutzerdefinierten Prompt, falls vorhanden
             prompt_template = params.get('prompt_template', default_prompts.get('paraphrase', None))
             
-            # ÜBERGEBE AUCH DIE PARAMETER
             await analyzer.create_custom_summary(
                 filtered_df,
                 prompt_template,
@@ -2177,7 +2366,7 @@ async def main():
                 MODEL_NAME,
                 TEMPERATURE,
                 filters,
-                params  # Übergebe die Parameter an die Methode
+                params
             )
             
         elif analysis_type == 'summary_reasoning':
@@ -2186,7 +2375,6 @@ async def main():
             # Verwende benutzerdefinierten Prompt, falls vorhanden
             prompt_template = params.get('prompt_template', default_prompts.get('reasoning', None))
             
-            # ÜBERGEBE AUCH DIE PARAMETER
             await analyzer.create_custom_summary(
                 filtered_df,
                 prompt_template,
@@ -2194,7 +2382,7 @@ async def main():
                 MODEL_NAME,
                 TEMPERATURE,
                 filters,
-                params  # Übergebe die Parameter an die Methode
+                params
             )
             
         elif analysis_type == 'custom_summary':
@@ -2206,7 +2394,6 @@ async def main():
                 print("Warnung: Kein Prompt-Template für benutzerdefinierte Zusammenfassung angegeben. Überspringe.")
                 continue
                 
-            # ÜBERGEBE AUCH DIE PARAMETER
             await analyzer.create_custom_summary(
                 filtered_df,
                 prompt_template,
@@ -2214,7 +2401,7 @@ async def main():
                 MODEL_NAME,
                 TEMPERATURE,
                 filters,
-                params  # Übergebe die Parameter an die Methode
+                params
             )
 
         elif analysis_type == 'sentiment_analysis':
