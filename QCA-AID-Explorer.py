@@ -257,19 +257,23 @@ class ConfigLoader:
                     filter_params = {}
                     other_params = {}
                     
-                    is_active = True  # Standard: Aktiviert
                     for _, row in analysis_df.iterrows():
                         param_name = str(row['Parameter'])
                         param_value = row['Wert']
 
+                        # Spezielle Behandlung für active/enabled Parameter
                         if param_name.lower() == 'active' or param_name.lower() == 'enabled':
-                            if isinstance(param_value, str):
-                                is_active = param_value.lower() in ('true', 'ja', 'yes', '1')
+                            if pd.isna(param_value):
+                                # Wenn kein Wert angegeben, default auf True
+                                param_value = True
+                            elif isinstance(param_value, str):
+                                param_value = param_value.lower() in ('true', 'ja', 'yes', '1')
                             else:
-                                is_active = bool(param_value)
+                                param_value = bool(param_value)
                                 
-                            # Speichere in other_params
-                            other_params[param_name] = is_active
+                            # Speichere standardisiert als 'active'
+                            other_params['active'] = param_value
+                            continue
                         
                         # Leere Werte als None behandeln
                         if pd.isna(param_value):
@@ -283,14 +287,19 @@ class ConfigLoader:
                         else:
                             other_params[param_name] = param_value
                     
+                    # Stelle sicher, dass 'active' immer existiert
+                    if 'active' not in other_params:
+                        other_params['active'] = True  # Default: aktiviert
+                    
                     analysis_config['filters'] = filter_params
                     analysis_config['params'] = other_params
-                    other_params['active'] = is_active
                     self.analysis_configs.append(analysis_config)
             
             print(f"\n{len(self.analysis_configs)} Auswertungskonfigurationen gefunden:")
             for config in self.analysis_configs:
-                print(f"  - {config['name']}")
+                active_status = config['params'].get('active', True)
+                status_text = "aktiviert" if active_status else "deaktiviert"
+                print(f"  - {config['name']} ({status_text})")
                 
         except Exception as e:
             print(f"Fehler beim Laden der Konfiguration: {str(e)}")
