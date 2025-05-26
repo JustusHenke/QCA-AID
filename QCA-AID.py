@@ -7,7 +7,15 @@ enhanced with AI capabilities through the OpenAI API.
 
 Version:
 --------
-0.9.12 (2025-05-10)
+0.9.13 (2025-05-26)
+
+New in 0.9.13
+- Vollständige Implementierung des 'majority' Review-Modus mit einfacher Mehrheitsentscheidung
+- Neue 'manual_priority' Option bevorzugt manuelle vor automatischen Kodierungen
+- Korrigierte Review-Logik: REVIEW_MODE wird jetzt korrekt respektiert, unabhängig von Kodierer-Typ
+- Konsistente Behandlung der REVIEW_MODE Konfiguration mit einheitlichem Standard 'consensus'
+- Verbesserte Tie-Breaking-Mechanismen bei Gleichstand zwischen Kodierungen
+- Erweiterte Dokumentation der Review-Modi im consensus_info Export-Feld
 
 New in 0.9.12
 - Improved manual coding workflow with proper handling of the last segment
@@ -897,6 +905,18 @@ class ConfigLoader:
             else:
                 config['ANALYSIS_MODE'] = 'deductive'  # Standardwert
                 print(f"ANALYSIS_MODE nicht im Codebook gefunden, verwende Standard: {config['ANALYSIS_MODE']}")
+
+            # Prüfe auf REVIEW_MODE in der Konfiguration
+            if 'REVIEW_MODE' in config:
+                valid_modes = {'auto', 'manual', 'consensus', 'majority'}
+                if config['REVIEW_MODE'] not in valid_modes:
+                    print(f"Warnung: Ungültiger REVIEW_MODE '{config['REVIEW_MODE']}' im Codebook. Verwende 'auto'.")
+                    config['REVIEW_MODE'] = 'consensus'
+                else:
+                    print(f"REVIEW_MODE aus Codebook geladen: {config['REVIEW_MODE']}")
+            else:
+                config['REVIEW_MODE'] = 'consensus'  # Standardwert
+                print(f"REVIEW_MODE nicht im Codebook gefunden, verwende Standard: {config['REVIEW_MODE']}")
 
             # Stelle sicher, dass ATTRIBUTE_LABELS vorhanden ist
             if 'ATTRIBUTE_LABELS' not in config:
@@ -7543,11 +7563,8 @@ class ManualReviewComponent:
             # Prüfe auf Unstimmigkeiten in Hauptkategorien
             categories = set(coding.get('category', '') for coding in codings)
             
-            # Prüfe auf menschliche Kodierer
-            has_human_coder = any('human' in coding.get('coder_id', '') for coding in codings)
-            
-            # Wenn mehr als eine Kategorie ODER ein menschlicher Kodierer beteiligt
-            if len(categories) > 1 or has_human_coder:
+            # Bei REVIEW_MODE 'manual' auch automatische Kodierungen prüfen
+            if len(categories) > 1:
                 # Hole den Text des Segments
                 text = codings[0].get('text', '')
                 if not text:
@@ -8371,12 +8388,279 @@ class ResultsExporter:
 
     
     def _get_majority_coding(self, segment_codes: List[Dict]) -> Optional[Dict]:
-        # Implementierung ähnlich wie _get_consensus_coding, aber mit einfacher Mehrheit
-        pass
+        """
+        Ermittelt die Mehrheits-Kodierung für ein Segment basierend auf einfacher Mehrheit.
+        Bei Gleichstand wird die Kodierung mit der höchsten Konfidenz gewählt.
+        
+        Args:
+            segment_codes: Liste der Kodierungen für ein Segment von verschiedenen Kodierern
+                
+        Returns:
+            Optional[Dict]: Mehrheits-Kodierung oder konfidenzbasierte Kodierung
+        """
+        if not segment_codes:
+            return None
+
+        print(f"\nMehrheitsentscheidung für Segment mit {len(segment_codes)} Kodierungen...")
+
+        # 1. Zähle Hauptkategorien
+        category_counts = Counter(coding['category'] for coding in segment_codes)
+        total_coders = len(segment_codes)
+        
+        # Finde häufigste Hauptkategorie(n)
+        max_count = max(category_counts.values())
+        majority_categories = [
+            category for category, count in category_counts.items()
+            if count == max_count
+        ]
+        
+        print(f"  Kategorieverteilung: {dict(category_counts)}")
+        print(f"  Häufigste Kategorie(n): {majority_categories} ({max_count}/{total_coders})")
+        
+        # 2. Bei eindeutiger Mehrheit
+        if len(majority_categories) == 1:
+            majority_category = majority_categories[0]
+            print(f"  ✓ Eindeutige Mehrheit für: '{majority_category}'")
+        else:
+            # 3. Bei Gleichstand: Wähle nach höchster Konfidenz
+            print(f"  Gleichstand zwischen {len(majority_categories)} Kategorien")
+            
+            # Sammle Kodierungen für die gleichstehenden Kategorien
+            tied_codings = [
+                coding for coding in segment_codes
+                if coding['category'] in majority_categories
+            ]
+            
+            # Finde die Kodierung mit der höchsten Konfidenz
+            highest_confidence = -1
+            best_coding = None
+            
+            for coding in tied_codings:
+                # Extrahiere Konfidenzwert
+                confidence = 0.0
+                if isinstance(coding.get('confidence'), dict):
+                    confidence = float(coding['confidence'].get('total', 0))
+                    if confidence == 0:  # Fallback auf category-Konfidenz
+                        confidence = float(coding['confidence'].get('category', 0))
+                elif isinstance(coding.get('confidence'), (int, float)):
+                    confidence = float(coding['confidence'])
+                
+                if confidence > highest_confidence:
+                    highest_confidence = confidence
+                    best_coding = coding
+                    majority_category = coding['category']
+            
+            print(f"  ✓ Tie-Breaking durch Konfidenz: '{majority_category}' (Konfidenz: {highest_confidence:.2f})")
+        
+        # 4. Sammle alle Kodierungen für die gewählte Mehrheitskategorie
+        matching_codings = [
+            coding for coding in segment_codes
+            if coding['category'] == majority_category
+        ]
+        
+        # 5. Behandle Subkategorien - einfache Mehrheit bei Subkategorien
+        all_subcategories = []
+        for coding in matching_codings:
+            subcats = coding.get('subcategories', [])
+            if isinstance(subcats, (list, tuple)):
+                all_subcategories.extend(subcats)
+        
+        # Zähle Subkategorien
+        subcat_counts = Counter(all_subcategories)
+        
+        # Wähle Subkategorien die von mindestens der Hälfte der Kodierer dieser Kategorie verwendet wurden
+        min_subcat_votes = len(matching_codings) / 2
+        majority_subcats = [
+            subcat for subcat, count in subcat_counts.items()
+            if count >= min_subcat_votes
+        ]
+        
+        print(f"  Subkategorien mit Mehrheit: {majority_subcats}")
+        
+        # 6. Wähle die beste Basiskodierung (höchste Konfidenz unter den Mehrheitskodierungen)
+        base_coding = max(
+            matching_codings,
+            key=lambda x: self._extract_confidence_value(x)
+        )
+        
+        # 7. Erstelle finale Mehrheits-Kodierung
+        majority_coding = base_coding.copy()
+        majority_coding['subcategories'] = majority_subcats
+        
+        # Dokumentiere den Mehrheitsprozess
+        majority_coding['consensus_info'] = {
+            'total_coders': total_coders,
+            'category_votes': max_count,
+            'category_agreement': max_count / total_coders,
+            'tied_categories': majority_categories if len(majority_categories) > 1 else [],
+            'subcategory_agreement': len(majority_subcats) / len(all_subcategories) if all_subcategories else 1.0,
+            'selection_type': 'majority',
+            'tie_broken_by_confidence': len(majority_categories) > 1
+        }
+        
+        # Aktualisiere Begründung
+        if len(majority_categories) > 1:
+            majority_coding['justification'] = (
+                f"[Mehrheitsentscheidung mit Tie-Breaking] " + 
+                majority_coding.get('justification', '')
+            )
+        else:
+            majority_coding['justification'] = (
+                f"[Mehrheitsentscheidung: {max_count}/{total_coders}] " + 
+                majority_coding.get('justification', '')
+            )
+        
+        print(f"  ✓ Mehrheits-Kodierung erstellt: '{majority_category}' mit {len(majority_subcats)} Subkategorien")
+        
+        return majority_coding
+
+    def _extract_confidence_value(self, coding: Dict) -> float:
+        """
+        Hilfsmethode zum Extrahieren des Konfidenzwerts aus einer Kodierung.
+        
+        Args:
+            coding: Kodierung mit Konfidenzinformation
+            
+        Returns:
+            float: Konfidenzwert zwischen 0 und 1
+        """
+        try:
+            if isinstance(coding.get('confidence'), dict):
+                confidence = float(coding['confidence'].get('total', 0))
+                if confidence == 0:  # Fallback auf category-Konfidenz
+                    confidence = float(coding['confidence'].get('category', 0))
+            elif isinstance(coding.get('confidence'), (int, float)):
+                confidence = float(coding['confidence'])
+            else:
+                confidence = 0.0
+            return confidence
+        except (ValueError, TypeError):
+            return 0.0
 
     def _get_manual_priority_coding(self, segment_codes: List[Dict]) -> Optional[Dict]:
-        # Implementierung für manuelle Priorisierung
-        pass
+        """
+        Bevorzugt manuelle Kodierungen vor automatischen Kodierungen.
+        Falls mehrere manuelle Kodierungen vorhanden sind, wird Konsens gesucht.
+        Falls nur automatische Kodierungen vorhanden sind, wird Konsens verwendet.
+        
+        Args:
+            segment_codes: Liste der Kodierungen für ein Segment von verschiedenen Kodierern
+                
+        Returns:
+            Optional[Dict]: Priorisierte Kodierung
+        """
+        if not segment_codes:
+            return None
+
+        print(f"\nManuelle Priorisierung für Segment mit {len(segment_codes)} Kodierungen...")
+
+        # 1. Trenne manuelle und automatische Kodierungen
+        manual_codings = []
+        auto_codings = []
+        
+        for coding in segment_codes:
+            coder_id = coding.get('coder_id', '')
+            # Erkenne manuelle Kodierungen anhand der coder_id
+            if 'human' in coder_id.lower() or 'manual' in coder_id.lower() or coding.get('manual_coding', False):
+                manual_codings.append(coding)
+            else:
+                auto_codings.append(coding)
+        
+        print(f"  Gefunden: {len(manual_codings)} manuelle, {len(auto_codings)} automatische Kodierungen")
+        
+        # 2. Wenn manuelle Kodierungen vorhanden sind, bevorzuge diese
+        if manual_codings:
+            print("  ✓ Verwende manuelle Kodierungen mit Priorität")
+            
+            if len(manual_codings) == 1:
+                # Nur eine manuelle Kodierung - verwende diese direkt
+                selected_coding = manual_codings[0].copy()
+                selected_coding['consensus_info'] = {
+                    'total_coders': len(segment_codes),
+                    'manual_coders': len(manual_codings),
+                    'auto_coders': len(auto_codings),
+                    'selection_type': 'single_manual',
+                    'priority_reason': 'Einzige manuelle Kodierung verfügbar'
+                }
+                print(f"    Einzige manuelle Kodierung: '{selected_coding['category']}'")
+                
+            else:
+                # Mehrere manuelle Kodierungen - suche Konsens unter diesen
+                print(f"    Suche Konsens unter {len(manual_codings)} manuellen Kodierungen")
+                
+                # Verwende die bestehende Konsens-Logik nur für manuelle Kodierungen
+                consensus_coding = self._get_consensus_coding(manual_codings)
+                
+                if consensus_coding:
+                    selected_coding = consensus_coding.copy()
+                    # Aktualisiere consensus_info
+                    selected_coding['consensus_info'] = selected_coding.get('consensus_info', {})
+                    selected_coding['consensus_info'].update({
+                        'total_coders': len(segment_codes),
+                        'manual_coders': len(manual_codings),
+                        'auto_coders': len(auto_codings),
+                        'selection_type': 'manual_consensus',
+                        'priority_reason': 'Konsens unter manuellen Kodierungen'
+                    })
+                    print(f"    Konsens bei manuellen Kodierungen: '{selected_coding['category']}'")
+                else:
+                    # Kein Konsens unter manuellen Kodierungen - wähle nach Konfidenz
+                    print("    Kein Konsens bei manuellen Kodierungen - wähle nach Konfidenz")
+                    selected_coding = max(
+                        manual_codings,
+                        key=lambda x: self._extract_confidence_value(x)
+                    ).copy()
+                    
+                    selected_coding['consensus_info'] = {
+                        'total_coders': len(segment_codes),
+                        'manual_coders': len(manual_codings),
+                        'auto_coders': len(auto_codings),
+                        'selection_type': 'manual_confidence',
+                        'priority_reason': 'Höchste Konfidenz unter manuellen Kodierungen (kein Konsens)'
+                    }
+        
+        else:
+            # 3. Keine manuellen Kodierungen - verwende automatische mit Konsens
+            print("  Keine manuellen Kodierungen - verwende automatische Kodierungen")
+            
+            consensus_coding = self._get_consensus_coding(auto_codings)
+            
+            if consensus_coding:
+                selected_coding = consensus_coding.copy()
+                # Aktualisiere consensus_info
+                selected_coding['consensus_info'] = selected_coding.get('consensus_info', {})
+                selected_coding['consensus_info'].update({
+                    'total_coders': len(segment_codes),
+                    'manual_coders': 0,
+                    'auto_coders': len(auto_codings),
+                    'selection_type': 'auto_consensus',
+                    'priority_reason': 'Keine manuellen Kodierungen verfügbar - automatischer Konsens'
+                })
+                print(f"    Automatischer Konsens: '{selected_coding['category']}'")
+            else:
+                # Fallback: Wähle automatische Kodierung mit höchster Konfidenz
+                selected_coding = max(
+                    auto_codings,
+                    key=lambda x: self._extract_confidence_value(x)
+                ).copy()
+                
+                selected_coding['consensus_info'] = {
+                    'total_coders': len(segment_codes),
+                    'manual_coders': 0,
+                    'auto_coders': len(auto_codings),
+                    'selection_type': 'auto_confidence',
+                    'priority_reason': 'Kein automatischer Konsens - höchste Konfidenz'
+                }
+                print(f"    Automatische Kodierung nach Konfidenz: '{selected_coding['category']}'")
+        
+        # 4. Aktualisiere Begründung mit Prioritätsinformation
+        priority_info = selected_coding['consensus_info']['priority_reason']
+        selected_coding['justification'] = (
+            f"[Manuelle Priorisierung: {priority_info}] " + 
+            selected_coding.get('justification', '')
+        )
+        
+        return selected_coding
 
     def _calculate_coding_quality(self, coding: Dict, consensus_subcats: List[str]) -> float:
         """
@@ -12222,9 +12506,33 @@ async def main() -> None:
                         segment_codings[segment_id] = []
                     segment_codings[segment_id].append(coding)
 
-            # NEU: Führe manuellen Review bei Unstimmigkeiten durch, falls autocoders UND human coder aktiv waren
-            if manual_coders and auto_coders:
-                print("\nPrüfe auf Kodierungsunstimmigkeiten für manuellen Review...")
+            
+            review_mode = CONFIG.get('REVIEW_MODE', 'consensus')
+            print(f"\nKonfigurierter Review-Modus: {review_mode}")
+
+            # Bestimme ob manuelles Review durchgeführt werden soll
+            should_perform_manual_review = False
+
+            if manual_coders and review_mode == 'manual':
+                # Manuelle Kodierer vorhanden UND manueller Review explizit konfiguriert
+                should_perform_manual_review = True
+                print("Manueller Review aktiviert: Manuelle Kodierer vorhanden und REVIEW_MODE = 'manual'")
+            elif not manual_coders and review_mode == 'manual':
+                # Nur automatische Kodierer, aber manueller Review explizit konfiguriert
+                should_perform_manual_review = True
+                print("Manueller Review aktiviert: REVIEW_MODE = 'manual' für automatische Kodierungen")
+            elif manual_coders and review_mode in ['consensus', 'majority', 'auto']:
+                # Manuelle Kodierer vorhanden, aber anderer Review-Modus konfiguriert
+                should_perform_manual_review = False
+                print(f"Kein manueller Review: Manuelle Kodierer vorhanden, aber REVIEW_MODE = '{review_mode}'")
+            else:
+                # Alle anderen Fälle: Verwende konfigurierten Modus
+                should_perform_manual_review = False
+                print(f"Verwende {review_mode}-Modus für Kodierungsentscheidungen")
+
+            # Führe manuellen Review durch wenn konfiguriert
+            if should_perform_manual_review:
+                print("\nStarte manuelles Review für Kodierungsunstimmigkeiten...")
                 review_decisions = await perform_manual_review(segment_codings, CONFIG['OUTPUT_DIR'])
                 
                 if review_decisions:
@@ -12237,7 +12545,13 @@ async def main() -> None:
                     # Füge Review-Entscheidungen hinzu
                     all_codings.extend(review_decisions)
                     print(f"Aktualisierte Gesamtzahl Kodierungen: {len(all_codings)}")
-
+                else:
+                    print("Keine Review-Entscheidungen getroffen - verwende automatische Konsensbildung")
+            else:
+                print(f"\nVerwende {review_mode}-Modus für Kodierungsentscheidungen im ResultsExporter")
+                # Die bestehende Consensus/Majority-Logik wird im ResultsExporter verwendet
+            
+            
 
             # 9. Berechne Intercoder-Reliabilität
             if all_codings:
@@ -12285,13 +12599,25 @@ async def main() -> None:
                 # Exportiere Ergebnisse mit Document-Summaries, wenn vorhanden
                 summary_arg = analysis_manager.document_summaries if CONFIG.get('CODE_WITH_CONTEXT', True) else None
 
+                # Bestimme den Export-Modus basierend auf REVIEW_MODE
+                export_mode = CONFIG.get('REVIEW_MODE', 'consensus')
+
+                # Validiere und mappe den Export-Modus
+                if export_mode == 'auto':
+                    export_mode = 'consensus'  # 'auto' ist ein Alias für 'consensus'
+                elif export_mode not in ['consensus', 'majority', 'manual_priority']:
+                    print(f"Warnung: Unbekannter REVIEW_MODE '{export_mode}', verwende 'consensus'")
+                    export_mode = 'consensus'
+
+                print(f"Export wird mit Modus '{export_mode}' durchgeführt")
+
                 await exporter.export_results(
                     codings=all_codings,
                     reliability=reliability,
                     categories=final_categories,
                     chunks=chunks,
                     revision_manager=revision_manager,
-                    export_mode="consensus",
+                    export_mode=export_mode,
                     original_categories=initial_categories,
                     inductive_coder=reliability_calculator,
                     document_summaries=summary_arg
