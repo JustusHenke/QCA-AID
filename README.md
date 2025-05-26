@@ -4,6 +4,55 @@
 
 Dieses Python-Skript implementiert Mayrings Methode der deduktiven Qualitativen Inhaltsanalyse mit induktiver Erweiterung mit KI-Unterstützung durch die OpenAI API. Es kombiniert traditionelle qualitative Forschungsmethoden mit modernen KI-Fähigkeiten, um Forschende bei der Analyse von Dokumenten- und Interviewdaten zu unterstützen. Das Ziel dieses Tools ist nicht, die menschliche Arbeit der Inhaltsanalyse zu ersetzen, sondern neue Möglichkeiten zu eröffnen, mehr Zeit für die Analyse und Reflexion bereits vorstrukturierter Textdaten zu gewinnen. 
 
+## Inhaltsverzeichnis
+
+### Grundlagen
+- [Anwendungsmöglichkeiten](#anwendungsmöglichkeiten)
+- [Zu beachten](#zu-beachten)
+- [Hinweis zum Datenschutz](#hinweis-zum-datenschutz)
+
+### Funktionen
+- [Merkmale von QCA-AID](#merkmale-von-qca-aid)
+  - [Textverarbeitung und Vorbereitung](#textverarbeitung-und-vorbereitung)
+  - [Kodierungsfunktionen](#kodierungsfunktionen)
+  - [Qualitätssicherung](#qualitätssicherung)
+  - [Export und Dokumentation](#export-und-dokumentation)
+  - [Konfiguration und Anpassbarkeit](#konfiguration-und-anpassbarkeit)
+
+### Versionen und Updates
+- [Neu in 0.9.13](#neu-in-0913--2025-05-15)
+- [Neu in 0.9.12](#neu-in-0912--2025-05-10)
+- [Neu in 0.9.11](#neu-in-0911--2025-04-12)
+- [Neu in 0.9.10](#neu-in-0910)
+- [Neu in 0.9.9](#neu-in-099)
+
+### Installation und Einrichtung
+- [Empfehlungen für die Installation](#empfehlungen-für-die-installation)
+- [Installation](#installation)
+- [Speichern des API-Schlüssels](#speichern-des-api-schlüssels)
+
+### Konfiguration und Nutzung
+- [Unterstützte Eingabedateien](#unterstützte-eingabedateien)
+- [QCA-AID: Konfiguration und Nutzung](#qca-aid-konfiguration-und-nutzung)
+  - [Codebook.xlsx](#codebookxlsx)
+  - [Verzeichnisstruktur](#verzeichnisstruktur)
+  - [Starten der Analyse](#starten-der-analyse)
+
+### Praktische Anwendung
+- [Empfohlene Workflows](#empfohlene-workflows)
+  - [Erste Schritte mit QCA-AID](#1-erste-schritte-mit-qca-aid)
+  - [Fortgeschrittene Analysestrategien](#2-fortgeschrittene-analysestrategien)
+- [Best Practices](#best-practices)
+- [Konfigurationsempfehlungen](#konfigurationsempfehlungen)
+- [Tipps für die effiziente Nutzung](#tipps-für-die-effiziente-nutzung)
+- [Beispiel für eine typische Analyse](#beispiel-für-eine-typische-analyse)
+
+### Fehlerbehebung
+- [Häufige Probleme und Lösungen](#häufige-probleme-und-lösungen)
+
+### Referenzen
+- [Zitiervorschlag](#zitiervorschlag)
+
 ## Anwendungsmöglichkeiten
 
 - Es ermöglicht mehr Dokumente in einer Untersuchung zu berücksichtigen als in herkömmlichen Verfahren, bei denen Personalkapazitäten stark begrenzt sind.    
@@ -43,15 +92,19 @@ Prinzipiell ist die Verarbeitung der Daten per LLM auch auf einem lokalen Rechne
 - **Deduktive Kategorienanwendung**: Systematische Anwendung vordefinierter Kategorien
 - **Induktive Kategorienerweiterung**: Erkennung neuer Kategorien und Subkategorien im Material
 - **Abduktiver Modus**: Erweiterung nur auf Subkategorien-Ebene ohne neue Hauptkategorien
+- **Grounded Theory Modus**: Schrittweise Sammlung von Subcodes mit späterer Hauptkategoriengenerierung
 - **Multi-Coder-Unterstützung**: Parallele Kodierung durch mehrere KI- und optionale menschliche Kodierer
 - **Kontextuelle Kodierung**: Progressive Dokumentenzusammenfassung für kontextsensitive Analyse
 - **Batch-Verarbeitung**: Konfigurierbare Anzahl gleichzeitig zu verarbeitender Textsegmente
+- **Manueller Kodierungsmodus**: Intuitive Benutzeroberfläche für menschliche Kodierung mit Fortschrittssicherung
 
 ### Qualitätssicherung
 - **Intercoder-Reliabilitätsanalyse**: Automatische Berechnung der Übereinstimmung zwischen Kodierern
 - **Konsensbildung**: Mehrstufiger Prozess zur Konsensfindung bei divergierenden Kodierungen
+- **Manuelles Code-Review**: Systematische Überprüfung und Korrektur von Kodierungsentscheidungen
 - **Kategoriesystem-Validierung**: Überprüfung und Optimierung des Kategoriensystems
 - **Sättigungsprüfungen**: Iterative Analyse mit automatischer Erkennung theoretischer Sättigung
+- **Fortschrittssicherung**: Automatische Sicherung des Kodierfortschritts für kontinuierliche Arbeit
 
 ### Export und Dokumentation
 - **Umfassender Analysebericht**: Excel-Export mit Kodierungen, Häufigkeitsanalysen und Intercoderstatistiken
@@ -64,16 +117,28 @@ Prinzipiell ist die Verarbeitung der Daten per LLM auch auf einem lokalen Rechne
 - **Flexible Modellwahl**: Unterstützung verschiedener KI-Anbieter (OpenAI und Mistral)
 - **Konfigurierbare Parameter**: Anpassung von Chunk-Größe, Überlappung, Batch-Größe und weiteren Einstellungen
 - **Temperaturstufen**: Steuerung der "Kreativität" bei der induktiven Kategorienentwicklung
-- **Anpassbarer Analysemodus**: Wahl zwischen vollständiger, abduktiver oder rein deduktiver Analyse
+- **Anpassbarer Analysemodus**: Wahl zwischen vollständiger, abduktiver, deduktiver oder grounded Theory Analyse
+- **Excel-basierte Konfiguration**: Einfache Anpassung aller Einstellungen über Excel-Dateien
+- **Erweiterte Visualisierungsoptionen**: Konfigurierbare Diagramme und Analysen im QCA-AID-Explorer
 
+## Neu in 0.9.13  (2025-05-15)
+- Vollständige Implementierung des 'majority' Review-Modus mit einfacher Mehrheitsentscheidung
+- Neue 'manual_priority' Option bevorzugt manuelle vor automatischen Kodierungen
+- Korrigierte Review-Logik: REVIEW_MODE wird jetzt korrekt respektiert, unabhängig von Kodierer-Typ
+- Konsistente Behandlung der REVIEW_MODE Konfiguration mit einheitlichem Standard 'consensus'
+- Verbesserte Tie-Breaking-Mechanismen bei Gleichstand zwischen Kodierungen
+- Erweiterte Dokumentation der Review-Modi im consensus_info Export-Feld
 
-## Neu in 0.9.11  (2025-05-10)
+## Neu in 0.9.12  (2025-05-10)
 - Verbesserter manueller Kodierungsworkflow mit korrekter Handhabung des letzten Segments
 - Verbesserte Funktionalität der Schaltflächen "Kodieren & Abschließen" für eine intuitivere Vervollständigung der Kodierung
 - Robustes manuelles Code-Review-System zur Behebung von Unstimmigkeiten zwischen den Codierern hinzugefügt
 - Die Tkinter-Ressourcenverwaltung wurde verbessert, um Fehler beim Schließen von Fenstern zu vermeiden
 - Verbesserte Fehlerbehandlung für den Export von Überprüfungsentscheidungen
 - Allgemeine Stabilitätsverbesserungen für die Schnittstelle zur manuellen Kodierung
+- Neue Funktion zur automatischen Sicherung des Kodierfortschritts
+- Verbesserte Benutzerführung im manuellen Kodierungsmodus
+- Optimierte Darstellung der Kodierhistorie
 
 ## Neu in 0.9.11  (2025-04-12)
 - Neuer 'grounded' Analysemodus hinzugefügt, inspiriert von Grounded Theory und Kuckartz
@@ -126,18 +191,17 @@ QCA-AID.py
 
 ## Zitiervorschlag
 
-
-Henke, J. (2025). QCA-AID: Qualitative Content Analysis with AI Support (Version 0.9.10) [Software]. 
+Henke, J. (2025). QCA-AID: Qualitative Content Analysis with AI Support (Version 0.9.13) [Software]. 
 Institut für Hochschulforschung Halle-Wittenberg. https://github.com/JustusHenke/QCA-AID
 
 ```BibTex
 @software{Henke_QCA-AID_2025,
   author       = {Henke, Justus},
   title        = {{QCA-AID: Qualitative Content Analysis with AI Support}},
-  month        = apr,
+  month        = may,
   year         = {2025},
   publisher    = {Institut für Hochschulforschung Halle-Wittenberg},
-  version      = {0.9.10},
+  version      = {0.9.13},
   url          = {https://github.com/JustusHenke/QCA-AID}
 }
 ```
@@ -263,8 +327,11 @@ Hier können Sie verschiedene Konfigurationsparameter einstellen:
 - **BATCH_SIZE**: Anzahl der parallel zu verarbeitenden Textabschnitte (Standard: 5)
 - **ATTRIBUTE_LABELS**: Bezeichnungen für Attribute, die aus dem Dateinamen extrahiert werden (z.B. "Part1_Part2_Restname.txt")
 - **CODER_SETTINGS**: Einstellungen für automatische Kodierer
-- **ANALYSIS_MODE**: Analysemodus ('full', 'abductive', 'deductive')
+- **ANALYSIS_MODE**: Analysemodus ('full', 'abductive', 'deductive', 'grounded')
 - **CODE_WITH_CONTEXT**: Aktiviert kontextuelle Kodierung (true/false)
+- **AUTO_SAVE_INTERVAL**: Intervall für automatische Sicherung des Kodierfortschritts (in Minuten)
+- **MANUAL_CODING_ENABLED**: Aktiviert den manuellen Kodierungsmodus (true/false)
+- **REVIEW_MODE**: Modus für die Überprüfung von Kodierungen ('consensus', 'majority', 'manual_priority')
 
 
 #### CODE_WITH_CONTEXT
@@ -344,3 +411,189 @@ python -m spacy download de_core_news_sm
 ### 4. Fehler bei der Verarbeitung bestimmter Dokumenttypen
 - Versuchen Sie, das Dokument in das .txt-Format zu konvertieren
 - Prüfen Sie, ob das Dokument Sonderzeichen oder komplexe Formatierungen enthält
+
+### 5. Probleme mit dem manuellen Kodierungsmodus
+- Wenn die Kodierungsoberfläche nicht startet, prüfen Sie die Tkinter-Installation
+- Bei Problemen mit der Fortschrittssicherung: Überprüfen Sie die AUTO_SAVE_INTERVAL-Einstellung
+- Bei Darstellungsproblemen: Stellen Sie sicher, dass Ihre Bildschirmauflösung ausreichend ist
+
+### 6. Probleme mit dem QCA-AID-Explorer
+- Bei Fehlern bei der Excel-Konfiguration: Überprüfen Sie das Format der QCA-AID-Explorer-Config.xlsx
+- Bei Visualisierungsproblemen: Stellen Sie sicher, dass alle erforderlichen Python-Pakete installiert sind
+- Bei Export-Fehlern: Überprüfen Sie die Schreibrechte im Ausgabeverzeichnis
+
+## Praktische Anwendungshinweise
+
+### Empfohlene Workflows
+
+#### 1. Erste Schritte mit QCA-AID
+1. **Vorbereitung der Daten**:
+   - Bereiten Sie Ihre Texte vor (Entfernen von Literaturverzeichnissen, Formatierung)
+   - Benennen Sie die Dateien nach dem Schema: `attribut1_attribut2_name.txt`
+   - Speichern Sie die Dateien im `input/`-Verzeichnis
+
+2. **Codebook einrichten**:
+   - Definieren Sie Ihre Forschungsfrage präzise
+   - Erstellen Sie ein initiales Kategoriensystem
+   - Legen Sie klare Kodierregeln fest
+   - Wählen Sie den passenden Analysemodus
+
+3. **Erste Testkodierung**:
+   - Starten Sie mit einer kleinen Stichprobe (2-3 Dokumente)
+   - Prüfen Sie die Qualität der automatischen Kodierung
+   - Passen Sie ggf. das Kategoriensystem an
+
+#### 2. Fortgeschrittene Analysestrategien
+
+##### Deduktive Analyse mit induktiver Erweiterung
+1. Beginnen Sie mit einem gut definierten Kategoriensystem
+2. Aktivieren Sie den 'full' Analysemodus
+3. Nutzen Sie die induktiven Erweiterungen zur Systematisierung
+4. Überprüfen Sie neue Kategorien regelmäßig
+
+##### Grounded Theory Ansatz
+1. Wählen Sie den 'grounded' Analysemodus
+2. Lassen Sie das System Subcodes sammeln
+3. Überprüfen Sie die generierten Hauptkategorien
+4. Verfeinern Sie das System iterativ
+
+##### Intercoder-Vergleich
+1. Aktivieren Sie mehrere KI-Coder in den CODER_SETTINGS
+2. Wählen Sie den passenden REVIEW_MODE:
+   - 'consensus': Nur übereinstimmende Kodierungen
+   - 'majority': Mehrheitsentscheidung bei mehreren Kodierern
+   - 'manual_priority': Manuelle Kodierungen haben Vorrang
+3. Nutzen Sie die Intercoder-Statistiken zur Qualitätssicherung
+
+### Best Practices
+
+#### Kategoriensystem-Design
+- **Hauptkategorien**: 
+  - Begrenzen Sie die Anzahl auf 5-7 Kategorien
+  - Stellen Sie sicher, dass sie sich gegenseitig ausschließen
+  - Definieren Sie klare Abgrenzungskriterien
+
+- **Subkategorien**:
+  - Entwickeln Sie sie schrittweise
+  - Dokumentieren Sie die Entwicklung im Codebook
+  - Nutzen Sie Beispiele zur Verdeutlichung
+
+#### Kodierregeln
+- Formulieren Sie Regeln präzise und operationalisierbar
+- Geben Sie Beispiele für typische und grenzwertige Fälle
+- Definieren Sie Ausschlusskriterien klar
+
+#### Qualitätssicherung
+1. **Regelmäßige Überprüfungen**:
+   - Kodieren Sie regelmäßig manuell (z.B. 10% der Segmente)
+   - Vergleichen Sie mit automatischen Kodierungen
+   - Passen Sie das System bei Abweichungen an
+
+2. **Dokumentation**:
+   - Führen Sie ein Kodierprotokoll
+   - Dokumentieren Sie Änderungen am Kategoriensystem
+   - Notieren Sie besondere Entscheidungen
+
+### Konfigurationsempfehlungen
+
+#### Für verschiedene Dokumenttypen
+- **Interviews**:
+  ```
+  CHUNK_SIZE: 1000
+  CHUNK_OVERLAP: 200
+  CODE_WITH_CONTEXT: true
+  ```
+
+- **Längere Texte**:
+  ```
+  CHUNK_SIZE: 1500
+  CHUNK_OVERLAP: 300
+  CODE_WITH_CONTEXT: true
+  ```
+
+- **Kurze Dokumente**:
+  ```
+  CHUNK_SIZE: 800
+  CHUNK_OVERLAP: 100
+  CODE_WITH_CONTEXT: false
+  ```
+
+#### Für verschiedene Analysemodi
+- **Deduktiv**:
+  ```
+  ANALYSIS_MODE: deductive
+  TEMPERATURE: 0.1
+  REVIEW_MODE: consensus
+  ```
+
+- **Induktiv**:
+  ```
+  ANALYSIS_MODE: full
+  TEMPERATURE: 0.3
+  REVIEW_MODE: majority
+  ```
+
+- **Grounded Theory**:
+  ```
+  ANALYSIS_MODE: grounded
+  TEMPERATURE: 0.4
+  REVIEW_MODE: manual_priority
+  ```
+
+### Tipps für die effiziente Nutzung
+
+1. **Dateiorganisation**:
+   - Nutzen Sie aussagekräftige Dateinamen
+   - Strukturieren Sie Attribute systematisch
+   - Halten Sie Backup-Kopien des Codebooks
+
+2. **Arbeitsablauf**:
+   - Sichern Sie regelmäßig Zwischenergebnisse
+   - Nutzen Sie die automatische Sicherung
+   - Dokumentieren Sie Änderungen am System
+
+3. **Ressourcenmanagement**:
+   - Passen Sie BATCH_SIZE an Ihre Hardware an
+   - Nutzen Sie CODE_WITH_CONTEXT nur bei Bedarf
+   - Überwachen Sie den Token-Verbrauch
+
+4. **Qualitätssicherung**:
+   - Führen Sie regelmäßige Plausibilitätsprüfungen durch
+   - Nutzen Sie die Intercoder-Statistiken
+   - Dokumentieren Sie Kodierentscheidungen
+
+### Beispiel für eine typische Analyse
+
+1. **Vorbereitung**:
+   ```
+   # Codebook.xlsx einrichten
+   FORSCHUNGSFRAGE: "Wie werden digitale Technologien in der Hochschullehre eingesetzt?"
+   
+   # Hauptkategorien definieren
+   - Technologieeinsatz
+   - Didaktische Integration
+   - Herausforderungen
+   - Unterstützungsstrukturen
+   ```
+
+2. **Konfiguration**:
+   ```
+   # CONFIG-Einstellungen
+   ANALYSIS_MODE: full
+   CHUNK_SIZE: 1000
+   CHUNK_OVERLAP: 200
+   CODE_WITH_CONTEXT: true
+   REVIEW_MODE: consensus
+   ```
+
+3. **Durchführung**:
+   - Starten Sie mit einer Testkodierung
+   - Überprüfen Sie die ersten Ergebnisse
+   - Passen Sie das System an
+   - Führen Sie die vollständige Analyse durch
+
+4. **Auswertung**:
+   - Nutzen Sie den QCA-AID-Explorer
+   - Erstellen Sie Visualisierungen
+   - Exportieren Sie die Ergebnisse
+   - Dokumentieren Sie die Analyse
