@@ -31,11 +31,8 @@ Es ermöglicht die Visualisierung von Kodierungsnetzwerken mit Hauptkategorien,
 Subkategorien und Schlüsselwörtern sowie die automatisierte Zusammenfassung
 von kodierten Textsegmenten mit Hilfe von LLM-Modellen.
 
-Das ForceAtlas2-Layout bietet eine verbesserte Netzwerkvisualisierung,
-bei der zusammengehörige Elemente näher beieinander platziert werden
-und die hierarchische Struktur der Daten besser sichtbar wird.
-
 Folgende Pakete sollten vor der ersten Nutzung installiert werden:
+
 pip install networkx reportlab scikit-learn pandas openpyxl matplotlib seaborn circlify
 
 """
