@@ -8414,17 +8414,28 @@ class ResultsExporter:
                 display_category = category
                 subcategories = coding.get('subcategories', [])
             
-            # Behandle verschiedene Datentypen für Subkategorien
-            if isinstance(subcategories, (list, tuple)):
-                # Listen/Tupel: Konvertiere zu String-Liste und entferne leere Einträge
-                subcats_list = [str(sub).strip() for sub in subcategories if str(sub).strip()]
-                subcats_text = ', '.join(subcats_list)
-            elif isinstance(subcategories, str):
-                # String: Bereinige und verwende direkt
-                subcats_text = subcategories.strip()
-            else:
-                # Andere Typen: Konvertiere zu String
-                subcats_text = str(subcategories) if subcategories else ''
+            subcats_text = ""
+            if subcategories:
+                if isinstance(subcategories, str):
+                    # String: Direkt verwenden nach Bereinigung
+                    subcats_text = subcategories.strip()
+                elif isinstance(subcategories, (list, tuple)):
+                    # Liste/Tupel: Bereinige und verbinde
+                    clean_subcats = []
+                    for subcat in subcategories:
+                        if subcat and str(subcat).strip():
+                            clean_subcats.append(str(subcat).strip())
+                    subcats_text = ', '.join(clean_subcats)
+                elif isinstance(subcategories, dict):
+                    # Dict: Verwende Schlüssel (falls es ein Dict von Subkategorien ist)
+                    clean_subcats = [str(key).strip() for key in subcategories.keys() if str(key).strip()]
+                    subcats_text = ', '.join(clean_subcats)
+                else:
+                    # Andere Typen: String-Konversion
+                    subcats_text = str(subcategories).strip()
+            
+            # Entferne problematische Zeichen
+            subcats_text = subcats_text.replace('[', '').replace(']', '').replace("'", "")
             
             # Bestimme den Kategorietyp und Kodiertstatus
             if display_category == "Kein Kodierkonsens":
