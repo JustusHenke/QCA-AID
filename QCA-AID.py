@@ -7,65 +7,19 @@ enhanced with AI capabilities through the OpenAI API.
 
 Version:
 --------
-0.9.13 (2025-05-26)
+0.9.14 (2025-05-26)
 
-New in 0.9.13
-- Vollständige Implementierung des 'majority' Review-Modus mit einfacher Mehrheitsentscheidung
-- Neue 'manual_priority' Option bevorzugt manuelle vor automatischen Kodierungen
-- Korrigierte Review-Logik: REVIEW_MODE wird jetzt korrekt respektiert, unabhängig von Kodierer-Typ
-- Konsistente Behandlung der REVIEW_MODE Konfiguration mit einheitlichem Standard 'consensus'
-- Verbesserte Tie-Breaking-Mechanismen bei Gleichstand zwischen Kodierungen
-- Erweiterte Dokumentation der Review-Modi im consensus_info Export-Feld
+New in 0.9.14
+- Implementierung der Mehrfachkodierung von Textsegmenten für mehrere Hauptkategorien
+- Neue CONFIG-Parameter: MULTIPLE_CODINGS (default: True) und MULTIPLE_CODING_THRESHOLD (default: 0.7)
+- Erweiterte Relevanzprüfung erkennt Segmente mit Bezug zu mehreren Hauptkategorien (>=70% Relevanz)
+- Fokussierte Kodierung: Segmente werden gezielt für jede relevante Hauptkategorie kodiert
+- Export-Erweiterung: Mehrfach kodierte Segmente erscheinen pro Hauptkategorie separat in der Outputtabelle
+- Neue Export-Felder: Mehrfachkodierung_Instanz, Kategorie_Fokus, Fokus_verwendet
+- Eindeutige Chunk-IDs mit Instanz-Suffix bei Mehrfachkodierung (z.B. "DOC-5-1", "DOC-5-2")
+- Effiziente Batch-Verarbeitung und Caching für Mehrfachkodierungs-Prüfungen
+- Konfigurierbare Deaktivierung der Mehrfachkodierung für traditionelle Einzelkodierung
 
-New in 0.9.12
-- Improved manual coding workflow with proper handling of the last segment
-- Enhanced "Kodieren & Abschließen" button functionality for more intuitive coding completion
-- Added robust manual code review system for resolving intercoder disagreements
-- Fixed Tkinter resource management to prevent errors when closing windows
-- Improved error handling for review decision exports
-- Overall stability improvements for the manual coding interface
-
-New in 0.9.11.1
-- Fixes an issue with illegal characters in intercoder analysis excel export
-- improves abstraction level for sub categories in grounded mode
-
-
-New in 0.9.11
-- New 'grounded' analysis mode added, inspired by Grounded Theory and Kuckartz
-- In 'grounded' mode, subcodes are incrementally collected without assigning to main categories
-- Collected subcodes are directly used for coding by the deductive coder
-- After processing all segments, main categories are generated from subcodes based on keywords
-- Subcodes are matched to generated main categories in the final export
-- Output is marked as 'grounded' (not 'inductive') in codebook and exports
-- Improved progress visualization during subcode collection
-- Enhanced keyword handling with direct connection to subcodes
-
-New in 0.9.10
-QCA-AID-Explorer.py 
-- can be configured with Excel and no longer needs to be customized manually.
-- Configuration via Excel file "QCA-AID-Explorer-Config.xlsx"
-- Heatmap visualization of codes along document attributes
-- Multiple analysis types configurable (network, heatmap, various summaries)
-- Customizable parameters for each analysis
-
-QCA-AID.py
-- add prefix to chunk number for unique segment IDs 
-- more concise progessive summaries, less lossy
-- add third document attribute to Codebook (optional)
-- fix for abductive mode not correctly creating new subcodes
-
-New in 0.9.9
-- abductive mode: inductive coding just for subcodes without adding main codes 
-- slightly stricter relevance check for text segments (from interviews)
-- Coding consenus: mark segments with no consensus as "kein Kodierkonsens"
-- Coding consensus: if no consensus choose coding with higher confidence, otherwise "kein Kodierkonsens"
-
-New in 0.9.8
-- Progressive document summary as coding context (max 80 words) 
-
-New in 0.9.7:
-- Switch between OpenAI and Mistral using CONFIG parameter 'MODEL_PROVIDER'
-- Standard model for Openai is 'GPT-4o-mini', for Mistral 'mistral-small'
 
 Description:
 -----------
@@ -182,28 +136,19 @@ import statistics
 import traceback 
 
 
-def _patch_tkinter_for_threaded_exit():
-    """
-    Patcht die Tkinter Variable.__del__ Methode, um den RuntimeError beim Beenden zu vermeiden.
-    """
-    import tkinter
-    
-    # Originale __del__ Methode speichern
-    original_del = tkinter.Variable.__del__
-    
-    # Neue __del__ Methode definieren, die Ausnahmen abfängt
-    def safe_del(self):
-        try:
-            # Nur aufrufen, wenn _tk existiert und es sich um ein valides Tkinter-Objekt handelt
-            if hasattr(self, '_tk') and self._tk:
-                original_del(self)
-        except (RuntimeError, TypeError, AttributeError):
-            # Diese Ausnahmen stillschweigend ignorieren
-            pass
-    
-    # Die ursprüngliche Methode ersetzen
-    tkinter.Variable.__del__ = safe_del
-    print("Tkinter für sicheres Beenden gepatcht.")
+# ============================
+# 1. Lokale Imports
+# ============================
+
+
+# lokale Imports
+from QCA_Utils import TokenCounter, estimate_tokens, get_input_with_timeout, _calculate_multiple_coding_stats, _patch_tkinter_for_threaded_exit, ConfigLoader
+from QCA_ExportUtils import _sanitize_text_for_excel, _generate_pastel_colors, _format_confidence
+from QCA_LLMProviders import LLMProvider, LLMProviderFactory, LLMResponse, MistralProvider, OpenAIProvider
+from QCA_Prompts import QCAPrompts  # Prompt Bibliothek
+
+# Instanziierung des globalen Token-Counters
+token_counter = TokenCounter()
 
 # ============================
 # 2. Globale Variablen
@@ -321,6 +266,7 @@ DEDUKTIVE_KATEGORIEN = {
     }
 }
 
+
 VALIDATION_THRESHOLDS = {
     'MIN_DEFINITION_WORDS': 15,
     'MIN_EXAMPLES': 2,
@@ -345,11 +291,14 @@ CONFIG = {
     'CHUNK_OVERLAP': 80,
     'BATCH_SIZE': 5,
     'CODE_WITH_CONTEXT': False,
+    'MULTIPLE_CODINGS': True, 
+    'MULTIPLE_CODING_THRESHOLD': 0.7,  # Schwellenwert für zusätzliche Relevanz
     'ANALYSIS_MODE': 'deductive',
+    'REVIEW_MODE': 'consensus',
     'ATTRIBUTE_LABELS': {
-        'attribut1': 'Typ',
-        'attribut2': 'Akteur',
-        'attribut3': ''  # Leerer String als Default-Wert
+        'attribut1': 'Attribut1',
+        'attribut2': 'Attribut2',
+        'attribut3': 'Attribut3'  
     },
     'CODER_SETTINGS': [
         {
@@ -371,164 +320,7 @@ os.makedirs(CONFIG['OUTPUT_DIR'], exist_ok=True)
 env_path = os.path.join(os.path.expanduser("~"), '.environ.env')
 load_dotenv(env_path)
 
-# ============================
-# 2. LLM-Provider konfigurieren
-# ============================
 
-
-class LLMProvider(ABC):
-    """Abstrakte Basisklasse für LLM Provider"""
-    
-    @abstractmethod
-    async def create_completion(self, 
-                              messages: List[Dict[str, str]], 
-                              model: str,
-                              temperature: float = 0.7,
-                              response_format: Optional[Dict] = None) -> Any:
-        """Generiert eine Completion mit dem konfigurierten LLM"""
-        pass
-
-class OpenAIProvider(LLMProvider):
-    """OpenAI spezifische Implementation"""
-    
-    def __init__(self):
-        """Initialisiert den OpenAI Client"""
-        try:
-            api_key = os.getenv("OPENAI_API_KEY")
-            if not api_key:
-                raise ValueError("OpenAI API Key nicht gefunden")
-            
-            # Erstelle einen expliziten httpx Client ohne Proxy Konfiguration
-            http_client = httpx.AsyncClient(
-                follow_redirects=True,
-                timeout=60.0
-            )
-            
-            # Initialisiere den OpenAI Client mit unserem sauberen httpx Client
-            self.client = openai.AsyncOpenAI(
-                api_key=api_key,
-                http_client=http_client
-            )
-            
-            print("OpenAI Client erfolgreich initialisiert")
-            
-        except Exception as e:
-            print(f"Fehler bei OpenAI Client Initialisierung: {str(e)}")
-            raise
-
-    async def create_completion(self,
-                              messages: List[Dict[str, str]],
-                              model: str,
-                              temperature: float = 0.7, 
-                              response_format: Optional[Dict] = None) -> Any:
-        """Erzeugt eine Completion mit OpenAI"""
-        try:
-            return await self.client.chat.completions.create(
-                model=model,
-                messages=messages,
-                temperature=temperature,
-                response_format=response_format
-            )
-        except Exception as e:
-            print(f"Fehler bei OpenAI API Call: {str(e)}")
-            raise
-
-class MistralProvider(LLMProvider):
-    """Mistral spezifische Implementation"""
-    
-    def __init__(self):
-        """Initialisiert den Mistral Client"""
-        self.api_key = os.getenv("MISTRAL_API_KEY")
-        if not self.api_key:
-            raise ValueError("Mistral API Key nicht gefunden")
-
-    async def create_completion(self,
-                              messages: List[Dict[str, str]],
-                              model: str,
-                              temperature: float = 0.7,
-                              response_format: Optional[Dict] = None) -> Any:
-        """
-        Erzeugt eine Completion mit Mistral
-        
-        Args:
-            messages: Liste von Nachrichten im Mistral Format
-            model: Name des zu verwendenden Modells 
-            temperature: Kreativität der Antworten (0.0-1.0)
-            response_format: Optional dict für JSON response etc.
-            
-        Returns:
-            Mistral Chat Completion Response
-        """
-        try:
-            async with Mistral(api_key=self.api_key) as client:
-                return await client.chat.complete_async(
-                    model=model,
-                    messages=messages,
-                    temperature=temperature,
-                    response_format=response_format,
-                    stream=False
-                )
-        except Exception as e:
-            print(f"Fehler bei Mistral API Call: {str(e)}")
-            raise
-
-class LLMProviderFactory:
-    """Factory Klasse zur Erstellung des konfigurierten LLM Providers"""
-    
-    @staticmethod
-    def create_provider(provider_name: str) -> LLMProvider:
-        """
-        Erstellt die passende Provider Instanz
-        
-        Args:
-            provider_name: Name des Providers ("openai" oder "mistral")
-            
-        Returns:
-            LLMProvider Instanz
-        
-        Raises:
-            ValueError: Wenn ungültiger Provider Name
-        """
-        try:
-            # Lade Environment Variablen
-            env_path = os.path.join(os.path.expanduser("~"), '.environ.env')
-            load_dotenv(env_path)
-            
-            print(f"\nInitialisiere LLM Provider: {provider_name}")
-            
-            if provider_name.lower() == "openai":
-                return OpenAIProvider()
-                
-            elif provider_name.lower() == "mistral":
-                return MistralProvider()
-                
-            else:
-                raise ValueError(f"Ungültiger Provider Name: {provider_name}")
-                
-        except Exception as e:
-            print(f"Fehler bei Provider-Erstellung: {str(e)}")
-            raise
-
-# Hilfsklasse für einheitliche Response Verarbeitung            
-class LLMResponse:
-    """Wrapper für Provider-spezifische Responses"""
-    
-    def __init__(self, provider_response: Any):
-        self.raw_response = provider_response
-        
-    @property  
-    def content(self) -> str:
-        """Extrahiert den Content aus der Provider Response"""
-        try:
-            if hasattr(self.raw_response, "choices"):
-                # OpenAI Format
-                return self.raw_response.choices[0].message.content
-            else:
-                # Mistral Format 
-                return self.raw_response.choices[0].message.content
-        except Exception as e:
-            print(f"Fehler beim Extrahieren des Response Contents: {str(e)}")
-            return ""
 
 # ============================
 # 3. Klassen und Funktionen
@@ -643,484 +435,6 @@ class CategoryChange:
     justification: str = ""
 
 
-# --- Klasse: ConfigLoader ---
-class ConfigLoader:
-    def __init__(self, script_dir):
-        self.script_dir = script_dir
-        self.excel_path = os.path.join(script_dir, "QCA-AID-Codebook.xlsx")
-        self.config = {
-            'FORSCHUNGSFRAGE': "",
-            'KODIERREGELN': {},
-            'DEDUKTIVE_KATEGORIEN': {},
-            'CONFIG': {}
-        }
-        
-    def load_codebook(self):
-        print(f"Versuche Konfiguration zu laden von: {self.excel_path}")
-        if not os.path.exists(self.excel_path):
-            print(f"Excel-Datei nicht gefunden: {self.excel_path}")
-            return False
-
-        try:
-            # Öffne die Excel-Datei mit ausführlicher Fehlerbehandlung
-            print("\nÖffne Excel-Datei...")
-            wb = load_workbook(self.excel_path, read_only=True, data_only=True)
-            print(f"Excel-Datei erfolgreich geladen. Verfügbare Sheets: {wb.sheetnames}")
-            
-            # Prüfe DEDUKTIVE_KATEGORIEN Sheet
-            if 'DEDUKTIVE_KATEGORIEN' in wb.sheetnames:
-                print("\nLese DEDUKTIVE_KATEGORIEN Sheet...")
-                sheet = wb['DEDUKTIVE_KATEGORIEN']
-            
-            
-            # Lade die verschiedenen Komponenten
-            self._load_research_question(wb)
-            self._load_coding_rules(wb)
-            self._load_config(wb)
-            
-            # Debug-Ausgabe vor dem Laden der Kategorien
-            print("\nStarte Laden der deduktiven Kategorien...")
-            kategorien = self._load_deduktive_kategorien(wb)
-            
-            # Prüfe das Ergebnis
-            if kategorien:
-                print("\nGeladene Kategorien:")
-                for name, data in kategorien.items():
-                    print(f"\n{name}:")
-                    print(f"- Definition: {len(data['definition'])} Zeichen")
-                    print(f"- Beispiele: {len(data['examples'])}")
-                    print(f"- Regeln: {len(data['rules'])}")
-                    print(f"- Subkategorien: {len(data['subcategories'])}")
-                
-                # Speichere in Config
-                self.config['DEDUKTIVE_KATEGORIEN'] = kategorien
-                print("\nKategorien erfolgreich in Config gespeichert")
-                return True
-            else:
-                print("\nKeine Kategorien geladen!")
-                return False
-
-        except Exception as e:
-            print(f"Fehler beim Lesen der Excel-Datei: {str(e)}")
-            print("Details:")
-            import traceback
-            traceback.print_exc()
-            return False
-
-    def _load_research_question(self, wb):
-        if 'FORSCHUNGSFRAGE' in wb.sheetnames:
-            sheet = wb['FORSCHUNGSFRAGE']
-            value = sheet['B1'].value
-            # print(f"Geladene Forschungsfrage: {value}")  # Debug-Ausgabe
-            self.config['FORSCHUNGSFRAGE'] = value
-
-
-    def _load_coding_rules(self, wb):
-        """Lädt Kodierregeln aus dem Excel-Codebook."""
-        if 'KODIERREGELN' in wb.sheetnames:
-            df = pd.read_excel(self.excel_path, sheet_name='KODIERREGELN', header=0)
-            
-            # Initialisiere Regelkategorien
-            rules = {
-                'general': [],       # Allgemeine Kodierregeln
-                'format': [],        # Formatregeln
-                'exclusion': []      # Neue Kategorie für Ausschlussregeln
-            }
-            
-            # Verarbeite jede Spalte
-            for column in df.columns:
-                rules_list = df[column].dropna().tolist()
-                
-                if 'Allgemeine' in column:
-                    rules['general'].extend(rules_list)
-                elif 'Format' in column:
-                    rules['format'].extend(rules_list)
-                elif 'Ausschluss' in column:  # Neue Spalte für Ausschlussregeln
-                    rules['exclusion'].extend(rules_list)
-            
-            print("\nKodierregeln geladen:")
-            print(f"- Allgemeine Regeln: {len(rules['general'])}")
-            print(f"- Formatregeln: {len(rules['format'])}")
-            print(f"- Ausschlussregeln: {len(rules['exclusion'])}")
-            
-            self.config['KODIERREGELN'] = rules
-
-    def _load_deduktive_kategorien(self, wb):
-        try:
-            if 'DEDUKTIVE_KATEGORIEN' not in wb.sheetnames:
-                print("Warnung: Sheet 'DEDUKTIVE_KATEGORIEN' nicht gefunden")
-                return {}
-
-            print("\nLade deduktive Kategorien...")
-            sheet = wb['DEDUKTIVE_KATEGORIEN']
-            
-            # Initialisiere Kategorien
-            kategorien = {}
-            current_category = None
-            
-            # Hole Header-Zeile
-            headers = []
-            for cell in sheet[1]:
-                headers.append(cell.value)
-            # print(f"Gefundene Spalten: {headers}")
-            
-            # Indizes für Spalten finden
-            key_idx = headers.index('Key') if 'Key' in headers else None
-            sub_key_idx = headers.index('Sub-Key') if 'Sub-Key' in headers else None
-            sub_sub_key_idx = headers.index('Sub-Sub-Key') if 'Sub-Sub-Key' in headers else None
-            value_idx = headers.index('Value') if 'Value' in headers else None
-            
-            if None in [key_idx, sub_key_idx, value_idx]:
-                print("Fehler: Erforderliche Spalten fehlen!")
-                return {}
-                
-            # Verarbeite Zeilen
-            for row_idx, row in enumerate(sheet.iter_rows(min_row=2), 2):
-                try:
-                    key = row[key_idx].value
-                    sub_key = row[sub_key_idx].value if row[sub_key_idx].value else None
-                    sub_sub_key = row[sub_sub_key_idx].value if sub_sub_key_idx is not None and row[sub_sub_key_idx].value else None
-                    value = row[value_idx].value if row[value_idx].value else None
-                    
-                    
-                    # Neue Hauptkategorie
-                    if key and isinstance(key, str):
-                        key = key.strip()
-                        if key not in kategorien:
-                            print(f"\nNeue Hauptkategorie: {key}")
-                            current_category = key
-                            kategorien[key] = {
-                                'definition': '',
-                                'rules': [],
-                                'examples': [],
-                                'subcategories': {}
-                            }
-                    
-                    # Verarbeite Unterkategorien und Werte
-                    if current_category and sub_key:
-                        sub_key = sub_key.strip()
-                        if isinstance(value, str):
-                            value = value.strip()
-                            
-                        if sub_key == 'definition':
-                            kategorien[current_category]['definition'] = value
-                            print(f"  Definition hinzugefügt: {len(value)} Zeichen")
-                            
-                        elif sub_key == 'rules':
-                            if value:
-                                kategorien[current_category]['rules'].append(value)
-                                print(f"  Regel hinzugefügt: {value[:50]}...")
-                                
-                        elif sub_key == 'examples':
-                            if value:
-                                kategorien[current_category]['examples'].append(value)
-                                print(f"  Beispiel hinzugefügt: {value[:50]}...")
-                                
-                        elif sub_key == 'subcategories' and sub_sub_key:
-                            kategorien[current_category]['subcategories'][sub_sub_key] = value
-                            print(f"  Subkategorie hinzugefügt: {sub_sub_key}")
-                                
-                except Exception as e:
-                    print(f"Fehler in Zeile {row_idx}: {str(e)}")
-                    continue
-
-            # Validierung der geladenen Daten
-            print("\nValidiere geladene Kategorien:")
-            # for name, kat in kategorien.items():
-            #     print(f"\nKategorie: {name}")
-            #     print(f"- Definition: {len(kat['definition'])} Zeichen")
-            #     if not kat['definition']:
-            #         print("  WARNUNG: Keine Definition!")
-            #     print(f"- Regeln: {len(kat['rules'])}")
-            #     print(f"- Beispiele: {len(kat['examples'])}")
-            #     print(f"- Subkategorien: {len(kat['subcategories'])}")
-            #     for sub_name, sub_def in kat['subcategories'].items():
-            #         print(f"  • {sub_name}: {sub_def[:50]}...")
-
-            # Ergebnis
-            if kategorien:
-                print(f"\nErfolgreich {len(kategorien)} Kategorien geladen")
-                return kategorien
-            else:
-                print("\nKeine Kategorien gefunden!")
-                return {}
-
-        except Exception as e:
-            print(f"Fehler beim Laden der Kategorien: {str(e)}")
-            print("Details:")
-            import traceback
-            traceback.print_exc()
-            return {}
-        
-    def _load_config(self, wb):
-        if 'CONFIG' in wb.sheetnames:
-            df = pd.read_excel(self.excel_path, sheet_name='CONFIG')
-            config = {}
-            
-            for _, row in df.iterrows():
-                key = row['Key']
-                sub_key = row['Sub-Key']
-                sub_sub_key = row['Sub-Sub-Key']
-                value = row['Value']
-
-                if key not in config:
-                    config[key] = value if pd.isna(sub_key) else {}
-
-                if not pd.isna(sub_key):
-                    if sub_key.startswith('['):  # Für Listen wie CODER_SETTINGS
-                        if not isinstance(config[key], list):
-                            config[key] = []
-                        index = int(sub_key.strip('[]'))
-                        while len(config[key]) <= index:
-                            config[key].append({})
-                        if pd.isna(sub_sub_key):
-                            config[key][index] = value
-                        else:
-                            config[key][index][sub_sub_key] = value
-                    else:  # Für verschachtelte Dicts wie ATTRIBUTE_LABELS
-                        if not isinstance(config[key], dict):
-                            config[key] = {}
-                        if pd.isna(sub_sub_key):
-                            if key == 'BATCH_SIZE' or sub_key == 'BATCH_SIZE':
-                                try:
-                                    value = int(value)
-                                    print(f"BATCH_SIZE aus Codebook geladen: {value}")
-                                except (ValueError, TypeError):
-                                    value = 5  # Standardwert
-                                    print(f"Warnung: Ungültiger BATCH_SIZE Wert, verwende Standard: {value}")
-                            config[key][sub_key] = value
-                        else:
-                            if sub_key not in config[key]:
-                                config[key][sub_key] = {}
-                            config[key][sub_key][sub_sub_key] = value
-
-            # Prüfe auf ANALYSIS_MODE in der Konfiguration
-            if 'ANALYSIS_MODE' in config:
-                valid_modes = {'full', 'abductive', 'deductive'}
-                if config['ANALYSIS_MODE'] not in valid_modes:
-                    print(f"Warnung: Ungültiger ANALYSIS_MODE '{config['ANALYSIS_MODE']}' im Codebook. Verwende 'deductive'.")
-                    config['ANALYSIS_MODE'] = 'deductive'
-                else:
-                    print(f"ANALYSIS_MODE aus Codebook geladen: {config['ANALYSIS_MODE']}")
-            else:
-                config['ANALYSIS_MODE'] = 'deductive'  # Standardwert
-                print(f"ANALYSIS_MODE nicht im Codebook gefunden, verwende Standard: {config['ANALYSIS_MODE']}")
-
-            # Prüfe auf REVIEW_MODE in der Konfiguration
-            if 'REVIEW_MODE' in config:
-                valid_modes = {'auto', 'manual', 'consensus', 'majority'}
-                if config['REVIEW_MODE'] not in valid_modes:
-                    print(f"Warnung: Ungültiger REVIEW_MODE '{config['REVIEW_MODE']}' im Codebook. Verwende 'auto'.")
-                    config['REVIEW_MODE'] = 'consensus'
-                else:
-                    print(f"REVIEW_MODE aus Codebook geladen: {config['REVIEW_MODE']}")
-            else:
-                config['REVIEW_MODE'] = 'consensus'  # Standardwert
-                print(f"REVIEW_MODE nicht im Codebook gefunden, verwende Standard: {config['REVIEW_MODE']}")
-
-            # Stelle sicher, dass ATTRIBUTE_LABELS vorhanden ist
-            if 'ATTRIBUTE_LABELS' not in config:
-                config['ATTRIBUTE_LABELS'] = {'attribut1': 'Hochschulprofil', 'attribut2': 'Akteur', 'attribut3': ''}
-            elif 'attribut3' not in config['ATTRIBUTE_LABELS']:
-                # Füge attribut3 hinzu wenn noch nicht vorhanden
-                config['ATTRIBUTE_LABELS']['attribut3'] = ''
-            
-            # Debug für attribut3
-            if config['ATTRIBUTE_LABELS']['attribut3']:
-                print(f"Drittes Attribut-Label geladen: {config['ATTRIBUTE_LABELS']['attribut3']}")
-
-            self.config['CONFIG'] = self._sanitize_config(config)
-            return True  # Explizite Rückgabe von True
-        return False
-
-    def _sanitize_config(self, config):
-        """
-        Bereinigt und validiert die Konfigurationswerte.
-        Überschreibt Standardwerte mit Werten aus dem Codebook.
-        
-        Args:
-            config: Dictionary mit rohen Konfigurationswerten
-            
-        Returns:
-            dict: Bereinigtes Konfigurations-Dictionary
-        """
-        try:
-            sanitized = {}
-            script_dir = os.path.dirname(os.path.abspath(__file__))
-            
-            # Stelle sicher, dass OUTPUT_DIR immer gesetzt wird
-            sanitized['OUTPUT_DIR'] = os.path.join(script_dir, 'output')
-            os.makedirs(sanitized['OUTPUT_DIR'], exist_ok=True)
-            print(f"Standard-Ausgabeverzeichnis gesichert: {sanitized['OUTPUT_DIR']}")
-            
-            for key, value in config.items():
-                # Verzeichnispfade relativ zum aktuellen Arbeitsverzeichnis
-                if key in ['DATA_DIR', 'OUTPUT_DIR']:
-                    sanitized[key] = os.path.join(script_dir, str(value))
-                    # Stelle sicher, dass Verzeichnis existiert
-                    os.makedirs(sanitized[key], exist_ok=True)
-                    print(f"Verzeichnis gesichert: {sanitized[key]}")
-                
-                # Numerische Werte für Chunking
-                elif key in ['CHUNK_SIZE', 'CHUNK_OVERLAP']:
-                    try:
-                        # Konvertiere zu Integer und stelle sicher, dass die Werte positiv sind
-                        sanitized[key] = max(1, int(value))
-                        print(f"Übernehme {key} aus Codebook: {sanitized[key]}")
-                    except (ValueError, TypeError):
-                        # Wenn Konvertierung fehlschlägt, behalte Standardwert
-                        default_value = CONFIG[key]
-                        print(f"Warnung: Ungültiger Wert für {key}, verwende Standard: {default_value}")
-                        sanitized[key] = default_value
-                
-                # Coder-Einstellungen mit Typkonvertierung
-                elif key == 'CODER_SETTINGS':
-                    sanitized[key] = [
-                        {
-                            'temperature': float(coder['temperature']) 
-                                if isinstance(coder.get('temperature'), (int, float, str)) 
-                                else 0.3,
-                            'coder_id': str(coder.get('coder_id', f'auto_{i}'))
-                        }
-                        for i, coder in enumerate(value)
-                    ]
-                
-                # Alle anderen Werte unverändert übernehmen
-                else:
-                    sanitized[key] = value
-
-            # Verarbeitung des CODE_WITH_CONTEXT Parameters
-            if 'CODE_WITH_CONTEXT' in config:
-                # Konvertiere zu Boolean
-                value = config['CODE_WITH_CONTEXT']
-                if isinstance(value, str):
-                    sanitized['CODE_WITH_CONTEXT'] = value.lower() in ('true', 'ja', 'yes', '1')
-                else:
-                    sanitized['CODE_WITH_CONTEXT'] = bool(value)
-                print(f"Übernehme CODE_WITH_CONTEXT aus Codebook: {sanitized['CODE_WITH_CONTEXT']}")
-            else:
-                # Standardwert setzen
-                sanitized['CODE_WITH_CONTEXT'] = True
-                print(f"CODE_WITH_CONTEXT nicht in Codebook gefunden, verwende Standard: {sanitized['CODE_WITH_CONTEXT']}")
-
-            # Verarbeitung des BATCH_SIZE Parameters
-            if 'BATCH_SIZE' in config:
-                try:
-                    batch_size = int(config['BATCH_SIZE'])
-                    if batch_size < 1:
-                        print("Warnung: BATCH_SIZE muss mindestens 1 sein")
-                        batch_size = 5
-                    elif batch_size > 20:
-                        print("Warnung: BATCH_SIZE > 20 könnte Performance-Probleme verursachen")
-                    sanitized['BATCH_SIZE'] = batch_size
-                    print(f"Finale BATCH_SIZE: {batch_size}")
-                except (ValueError, TypeError):
-                    print("Warnung: Ungültiger BATCH_SIZE Wert")
-                    sanitized['BATCH_SIZE'] = 5
-            else:
-                print("BATCH_SIZE nicht in Codebook gefunden, verwende Standard: 5")
-                sanitized['BATCH_SIZE'] = 5
-
-            for key, value in config.items():
-                if key == 'BATCH_SIZE':
-                    continue
-
-            # Stelle sicher, dass CHUNK_OVERLAP kleiner als CHUNK_SIZE ist
-            if 'CHUNK_SIZE' in sanitized and 'CHUNK_OVERLAP' in sanitized:
-                if sanitized['CHUNK_OVERLAP'] >= sanitized['CHUNK_SIZE']:
-                    print(f"Warnung: CHUNK_OVERLAP ({sanitized['CHUNK_OVERLAP']}) muss kleiner sein als CHUNK_SIZE ({sanitized['CHUNK_SIZE']})")
-                    sanitized['CHUNK_OVERLAP'] = sanitized['CHUNK_SIZE'] // 10  # 10% als Standardwert
-                    
-            return sanitized
-            
-        except Exception as e:
-            print(f"Fehler bei der Konfigurationsbereinigung: {str(e)}")
-            import traceback
-            traceback.print_exc()
-            # Verwende im Fehlerfall die Standard-Konfiguration
-            return CONFIG
-        
-    def update_script_globals(self, globals_dict):
-        """
-        Aktualisiert die globalen Variablen mit den Werten aus der Config.
-        """
-        try:
-            print("\nAktualisiere globale Variablen...")
-            
-            # Update DEDUKTIVE_KATEGORIEN
-            if 'DEDUKTIVE_KATEGORIEN' in self.config:
-                deduktive_kat = self.config['DEDUKTIVE_KATEGORIEN']
-                if deduktive_kat and isinstance(deduktive_kat, dict):
-                    globals_dict['DEDUKTIVE_KATEGORIEN'] = deduktive_kat
-                    print(f"\nDEDUKTIVE_KATEGORIEN aktualisiert:")
-                    for name in deduktive_kat.keys():
-                        print(f"- {name}")
-                else:
-                    print("Warnung: Keine gültigen DEDUKTIVE_KATEGORIEN in Config")
-            
-            # Update andere Konfigurationswerte
-            for key, value in self.config.items():
-                if key != 'DEDUKTIVE_KATEGORIEN' and key in globals_dict:
-                    if isinstance(value, dict) and isinstance(globals_dict[key], dict):
-                        globals_dict[key].clear()
-                        globals_dict[key].update(value)
-                        print(f"Dict {key} aktualisiert")
-                    else:
-                        globals_dict[key] = value
-                        print(f"Variable {key} aktualisiert")
-
-            # Validiere Update
-            if 'DEDUKTIVE_KATEGORIEN' in globals_dict:
-                kat_count = len(globals_dict['DEDUKTIVE_KATEGORIEN'])
-                print(f"\nFinale Validierung: {kat_count} Kategorien in globalem Namespace")
-                if kat_count == 0:
-                    print("Warnung: Keine Kategorien im globalen Namespace!")
-            else:
-                print("Fehler: DEDUKTIVE_KATEGORIEN nicht im globalen Namespace!")
-
-        except Exception as e:
-            print(f"Fehler beim Update der globalen Variablen: {str(e)}")
-            import traceback
-            traceback.print_exc()
-
-    def _load_validation_config(self, wb):
-        """Lädt die Validierungskonfiguration aus dem Codebook."""
-        if 'CONFIG' not in wb.sheetnames:
-            return {}
-            
-        validation_config = {
-            'thresholds': {},
-            'english_words': set(),
-            'messages': {}
-        }
-        
-        df = pd.read_excel(self.excel_path, sheet_name='CONFIG')
-        validation_rows = df[df['Key'] == 'VALIDATION']
-        
-        for _, row in validation_rows.iterrows():
-            sub_key = row['Sub-Key']
-            sub_sub_key = row['Sub-Sub-Key']
-            value = row['Value']
-            
-            if sub_key == 'ENGLISH_WORDS':
-                if value == 'true':
-                    validation_config['english_words'].add(sub_sub_key)
-            elif sub_key == 'MESSAGES':
-                validation_config['messages'][sub_sub_key] = value
-            else:
-                # Numerische Schwellenwerte
-                try:
-                    validation_config['thresholds'][sub_key] = float(value)
-                except (ValueError, TypeError):
-                    print(f"Warnung: Ungültiger Schwellenwert für {sub_key}: {value}")
-        
-        return validation_config
-
-    def get_config(self):
-        return self.config
-
-    
-        
 
 # --- Klasse: MaterialLoader ---
 # Aufgabe: Laden und Vorbereiten des Analysematerials (Textdokumente, output)
@@ -2139,7 +1453,7 @@ class CategoryOptimizer:
             self.similarity_threshold = 0.8
         
          # Initialisiere LLM Provider
-        provider_name = CONFIG.get('MODEL_PROVIDER', 'openai')
+        provider_name = CONFIG.get('MODEL_PROVIDER', 'openai').lower()
         try:
             self.llm_provider = LLMProviderFactory.create_provider(provider_name)
             print(f"🤖 LLM Provider '{provider_name}' für Kategorienoptimierung initialisiert")
@@ -2274,7 +1588,7 @@ class RelevanceChecker:
         self.batch_size = batch_size
 
         # Hole Provider aus CONFIG
-        provider_name = CONFIG.get('MODEL_PROVIDER', 'openai')  # Fallback zu OpenAI
+        provider_name = CONFIG.get('MODEL_PROVIDER', 'openai').lower()  # Fallback zu OpenAI
         try:
             # Wir lassen den LLMProvider sich selbst um die Client-Initialisierung kümmern
             self.llm_provider = LLMProviderFactory.create_provider(provider_name)
@@ -2296,6 +1610,130 @@ class RelevanceChecker:
         print("\nRelevanceChecker initialisiert:")
         print(f"- {len(self.exclusion_rules)} Ausschlussregeln geladen")
 
+        # Hole Mehrfachkodierungsparameter aus CONFIG
+        self.multiple_codings_enabled = CONFIG.get('MULTIPLE_CODINGS', True)
+        self.multiple_threshold = CONFIG.get('MULTIPLE_CODING_THRESHOLD', 0.7)
+
+        # Cache für Mehrfachkodierungen
+        self.multiple_coding_cache = {}
+        
+        print("\nRelevanceChecker initialisiert:")
+        print(f"- {len(self.exclusion_rules)} Ausschlussregeln geladen")
+        print(f"- Mehrfachkodierung: {'Aktiviert' if self.multiple_codings_enabled else 'Deaktiviert'}")
+        if self.multiple_codings_enabled:
+            print(f"- Mehrfachkodierung-Schwellenwert: {self.multiple_threshold}")
+        
+        # Prompt-Handler
+        self.prompt_handler = QCAPrompts(
+            forschungsfrage=FORSCHUNGSFRAGE,
+            kodierregeln=KODIERREGELN,
+            deduktive_kategorien=DEDUKTIVE_KATEGORIEN
+        )
+
+    
+    async def check_multiple_category_relevance(self, segments: List[Tuple[str, str]], 
+                                            categories: Dict[str, CategoryDefinition]) -> Dict[str, List[Dict]]:
+        """
+        Prüft ob Segmente für mehrere Hauptkategorien relevant sind.
+        
+        Args:
+            segments: Liste von (segment_id, text) Tupeln
+            categories: Verfügbare Hauptkategorien
+            
+        Returns:
+            Dict mit segment_id als Key und Liste von relevanten Kategorien als Value
+        """
+        if not self.multiple_codings_enabled:
+            return {}
+            
+        # Filtere bereits gecachte Segmente
+        uncached_segments = [
+            (sid, text) for sid, text in segments 
+            if sid not in self.multiple_coding_cache
+        ]
+        
+        if not uncached_segments:
+            return {sid: self.multiple_coding_cache[sid] for sid, _ in segments}
+
+        try:
+            # Erstelle Kategorien-Kontext für den Prompt
+            category_descriptions = []
+            for cat_name, cat_def in categories.items():
+                # Nur Hauptkategorien, nicht "Nicht kodiert" etc.
+                if cat_name in ["Nicht kodiert", "Kein Kodierkonsens"]:
+                    continue
+                    
+                category_descriptions.append({
+                    'name': cat_name,
+                    'definition': cat_def.definition[:200] + '...' if len(cat_def.definition) > 200 else cat_def.definition,
+                    'examples': cat_def.examples[:2] if cat_def.examples else []
+                })
+
+            # Batch-Text für API
+            segments_text = "\n\n=== SEGMENT BREAK ===\n\n".join(
+                f"SEGMENT {i + 1}:\n{text}" 
+                for i, (_, text) in enumerate(uncached_segments)
+            )
+
+            prompt = self.prompt_handler.get_multiple_category_relevance_prompt(
+                segments_text=segments_text,
+                category_descriptions=category_descriptions,
+                multiple_threshold=self.multiple_threshold
+            )
+            
+
+            input_tokens = estimate_tokens(prompt)
+
+            response = await self.llm_provider.create_completion(
+                model=self.model_name,
+                messages=[
+                    {"role": "system", "content": "Du bist ein Experte für qualitative Inhaltsanalyse. Du antwortest auf deutsch."},
+                    {"role": "user", "content": prompt}
+                ],
+                temperature=0.3,
+                response_format={"type": "json_object"}
+            )
+            
+            llm_response = LLMResponse(response)
+            results = json.loads(llm_response.content)
+            
+            output_tokens = estimate_tokens(response.choices[0].message.content)
+            token_counter.add_tokens(input_tokens, output_tokens)
+
+            # Verarbeite Ergebnisse und aktualisiere Cache
+            multiple_coding_results = {}
+            for i, (segment_id, _) in enumerate(uncached_segments):
+                segment_result = results['segment_results'][i]
+                
+                # Filtere Kategorien nach Schwellenwert
+                relevant_categories = [
+                    cat for cat in segment_result['relevant_categories']
+                    if cat['relevance_score'] >= self.multiple_threshold
+                ]
+                
+                # Cache-Aktualisierung
+                self.multiple_coding_cache[segment_id] = relevant_categories
+                multiple_coding_results[segment_id] = relevant_categories
+                
+                # Debug-Ausgabe
+                if len(relevant_categories) > 1:
+                    print(f"\n🔄 Mehrfachkodierung identifiziert für Segment {segment_id}:")
+                    for cat in relevant_categories:
+                        print(f"  - {cat['category']}: {cat['relevance_score']:.2f} ({cat['justification'][:60]}...)")
+                    print(f"  Begründung: {segment_result.get('multiple_coding_justification', '')}")
+
+            # Kombiniere Cache und neue Ergebnisse
+            return {
+                sid: self.multiple_coding_cache[sid] 
+                for sid, _ in segments
+            }
+
+        except Exception as e:
+            print(f"Fehler bei Mehrfachkodierungs-Prüfung: {str(e)}")
+            import traceback
+            traceback.print_exc()
+            return {}
+        
     async def check_relevance_batch(self, segments: List[Tuple[str, str]]) -> Dict[str, bool]:
         """
         Prüft die Relevanz mehrerer Segmente in einem API-Call.
@@ -2325,88 +1763,11 @@ class RelevanceChecker:
             # Formatiere Ausschlussregeln für den Prompt
             exclusion_rules_text = "\n".join(f"- {rule}" for rule in self.exclusion_rules)
 
-            prompt = f"""
-            Analysiere die Relevanz der folgenden Textsegmente für die Forschungsfrage:
-            "{FORSCHUNGSFRAGE}"
+            prompt = self.prompt_handler.get_relevance_check_prompt(
+                segments_text=segments_text,
+                exclusion_rules=self.exclusion_rules
+            )
             
-            PRÜFUNGSREIHENFOLGE - Analysiere jedes Segment in dieser Reihenfolge:
-
-            1. THEMATISCHE VORPRÜFUNG:
-            
-            Führe ZUERST eine grundlegende thematische Analyse durch:
-            - Identifiziere den Gegenstand, die Kernthemen und zentralen Konzepte der Forschungsfrage
-            - Prüfe, ob der Text den Gegenstand und diese Kernthemen überhaupt behandelt
-            - Stelle fest, ob ein hinreichender inhaltlicher Zusammenhang zur Forschungsfrage besteht
-            - Falls NEIN: Sofort als nicht relevant markieren
-            - Falls JA: Weiter mit detaillierter Prüfung
-
-            2. AUSSCHLUSSKRITERIEN:
-            {exclusion_rules_text}
-
-            3. TEXTSORTENSPEZIFISCHE PRÜFUNG:
-
-            INTERVIEWS/GESPRÄCHE:
-            - Direkte Erfahrungsberichte zum Forschungsthema
-            - Persönliche Einschätzungen relevanter Akteure
-            - Konkrete Beispiele aus der Praxis
-            - Implizites Erfahrungswissen zum Thema
-            - NICHT relevant: Interviewerfrage, sofern Sie nicht den Interviewten paraphrasiert
-
-            DOKUMENTE/BERICHTE:
-            - Faktische Informationen zum Forschungsgegenstand
-            - Formale Regelungen und Vorgaben
-            - Dokumentierte Prozesse und Strukturen
-            - Institutionelle Rahmenbedingungen
-
-            PROTOKOLLE/NOTIZEN:
-            - Beobachtete Handlungen und Interaktionen
-            - Situationsbeschreibungen zum Thema
-            - Dokumentierte Entscheidungen
-            - Relevante Kontextinformationen
-
-            4. QUALITÄTSKRITERIEN:
-
-            AUSSAGEKRAFT:
-            - Spezifische Information zum Forschungsthema
-            - Substanzielle, nicht-triviale Aussagen
-            - Präzise und gehaltvolle Information
-
-            ANWENDBARKEIT:
-            - Direkter Bezug zur Forschungsfrage
-            - Beitrag zur Beantwortung der Forschungsfrage
-            - Erkenntnispotenzial für die Untersuchung
-
-            KONTEXTRELEVANZ:
-            - Bedeutung für das Verständnis des Forschungsgegenstands
-            - Hilfe bei der Interpretation anderer Informationen
-            - Notwendigkeit für die thematische Einordnung
-
-            TEXTSEGMENTE:
-            {segments_text}
-
-            Antworte NUR mit einem JSON-Objekt:
-            {{
-                "segment_results": [
-                    {{
-                        "segment_number": 1,
-                        "is_relevant": true/false,
-                        "confidence": 0.0-1.0,
-                        "text_type": "interview|dokument|protokoll|andere",
-                        "key_aspects": ["konkrete", "für", "die", "Forschungsfrage", "relevante", "Aspekte"],
-                        "justification": "Begründung der Relevanz unter Berücksichtigung der Textsorte"
-                    }},
-                    ...
-                ]
-            }}
-
-            WICHTIGE HINWEISE:
-            - Führe IMMER ZUERST die thematische Vorprüfung durch
-            - Identifiziere die Kernthemen der Forschungsfrage und prüfe deren Präsenz im Text
-            - Markiere Segmente als nicht relevant, wenn sie die Kernthemen nicht behandeln
-            - Bei Unsicherheit (confidence < 0.75) als nicht relevant markieren
-            - Gib bei thematischer Nicht-Passung eine klare Begründung
-            - Sei streng bei der thematischen Vorprüfung
-            """
 
             input_tokens = estimate_tokens(prompt)
 
@@ -2695,7 +2056,7 @@ class IntegratedAnalysisManager:
     async def _code_batch_deductively(self,
                                     batch: List[Tuple[str, str]],
                                     categories: Dict[str, CategoryDefinition]) -> List[Dict]:
-        """Führt die deduktive Kodierung mit optimierter Relevanzprüfung durch."""
+        """Führt die deduktive Kodierung mit optimierter Relevanzprüfung und Mehrfachkodierung durch."""
         batch_results = []
         batch_metrics = {
             'new_aspects': [],
@@ -2703,18 +2064,33 @@ class IntegratedAnalysisManager:
             'coding_confidence': []
         }
         
-        # Prüfe Relevanz für ganzen Batch
+        # 1. Standard-Relevanzprüfung für ganzen Batch
         relevance_results = await self.relevance_checker.check_relevance_batch(batch)
+        
+        # 2. Mehrfachkodierungs-Prüfung (wenn aktiviert)
+        multiple_coding_results = {}
+        if CONFIG.get('MULTIPLE_CODINGS', True):
+            relevant_segments = [
+                (segment_id, text) for segment_id, text in batch
+                if relevance_results.get(segment_id, False)
+            ]
+            
+            if relevant_segments:
+                print(f"  🔄 Prüfe {len(relevant_segments)} relevante Segmente auf Mehrfachkodierung...")
+                multiple_coding_results = await self.relevance_checker.check_multiple_category_relevance(
+                    relevant_segments, categories
+                )
         
         for segment_id, text in batch:
             print(f"\n--------------------------------------------------------")
             print(f"🔎 Verarbeite Segment {segment_id}")
             print(f"--------------------------------------------------------\n")
+            
             # Nutze gespeicherte Relevanzprüfung
             if not relevance_results.get(segment_id, False):
                 print(f"Segment wurde als nicht relevant markiert - wird übersprungen")
                 
-                # Erstelle "Nicht kodiert" Ergebnis
+                # Erstelle "Nicht kodiert" Ergebnis für alle Kodierer
                 for coder in self.deductive_coders:
                     result = {
                         'segment_id': segment_id,
@@ -2723,41 +2099,95 @@ class IntegratedAnalysisManager:
                         'subcategories': [],
                         'confidence': {'total': 1.0, 'category': 1.0, 'subcategories': 1.0},
                         'justification': "Nicht relevant für Forschungsfrage",
-                        'text': text
+                        'text': text,
+                        'multiple_coding_instance': 1,
+                        'total_coding_instances': 1,
+                        'target_category': '',
+                        'category_focus_used': False
                     }
                     batch_results.append(result)
                 continue
 
-            # Verarbeite relevante Segmente mit allen Codierern
-            print(f"Kodiere relevantes Segment mit {len(self.deductive_coders)} Codierern")
-            for coder in self.deductive_coders:
-                try:
-                    coding = await coder.code_chunk(text, categories)
-                    
-                    if coding and isinstance(coding, CodingResult):
-                        result = {
-                            'segment_id': segment_id,
-                            'coder_id': coder.coder_id,
-                            'category': coding.category,
-                            'subcategories': list(coding.subcategories),
-                            'confidence': coding.confidence,
-                            'justification': coding.justification,
-                            'text': text,
-                            'paraphrase': coding.paraphrase,
-                            'keywords': coding.keywords
-                        }
+            # Bestimme Anzahl der Kodierungen für dieses Segment
+            coding_instances = []
+            multiple_categories = multiple_coding_results.get(segment_id, [])
+            
+            if len(multiple_categories) > 1:
+                # Mehrfachkodierung
+                print(f"  🔄 Mehrfachkodierung aktiviert: {len(multiple_categories)} Kategorien")
+                for i, category_info in enumerate(multiple_categories, 1):
+                    coding_instances.append({
+                        'instance': i,
+                        'total_instances': len(multiple_categories),
+                        'target_category': category_info['category'],
+                        'category_context': category_info
+                    })
+                    print(f"    {i}. {category_info['category']} (Relevanz: {category_info['relevance_score']:.2f})")
+            else:
+                # Standardkodierung
+                coding_instances.append({
+                    'instance': 1,
+                    'total_instances': 1,
+                    'target_category': '',
+                    'category_context': None
+                })
+
+            # Verarbeite relevante Segmente mit allen Kodierern
+            print(f"Kodiere relevantes Segment mit {len(self.deductive_coders)} Kodierern")
+            
+            # Kodiere für jede Instanz
+            for instance_info in coding_instances:
+                if instance_info['total_instances'] > 1:
+                    print(f"\n  📝 Kodierungsinstanz {instance_info['instance']}/{instance_info['total_instances']}")
+                    print(f"      Fokus-Kategorie: {instance_info['target_category']}")
+                
+                for coder in self.deductive_coders:
+                    try:
+                        # Kodierung mit optionalem Kategorie-Fokus
+                        if instance_info['target_category']:
+                            # Mehrfachkodierung mit Fokus
+                            coding = await coder.code_chunk_with_focus(
+                                text, categories, 
+                                focus_category=instance_info['target_category'],
+                                focus_context=instance_info['category_context']
+                            )
+                        else:
+                            # Standard-Kodierung
+                            coding = await coder.code_chunk(text, categories)
                         
-                        batch_results.append(result)
-                    else:
-                        print(f"  ✗ Keine gültige Kodierung von {coder.coder_id}")
-                        
-                except Exception as e:
-                    print(f"  ✗ Fehler bei Kodierer {coder.coder_id}: {str(e)}")
-                    continue
+                        if coding and isinstance(coding, CodingResult):
+                            result = {
+                                'segment_id': segment_id,
+                                'coder_id': coder.coder_id,
+                                'category': coding.category,
+                                'subcategories': list(coding.subcategories),
+                                'confidence': coding.confidence,
+                                'justification': coding.justification,
+                                'text': text,
+                                'paraphrase': coding.paraphrase,
+                                'keywords': coding.keywords,
+                                'multiple_coding_instance': instance_info['instance'],
+                                'total_coding_instances': instance_info['total_instances'],
+                                'target_category': instance_info['target_category'],
+                                'category_focus_used': bool(instance_info['target_category'])
+                            }
+                            
+                            batch_results.append(result)
+                            
+                            # Log für Mehrfachkodierung
+                            if instance_info['total_instances'] > 1:
+                                print(f"        ✓ {coder.coder_id}: {coding.category}")
+                            
+                        else:
+                            print(f"  ✗ Keine gültige Kodierung von {coder.coder_id}")
+                            
+                    except Exception as e:
+                        print(f"  ✗ Fehler bei Kodierer {coder.coder_id}: {str(e)}")
+                        continue
 
             self.processed_segments.add(segment_id)
 
-        #  Aktualisiere Sättigungsmetriken
+        # Aktualisiere Sättigungsmetriken (unverändert)
         saturation_metrics = {
             'new_aspects_found': len(batch_metrics['new_aspects']) > 0,
             'categories_sufficient': len(batch_metrics['category_coverage']) >= len(categories) * 0.8,
@@ -2765,24 +2195,45 @@ class IntegratedAnalysisManager:
             'avg_confidence': sum(batch_metrics['coding_confidence']) / len(batch_metrics['coding_confidence']) if batch_metrics['coding_confidence'] else 0
         }
         
-        # Füge Metriken zum SaturationChecker hinzu
         self.saturation_checker.add_saturation_metrics(saturation_metrics)
 
         return batch_results
 
+    async def _code_with_category_focus(self, coder, text, categories, instance_info):
+        """Kodiert mit optionalem Fokus auf bestimmte Kategorie"""
+        
+        if instance_info['target_category']:
+            # Mehrfachkodierung mit Kategorie-Fokus
+            return await coder.code_chunk_with_focus(
+                text, categories, 
+                focus_category=instance_info['target_category'],
+                focus_context=instance_info['category_context']
+            )
+        else:
+            # Standard-Kodierung
+            return await coder.code_chunk(text, categories)
+
     async def _code_batch_with_context(self, batch: List[Tuple[str, str]], categories: Dict[str, CategoryDefinition]) -> List[Dict]:
         """
-        Kodiert einen Batch sequentiell mit progressivem Dokumentkontext.
-        Aktualisiert um alle Kodierer zu nutzen.
-        
-        Args:
-            batch: Liste von (segment_id, text) Tupeln
-            categories: Aktuelle Kategorien
-            
-        Returns:
-            List[Dict]: Kodierungsergebnisse
+        Kodiert einen Batch sequentiell mit progressivem Dokumentkontext und Mehrfachkodierung.
         """
         batch_results = []
+        
+        # Prüfe Mehrfachkodierungs-Möglichkeiten für den ganzen Batch
+        multiple_coding_results = {}
+        if CONFIG.get('MULTIPLE_CODINGS', True):
+            # Relevanzprüfung für ganzen Batch
+            relevance_results = await self.relevance_checker.check_relevance_batch(batch)
+            relevant_segments = [
+                (segment_id, text) for segment_id, text in batch
+                if relevance_results.get(segment_id, False)
+            ]
+            
+            if relevant_segments:
+                print(f"  🔄 Prüfe {len(relevant_segments)} relevante Segmente auf Mehrfachkodierung...")
+                multiple_coding_results = await self.relevance_checker.check_multiple_category_relevance(
+                    relevant_segments, categories
+                )
         
         # Sequentielle Verarbeitung um Kontext aufzubauen
         for segment_id, text in batch:
@@ -2808,7 +2259,7 @@ class IntegratedAnalysisManager:
             
             print(f"\n🔍 Verarbeite Segment {segment_id} mit Kontext")
             
-            # Prüfe Relevanz (abgekürzt, da bereits in der Hauptmethode geprüft)
+            # Prüfe Relevanz
             relevance_result = await self.relevance_checker.check_relevance_batch([(segment_id, text)])
             is_relevant = relevance_result.get(segment_id, False)
             
@@ -2825,86 +2276,109 @@ class IntegratedAnalysisManager:
                         'confidence': {'total': 1.0, 'category': 1.0, 'subcategories': 1.0},
                         'justification': "Nicht relevant für Forschungsfrage",
                         'text': text,
-                        'context_summary': current_summary
+                        'context_summary': current_summary,
+                        'multiple_coding_instance': 1,
+                        'total_coding_instances': 1,
+                        'target_category': '',
+                        'category_focus_used': False
                     }
                     batch_results.append(result)
                 continue
             
-            # Verarbeite relevante Segmente mit Kontext für ALLE Kodierer
-            # Wichtig: Der erste Kodierer aktualisiert das Summary, weitere Kodierer verwenden es nur
+            # Bestimme Kodierungsinstanzen
+            coding_instances = []
+            multiple_categories = multiple_coding_results.get(segment_id, [])
+            
+            if len(multiple_categories) > 1:
+                print(f"  🔄 Mehrfachkodierung mit Kontext: {len(multiple_categories)} Kategorien")
+                for i, category_info in enumerate(multiple_categories, 1):
+                    coding_instances.append({
+                        'instance': i,
+                        'total_instances': len(multiple_categories),
+                        'target_category': category_info['category'],
+                        'category_context': category_info
+                    })
+            else:
+                coding_instances.append({
+                    'instance': 1,
+                    'total_instances': 1,
+                    'target_category': '',
+                    'category_context': None
+                })
+            
+            # Verarbeite relevante Segmente mit Kontext für ALLE Kodierer und Instanzen
             updated_summary = current_summary
             
-            for coder_index, coder in enumerate(self.deductive_coders):
-                # Für den ersten Kodierer aktualisieren wir das Summary
-                if coder_index == 0:
-                    combined_result = await coder.code_chunk_with_progressive_context(
-                        text, 
-                        categories, 
-                        current_summary, 
-                        segment_info
-                    )
-                    
-                    if combined_result:
-                        # Extrahiere Kodierungsergebnis und aktualisiertes Summary
-                        coding_result = combined_result.get('coding_result', {})
-                        updated_summary = combined_result.get('updated_summary', current_summary)
+            for instance_info in coding_instances:
+                if instance_info['total_instances'] > 1:
+                    print(f"\n    📝 Kontext-Kodierung {instance_info['instance']}/{instance_info['total_instances']}")
+                    print(f"        Fokus: {instance_info['target_category']}")
+            
+                for coder_index, coder in enumerate(self.deductive_coders):
+                    try:
+                        # Bestimme ob Summary aktualisiert werden soll (nur beim ersten Kodierer der ersten Instanz)
+                        should_update_summary = (coder_index == 0 and instance_info['instance'] == 1)
                         
-                        # Speichere aktualisiertes Summary
-                        self.document_summaries[doc_name] = updated_summary
+                        if instance_info['target_category']:
+                            # Mehrfachkodierung mit Fokus und Kontext
+                            combined_result = await coder.code_chunk_with_focus_and_context(
+                                text, categories, 
+                                focus_category=instance_info['target_category'],
+                                focus_context=instance_info['category_context'],
+                                current_summary=updated_summary if should_update_summary else current_summary,
+                                segment_info=segment_info,
+                                update_summary=should_update_summary
+                            )
+                        else:
+                            # Standard Kontext-Kodierung
+                            combined_result = await coder.code_chunk_with_progressive_context(
+                                text, 
+                                categories, 
+                                updated_summary if should_update_summary else current_summary,
+                                segment_info
+                            )
                         
-                        # Erstelle Kodierungseintrag
-                        coding_entry = {
-                            'segment_id': segment_id,
-                            'coder_id': coder.coder_id,
-                            'category': coding_result.get('category', ''),
-                            'subcategories': coding_result.get('subcategories', []),
-                            'justification': coding_result.get('justification', ''),
-                            'confidence': coding_result.get('confidence', {}),
-                            'text': text,
-                            'paraphrase': coding_result.get('paraphrase', ''),
-                            'keywords': coding_result.get('keywords', ''),
-                            'context_summary': current_summary,
-                            'context_influence': coding_result.get('context_influence', '')
-                        }
-                        
-                        batch_results.append(coding_entry)
-                        
-                        print(f"🔄 Summary aktualisiert: {len(updated_summary.split())} Wörter")
-                    else:
-                        print(f"  ⚠ Keine Kodierung von {coder.coder_id} erhalten")
-                
-                # Für weitere Kodierer verwenden wir das bereits aktualisierte Summary nur zum Lesen
-                else:
-                    combined_result = await coder.code_chunk_with_progressive_context(
-                        text, 
-                        categories, 
-                        updated_summary,  # Verwende das vom ersten Kodierer aktualisierte Summary
-                        segment_info
-                    )
-                    
-                    if combined_result:
-                        # Extrahiere nur das Kodierungsergebnis, ignoriere Summary-Updates
-                        coding_result = combined_result.get('coding_result', {})
-                        
-                        # Erstelle Kodierungseintrag
-                        coding_entry = {
-                            'segment_id': segment_id,
-                            'coder_id': coder.coder_id,
-                            'category': coding_result.get('category', ''),
-                            'subcategories': coding_result.get('subcategories', []),
-                            'justification': coding_result.get('justification', ''),
-                            'confidence': coding_result.get('confidence', {}),
-                            'text': text,
-                            'paraphrase': coding_result.get('paraphrase', ''),
-                            'keywords': coding_result.get('keywords', ''),
-                            'context_summary': updated_summary,
-                            'context_influence': coding_result.get('context_influence', '')
-                        }
-                        
-                        batch_results.append(coding_entry)
-                        print(f"  ✓ Kodierer {coder.coder_id}: {coding_entry['category']}")
-                    else:
-                        print(f"  ⚠ Keine Kodierung von {coder.coder_id} erhalten")
+                        if combined_result:
+                            # Extrahiere Kodierungsergebnis und ggf. aktualisiertes Summary
+                            coding_result = combined_result.get('coding_result', {})
+                            
+                            # Summary nur beim ersten Kodierer der ersten Instanz aktualisieren
+                            if should_update_summary:
+                                updated_summary = combined_result.get('updated_summary', current_summary)
+                                self.document_summaries[doc_name] = updated_summary
+                                print(f"🔄 Summary aktualisiert: {len(updated_summary.split())} Wörter")
+                            
+                            # Erstelle Kodierungseintrag
+                            coding_entry = {
+                                'segment_id': segment_id,
+                                'coder_id': coder.coder_id,
+                                'category': coding_result.get('category', ''),
+                                'subcategories': coding_result.get('subcategories', []),
+                                'justification': coding_result.get('justification', ''),
+                                'confidence': coding_result.get('confidence', {}),
+                                'text': text,
+                                'paraphrase': coding_result.get('paraphrase', ''),
+                                'keywords': coding_result.get('keywords', ''),
+                                'context_summary': updated_summary,
+                                'context_influence': coding_result.get('context_influence', ''),
+                                'multiple_coding_instance': instance_info['instance'],
+                                'total_coding_instances': instance_info['total_instances'],
+                                'target_category': instance_info['target_category'],
+                                'category_focus_used': bool(instance_info['target_category'])
+                            }
+                            
+                            batch_results.append(coding_entry)
+                            
+                            if instance_info['total_instances'] > 1:
+                                print(f"        ✓ {coder.coder_id}: {coding_entry['category']}")
+                            else:
+                                print(f"  ✓ Kodierer {coder.coder_id}: {coding_entry['category']}")
+                        else:
+                            print(f"  ⚠ Keine Kodierung von {coder.coder_id} erhalten")
+                            
+                    except Exception as e:
+                        print(f"  ⚠ Fehler bei {coder.coder_id}: {str(e)}")
+                        continue
         
         return batch_results
 
@@ -3919,7 +3393,7 @@ class DeductiveCoder:
         self.current_categories = {}
            
         # Hole Provider aus CONFIG
-        provider_name = CONFIG.get('MODEL_PROVIDER', 'openai')  # Fallback zu OpenAI
+        provider_name = CONFIG.get('MODEL_PROVIDER', 'openai').lower()  # Fallback zu OpenAI
         try:
             # Wir lassen den LLMProvider sich selbst um die Client-Initialisierung kümmern
             self.llm_provider = LLMProviderFactory.create_provider(provider_name)
@@ -3927,6 +3401,14 @@ class DeductiveCoder:
         except Exception as e:
             print(f"Fehler bei Provider-Initialisierung für {coder_id}: {str(e)}")
             raise
+        
+        # Prompt-Handler initialisieren
+        self.prompt_handler = QCAPrompts(
+            forschungsfrage=FORSCHUNGSFRAGE,
+            kodierregeln=KODIERREGELN,
+            deduktive_kategorien=DEDUKTIVE_KATEGORIEN
+
+        )
 
     async def update_category_system(self, categories: Dict[str, CategoryDefinition]) -> bool:
         """
@@ -4077,85 +3559,10 @@ class DeductiveCoder:
                     
                 categories_overview.append(category_info)
             
-            prompt = f"""
-            Analysiere folgenden Text im Kontext der Forschungsfrage:
-            "{FORSCHUNGSFRAGE}"
-            
-            ## TEXT:
-            {chunk}
-
-            ## KATEGORIENSYSTEM:
-            Vergleiche den Text sorgfältig mit den folgenden Kategorien und ihren Beispielen:
-
-            {json.dumps(categories_overview, indent=2, ensure_ascii=False)}
-
-            ## KODIERREGELN:
-            {json.dumps(KODIERREGELN, indent=2, ensure_ascii=False)}
-
-            ## WICHTIG: 
-            1. KATEGORIENVERGLEICH:
-            - Vergleiche den Text systematisch mit JEDER Kategoriendefinition
-            - Prüfe explizit die Übereinstimmung mit den Beispielen jeder Kategorie
-            - Identifiziere wörtliche und sinngemäße Übereinstimmungen
-            - Dokumentiere auch teilweise Übereinstimmungen für die Nachvollziehbarkeit
-            
-            2. SUBKATEGORIENVERGLEICH:
-            - Bei passender Hauptkategorie: Prüfe ALLE zugehörigen Subkategorien
-            - WICHTIG: Wähle PRIMÄR NUR DIE EINE Subkategorie mit der höchsten Passung zum Text
-            - Vergebe weitere Subkategorien NUR, wenn der Text EINDEUTIG mehrere Subkategorien gleichgewichtig adressiert
-            - Bei mehreren passenden Subkategorien mit ähnlicher Relevanz: Begründe die Wahl klar
-            
-            3. ENTSCHEIDUNGSREGELN:
-            - Kodiere nur bei eindeutiger Übereinstimmung mit Definition UND Beispielen
-            - Bei konkurrierenden Kategorien: Dokumentiere die Abwägung
-            - Bei niedriger Konfidenz (<0.80): Wähle "Keine passende Kategorie"
-            - Die Interpretation muss sich auf konkrete Textstellen stützen
-            - Keine Annahmen oder Spekulationen über den Text hinaus
-            - Prüfe die Relevanz für die Forschungsfrage explizit
-
-            4. QUALITÄTSSICHERUNG:
-            - Stelle intersubjektive Nachvollziehbarkeit sicher
-            - Dokumentiere Grenzfälle und Abwägungen transparent
-            - Prüfe die Konsistenz mit bisherigen Kodierungen
-            - Bei Unsicherheiten: Lieber konservativ kodieren
-
-            ## LIEFERE:
-
-            1. PARAPHRASE:
-            - Erfasse den zentralen Inhalt in max. 40 Wörtern
-            - Verwende sachliche, deskriptive Sprache
-            - Bleibe nah am Originaltext ohne Interpretation
-
-            2. SCHLÜSSELWÖRTER:
-            - 2-3 zentrale Begriffe aus dem Text
-            - Wähle bedeutungstragende Terme
-            - Vermeide zu allgemeine Begriffe
-
-            3. KATEGORIENZUORDNUNG:
-            - Entweder präzise Kategorie oder "Keine passende Kategorie"
-            - Ausführliche Begründung mit Textbelegen
-            - Transparente Konfidenzeinschätzung
-
-            Antworte ausschließlich mit einem JSON-Objekt:
-            {{
-                "paraphrase": "Deine prägnante Paraphrase hier",
-                "keywords": "Deine Schlüsselwörter hier",
-                "category": "Name der Hauptkategorie oder 'Keine passende Kategorie'",
-                "subcategories": ["Subkategorie", "Subkategorie"],
-                "justification": "Begründung muss enthalten: 1. Konkrete Textstellen, 2. Bezug zur Kategoriendefinition, 3. Verbindung zur Forschungsfrage",
-                "confidence": {{
-                    "total": 0.00-1.00,
-                    "category": 0.00-1.00,
-                    "subcategories": 0.00-1.00
-                }},
-                "text_references": ["Relevante", "Textstellen"],
-                "definition_matches": ["Welche Aspekte der Definition passen"],
-                "competing_categories": {{
-                    "considered": ["Liste erwogener Kategorien"],
-                    "rejection_reasons": ["Begründung für Nicht-Zuordnung"]
-                }}
-            }}
-            """
+            prompt = self.prompt_handler.get_deductive_coding_prompt(
+                chunk=chunk,
+                categories_overview=categories_overview
+            )
 
 
             try:
@@ -4376,105 +3783,14 @@ class DeductiveCoder:
             """
             
             # Prompt mit erweiterter Aufgabe für Summary-Update
-            prompt = f"""
-            ## AUFGABE 1: KODIERUNG
-            Analysiere folgenden Text im Kontext der Forschungsfrage:
-            "{FORSCHUNGSFRAGE}"
+            prompt = self.prompt_handler.get_progressive_context_prompt(
+                chunk=chunk,
+                categories_overview=categories_overview,
+                current_summary=current_summary,
+                position_info=position_info,
+                summary_update_prompt=summary_update_prompt
+            )
             
-            ### PROGRESSIVER DOKUMENTKONTEXT (bisherige relevante Inhalte):
-            {current_summary if current_summary else "Noch keine relevanten Inhalte für dieses Dokument erfasst."}
-            
-            ### TEXTSEGMENT ZU KODIEREN:
-            {chunk}
-            
-            {position_info}
-
-            ### KATEGORIENSYSTEM:
-            {json.dumps(categories_overview, indent=2, ensure_ascii=False)}
-
-            ### KODIERREGELN:
-            {json.dumps(KODIERREGELN, indent=2, ensure_ascii=False)}
-
-            ### WICHTIG - PROGRESSIVE KONTEXTANALYSE UND GENAUE KATEGORIENZUORDNUNG: 
-            
-            1. KATEGORIENVERGLEICH:
-            - Vergleiche das TEXTSEGMENT systematisch mit JEDER Kategoriendefinition
-            - Prüfe explizit die Übereinstimmung mit den Beispielen jeder Kategorie
-            - Identifiziere wörtliche und sinngemäße Übereinstimmungen
-            - Dokumentiere auch teilweise Übereinstimmungen für die Nachvollziehbarkeit
-            - Berücksichtige den DOKUMENTKONTEXT für tieferes Verständnis des TEXTSEGMENTS
-            
-            2. SUBKATEGORIENVERGLEICH:
-            - Bei passender Hauptkategorie: Prüfe ALLE zugehörigen Subkategorien
-            - WICHTIG: Wähle PRIMÄR NUR DIE EINE Subkategorie mit der höchsten Passung zum Text
-            - Vergebe weitere Subkategorien NUR, wenn der Text EINDEUTIG mehrere Subkategorien gleichgewichtig adressiert
-            - Bei mehreren passenden Subkategorien mit ähnlicher Relevanz: Begründe die Wahl
-            
-            3. KONTEXT-INTEGRATION:
-            - Prüfe, ob das aktuelle TEXTSEGMENT bisherige Einschätzungen bestätigt, ergänzt oder widerspricht
-            - Bei Kategorien wie "dominante Akteure": Besonders wichtig, den bisherigen Kontext zu berücksichtigen
-            - Formuliere eine klare Begründung, die den Kontext explizit einbezieht
-            
-            4. ENTSCHEIDUNGSREGELN:
-            - Kodiere nur bei eindeutiger Übereinstimmung mit Definition UND Beispielen
-            - Bei konkurrierenden Kategorien: Dokumentiere die Abwägung
-            - Bei niedriger Konfidenz (<0.80): Wähle "Keine passende Kategorie"
-            - Die Interpretation muss sich auf konkrete Textstellen stützen
-            - Keine Annahmen oder Spekulationen über den Text hinaus
-            - Prüfe die Relevanz für die Forschungsfrage explizit
-
-            5. QUALITÄTSSICHERUNG:
-            - Stelle intersubjektive Nachvollziehbarkeit sicher
-            - Dokumentiere Grenzfälle und Abwägungen transparent
-            - Prüfe die Konsistenz mit bisherigen Kodierungen
-            - Bei Unsicherheiten: Lieber konservativ kodieren
-            
-            ### LIEFERE IN DER KODIERUNG:
-
-            1. PARAPHRASE:
-            - Erfasse den zentralen Inhalt des TEXTSEGMENTS in max. 40 Wörtern
-            - IGNORIERE dafür den Dokumenttext
-            - Verwende sachliche, deskriptive Sprache
-            - Bleibe nah am Originaltext ohne Interpretation
-
-            2. SCHLÜSSELWÖRTER:
-            - 2-3 zentrale Begriffe aus dem Text
-            - Wähle bedeutungstragende Terme
-            - Vermeide zu allgemeine Begriffe
-
-            3. KATEGORIENZUORDNUNG:
-            - Entweder präzise Kategorie oder "Keine passende Kategorie"
-            - Ausführliche Begründung mit Textbelegen
-            - Transparente Konfidenzeinschätzung
-            - Erläutere explizit den Einfluss des Dokumentkontexts
-
-            {summary_update_prompt}
-
-            Antworte mit EINEM JSON-Objekt, das BEIDE Aufgaben umfasst:
-            {{
-                "coding_result": {{
-                    "paraphrase": "Deine prägnante Paraphrase des TEXTSEGMENTS hier",
-                    "keywords": "Deine Schlüsselwörter hier",
-                    "category": "Name der Hauptkategorie oder 'Keine passende Kategorie'",
-                    "subcategories": ["Subkategorie", "Subkategorie"],
-                    "justification": "Begründung muss enthalten: 1. Konkrete Textstellen, 2. Bezug zur Kategoriendefinition, 3. Verbindung zur Forschungsfrage",
-                    "confidence": {{
-                        "total": 0.00-1.00,
-                        "category": 0.00-1.00,
-                        "subcategories": 0.00-1.00
-                    }},
-                    "text_references": ["Relevante Textstellen"],
-                    "definition_matches": ["Welche Aspekte der Definition passen"],
-                    "context_influence": "Wie der Dokumentkontext die Kodierung beeinflusst hat",
-                    "competing_categories": {{
-                        "considered": ["Liste erwogener Kategorien"],
-                        "rejection_reasons": ["Begründung für Nicht-Zuordnung"]
-                    }}
-                }},
-                "updated_summary": "Das aktualisierte Document-Summary mit max. 70 Wörtern"
-            }}
-            """
-
             # API-Call
             input_tokens = estimate_tokens(prompt)
 
@@ -4549,6 +3865,300 @@ class DeductiveCoder:
             traceback.print_exc()
             return None
 
+    async def code_chunk_with_focus(self, chunk: str, categories: Dict[str, CategoryDefinition], 
+                                focus_category: str, focus_context: Dict) -> Optional[CodingResult]:
+        """
+        Kodiert einen Text-Chunk mit Fokus auf eine bestimmte Kategorie (für Mehrfachkodierung).
+        
+        Args:
+            chunk: Zu kodierender Text
+            categories: Kategoriensystem  
+            focus_category: Kategorie auf die fokussiert werden soll
+            focus_context: Kontext zur fokussierten Kategorie mit 'justification', 'text_aspects', 'relevance_score'
+            
+        Returns:
+            Optional[CodingResult]: Kodierungsergebnis mit Fokus-Kennzeichnung
+        """
+        try:
+            # Verwende das interne Kategoriensystem wenn vorhanden, sonst das übergebene
+            current_categories = self.current_categories or categories
+            
+            if not current_categories:
+                print(f"Fehler: Kein Kategoriensystem für Kodierer {self.coder_id} verfügbar")
+                return None
+
+            print(f"    🎯 Fokuskodierung für Kategorie: {focus_category} (Relevanz: {focus_context.get('relevance_score', 0):.2f})")
+            
+            # Erstelle formatierte Kategorienübersicht mit Fokus-Hervorhebung
+            categories_overview = []
+            for name, cat in current_categories.items():
+                # Hebe Fokus-Kategorie hervor
+                display_name = name
+                if name == focus_category:
+                    display_name = name
+                
+                category_info = {
+                    'name': display_name,
+                    'definition': cat.definition,
+                    'examples': list(cat.examples) if isinstance(cat.examples, set) else cat.examples,
+                    'rules': list(cat.rules) if isinstance(cat.rules, set) else cat.rules,
+                    'subcategories': {}
+                }
+                
+                # Füge Subkategorien hinzu
+                for sub_name, sub_def in cat.subcategories.items():
+                    category_info['subcategories'][sub_name] = sub_def
+                    
+                categories_overview.append(category_info)
+
+            # Erstelle fokussierten Prompt
+            prompt = self.prompt_handler.get_focus_coding_prompt(
+                chunk=chunk,
+                categories_overview=categories_overview,
+                focus_category=focus_category,
+                focus_context=focus_context
+            )
+            
+            try:
+                input_tokens = estimate_tokens(prompt)
+
+                response = await self.llm_provider.create_completion(
+                    model=self.model_name,
+                    messages=[
+                        {"role": "system", "content": "Du bist ein Experte für qualitative Inhaltsanalyse. Du antwortest auf deutsch."},
+                        {"role": "user", "content": prompt}
+                    ],
+                    temperature=self.temperature,
+                    response_format={"type": "json_object"}
+                )
+                
+                # Verarbeite Response mit Wrapper
+                llm_response = LLMResponse(response)
+                result = json.loads(llm_response.content)
+
+                output_tokens = estimate_tokens(response.choices[0].message.content)
+                token_counter.add_tokens(input_tokens, output_tokens)
+                
+                if result and isinstance(result, dict):
+                    if result.get('category'):
+                        # Verarbeite Paraphrase
+                        paraphrase = result.get('paraphrase', '')
+                        if paraphrase:
+                            print(f"      🗒️  Fokus-Paraphrase: {paraphrase}")
+
+                        # Dokumentiere Fokus-Adherence
+                        focus_adherence = result.get('focus_adherence', {})
+                        followed_focus = focus_adherence.get('followed_focus', True)
+                        focus_icon = "🎯" if followed_focus else "🔄"
+                        
+                        print(f"      {focus_icon} Fokuskodierung von {self.coder_id}: 🏷️  {result.get('category', '')}")
+                        print(f"      ✓ Subkategorien: 🏷️  {', '.join(result.get('subcategories', []))}")
+                        print(f"      ✓ Keywords: 🏷️  {result.get('keywords', '')}")
+                        
+                        if not followed_focus:
+                            deviation_reason = focus_adherence.get('deviation_reason', 'Nicht angegeben')
+                            print(f"      ⚠️ Fokus-Abweichung: {deviation_reason}")
+
+                        # Debug-Ausgaben für Fokus-Details
+                        if focus_adherence:
+                            focus_score = focus_adherence.get('focus_category_score', 0)
+                            chosen_score = focus_adherence.get('chosen_category_score', 0)
+                            print(f"      📊 Fokus-Score: {focus_score:.2f}, Gewählt-Score: {chosen_score:.2f}")
+
+                        # Erweiterte Begründung mit Fokus-Kennzeichnung
+                        original_justification = result.get('justification', '')
+                        focus_prefix = f"[FOKUS: {focus_category}, Adherence: {'Ja' if followed_focus else 'Nein'}] "
+                        enhanced_justification = focus_prefix + original_justification
+                    
+                        return CodingResult(
+                            category=result.get('category', ''),
+                            subcategories=tuple(result.get('subcategories', [])),
+                            justification=enhanced_justification,
+                            confidence=result.get('confidence', {'total': 0.0, 'category': 0.0, 'subcategories': 0.0}),
+                            text_references=tuple([chunk[:100]]),
+                            uncertainties=None,
+                            paraphrase=result.get('paraphrase', ''),
+                            keywords=result.get('keywords', '')
+                        )
+                    else:
+                        print("      ✗ Keine passende Kategorie gefunden")
+                        return None
+                    
+            except Exception as e:
+                print(f"Fehler bei API Call für fokussierte Kodierung: {str(e)}")
+                return None          
+
+        except Exception as e:
+            print(f"Fehler bei der fokussierten Kodierung durch {self.coder_id}: {str(e)}")
+            return None
+
+    async def code_chunk_with_focus_and_context(self, 
+                                            chunk: str, 
+                                            categories: Dict[str, CategoryDefinition],
+                                            focus_category: str,
+                                            focus_context: Dict,
+                                            current_summary: str,
+                                            segment_info: Dict,
+                                            update_summary: bool = False) -> Dict:
+        """
+        Kodiert einen Text-Chunk mit Fokus auf eine Kategorie UND progressivem Kontext.
+        Kombiniert die Funktionalität von code_chunk_with_focus und code_chunk_with_progressive_context.
+        
+        Args:
+            chunk: Zu kodierender Text
+            categories: Kategoriensystem
+            focus_category: Kategorie auf die fokussiert werden soll
+            focus_context: Kontext zur fokussierten Kategorie
+            current_summary: Aktuelles Dokument-Summary
+            segment_info: Zusätzliche Informationen über das Segment
+            update_summary: Ob das Summary aktualisiert werden soll
+            
+        Returns:
+            Dict: Enthält sowohl Kodierungsergebnis als auch aktualisiertes Summary
+        """
+        try:
+            # Verwende das interne Kategoriensystem wenn vorhanden, sonst das übergebene
+            current_categories = self.current_categories or categories
+            
+            if not current_categories:
+                print(f"Fehler: Kein Kategoriensystem für Kodierer {self.coder_id} verfügbar")
+                return None
+
+            print(f"      🎯 Fokus-Kontext-Kodierung für: {focus_category}")
+            
+            # Erstelle formatierte Kategorienübersicht mit Fokus-Hervorhebung
+            categories_overview = []
+            for name, cat in current_categories.items():
+                # Hebe Fokus-Kategorie hervor
+                display_name = name
+                if name == focus_category:
+                    display_name = name
+                
+                category_info = {
+                    'name': display_name,
+                    'definition': cat.definition,
+                    'examples': list(cat.examples) if isinstance(cat.examples, set) else cat.examples,
+                    'rules': list(cat.rules) if isinstance(cat.rules, set) else cat.rules,
+                    'subcategories': {}
+                }
+                
+                # Füge Subkategorien hinzu
+                for sub_name, sub_def in cat.subcategories.items():
+                    category_info['subcategories'][sub_name] = sub_def
+                    
+                categories_overview.append(category_info)
+
+            # Position im Dokument und Fortschritt berechnen
+            position_info = f"Segment: {segment_info.get('position', '')}"
+            doc_name = segment_info.get('doc_name', 'Unbekanntes Dokument')
+            
+            # Summary-Update-Anweisungen (gleiche Logik wie in code_chunk_with_progressive_context)
+            summary_update_prompt = ""
+            if update_summary:
+                summary_update_prompt = f"""
+                ## AUFGABE 2: SUMMARY-UPDATE
+
+                INFORMATIONSERHALTUNGS-SYSTEM:
+                - MAXIMUM 80 WÖRTER - Komprimiere alte statt neue Informationen zu verwerfen
+                - KATEGORIEBASIERT: Jedes Summary muss immer in 3-5 klare Themenkategorien strukturiert sein
+                - SCHLÜSSELPRINZIP: Bilde das Summary als INFORMATIONALE HIERARCHIE:
+                1. Stufe: Immer stabile Themenkategorien
+                2. Stufe: Zentrale Aussagen zu jeder Kategorie
+                3. Stufe: Ergänzende Details (diese können komprimiert werden)
+                - STABILITÄTSGARANTIE: Neue Iteration darf niemals vorherige Kategorie-Level-1-Information verlieren
+                - KOMPRIMIERUNGSSTRATEGIE: Bei Platzmangel Details (Stufe 3) zusammenfassen statt zu entfernen
+                - FORMAT: "Kategorie1: Hauptpunkt; Hauptpunkt. Kategorie2: Hauptpunkt; Detail." (mit Doppelpunkten)
+                - GRUNDREGEL: Neue Informationen ergänzen bestehende Kategorien statt sie zu ersetzen
+                """
+
+            # Erstelle fokussierten Prompt mit Kontext
+            prompt = self.prompt_handler.get_focus_context_coding_prompt(
+                chunk=chunk,
+                categories_overview=categories_overview,
+                focus_category=focus_category,
+                focus_context=focus_context,
+                current_summary=current_summary,
+                position_info=position_info,
+                summary_update_prompt=summary_update_prompt,
+                update_summary=update_summary
+            )
+            
+
+            # API-Call
+            input_tokens = estimate_tokens(prompt)
+
+            response = await self.llm_provider.create_completion(
+                model=self.model_name,
+                messages=[
+                    {"role": "system", "content": "Du bist ein Experte für qualitative Inhaltsanalyse. Du antwortest auf deutsch."},
+                    {"role": "user", "content": prompt}
+                ],
+                temperature=self.temperature,
+                response_format={"type": "json_object"}
+            )
+            
+            # Verarbeite Response mit Wrapper
+            llm_response = LLMResponse(response)
+            result = json.loads(llm_response.content)
+
+            output_tokens = estimate_tokens(response.choices[0].message.content)
+            token_counter.add_tokens(input_tokens, output_tokens)
+            
+            # Extrahiere relevante Teile
+            if result and isinstance(result, dict):
+                coding_result = result.get('coding_result', {})
+                
+                # Summary nur aktualisieren wenn angefordert
+                if update_summary:
+                    updated_summary = result.get('updated_summary', current_summary)
+                    
+                    # Prüfe Wortlimit beim Summary
+                    if len(updated_summary.split()) > 80:
+                        words = updated_summary.split()
+                        updated_summary = ' '.join(words[:70])
+                        print(f"        ⚠️ Summary wurde gekürzt: {len(words)} → 70 Wörter")
+                else:
+                    updated_summary = current_summary
+                
+                if coding_result:
+                    paraphrase = coding_result.get('paraphrase', '')
+                    if paraphrase:
+                        print(f"        🗒️  Fokus-Kontext-Paraphrase: {paraphrase}")
+
+                    # Dokumentiere Fokus-Adherence
+                    focus_adherence = coding_result.get('focus_adherence', {})
+                    followed_focus = focus_adherence.get('followed_focus', True)
+                    focus_icon = "🎯" if followed_focus else "🔄"
+                    
+                    print(f"        {focus_icon} Fokus-Kontext-Kodierung von {self.coder_id}: 🏷️  {coding_result.get('category', '')}")
+                    print(f"        ✓ Subkategorien: 🏷️  {', '.join(coding_result.get('subcategories', []))}")
+                    print(f"        ✓ Keywords: 🏷️  {coding_result.get('keywords', '')}")
+                    
+                    if not followed_focus:
+                        deviation_reason = focus_adherence.get('deviation_reason', 'Nicht angegeben')
+                        print(f"        ⚠️ Fokus-Abweichung: {deviation_reason}")
+
+                    if update_summary:
+                        print(f"        📝 Summary aktualisiert ({len(updated_summary.split())} Wörter)")
+                    
+                    # Kombiniertes Ergebnis zurückgeben
+                    return {
+                        'coding_result': coding_result,
+                        'updated_summary': updated_summary
+                    }
+                else:
+                    print(f"        ✗ Keine gültige Kodierung erhalten")
+                    return None
+            else:
+                print("        ✗ Keine gültige Antwort erhalten")
+                return None
+                
+        except Exception as e:
+            print(f"Fehler bei der fokussierten Kontext-Kodierung durch {self.coder_id}: {str(e)}")
+            print("Details:")
+            import traceback
+            traceback.print_exc()
+            return None 
     async def _check_relevance(self, chunk: str) -> bool:
         """
         Prüft die Relevanz eines Chunks für die Forschungsfrage.
@@ -4648,7 +4258,7 @@ class InductiveCoder:
         self.output_dir = output_dir or CONFIG['OUTPUT_DIR']
         
         # Initialisiere LLM Provider
-        provider_name = CONFIG.get('MODEL_PROVIDER', 'openai')
+        provider_name = CONFIG.get('MODEL_PROVIDER', 'openai').lower()
         try:
             self.llm_provider = LLMProviderFactory.create_provider(provider_name)
             print(f"\n🤖 LLM Provider '{provider_name}' für induktive Kodierung initialisiert")
@@ -4687,6 +4297,13 @@ class InductiveCoder:
 
         # Initialisiere SaturationChecker
         self.saturation_checker = SaturationChecker(config, history)
+
+        # Prompt-Handler
+        self.prompt_handler = QCAPrompts(
+            forschungsfrage=FORSCHUNGSFRAGE,
+            kodierregeln=KODIERREGELN,
+            deduktive_kategorien=DEDUKTIVE_KATEGORIEN
+        )
         
         # System-Prompt-Cache
         self._cached_system_prompt = None
@@ -5338,59 +4955,12 @@ class InductiveCoder:
             }'''
 
             # Verbesserter Prompt mit Fokus auf die Abstraktionshierarchie
-            prompt = f"""
-            Analysiere folgende Textsegmente im Sinne der Grounded Theory.
-            Identifiziere Subcodes und Keywords, ohne sie bereits Hauptkategorien zuzuordnen.
+            prompt = self.prompt_handler.get_grounded_analysis_prompt(
+                segments=segments,
+                existing_subcodes=existing_subcodes,
+                json_schema=json_schema
+            )
             
-            FORSCHUNGSFRAGE:
-            {FORSCHUNGSFRAGE}
-            
-            {"BEREITS IDENTIFIZIERTE SUBCODES:" if existing_subcodes else ""}
-            {json.dumps(existing_subcodes, indent=2, ensure_ascii=False) if existing_subcodes else ""}
-            
-            TEXTSEGMENTE:
-            {json.dumps(segments, indent=2, ensure_ascii=False)}
-            
-            ANWEISUNGEN FÜR DEN GROUNDED THEORY MODUS:
-            
-            1. OFFENES KODIEREN MIT KLARER ABSTRAKTIONSHIERARCHIE:
-            - KEYWORDS: Extrahiere TEXTNAHE, KONKRETE Begriffe und Phrasen direkt aus dem Text
-            - SUBCODES: Entwickle eine ERSTE ABSTRAKTIONSEBENE basierend auf den Keywords
-            * Fasse ähnliche Keywords zu einem gemeinsamen, leicht abstrahierten Subcode zusammen
-            * Verwende eine präzisere Sprache als für spätere Hauptkategorien
-            * Formuliere Subcodes als analytische Konzepte, NICHT als bloße Wiederholung der Keywords
-            
-            2. WICHTIG - PROGRESSIVE ANREICHERUNG DES SUBCODE-SETS:
-            - Berücksichtige die bereits identifizierten Subcodes
-            - Fokussiere auf NEUE KOMPLEMENTÄRE Subcodes, die noch nicht erfasst wurden
-            - Bei thematischer Überschneidung mit bestehenden Subcodes: verfeinere oder differenziere
-            - Keine Duplikate zu bestehenden Subcodes erstellen
-            
-            3. QUALITÄTSKRITERIEN FÜR SUBCODES:
-            - Empirisch gut belegt durch Textstellen
-            - Präzise und eindeutig benannt
-            - Analytisch wertvoll für die Forschungsfrage
-            - Trennscharf zu anderen Subcodes
-            - ABSTRAKTION: Erkennbar abstrakter als die Keywords, aber konkreter als spätere Hauptkategorien
-            - Nicht zu allgemein oder zu spezifisch
-            
-            4. KEYWORDS IMMER MIT SUBCODES VERKNÜPFEN:
-            - Jeder Subcode muss mindestens 3-5 Keywords erhalten
-            - Keywords sollen DIREKTER TEXTAUSZUG sein, während Subcodes erste Interpretation darstellen
-            - Keywords werden später für die Kategorienbildung verwendet
-            - Keine allgemeinen Keywords ohne Subcode-Zugehörigkeit
-            
-            5. UNTERSCHIED KEYWORDS VS. SUBCODES - BEISPIEL:
-            Keywords: "Antragsverfahren", "Bewertungskriterien", "Fördermittelbeantragung"
-            Subcode: "Formale Verfahrensstruktur"
-            
-            Keywords: "mangelnde Abstimmung", "fehlende Kommunikation", "keine Rückmeldung" 
-            Subcode: "Kommunikationsdefizite"
-            
-            Antworte NUR mit einem JSON-Objekt:
-            {json_schema}
-            """
-
             input_tokens = estimate_tokens(prompt)
 
             # API-Call
@@ -5523,95 +5093,10 @@ class InductiveCoder:
                 print(f"- {kw}: {count}x")
             
             # Erstelle ein finales Kategoriensystem
-            prompt = f"""
-            Entwickle ein STARK VERDICHTETES Kategoriensystem basierend auf den folgenden induktiv identifizierten Subcodes.
-            Diese Subcodes wurden durch offenes Kodieren im Sinne der Grounded Theory aus dem Datenmaterial gewonnen.
-
-            FORSCHUNGSFRAGE:
-            {FORSCHUNGSFRAGE}
-
-            IDENTIFIZIERTE SUBCODES MIT IHREN KEYWORDS:
-            {json.dumps(subcodes_data, indent=2, ensure_ascii=False)}
-
-            AUFGABE - DREISTUFIGE ABSTRAKTIONSHIERARCHIE:
-            1. KEYWORDS (bereits vorhanden): Textnahe, spezifische Begriffe und Phrasen direkt aus dem Material
-            2. SUBCODES (bereits vorhanden): Erste Abstraktionsebene, fassen ähnliche Keywords zusammen
-            3. HAUPTKATEGORIEN (zu generieren): DEUTLICH HÖHERE ABSTRAKTIONSEBENE als Subcodes
-
-            RICHTLINIEN FÜR HAUPTKATEGORIEN:
-            1. MAXIMALE ABSTRAKTION: Eine Hauptkategorie sollte deutlich abstrakter sein als die zugeordneten Subcodes
-            2. THEORETISCHE KONZEPTE: Nutze sozialwissenschaftliche Konzepte und Terminologie auf hohem Abstraktionsniveau
-            3. ÜBERGREIFENDE LOGIK: Identifiziere die gemeinsame strukturelle oder prozessuale Logik hinter verschiedenen Subcodes
-            4. ANALYTISCHE DIMENSIONEN: Entwickle Hauptkategorien entlang analytischer Dimensionen wie:
-            - Strukturelle vs. handlungsbezogene Aspekte
-            - Formale vs. informelle Prozesse
-            - Institutionelle vs. individuelle Faktoren
-            - Manifeste vs. latente Funktionen
-
-            BEISPIEL FÜR ABSTRAKTIONSHIERARCHIE:
-            - Keywords: "Stundenplangestaltung", "Raumzuweisung", "Prüfungstermine"
-            - Subcode: "Administrative Koordinationsaufgaben"
-            - Hauptkategorie: "Organisationale Steuerungsmechanismen"
-
-            - Keywords: "Zielvereinbarungen", "Budgetverhandlungen", "Leistungsmessungen" 
-            - Subcode: "Leistungsbezogene Mittelzuweisung"
-            - Hauptkategorie: "Governance durch Anreizstrukturen"
-
-            STRATEGIE FÜR STÄRKERE VERDICHTUNG:
-            - Identifiziere übergeordnete theoretische Konzepte, die mehrere ähnliche Phänomene zusammenfassen
-            - Bevorzuge breitere Kategorien mit mehr Subcodes gegenüber eng definierten Kategorien mit wenigen Subcodes
-            - Verwende für die Hauptkategorien Begriffe mit DEUTLICH HÖHEREM Abstraktionsgrad als die Subcodes
-            - Erstelle eine konzeptionelle Hierarchie, die Zusammenhänge zwischen den Kategorien verdeutlicht
-            - Ordne grenzwertige Subcodes der jeweils passenderen Hauptkategorie zu
-
-            WICHTIG - REDUZIERUNG DER GESAMTANZAHL:
-            - Identifiziere Redundanzen oder konzeptionelle Überlappungen zwischen möglichen Hauptkategorien
-            - Erstelle WENIGER, dafür BREITERE Hauptkategorien (maximal 6)
-            - Vermeide rein deskriptive oder zu eng gefasste Hauptkategorien
-            - Arbeite auf höherer theoretischer Abstraktionsebene
-
-            WICHTIG - VOLLSTÄNDIGES MAPPING:
-            - Für das spätere Matching ist es ZWINGEND ERFORDERLICH, dass JEDER Subcode einer Hauptkategorie zugeordnet wird
-            - Es muss eine klare 1:n Beziehung zwischen Hauptkategorien und Subcodes geben
-            - Jeder Subcode muss genau einer Hauptkategorie zugeordnet sein
-
-            Antworte mit einem JSON-Objekt:
-            {{
-                "main_categories": [
-                    {{
-                        "name": "Name der Hauptkategorie (DEUTLICH HÖHERE Abstraktionsebene)",
-                        "definition": "Umfassende Definition der Hauptkategorie, die verschiedene Aspekte zusammenführt",
-                        "characteristic_keywords": ["Übergeordnete Keywords dieser Hauptkategorie"],
-                        "rules": ["Kodierregel 1", "Kodierregel 2", "Kodierregel 3", "Kodierregel 4"],
-                        "subcodes": [
-                            {{
-                                "name": "Name des Subcodes",
-                                "definition": "Definition des Subcodes",
-                                "keywords": ["Keywords des Subcodes"]
-                            }}
-                        ],
-                        "examples": ["Beispiel 1", "Beispiel 2"],
-                        "justification": "Theoretische Begründung für diese Kategorie und die Zusammenführung ihrer Aspekte"
-                    }}
-                ],
-                "subcode_mappings": {{
-                    "subcode_name1": "hauptkategorie_name1",
-                    "subcode_name2": "hauptkategorie_name1",
-                    "subcode_name3": "hauptkategorie_name2"
-                }},
-                "category_relationships": {{
-                    "hauptkategorie_name1": ["Beziehung zu andere Kategorien", "Abgrenzungskriterien"],
-                    "hauptkategorie_name2": ["Beziehung zu andere Kategorien", "Abgrenzungskriterien"]
-                }},
-                "meta_analysis": {{
-                    "theoretical_saturation": 0.0-1.0,
-                    "coverage": 0.0-1.0,
-                    "theoretical_density": 0.0-1.0,
-                    "justification": "Begründung des verdichteten Kategoriensystems und seiner Vorteile"
-                }}
-            }}
-            """
-
+            prompt = self.prompt_handler.get_main_categories_generation_prompt(
+                subcodes_data=subcodes_data
+            )
+            
             # Zeige Fortschrittsanzeige
             print("\n⏳ Generiere Hauptkategorien aus den gesammelten Subcodes und Keywords...")
             print("Dies kann einen Moment dauern, da die Gruppierung komplex ist.")
@@ -5757,22 +5242,8 @@ class InductiveCoder:
         """
         Bewertet die Relevanz eines Segments für die Kategorienentwicklung.
         """
-        prompt = f"""
-        Bewerte die Relevanz des folgenden Textsegments für die Kategorienentwicklung.
-        Berücksichtige:
-        1. Bezug zur Forschungsfrage: {FORSCHUNGSFRAGE}
-        2. Informationsgehalt
-        3. Abstraktionsniveau
-        
-        Text: {segment}
-        
-        Antworte nur mit einem JSON-Objekt:
-        {{
-            "relevance_score": 0.8,  // 0-1
-            "reasoning": "Kurze Begründung"
-        }}
-        """
-        
+        prompt = self.prompt_handler.get_segment_relevance_assessment_prompt(segment)
+                
         try:
             input_tokens = estimate_tokens(prompt)
 
@@ -5998,143 +5469,8 @@ class InductiveCoder:
         5. Regelgeleitetes Vorgehen - nachvollziehbare Begründungen"""
 
     def _get_category_extraction_prompt(self, segment: str) -> str:
-        """
-        Detaillierter Prompt für die Kategorienentwicklung mit Fokus auf 
-        hierarchische Einordnung und Vermeidung zu spezifischer Hauptkategorien.
-        """
-        return f"""Analysiere das folgende Textsegment für die Entwicklung induktiver Kategorien.
-        Forschungsfrage: "{FORSCHUNGSFRAGE}"
-
-        WICHTIG - HIERARCHISCHE EINORDNUNG:
+        return self.prompt_handler.get_category_extraction_prompt(segment)
         
-        1. PRÜFE ZUERST EINORDNUNG IN BESTEHENDE HAUPTKATEGORIEN
-        Aktuelle Hauptkategorien:
-        {json.dumps(DEDUKTIVE_KATEGORIEN, indent=2, ensure_ascii=False)}
-
-        2. ENTSCHEIDUNGSREGELN FÜR KATEGORIENEBENE:
-
-        HAUPTKATEGORIEN (nur wenn wirklich nötig):
-        - Beschreiben übergeordnete Themenkomplexe oder Handlungsfelder
-        - Umfassen mehrere verwandte Aspekte unter einem konzeptionellen Dach
-        - Sind abstrakt genug für verschiedene Unterthemen
-        
-        GUTE BEISPIELE für Hauptkategorien:
-        - "Wissenschaftlicher Nachwuchs" (übergeordneter Themenkomplex)
-        - "Wissenschaftliches Personal" (breites Handlungsfeld)
-        - "Berufungsstrategien" (strategische Ebene)
-        
-        SCHLECHTE BEISPIELE für Hauptkategorien:
-        - "Promotion in Unternehmen" (→ besser als Subkategorie unter "Wissenschaftlicher Nachwuchs")
-        - "Rolle wissenschaftlicher Mitarbeiter" (→ besser als Subkategorie unter "Wissenschaftliches Personal")
-        - "Forschungsinteresse bei Berufungen" (→ besser als Subkategorie unter "Berufungsstrategien")
-
-        SUBKATEGORIEN (bevorzugt):
-        - Beschreiben spezifische Aspekte einer Hauptkategorie
-        - Konkretisieren einzelne Phänomene oder Handlungen
-        - Sind empirisch direkt beobachtbar
-
-        3. ENTWICKLUNGSSCHRITTE:
-        a) Prüfe ZUERST, ob der Inhalt als Subkategorie in bestehende Hauptkategorien passt
-        b) Entwickle neue Subkategorien für bestehende Hauptkategorien
-        c) NUR WENN NÖTIG: Schlage neue Hauptkategorie vor, wenn wirklich neuer Themenkomplex
-
-        TEXT:
-        {segment}
-
-        Antworte ausschließlich mit einem JSON-Objekt:
-        {{
-            "categorization_type": "subcategory_extension" | "new_main_category",
-            "analysis": {{
-                "existing_main_category": "Name der passenden Hauptkategorie oder null",
-                "justification": "Begründung der hierarchischen Einordnung"
-            }},
-            "suggested_changes": {{
-                "new_subcategories": [
-                    {{
-                        "name": "Name der Subkategorie",
-                        "definition": "Definition",
-                        "example": "Textstelle als Beleg"
-                    }}
-                ],
-                "new_main_category": null | {{  // nur wenn wirklich nötig
-                    "name": "Name der neuen Hauptkategorie",
-                    "definition": "Definition",
-                    "justification": "Ausführliche Begründung, warum neue Hauptkategorie nötig",
-                    "initial_subcategories": [
-                        {{
-                            "name": "Name der Subkategorie",
-                            "definition": "Definition"
-                        }}
-                    ]
-                }}
-            }},
-            "confidence": {{
-                "hierarchy_level": 0.0-1.0,
-                "categorization": 0.0-1.0
-            }}
-        }}
-
-        WICHTIG:
-        - Bevorzuge IMMER die Entwicklung von Subkategorien
-        - Neue Hauptkategorien nur bei wirklich übergeordneten Themenkomplexen
-        - Prüfe genau die konzeptionelle Ebene der Kategorisierung
-        - Achte auf angemessenes Abstraktionsniveau
-        """
-
-
-
-    def _get_definition_enhancement_prompt(self, category: Dict) -> str:
-        """
-        Prompt zur Verbesserung unzureichender Definitionen.
-        """
-        return f"""Erweitere die folgende Kategoriendefinition zu einer vollständigen Definition.
-
-        KATEGORIE: {category['name']}
-        AKTUELLE DEFINITION: {category['definition']}
-        BEISPIEL: {category.get('example', '')}
-        
-        ANFORDERUNGEN:
-        1. Zentrale Merkmale klar benennen
-        2. Anwendungsbereich definieren
-        3. Abgrenzung zu ähnlichen Konzepten
-        4. Mindestens drei vollständige Sätze
-        5. Fachsprachlich präzise
-
-        BEISPIEL GUTER DEFINITION:
-        "Qualitätssicherungsprozesse umfassen alle systematischen Verfahren und Maßnahmen zur 
-        Überprüfung und Gewährleistung definierter Qualitätsstandards in der Hochschule. Sie 
-        beinhalten sowohl interne Evaluationen und Audits als auch externe Begutachtungen und 
-        Akkreditierungen. Im Gegensatz zum allgemeinen Qualitätsmanagement fokussieren sie 
-        sich auf die konkrete Durchführung und Dokumentation von qualitätssichernden 
-        Maßnahmen."
-
-        Antworte nur mit der erweiterten Definition."""
-
-    def _get_subcategory_generation_prompt(self, category: Dict) -> str:
-        """
-        Prompt zur Generierung fehlender Subkategorien.
-        """
-        return f"""Entwickle passende Subkategorien für die folgende Hauptkategorie.
-
-        HAUPTKATEGORIE: {category['name']}
-        DEFINITION: {category['definition']}
-        BEISPIEL: {category.get('example', '')}
-
-        ANFORDERUNGEN AN SUBKATEGORIEN:
-        1. 2-4 logisch zusammengehörende Aspekte
-        2. Eindeutig der Hauptkategorie zuordenbar
-        3. Sich gegenseitig ausschließend
-        4. Mit kurzer Erläuterung (1 Satz)
-        5. Relevant für die Forschungsfrage: {FORSCHUNGSFRAGE}
-
-        BEISPIEL GUTER SUBKATEGORIEN:
-        "Qualitätssicherungsprozesse":
-        - "Interne Evaluation": Systematische Selbstbewertung durch die Hochschule
-        - "Externe Begutachtung": Qualitätsprüfung durch unabhängige Gutachter
-        - "Akkreditierung": Formale Anerkennung durch Akkreditierungsagenturen
-
-        Antworte nur mit einem JSON-Array von Subkategorien:
-        ["Subkategorie 1: Erläuterung", "Subkategorie 2: Erläuterung", ...]"""
 
     def _validate_basic_requirements(self, category: dict) -> bool:
         """
@@ -6754,80 +6090,231 @@ class InductiveCoder:
     def _calculate_reliability(self, codings: List[Dict]) -> float:
         """
         Berechnet die Intercoder-Reliabilität mit Krippendorffs Alpha.
-        Optimiert die Berechnung durch einmalige Iteration über die Daten.
+        KORRIGIERT: Berücksichtigt Mehrfachkodierung korrekt - Kodierer stimmen überein,
+        wenn sie dieselben Kategorien identifizieren (auch wenn in verschiedenen Instanzen).
         
         Args:
-            codings: Liste der Kodierungen mit Format:
-                {
-                    'segment_id': str,
-                    'coder_id': str,
-                    'category': str,
-                    'confidence': float,
-                    'subcategories': List[str]
-                }
+            codings: Liste der Kodierungen
                 
         Returns:
             float: Krippendorffs Alpha (-1 bis 1)
         """
         try:
-            # Sammle alle benötigten Statistiken in einem Durchlauf
-            statistics = {
-                'segment_codings': defaultdict(dict),  # {segment_id: {coder_id: category}}
-                'category_frequencies': defaultdict(int),  # {category: count}
-                'total_pairs': 0,
-                'agreements': 0,
-                'coders': set(),
-                'segments': set()
-            }
+            print(f"\nBerechne Intercoder-Reliabilität für {len(codings)} Kodierungen...")
             
-            # Ein Durchlauf für alle Statistiken
+            # 1. FILTER: Nur ursprüngliche Kodierungen für Reliabilität verwenden
+            original_codings = []
+            review_count = 0
+            consolidated_count = 0
+            
             for coding in codings:
-                segment_id = coding['segment_id']
-                coder_id = coding['coder_id']
-                category = coding['category']
-                
-                # Aktualisiere Segment-Kodierungen
-                statistics['segment_codings'][segment_id][coder_id] = category
-                
-                # Aktualisiere Kategorienhäufigkeiten
-                statistics['category_frequencies'][category] += 1
-                
-                # Sammle eindeutige Codierer und Segmente
-                statistics['coders'].add(coder_id)
-                statistics['segments'].add(segment_id)
+                # Überspringe manuelle Review-Entscheidungen
+                if coding.get('manual_review', False):
+                    review_count += 1
+                    continue
+                    
+                # Überspringe konsolidierte Kodierungen
+                if coding.get('consolidated_from_multiple', False):
+                    consolidated_count += 1
+                    continue
+                    
+                # Überspringe Kodierungen ohne echten Kodierer
+                coder_id = coding.get('coder_id', '')
+                if not coder_id or coder_id in ['consensus', 'majority', 'review']:
+                    continue
+                    
+                original_codings.append(coding)
             
-            # Berechne Übereinstimmungen und Paare
-            for segment_codes in statistics['segment_codings'].values():
-                coders = list(segment_codes.keys())
-                # Vergleiche jedes Codiererpaar
-                for i in range(len(coders)):
-                    for j in range(i + 1, len(coders)):
-                        statistics['total_pairs'] += 1
-                        if segment_codes[coders[i]] == segment_codes[coders[j]]:
-                            statistics['agreements'] += 1
-
+            print(f"Gefilterte Kodierungen:")
+            print(f"- Ursprüngliche Kodierungen: {len(original_codings)}")
+            print(f"- Review-Entscheidungen übersprungen: {review_count}")
+            print(f"- Konsolidierte Kodierungen übersprungen: {consolidated_count}")
+            
+            if len(original_codings) < 2:
+                print("Warnung: Weniger als 2 ursprüngliche Kodierungen - keine Reliabilität berechenbar")
+                return 1.0
+            
+            # 2. GRUPPIERUNG: Nach BASIS-Segmenten (nicht nach Instanzen!)
+            base_segment_codings = defaultdict(list)
+            
+            for coding in original_codings:
+                segment_id = coding.get('segment_id', '')
+                if not segment_id:
+                    continue
+                
+                # Extrahiere Basis-Segment-ID (ohne Instanz-Suffix)
+                base_segment_id = coding.get('Original_Chunk_ID', segment_id)
+                if not base_segment_id:
+                    # Fallback: Entferne mögliche Instanz-Suffixe
+                    if '_inst_' in segment_id:
+                        base_segment_id = segment_id.split('_inst_')[0]
+                    elif segment_id.endswith('-1') or segment_id.endswith('-2'):
+                        base_segment_id = segment_id.rsplit('-', 1)[0]
+                    else:
+                        base_segment_id = segment_id
+                
+                base_segment_codings[base_segment_id].append(coding)
+            
+            print(f"Basis-Segmente: {len(base_segment_codings)}")
+            
+            # 3. FÜR JEDES BASIS-SEGMENT: Sammle alle Kategorien pro Kodierer
+            comparable_segments = []
+            single_coder_segments = 0
+            
+            for base_segment_id, segment_codings in base_segment_codings.items():
+                # Gruppiere nach Kodierern
+                coder_categories = defaultdict(set)
+                coder_subcategories = defaultdict(set)
+                
+                for coding in segment_codings:
+                    coder_id = coding.get('coder_id', '')
+                    category = coding.get('category', '')
+                    subcats = coding.get('subcategories', [])
+                    
+                    if category and category not in ['Nicht kodiert', 'Kein Kodierkonsens']:
+                        coder_categories[coder_id].add(category)
+                    
+                    # Subkategorien sammeln
+                    if isinstance(subcats, (list, tuple)):
+                        coder_subcategories[coder_id].update(subcats)
+                    elif subcats:
+                        coder_subcategories[coder_id].add(str(subcats))
+                
+                # Nur Segmente mit mindestens 2 Kodierern berücksichtigen
+                if len(coder_categories) < 2:
+                    single_coder_segments += 1
+                    continue
+                
+                comparable_segments.append({
+                    'base_segment_id': base_segment_id,
+                    'coder_categories': dict(coder_categories),
+                    'coder_subcategories': dict(coder_subcategories),
+                    'sample_text': segment_codings[0].get('text', '')[:200] + '...'
+                })
+            
+            print(f"Vergleichbare Basis-Segmente: {len(comparable_segments)}")
+            print(f"Einzelkodierer-Segmente übersprungen: {single_coder_segments}")
+            
+            if len(comparable_segments) == 0:
+                print("Warnung: Keine vergleichbaren Segmente gefunden")
+                return 1.0
+            
+            # 4. BERECHNE ÜBEREINSTIMMUNGEN
+            # Für Hauptkategorien: Übereinstimmung wenn Kodierer dieselben Kategorien-Sets haben
+            # Für Subkategorien: Übereinstimmung wenn Kodierer dieselben Subkategorien-Sets haben
+            
+            main_agreements = 0
+            sub_agreements = 0
+            sub_comparable = 0
+            
+            disagreement_examples = []
+            
+            for segment_data in comparable_segments:
+                coder_categories = segment_data['coder_categories']
+                coder_subcategories = segment_data['coder_subcategories']
+                
+                # HAUPTKATEGORIEN-VERGLEICH
+                coders = list(coder_categories.keys())
+                if len(coders) >= 2:
+                    # Vergleiche alle Kodierer-Paare
+                    segment_agreements = 0
+                    segment_comparisons = 0
+                    
+                    for i in range(len(coders)):
+                        for j in range(i + 1, len(coders)):
+                            coder1, coder2 = coders[i], coders[j]
+                            cats1 = coder_categories[coder1]
+                            cats2 = coder_categories[coder2]
+                            
+                            segment_comparisons += 1
+                            
+                            # Übereinstimmung wenn beide dieselben Kategorien identifiziert haben
+                            if cats1 == cats2:
+                                segment_agreements += 1
+                            else:
+                                # Sammle Unstimmigkeiten für Debugging
+                                if len(disagreement_examples) < 5:
+                                    disagreement_examples.append({
+                                        'segment': segment_data['base_segment_id'],
+                                        'coder1': coder1,
+                                        'coder2': coder2,
+                                        'cats1': list(cats1),
+                                        'cats2': list(cats2),
+                                        'subcats1': list(coder_subcategories.get(coder1, set())),
+                                        'subcats2': list(coder_subcategories.get(coder2, set())),
+                                        'text': segment_data['sample_text']
+                                    })
+                    
+                    # Segment gilt als übereinstimmend wenn alle Paare übereinstimmen
+                    if segment_agreements == segment_comparisons:
+                        main_agreements += 1
+                
+                # SUBKATEGORIEN-VERGLEICH
+                # Nur analysieren wenn mindestens ein Kodierer Subkategorien hat
+                if any(len(subcats) > 0 for subcats in coder_subcategories.values()):
+                    sub_comparable += 1
+                    
+                    # Vergleiche Subkategorien-Sets
+                    subcat_sets = list(coder_subcategories.values())
+                    if len(set(frozenset(s) for s in subcat_sets)) == 1:
+                        sub_agreements += 1
+            
+            # 5. BERECHNE ÜBEREINSTIMMUNGSRATEN
+            main_agreement_rate = main_agreements / len(comparable_segments) if comparable_segments else 0
+            sub_agreement_rate = sub_agreements / sub_comparable if sub_comparable > 0 else 1.0
+            
+            print(f"\nReliabilitäts-Details:")
+            print(f"Hauptkategorien:")
+            print(f"- Basis-Segmente analysiert: {len(comparable_segments)}")
+            print(f"- Vollständige Übereinstimmungen: {main_agreements}")
+            print(f"- Übereinstimmungsrate: {main_agreement_rate:.3f}")
+            
+            print(f"Subkategorien:")
+            print(f"- Vergleichbare Segmente: {sub_comparable}")
+            print(f"- Vollständige Übereinstimmungen: {sub_agreements}")
+            print(f"- Übereinstimmungsrate: {sub_agreement_rate:.3f}")
+            
+            # Zeige Beispiele für Unstimmigkeiten
+            if disagreement_examples:
+                print(f"\nBeispiele für Hauptkategorien-Unstimmigkeiten:")
+                for i, example in enumerate(disagreement_examples, 1):
+                    print(f"{i}. Basis-Segment {example['segment']}:")
+                    print(f"   {example['coder1']}: {example['cats1']}")
+                    print(f"   {example['coder2']}: {example['cats2']}")
+                    print(f"   Text: {example['text'][:100]}...")
+            
+            # 6. KRIPPENDORFFS ALPHA BERECHNUNG
+            observed_agreement = main_agreement_rate
+            
+            # Sammle alle Kategorien für erwartete Zufallsübereinstimmung
+            all_categories = []
+            for segment_data in comparable_segments:
+                for coder_cats in segment_data['coder_categories'].values():
+                    all_categories.extend(list(coder_cats))
+            
             # Berechne erwartete Zufallsübereinstimmung
-            total_codings = sum(statistics['category_frequencies'].values())
-            expected_agreement = 0
+            category_frequencies = Counter(all_categories)
+            total_category_instances = len(all_categories)
             
-            if total_codings > 1:  # Verhindere Division durch Null
-                for count in statistics['category_frequencies'].values():
-                    expected_agreement += (count / total_codings) ** 2
-
-            # Berechne Krippendorffs Alpha
-            observed_agreement = statistics['agreements'] / statistics['total_pairs'] if statistics['total_pairs'] > 0 else 0
-            alpha = (observed_agreement - expected_agreement) / (1 - expected_agreement) if expected_agreement != 1 else 1
-
-            # Dokumentiere die Ergebnisse
-            self._document_reliability_results(
-                alpha=alpha,
-                total_segments=len(statistics['segments']),
-                total_coders=len(statistics['coders']),
-                category_frequencies=dict(statistics['category_frequencies'])
-            )
-
+            expected_agreement = 0
+            if total_category_instances > 1:
+                for count in category_frequencies.values():
+                    prob = count / total_category_instances
+                    expected_agreement += prob ** 2
+            
+            # Krippendorffs Alpha
+            if expected_agreement >= 1.0:
+                alpha = 1.0
+            else:
+                alpha = (observed_agreement - expected_agreement) / (1 - expected_agreement)
+            
+            print(f"\nKrippendorffs Alpha Berechnung:")
+            print(f"- Beobachtete Übereinstimmung: {observed_agreement:.3f}")
+            print(f"- Erwartete Zufallsübereinstimmung: {expected_agreement:.3f}")
+            print(f"- Krippendorffs Alpha: {alpha:.3f}")
+            
             return alpha
-
+            
         except Exception as e:
             print(f"Fehler bei der Reliabilitätsberechnung: {str(e)}")
             import traceback
@@ -8203,11 +7690,47 @@ class ResultsExporter:
         self.category_colors = {}
         os.makedirs(output_dir, exist_ok=True)
 
-    def _get_consensus_coding(self, segment_codes: List[Dict]) -> Optional[Dict]:
+        # Importierte Funktionen als Instanzmethoden verfügbar machen
+        self._sanitize_text_for_excel = _sanitize_text_for_excel
+        self._generate_pastel_colors = _generate_pastel_colors
+        self._format_confidence = _format_confidence
+
+    def _get_consensus_coding(self, segment_codes: List[Dict]) -> List[Dict]:  # Ändere Return-Type
+        """
+        GEÄNDERT: Gibt jetzt eine Liste von Kodierungen zurück für Mehrfachkodierung
+        """
+        if not segment_codes:
+            return []
+
+        # Prüfe ob es echte Mehrfachkodierung gibt (verschiedene Hauptkategorien)
+        categories = [coding['category'] for coding in segment_codes]
+        unique_categories = list(set(categories))
+        
+        # Wenn alle dieselbe Hauptkategorie haben, normale Konsensbildung
+        if len(unique_categories) == 1:
+            return [self._get_single_consensus_coding(segment_codes)]
+        
+        # Mehrfachkodierung: Erstelle separate Kodierungen für jede Hauptkategorie
+        result_codings = []
+        for instance, category in enumerate(unique_categories, 1):
+            category_codings = [c for c in segment_codes if c['category'] == category]
+            
+            if category_codings:
+                consensus_coding = self._get_single_consensus_coding(category_codings)
+                
+                # Füge Mehrfachkodierungs-Metadaten hinzu
+                consensus_coding['multiple_coding_instance'] = instance
+                consensus_coding['total_coding_instances'] = len(unique_categories)
+                consensus_coding['target_category'] = category
+                consensus_coding['category_focus_used'] = True
+                
+                result_codings.append(consensus_coding)
+        
+        return result_codings
+
+    def _get_single_consensus_coding(self, segment_codes: List[Dict]) -> Optional[Dict]:
         """
         Ermittelt die Konsens-Kodierung für ein Segment basierend auf einem mehrstufigen Prozess.
-        Berücksichtigt Hauptkategorien, Subkategorien und verschiedene Qualitätskriterien.
-        Bei fehlendem Konsens wird die Kodierung mit der höchsten Konfidenz verwendet.
         
         Args:
             segment_codes: Liste der Kodierungen für ein Segment von verschiedenen Kodierern
@@ -8259,6 +7782,10 @@ class ResultsExporter:
                 # Verwende die Kodierung mit der höchsten Konfidenz
                 result_coding = best_coding.copy()
                 
+                # WICHTIG: Subkategorien beibehalten!
+                if 'subcategories' in best_coding:
+                    result_coding['subcategories'] = best_coding['subcategories']
+                
                 # Füge Hinweis zur konfidenzbedingten Auswahl hinzu
                 result_coding['justification'] = (f"[Konfidenzbasierte Auswahl: {highest_confidence:.2f}] " + 
                                                 result_coding.get('justification', ''))
@@ -8272,7 +7799,7 @@ class ResultsExporter:
                     'confidence': highest_confidence
                 }
                 
-                print(f"  Konfidenzbasierte Auswahl: '{result_coding['category']}' (Konfidenz: {highest_confidence:.2f})")
+                print(f"  Konfidenzbasierte Auswahl: '{result_coding['category']}' mit {len(result_coding.get('subcategories', []))} Subkategorien")
                 return result_coding
             else:
                 # Erstelle "Kein Kodierkonsens"-Eintrag
@@ -8281,7 +7808,7 @@ class ResultsExporter:
                 # Verwende die erste Kodierung als Basis, aber markiere sie als "kein Kodierkonsens"
                 base_coding = segment_codes[0].copy()
                 base_coding['category'] = "Kein Kodierkonsens"
-                base_coding['subcategories'] = []
+                base_coding['subcategories'] = []  # Keine Subkategorien bei fehlendem Konsens
                 base_coding['justification'] = (f"Keine Mehrheit unter den Kodierern und keine Kodierung " +
                                             f"mit ausreichender Konfidenz (max: {highest_confidence:.2f}). " +
                                             f"Kategorien: {', '.join(category_counts.keys())}")
@@ -8338,59 +7865,82 @@ class ResultsExporter:
         else:
             majority_category = majority_categories[0]
 
-        # 3. Analyse der Subkategorien für die Mehrheitskategorie
+        # 3. Sammle alle Kodierungen für die gewählte Mehrheitskategorie
         matching_codings = [
             coding for coding in segment_codes
             if coding['category'] == majority_category
         ]
         
-        # Sammle alle verwendeten Subkategorien
+        # 4. WICHTIG: Subkategorien-Konsens für die Mehrheitskategorie
         all_subcategories = []
         for coding in matching_codings:
             subcats = coding.get('subcategories', [])
+            # Normalisiere Datenstruktur
             if isinstance(subcats, (list, tuple)):
                 all_subcategories.extend(subcats)
+            elif isinstance(subcats, str) and subcats:
+                # Falls als String übergeben, teile bei Komma
+                subcats_list = [s.strip() for s in subcats.split(',') if s.strip()]
+                all_subcategories.extend(subcats_list)
         
         # Zähle Häufigkeit der Subkategorien
         subcat_counts = Counter(all_subcategories)
         
         # Wähle Subkategorien die von mindestens 50% der Kodierer verwendet wurden
+        min_subcat_votes = len(matching_codings) / 2
         consensus_subcats = [
             subcat for subcat, count in subcat_counts.items()
-            if count >= len(matching_codings) / 2
+            if count >= min_subcat_votes
         ]
         
-        # 4. Wähle die beste Basiskodierung aus
+        print(f"  Subkategorien-Konsens: {len(consensus_subcats)} von {len(set(all_subcategories))} einzigartige gefunden")
+        for subcat, count in subcat_counts.most_common():
+            if count >= min_subcat_votes:
+                print(f"    ✓ {subcat}: {count}/{len(matching_codings)} Kodierer")
+            else:
+                print(f"    ✗ {subcat}: {count}/{len(matching_codings)} Kodierer (nicht genug)")
+        
+        # 5. Wähle die beste Basiskodierung aus
         base_coding = max(
             matching_codings,
             key=lambda x: self._calculate_coding_quality(x, consensus_subcats)
         )
         
-        # 5. Erstelle finale Konsens-Kodierung
+        # 6. Erstelle finale Konsens-Kodierung
         consensus_coding = base_coding.copy()
-        consensus_coding['subcategories'] = consensus_subcats
+        consensus_coding['subcategories'] = consensus_subcats  # WICHTIG: Setze konsolidierte Subkategorien
+        
+        # 7. Kombiniere Begründungen aller matching codings
+        all_justifications = []
+        for coding in matching_codings:
+            justification = coding.get('justification', '')
+            if justification and justification not in all_justifications:
+                all_justifications.append(justification)  # Begrenzt auf 100 Zeichen
+        
+        if all_justifications:
+            consensus_coding['justification'] = f"[Konsens aus {len(matching_codings)} Kodierern] " + " | ".join(all_justifications[:3])
         
         # Dokumentiere den Konsensprozess
         consensus_coding['consensus_info'] = {
             'total_coders': total_coders,
             'category_agreement': max_count / total_coders,
-            'subcategory_agreement': len(consensus_subcats) / len(all_subcategories) if all_subcategories else 1.0,
+            'subcategory_agreement': len(consensus_subcats) / len(set(all_subcategories)) if all_subcategories else 1.0,
             'source_codings': len(matching_codings),
-            'selection_type': 'majority'
+            'selection_type': 'consensus',
+            'subcategory_distribution': dict(subcat_counts)
         }
         
         print(f"\nKonsens-Kodierung erstellt:")
         print(f"- Hauptkategorie: {consensus_coding['category']} ({max_count}/{total_coders} Kodierer)")
-        print(f"- Subkategorien: {len(consensus_subcats)} im Konsens")
+        print(f"- Subkategorien: {len(consensus_subcats)} im Konsens: {', '.join(consensus_subcats)}")
         print(f"- Übereinstimmung: {(max_count/total_coders)*100:.1f}%")
         
         return consensus_coding
 
-    
     def _get_majority_coding(self, segment_codes: List[Dict]) -> Optional[Dict]:
         """
         Ermittelt die Mehrheits-Kodierung für ein Segment basierend auf einfacher Mehrheit.
-        Bei Gleichstand wird die Kodierung mit der höchsten Konfidenz gewählt.
+        KORRIGIERT: Subkategorien werden korrekt verarbeitet und zusammengeführt.
         
         Args:
             segment_codes: Liste der Kodierungen für ein Segment von verschiedenen Kodierern
@@ -8458,12 +8008,17 @@ class ResultsExporter:
             if coding['category'] == majority_category
         ]
         
-        # 5. Behandle Subkategorien - einfache Mehrheit bei Subkategorien
+        # 5. WICHTIG: Subkategorien-Mehrheitsentscheidung
         all_subcategories = []
         for coding in matching_codings:
             subcats = coding.get('subcategories', [])
+            # Normalisiere Datenstruktur
             if isinstance(subcats, (list, tuple)):
                 all_subcategories.extend(subcats)
+            elif isinstance(subcats, str) and subcats:
+                # Falls als String übergeben, teile bei Komma
+                subcats_list = [s.strip() for s in subcats.split(',') if s.strip()]
+                all_subcategories.extend(subcats_list)
         
         # Zähle Subkategorien
         subcat_counts = Counter(all_subcategories)
@@ -8475,7 +8030,12 @@ class ResultsExporter:
             if count >= min_subcat_votes
         ]
         
-        print(f"  Subkategorien mit Mehrheit: {majority_subcats}")
+        print(f"  Subkategorien-Mehrheit: {len(majority_subcats)} von {len(set(all_subcategories))} einzigartige")
+        for subcat, count in subcat_counts.most_common():
+            if count >= min_subcat_votes:
+                print(f"    ✓ {subcat}: {count}/{len(matching_codings)} Kodierer")
+            else:
+                print(f"    ✗ {subcat}: {count}/{len(matching_codings)} Kodierer")
         
         # 6. Wähle die beste Basiskodierung (höchste Konfidenz unter den Mehrheitskodierungen)
         base_coding = max(
@@ -8485,7 +8045,17 @@ class ResultsExporter:
         
         # 7. Erstelle finale Mehrheits-Kodierung
         majority_coding = base_coding.copy()
-        majority_coding['subcategories'] = majority_subcats
+        majority_coding['subcategories'] = majority_subcats  # WICHTIG: Setze Mehrheits-Subkategorien
+        
+        # 8. Kombiniere Begründungen
+        all_justifications = []
+        for coding in matching_codings:
+            justification = coding.get('justification', '')
+            if justification and justification not in all_justifications:
+                all_justifications.append(justification)  
+        
+        if all_justifications:
+            majority_coding['justification'] = f"[Mehrheit aus {len(matching_codings)} Kodierern] " + " | ".join(all_justifications[:3])
         
         # Dokumentiere den Mehrheitsprozess
         majority_coding['consensus_info'] = {
@@ -8493,9 +8063,10 @@ class ResultsExporter:
             'category_votes': max_count,
             'category_agreement': max_count / total_coders,
             'tied_categories': majority_categories if len(majority_categories) > 1 else [],
-            'subcategory_agreement': len(majority_subcats) / len(all_subcategories) if all_subcategories else 1.0,
+            'subcategory_agreement': len(majority_subcats) / len(set(all_subcategories)) if all_subcategories else 1.0,
             'selection_type': 'majority',
-            'tie_broken_by_confidence': len(majority_categories) > 1
+            'tie_broken_by_confidence': len(majority_categories) > 1,
+            'subcategory_distribution': dict(subcat_counts)
         }
         
         # Aktualisiere Begründung
@@ -8510,10 +8081,10 @@ class ResultsExporter:
                 majority_coding.get('justification', '')
             )
         
-        print(f"  ✓ Mehrheits-Kodierung erstellt: '{majority_category}' mit {len(majority_subcats)} Subkategorien")
+        print(f"  ✓ Mehrheits-Kodierung erstellt: '{majority_category}' mit {len(majority_subcats)} Subkategorien: {', '.join(majority_subcats)}")
         
         return majority_coding
-
+    
     def _extract_confidence_value(self, coding: Dict) -> float:
         """
         Hilfsmethode zum Extrahieren des Konfidenzwerts aus einer Kodierung.
@@ -8540,14 +8111,13 @@ class ResultsExporter:
     def _get_manual_priority_coding(self, segment_codes: List[Dict]) -> Optional[Dict]:
         """
         Bevorzugt manuelle Kodierungen vor automatischen Kodierungen.
-        Falls mehrere manuelle Kodierungen vorhanden sind, wird Konsens gesucht.
-        Falls nur automatische Kodierungen vorhanden sind, wird Konsens verwendet.
+        KORRIGIERT: Subkategorien werden korrekt verarbeitet und zusammengeführt.
         
         Args:
             segment_codes: Liste der Kodierungen für ein Segment von verschiedenen Kodierern
                 
         Returns:
-            Optional[Dict]: Priorisierte Kodierung
+            Optional[Dict]: Priorisierte Kodierung mit korrekten Subkategorien
         """
         if not segment_codes:
             return None
@@ -8575,6 +8145,11 @@ class ResultsExporter:
             if len(manual_codings) == 1:
                 # Nur eine manuelle Kodierung - verwende diese direkt
                 selected_coding = manual_codings[0].copy()
+                
+                # WICHTIG: Subkategorien beibehalten!
+                if 'subcategories' in manual_codings[0]:
+                    selected_coding['subcategories'] = manual_codings[0]['subcategories']
+                
                 selected_coding['consensus_info'] = {
                     'total_coders': len(segment_codes),
                     'manual_coders': len(manual_codings),
@@ -8582,47 +8157,86 @@ class ResultsExporter:
                     'selection_type': 'single_manual',
                     'priority_reason': 'Einzige manuelle Kodierung verfügbar'
                 }
-                print(f"    Einzige manuelle Kodierung: '{selected_coding['category']}'")
+                print(f"    Einzige manuelle Kodierung: '{selected_coding['category']}' mit {len(selected_coding.get('subcategories', []))} Subkategorien")
                 
             else:
                 # Mehrere manuelle Kodierungen - suche Konsens unter diesen
                 print(f"    Suche Konsens unter {len(manual_codings)} manuellen Kodierungen")
                 
-                # Verwende die bestehende Konsens-Logik nur für manuelle Kodierungen
-                consensus_coding = self._get_consensus_coding(manual_codings)
-                
-                if consensus_coding:
-                    selected_coding = consensus_coding.copy()
-                    # Aktualisiere consensus_info
-                    selected_coding['consensus_info'] = selected_coding.get('consensus_info', {})
-                    selected_coding['consensus_info'].update({
-                        'total_coders': len(segment_codes),
-                        'manual_coders': len(manual_codings),
-                        'auto_coders': len(auto_codings),
-                        'selection_type': 'manual_consensus',
-                        'priority_reason': 'Konsens unter manuellen Kodierungen'
-                    })
-                    print(f"    Konsens bei manuellen Kodierungen: '{selected_coding['category']}'")
-                else:
-                    # Kein Konsens unter manuellen Kodierungen - wähle nach Konfidenz
-                    print("    Kein Konsens bei manuellen Kodierungen - wähle nach Konfidenz")
+                # Prüfe ob alle dieselbe Hauptkategorie haben
+                manual_categories = [c['category'] for c in manual_codings]
+                if len(set(manual_categories)) == 1:
+                    # Alle haben dieselbe Hauptkategorie - konsolidiere Subkategorien
+                    main_category = manual_categories[0]
+                    
+                    # Sammle alle Subkategorien von manuellen Kodierungen
+                    all_manual_subcats = []
+                    for coding in manual_codings:
+                        subcats = coding.get('subcategories', [])
+                        if isinstance(subcats, (list, tuple)):
+                            all_manual_subcats.extend(subcats)
+                        elif isinstance(subcats, str) and subcats:
+                            subcats_list = [s.strip() for s in subcats.split(',') if s.strip()]
+                            all_manual_subcats.extend(subcats_list)
+                    
+                    # Finde Konsens-Subkategorien (mindestens von der Hälfte verwendet)
+                    subcat_counts = Counter(all_manual_subcats)
+                    min_votes = len(manual_codings) / 2
+                    consensus_subcats = [
+                        subcat for subcat, count in subcat_counts.items()
+                        if count >= min_votes
+                    ]
+                    
+                    # Wähle beste manuelle Kodierung als Basis
                     selected_coding = max(
                         manual_codings,
                         key=lambda x: self._extract_confidence_value(x)
                     ).copy()
+                    
+                    # Setze konsolidierte Subkategorien
+                    selected_coding['subcategories'] = consensus_subcats
+                    
+                    # Kombiniere Begründungen
+                    manual_justifications = [c.get('justification', '')[:100] for c in manual_codings if c.get('justification', '')]
+                    if manual_justifications:
+                        selected_coding['justification'] = f"[Konsens aus {len(manual_codings)} manuellen Kodierungen] " + " | ".join(manual_justifications[:3])
+                    
+                    selected_coding['consensus_info'] = {
+                        'total_coders': len(segment_codes),
+                        'manual_coders': len(manual_codings),
+                        'auto_coders': len(auto_codings),
+                        'selection_type': 'manual_consensus',
+                        'priority_reason': 'Konsens unter manuellen Kodierungen',
+                        'subcategory_distribution': dict(subcat_counts)
+                    }
+                    print(f"    Konsens bei manuellen Kodierungen: '{selected_coding['category']}' mit {len(consensus_subcats)} Subkategorien: {', '.join(consensus_subcats)}")
+                else:
+                    # Verschiedene Hauptkategorien - wähle nach Konfidenz
+                    print("    Verschiedene Hauptkategorien - wähle nach Konfidenz")
+                    selected_coding = max(
+                        manual_codings,
+                        key=lambda x: self._extract_confidence_value(x)
+                    ).copy()
+                    
+                    # WICHTIG: Subkategorien der gewählten Kodierung beibehalten
+                    if 'subcategories' in selected_coding:
+                        original_subcats = selected_coding['subcategories']
+                        selected_coding['subcategories'] = original_subcats
                     
                     selected_coding['consensus_info'] = {
                         'total_coders': len(segment_codes),
                         'manual_coders': len(manual_codings),
                         'auto_coders': len(auto_codings),
                         'selection_type': 'manual_confidence',
-                        'priority_reason': 'Höchste Konfidenz unter manuellen Kodierungen (kein Konsens)'
+                        'priority_reason': 'Höchste Konfidenz unter manuellen Kodierungen (verschiedene Hauptkategorien)'
                     }
+                    print(f"    Manuelle Kodierung nach Konfidenz: '{selected_coding['category']}' mit {len(selected_coding.get('subcategories', []))} Subkategorien")
         
         else:
             # 3. Keine manuellen Kodierungen - verwende automatische mit Konsens
             print("  Keine manuellen Kodierungen - verwende automatische Kodierungen")
             
+            # Verwende die bestehende Konsens-Logik für automatische Kodierungen
             consensus_coding = self._get_consensus_coding(auto_codings)
             
             if consensus_coding:
@@ -8636,13 +8250,18 @@ class ResultsExporter:
                     'selection_type': 'auto_consensus',
                     'priority_reason': 'Keine manuellen Kodierungen verfügbar - automatischer Konsens'
                 })
-                print(f"    Automatischer Konsens: '{selected_coding['category']}'")
+                print(f"    Automatischer Konsens: '{selected_coding['category']}' mit {len(selected_coding.get('subcategories', []))} Subkategorien")
             else:
                 # Fallback: Wähle automatische Kodierung mit höchster Konfidenz
                 selected_coding = max(
                     auto_codings,
                     key=lambda x: self._extract_confidence_value(x)
                 ).copy()
+                
+                # WICHTIG: Subkategorien beibehalten
+                if 'subcategories' in selected_coding:
+                    original_subcats = selected_coding['subcategories']
+                    selected_coding['subcategories'] = original_subcats
                 
                 selected_coding['consensus_info'] = {
                     'total_coders': len(segment_codes),
@@ -8651,7 +8270,7 @@ class ResultsExporter:
                     'selection_type': 'auto_confidence',
                     'priority_reason': 'Kein automatischer Konsens - höchste Konfidenz'
                 }
-                print(f"    Automatische Kodierung nach Konfidenz: '{selected_coding['category']}'")
+                print(f"    Automatische Kodierung nach Konfidenz: '{selected_coding['category']}' mit {len(selected_coding.get('subcategories', []))} Subkategorien")
         
         # 4. Aktualisiere Begründung mit Prioritätsinformation
         priority_info = selected_coding['consensus_info']['priority_reason']
@@ -8661,6 +8280,7 @@ class ResultsExporter:
         )
         
         return selected_coding
+
 
     def _calculate_coding_quality(self, coding: Dict, consensus_subcats: List[str]) -> float:
         """
@@ -8758,87 +8378,11 @@ class ResultsExporter:
                 f.write(f"- {opt_type}: {count}\n")
         
         print(f"Optimierungsanalyse exportiert nach: {analysis_path}")
-
-    # def export_merge_analysis(self, original_categories: Dict[str, CategoryDefinition], 
-    #                         merged_categories: Dict[str, CategoryDefinition],
-    #                         merge_log: List[Dict]):
-    #     """Exportiert eine detaillierte Analyse der Kategorienzusammenführungen."""
-    #     analysis_path = os.path.join(self.output_dir, f'merge_analysis_{datetime.now().strftime("%Y%m%d_%H%M%S")}.md')
-        
-    #     with open(analysis_path, 'w', encoding='utf-8') as f:
-    #         f.write("# Analyse der Kategorienzusammenführungen\n\n")
-            
-    #         f.write("## Übersicht\n")
-    #         f.write(f"- Ursprüngliche Kategorien: {len(original_categories)}\n")
-    #         f.write(f"- Zusammengeführte Kategorien: {len(merged_categories)}\n")
-    #         f.write(f"- Anzahl der Zusammenführungen: {len(merge_log)}\n\n")
-            
-    #         f.write("## Detaillierte Zusammenführungen\n")
-    #         for merge in merge_log:
-    #             f.write(f"### {merge['new_category']}\n")
-    #             f.write(f"- Zusammengeführt aus: {', '.join(merge['merged'])}\n")
-    #             f.write(f"- Ähnlichkeit: {merge['similarity']:.2f}\n")
-    #             f.write(f"- Zeitpunkt: {merge['timestamp']}\n\n")
-                
-    #             f.write("#### Ursprüngliche Definitionen:\n")
-    #             for cat in merge['merged']:
-    #                 f.write(f"- {cat}: {original_categories[cat].definition}\n")
-    #             f.write("\n")
-                
-    #             f.write("#### Neue Definition:\n")
-    #             f.write(f"{merged_categories[merge['new_category']].definition}\n\n")
-            
-    #         f.write("## Statistiken\n")
-    #         f.write(f"- Durchschnittliche Ähnlichkeit bei Zusammenführungen: {sum(m['similarity'] for m in merge_log) / len(merge_log):.2f}\n")
-    #         f.write(f"- Kategorienreduktion: {(1 - len(merged_categories) / len(original_categories)) * 100:.1f}%\n")
-        
-    #     print(f"Merge-Analyse exportiert nach: {analysis_path}")
-    #     pass
-    
-    def _sanitize_text_for_excel(self, text):
-        """
-        Bereinigt Text für Excel-Export, entfernt ungültige Zeichen.
-        
-        Args:
-            text: Zu bereinigender Text
-            
-        Returns:
-            str: Bereinigter Text ohne problematische Zeichen
-        """
-        if text is None:
-            return ""
-            
-        if not isinstance(text, str):
-            # Konvertiere zu String falls nötig
-            text = str(text)
-        
-        # Liste von problematischen Zeichen, die in Excel Probleme verursachen können
-        # Hier definieren wir Steuerzeichen und einige bekannte Problemzeichen
-        problematic_chars = [
-            # ASCII-Steuerzeichen 0-31 außer Tab (9), LF (10) und CR (13)
-            *[chr(i) for i in range(0, 9)],
-            *[chr(i) for i in range(11, 13)],
-            *[chr(i) for i in range(14, 32)],
-            # Einige bekannte problematische Sonderzeichen
-            '\u0000', '\u0001', '\u0002', '\u0003', '\ufffe', '\uffff',
-            # Emojis und andere Sonderzeichen, die Probleme verursachen könnten
-            '☺', '☻', '♥', '♦', '♣', '♠'
-        ]
-        
-        # Ersetze alle problematischen Zeichen
-        for char in problematic_chars:
-            text = text.replace(char, '')
-        
-        # Alternative Methode mit Regex für Steuerzeichen
-        import re
-        text = re.sub(r'[\x00-\x08\x0B\x0C\x0E-\x1F\uFFFE\uFFFF]', '', text)
-        
-        return text
-
+  
     def _prepare_coding_for_export(self, coding: dict, chunk: str, chunk_id: int, doc_name: str) -> dict:
         """
         Bereitet eine Kodierung für den Export vor.
-        Angepasst für grounded-Modus mit Hauptkategorie-Matching.
+        KORRIGIERT: Verarbeitet Begründungen aus Review-Prozess korrekt
         """
         try:
             # Extrahiere Attribute aus dem Dateinamen
@@ -8847,14 +8391,9 @@ class ResultsExporter:
             # Erstelle eindeutigen Präfix für Chunk-Nr
             chunk_prefix = ""
             if attribut1 and attribut2:
-                # Nehme die ersten beiden Buchstaben von attribut1 und attribut2
-                chunk_prefix = (attribut1[:2] + attribut2[:2]).upper()
+                chunk_prefix = (attribut1[:2] + attribut2[:2] + attribut3[:2]).upper()
             else:
-                # Fallback: Nehme die ersten fünf Buchstaben des Dateinamens
                 chunk_prefix = doc_name[:5].upper()
-            
-            # Erstelle eindeutige Chunk-ID mit Präfix
-            unique_chunk_id = f"{chunk_prefix}-{chunk_id}"
             
             # Prüfe ob eine gültige Kategorie vorhanden ist
             category = coding.get('category', '')
@@ -8862,27 +8401,30 @@ class ResultsExporter:
             # Prüfe auf Hauptkategorie im grounded Modus
             main_category = coding.get('main_category', '')
             if main_category and main_category != category:
-                # Im grounded Modus wurde eine Hauptkategorie zugeordnet
                 if CONFIG.get('ANALYSIS_MODE') == 'grounded':
-                    # Verwende die Hauptkategorie als primäre Kategorie
                     display_category = main_category
-                    # Stelle sicher, dass der ursprüngliche Subcode in den Subkategorien ist
                     if category and category not in coding.get('subcategories', []):
                         subcategories = list(coding.get('subcategories', [])) + [category]
                     else:
                         subcategories = coding.get('subcategories', [])
                 else:
-                    # Für andere Modi: Verwende die normale Kategorie
                     display_category = category
                     subcategories = coding.get('subcategories', [])
             else:
-                # Normale Verarbeitung
                 display_category = category
                 subcategories = coding.get('subcategories', [])
             
-            # Hole Consensus-Info für erweiterte Informationen
-            consensus_info = coding.get('consensus_info', {})
-            selection_type = consensus_info.get('selection_type', '')
+            # Behandle verschiedene Datentypen für Subkategorien
+            if isinstance(subcategories, (list, tuple)):
+                # Listen/Tupel: Konvertiere zu String-Liste und entferne leere Einträge
+                subcats_list = [str(sub).strip() for sub in subcategories if str(sub).strip()]
+                subcats_text = ', '.join(subcats_list)
+            elif isinstance(subcategories, str):
+                # String: Bereinige und verwende direkt
+                subcats_text = subcategories.strip()
+            else:
+                # Andere Typen: Konvertiere zu String
+                subcats_text = str(subcategories) if subcategories else ''
             
             # Bestimme den Kategorietyp und Kodiertstatus
             if display_category == "Kein Kodierkonsens":
@@ -8892,16 +8434,14 @@ class ResultsExporter:
                 kategorie_typ = "unkodiert"
                 is_coded = 'Nein'
             else:
-                # Bestimme den Kategorietyp (deduktiv/induktiv/grounded)
                 if display_category in DEDUKTIVE_KATEGORIEN:
                     kategorie_typ = "deduktiv"
                 elif CONFIG.get('ANALYSIS_MODE') == 'grounded':
                     kategorie_typ = "grounded"
                 else:
                     kategorie_typ = "induktiv"
-                    
                 is_coded = 'Ja'
-                    
+                        
             # Formatiere Keywords
             raw_keywords = coding.get('keywords', '')
             if isinstance(raw_keywords, list):
@@ -8910,50 +8450,64 @@ class ResultsExporter:
                 formatted_keywords = raw_keywords.replace("[", "").replace("]", "").replace("'", "").split(",")
                 formatted_keywords = [kw.strip() for kw in formatted_keywords if kw.strip()]
             
-            # Hole Relevanzdetails
-            segment_id = f"{doc_name}_chunk_{chunk_id}"
-            relevance_details = None
-            if hasattr(self, 'relevance_checker'):
-                relevance_details = self.relevance_checker.get_relevance_details(segment_id)
-
-            # Formatiere die Begründung
+            # KORRIGIERTE Formatierung der Begründung - behält die ursprüngliche Logik bei
             justification = coding.get('justification', '')
-            if display_category == "Nicht kodiert" and relevance_details:
-                justification = relevance_details.get('justification', justification)
-
-            # Formatiere Textreferenzen
-            text_refs = coding.get('text_references', [])
-            if isinstance(text_refs, str):
-                formatted_references = text_refs
-            elif isinstance(text_refs, (list, tuple)):
-                formatted_references = '\n'.join(str(ref) for ref in text_refs if ref)
-            else:
-                formatted_references = str(text_refs)
-
-            # Formatiere Definition-Matches
-            def_matches = coding.get('definition_matches', [])
-            if isinstance(def_matches, str):
-                formatted_def_matches = def_matches
-            elif isinstance(def_matches, (list, tuple)):
-                formatted_def_matches = '\n'.join(str(match) for match in def_matches if match)
-            else:
-                formatted_def_matches = str(def_matches)
             
+            # Entferne nur die Review-Prefixes, aber behalte die volle Begründung
+            if justification.startswith('[Konsens'):
+                parts = justification.split('] ', 1)
+                if len(parts) > 1:
+                    # Nehme den vollständigen Text nach dem Prefix
+                    remaining_text = parts[1]
+                    # Nur bei | trennen wenn mehrere VERSCHIEDENE Begründungen vorliegen
+                    if ' | ' in remaining_text:
+                        # Prüfe ob es wirklich verschiedene Begründungen sind
+                        split_parts = remaining_text.split(' | ')
+                        # Wenn die Teile sehr ähnlich sind (Duplikate), nimm nur den ersten
+                        if len(split_parts) > 1 and split_parts[0].strip() == split_parts[1].strip():
+                            justification = split_parts[0].strip()
+                        else:
+                            # Verschiedene Begründungen - nimm die erste vollständige
+                            justification = split_parts[0].strip()
+                    else:
+                        justification = remaining_text.strip()
+            elif justification.startswith('[Mehrheit'):
+                parts = justification.split('] ', 1)
+                if len(parts) > 1:
+                    remaining_text = parts[1]
+                    if ' | ' in remaining_text:
+                        split_parts = remaining_text.split(' | ')
+                        justification = split_parts[0].strip()
+                    else:
+                        justification = remaining_text.strip()
+            elif justification.startswith('[Manuelle Priorisierung'):
+                parts = justification.split('] ', 1)
+                if len(parts) > 1:
+                    justification = parts[1].strip()
+            elif justification.startswith('[Konfidenzbasierte Auswahl'):
+                parts = justification.split('] ', 1)
+                if len(parts) > 1:
+                    justification = parts[1].strip()
+            
+            # Debug-Ausgabe für Begründungsanalyse
+            if len(justification) > 200:
+                print(f"DEBUG: Vollständige Begründung für Chunk {chunk_id}: {len(justification)} Zeichen")
+
             # Formatiere konkurrierende Kategorien
             competing_cats = coding.get('competing_categories', {})
+            consensus_info = coding.get('consensus_info', {})
             
-            # Spezialfall: Bei konfidenzbasierter Auswahl oder kein Konsens, zeige Kategorieverteilung
             if 'category_distribution' in consensus_info:
                 category_dist = consensus_info['category_distribution']
                 dist_text = ", ".join([f"{cat}: {count}" for cat, count in category_dist.items()])
                 
+                selection_type = consensus_info.get('selection_type', '')
                 if selection_type == 'confidence_based':
                     competing_cats_text = f"Konfidenzbasierte Auswahl bei Gleichstand: {dist_text}"
                 elif selection_type == 'no_consensus':
                     competing_cats_text = f"Kein Konsens (Verteilung): {dist_text}"
                 else:
                     competing_cats_text = f"Kategorieverteilung: {dist_text}"
-            # Standardfall: Verwende competing_categories wenn vorhanden
             elif isinstance(competing_cats, dict):
                 considered = competing_cats.get('considered', [])
                 reasons = competing_cats.get('rejection_reasons', [])
@@ -8966,24 +8520,27 @@ class ResultsExporter:
             else:
                 competing_cats_text = str(competing_cats)
 
-            # Bereite Subkategorien auf
-            if isinstance(subcategories, (list, tuple)):
-                subcats_text = ', '.join(subcategories)
-            else:
-                subcats_text = str(subcategories)
-
             # Export-Dictionary mit allen erforderlichen Feldern
-            # Die Reihenfolge hier bestimmt die Spaltenreihenfolge im Excel
             export_data = {
                 'Dokument': self._sanitize_text_for_excel(doc_name),
                 self.attribute_labels['attribut1']: self._sanitize_text_for_excel(attribut1),
                 self.attribute_labels['attribut2']: self._sanitize_text_for_excel(attribut2),
             }
             
-            # Füge attribut3 hinzu, wenn es in den Labels definiert und nicht leer ist
+            # Füge attribut3 hinzu, wenn es definiert ist
             if 'attribut3' in self.attribute_labels and self.attribute_labels['attribut3']:
                 export_data[self.attribute_labels['attribut3']] = self._sanitize_text_for_excel(attribut3)
             
+
+            # Erstelle eindeutige Chunk-ID mit Mehrfachkodierungs-Suffix
+            if coding.get('total_coding_instances', 1) > 1:
+                unique_chunk_id = f"{chunk_prefix}-{chunk_id}-{coding.get('multiple_coding_instance', 1)}"
+                mehrfachkodierung_status = 'Ja'
+            else:
+                unique_chunk_id = f"{chunk_prefix}-{chunk_id}"
+                mehrfachkodierung_status = 'Nein'
+            
+
             # Rest der Daten in der gewünschten Reihenfolge
             additional_fields = {
                 'Chunk_Nr': unique_chunk_id,
@@ -8992,20 +8549,30 @@ class ResultsExporter:
                 'Kodiert': is_coded,
                 'Hauptkategorie': self._sanitize_text_for_excel(display_category),
                 'Kategorietyp': kategorie_typ,
-                'Subkategorien': self._sanitize_text_for_excel(subcats_text),
+                'Subkategorien': self._sanitize_text_for_excel(subcats_text), 
                 'Schlüsselwörter': self._sanitize_text_for_excel(', '.join(formatted_keywords)),
-                'Begründung': self._sanitize_text_for_excel(justification),
+                'Begründung': self._sanitize_text_for_excel(justification),  # KORRIGIERT: Bereinigte Begründung ohne Duplikate
                 'Konfidenz': self._sanitize_text_for_excel(self._format_confidence(coding.get('confidence', {}))),
-                'Mehrfachkodierung': ('Ja' if isinstance(subcategories, (list, tuple)) 
-                    and len(subcategories) > 1 else 'Nein'),
-                'Konkurrierende_Kategorien': self._sanitize_text_for_excel(competing_cats_text)
+                'Mehrfachkodierung': mehrfachkodierung_status, 
+                'Konkurrierende_Kategorien': self._sanitize_text_for_excel(competing_cats_text),
+                # Neue Felder für Mehrfachkodierung:
+                'Mehrfachkodierung_Instanz': coding.get('multiple_coding_instance', 1),
+                'Mehrfachkodierung_Gesamt': coding.get('total_coding_instances', 1),
+                'Fokus_Kategorie': self._sanitize_text_for_excel(coding.get('target_category', '')),
+                'Fokus_verwendet': 'Ja' if coding.get('category_focus_used', False) else 'Nein',
+                'Original_Chunk_ID': f"{chunk_prefix}-{chunk_id}"
             }
+
+            # DEBUGGING: Ausgabe zur Kontrolle
+            # if subcats_text:
+            #     print(f"DEBUG Export - Chunk {unique_chunk_id}: Subkategorien = '{subcats_text}'")
+
             export_data.update(additional_fields)
 
             # Füge Konsensinformationen hinzu wenn vorhanden
             if consensus_info:
                 export_data['Übereinstimmungsgrad'] = consensus_info.get('category_agreement', 0) * 100
-                export_data['Konsenstyp'] = self._sanitize_text_for_excel(selection_type)
+                export_data['Konsenstyp'] = self._sanitize_text_for_excel(consensus_info.get('selection_type', ''))
 
             # Nur Kontext-bezogene Felder hinzufügen, wenn vorhanden
             if 'context_summary' in coding and coding['context_summary']:
@@ -9023,49 +8590,18 @@ class ResultsExporter:
             traceback.print_exc()
             return {
                 'Dokument': self._sanitize_text_for_excel(doc_name),
-                'Chunk_Nr': f"{doc_name[:5].upper()}-{chunk_id}",  # Fallback im Fehlerfall
+                'Chunk_Nr': f"{doc_name[:5].upper()}-{chunk_id}",
                 'Text': self._sanitize_text_for_excel(chunk),
                 'Paraphrase': '',
                 'Kodiert': 'Nein',
                 'Hauptkategorie': 'Fehler bei Verarbeitung',
                 'Kategorietyp': 'unbekannt',
                 'Begründung': self._sanitize_text_for_excel(f'Fehler: {str(e)}'),
-                'Subkategorien': '',
+                'Subkategorien': '',  # Auch im Fehlerfall leeren String setzen
                 'Konfidenz': '',
                 'Mehrfachkodierung': 'Nein',
                 'Konkurrierende_Kategorien': ''
             }
-
-    
-    def _format_confidence(self, confidence: dict) -> str:
-        """Formatiert die Konfidenz-Werte für den Export"""
-        try:
-            if isinstance(confidence, dict):
-                formatted_values = []
-                # Verarbeite jeden Konfidenzwert einzeln
-                for key, value in confidence.items():
-                    if isinstance(value, (int, float)):
-                        formatted_values.append(f"{key}: {value:.2f}")
-                    elif isinstance(value, dict):
-                        # Verarbeite verschachtelte Konfidenzwerte
-                        nested_values = [f"{k}: {v:.2f}" for k, v in value.items() 
-                                    if isinstance(v, (int, float))]
-                        if nested_values:
-                            formatted_values.append(f"{key}: {', '.join(nested_values)}")
-                    elif isinstance(value, str):
-                        formatted_values.append(f"{key}: {value}")
-                
-                return "\n".join(formatted_values)
-            elif isinstance(confidence, (int, float)):
-                return f"{float(confidence):.2f}"
-            elif isinstance(confidence, str):
-                return confidence
-            else:
-                return "0.00"
-                
-        except Exception as e:
-            print(f"Fehler bei Konfidenz-Formatierung: {str(e)}")
-            return "0.00"
 
     def _validate_export_data(self, export_data: List[dict]) -> bool:
         """
@@ -9144,34 +8680,6 @@ class ResultsExporter:
             for cat, color in self.category_colors.items():
                 print(f"- {cat}: {color}")
 
-
-    def _generate_pastel_colors(self, num_colors):
-        """
-        Generiert eine Palette mit Pastellfarben.
-        
-        Args:
-            num_colors (int): Anzahl der benötigten Farben
-        
-        Returns:
-            List[str]: Liste von Hex-Farbcodes in Pastelltönen
-        """
-        import colorsys
-        
-        pastel_colors = []
-        for i in range(num_colors):
-            # Wähle Hue gleichmäßig über Farbkreis
-            hue = i / num_colors
-            # Konvertiere HSV zu RGB mit hoher Helligkeit und Sättigung
-            rgb = colorsys.hsv_to_rgb(hue, 0.4, 0.95)
-            # Konvertiere RGB zu Hex
-            hex_color = 'FF{:02x}{:02x}{:02x}'.format(
-                int(rgb[0] * 255), 
-                int(rgb[1] * 255), 
-                int(rgb[2] * 255)
-            )
-            pastel_colors.append(hex_color)
-        
-        return pastel_colors
 
     
                     
@@ -9726,11 +9234,15 @@ class ResultsExporter:
                         document_summaries: Dict[str, str] = None) -> None:
         """
         Exportiert die Analyseergebnisse mit Konsensfindung zwischen Kodierern.
+        KORRIGIERT: Führt Review-Prozess durch bevor exportiert wird.
         """
         try:
             # Wenn inductive_coder als Parameter übergeben wurde, aktualisiere das Attribut
             if inductive_coder:
                 self.inductive_coder = inductive_coder
+
+            # WICHTIG: Speichere chunks als Instanzvariable für _prepare_coding_for_export
+            self.chunks = chunks
 
             # Erstelle Zeitstempel für den Dateinamen
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -9750,7 +9262,10 @@ class ResultsExporter:
             print(f"\nVerarbeite {len(codings)} Kodierungen...")
             print(f"Gefunden: {total_segments} Segmente, {total_coders} Kodierer")
 
-            # Gruppiere Kodierungen nach Segmenten
+            # ===== NEUER CODE: REVIEW-PROZESS VOR EXPORT =====
+            print(f"\nStarte {export_mode}-Review für Kodierungsentscheidungen...")
+            
+            # Gruppiere Kodierungen nach Segmenten für Review
             segment_codings = {}
             for coding in codings:
                 segment_id = coding.get('segment_id')
@@ -9758,45 +9273,93 @@ class ResultsExporter:
                     if segment_id not in segment_codings:
                         segment_codings[segment_id] = []
                     segment_codings[segment_id].append(coding)
-
-            # Erstelle Konsens-Kodierungen
-            consensus_codings = []
-            for segment_id, segment_codes in segment_codings.items():
-                if export_mode == "consensus":
-                    consensus = self._get_consensus_coding(segment_codes)
-                elif export_mode == "majority":
-                    consensus = self._get_majority_coding(segment_codes)
-                elif export_mode == "manual_priority":
-                    consensus = self._get_manual_priority_coding(segment_codes)
-                else:
-                    raise ValueError(f"Ungültiger export_mode: {export_mode}")
-
-                if consensus:
-                    consensus_codings.append(consensus)
-
-            print(f"Konsens-Kodierungen erstellt: {len(consensus_codings)}")
             
-            # Bereite Export-Daten vor
+            print(f"Gefunden: {len(segment_codings)} einzigartige Segmente")
+            
+            # Führe Review-Prozess durch
+            reviewed_codings = []
+            review_stats = {
+                'consensus_found': 0,
+                'majority_found': 0,
+                'manual_priority': 0,
+                'no_consensus': 0,
+                'single_coding': 0
+            }
+            all_reviewed_codings = []
+
+            for segment_id, segment_codes in segment_codings.items():
+                if len(segment_codes) == 1:
+                    # Nur eine Kodierung für dieses Segment
+                    reviewed_codings.append(segment_codes[0])
+                    review_stats['single_coding'] += 1
+                    continue
+                
+                # Mehrere Kodierungen - führe Review durch
+                final_codings = []  # Kann mehrere sein bei Mehrfachkodierung
+        
+                if export_mode == "consensus":
+                    final_codings = self._get_consensus_coding(segment_codes)
+                elif export_mode == "majority":
+                    final_codings = self._get_majority_coding(segment_codes)
+                elif export_mode == "manual_priority":
+                    final_codings = self._get_manual_priority_coding(segment_codes)
+                
+                # Fallback wenn kein Review-Ergebnis
+                if not final_codings:
+                    final_codings = [segment_codes[0]]  # Nimm die erste
+                    final_codings[0]['category'] = "Kein Kodierkonsens"
+                
+                # Füge alle finalen Kodierungen hinzu
+                all_reviewed_codings.extend(final_codings)
+            
+            # Zeige Review-Statistiken
+            print(f"\nReview-Statistiken ({export_mode}-Modus):")
+            for stat_name, count in review_stats.items():
+                if count > 0:
+                    print(f"- {stat_name}: {count}")
+            
+            print(f"\nNach Review: {len(reviewed_codings)} finale Kodierungen")
+            # ===== ENDE NEUER CODE =====
+
+            # Verwende reviewed_codings statt codings für den Export
             export_data = []
-            for coding in consensus_codings:
+            for coding in all_reviewed_codings:
                 segment_id = coding.get('segment_id', '')
+                # Überspringe Kodierungen ohne segment_id
                 if not segment_id:
                     continue
 
                 try:
                     doc_name = segment_id.split('_chunk_')[0]
                     chunk_id = int(segment_id.split('_chunk_')[1])
+
+                    # NEUE PRÜFUNG: Sicherstellen, dass der Dokumentname im chunks Dictionary existiert
+                    if doc_name not in chunks:
+                         print(f"Warnung: Dokumentname '{doc_name}' aus Segment-ID '{segment_id}' nicht in geladenen Chunks gefunden. Überspringe Export für diese Kodierung.")
+                         continue
+                    
+                    # Stelle sicher, dass der chunk_id im chunks Dictionary für das Dokument existiert
+                    if chunk_id >= len(chunks[doc_name]):
+                         print(f"Warnung: Chunk {segment_id} nicht in den geladenen Chunks für Dokument '{doc_name}' gefunden. Überspringe Export für diese Kodierung.")
+                         continue
+
                     chunk_text = chunks[doc_name][chunk_id]
                     export_entry = self._prepare_coding_for_export(coding, chunk_text, chunk_id, doc_name)
                     export_data.append(export_entry)
+
                 except Exception as e:
-                    print(f"Fehler bei Verarbeitung von Segment {segment_id}: {str(e)}")
+                    print(f"Fehler bei Verarbeitung von Segment {segment_id} für Export: {str(e)}")
+                    # Details zum Fehler ausgeben
+                    import traceback
+                    traceback.print_exc()
                     continue
 
             # Validiere Export-Daten
             if not self._validate_export_data(export_data):
-                print("Fehler: Keine validen Export-Daten vorhanden")
-                return
+                 print("Warnung: Export-Daten enthalten möglicherweise Fehler oder sind unvollständig nach der Aufbereitung.")
+                 if not export_data:
+                      print("Fehler: Keine Export-Daten nach Aufbereitung vorhanden.")
+                      return
 
             # Erstelle DataFrames mit zusätzlicher Bereinigung für Zeilen und Spalten
             try:
@@ -9809,14 +9372,16 @@ class ResultsExporter:
                         sanitized_key = self._sanitize_text_for_excel(key)
                         sanitized_entry[sanitized_key] = value
                     sanitized_export_data.append(sanitized_entry)
-                    
-                print(f"Export-Daten bereinigt: {len(sanitized_export_data)} Einträge")
-                
+
+                print(f"Export-Daten nach Review bereinigt: {len(sanitized_export_data)} Einträge")
+
+                # Verwende ALLE aufbereiteten und reviewten Export-Einträge für den df_details
                 df_details = pd.DataFrame(sanitized_export_data)
-                df_coded = df_details[df_details['Kodiert'] == 'Ja'].copy()
-                
+                # Filtere für df_coded nur die Einträge, die erfolgreich kodiert wurden
+                df_coded = df_details[df_details['Kodiert'].isin(['Ja', 'Teilweise'])].copy()
+
                 print(f"DataFrames erstellt: {len(df_details)} Gesamt, {len(df_coded)} Kodiert")
-                
+
             except Exception as e:
                 print(f"Fehler bei der Erstellung des DataFrame: {str(e)}")
                 print("Details:")
@@ -9826,7 +9391,7 @@ class ResultsExporter:
             # Initialisiere Farbzuordnung einmalig für alle Sheets
             self._initialize_category_colors(df_details)
 
-            print(f"DataFrames erstellt: {len(df_details)} Gesamt, {len(df_coded)} Kodiert")
+            print(f"Finale DataFrames erstellt: {len(df_details)} Gesamt, {len(df_coded)} Kodiert")
 
             # Exportiere nach Excel
             with pd.ExcelWriter(filepath, engine='openpyxl') as writer:
@@ -9849,12 +9414,12 @@ class ResultsExporter:
                     print("\nExportiere Revisionshistorie...")
                     revision_manager._export_revision_history(writer, revision_manager.changes)
                 
-                # 4. Exportiere Intercoderanalyse
+                # 4. Exportiere Intercoderanalyse (mit ursprünglichen Kodierungen vor Review)
                 if segment_codings:
                     print("\nExportiere Intercoderanalyse...")
                     self._export_intercoder_analysis(
                         writer, 
-                        segment_codings,
+                        segment_codings,  # Verwende ursprüngliche Kodierungen für Intercoder-Analyse
                         reliability
                     )
 
@@ -9882,14 +9447,9 @@ class ResultsExporter:
                 if document_summaries:
                     self._export_progressive_summaries(writer, document_summaries)
 
-                # Identifiziere Review-Entscheidungen in den Kodierungen
-                review_decisions = [coding for coding in codings if coding.get('manual_review', False)]
+                # 8. Exportiere Review-Statistiken
+                self._export_review_statistics(writer, review_stats, export_mode)
 
-                # 8. Exportiere manuelle Review-Entscheidungen, falls vorhanden
-                if review_decisions:
-                    print("\nExportiere manuelle Review-Entscheidungen...")
-                    self._export_review_decisions(writer, review_decisions)
-                    
                 # Stelle sicher, dass mindestens ein Sheet sichtbar ist
                 if len(writer.book.sheetnames) == 0:
                     writer.book.create_sheet('Leeres_Sheet')
@@ -9899,8 +9459,8 @@ class ResultsExporter:
                     writer.book[sheet].sheet_state = 'visible'
 
                 print(f"\nErgebnisse erfolgreich exportiert nach: {filepath}")
-                print(f"- {len(consensus_codings)} Konsens-Kodierungen")
-                print(f"- {len(segment_codings)} Segmente analysiert")
+                print(f"- {len(segment_codings)} Segmente vor Review")
+                print(f"- {len(reviewed_codings)} finale Kodierungen nach {export_mode}-Review")
                 print(f"- Reliabilität: {reliability:.3f}")
 
         except Exception as e:
@@ -9908,7 +9468,77 @@ class ResultsExporter:
             import traceback
             traceback.print_exc()
             raise
-    
+
+    def _export_review_statistics(self, writer, review_stats: Dict, export_mode: str):
+        """
+        Exportiert Statistiken des Review-Prozesses in ein separates Excel-Sheet.
+        
+        Args:
+            writer: Excel Writer Objekt
+            review_stats: Statistiken des Review-Prozesses
+            export_mode: Verwendeter Review-Modus
+        """
+        try:
+            if 'Review_Statistiken' not in writer.sheets:
+                writer.book.create_sheet('Review_Statistiken')
+                
+            worksheet = writer.sheets['Review_Statistiken']
+            current_row = 1
+            
+            # Titel
+            worksheet.cell(row=current_row, column=1, value=f"Review-Statistiken ({export_mode}-Modus)")
+            worksheet.cell(row=current_row, column=1).font = Font(bold=True, size=14)
+            current_row += 2
+            
+            # Statistiken
+            worksheet.cell(row=current_row, column=1, value="Kategorie")
+            worksheet.cell(row=current_row, column=2, value="Anzahl")
+            worksheet.cell(row=current_row, column=1).font = Font(bold=True)
+            worksheet.cell(row=current_row, column=2).font = Font(bold=True)
+            current_row += 1
+            
+            total_reviewed = sum(review_stats.values())
+            for stat_name, count in review_stats.items():
+                if count > 0:
+                    # Übersetze Statistik-Namen
+                    german_names = {
+                        'consensus_found': 'Konsens gefunden',
+                        'majority_found': 'Mehrheit gefunden', 
+                        'manual_priority': 'Manuelle Priorität',
+                        'no_consensus': 'Kein Konsens',
+                        'single_coding': 'Einzelkodierung'
+                    }
+                    
+                    display_name = german_names.get(stat_name, stat_name)
+                    worksheet.cell(row=current_row, column=1, value=display_name)
+                    worksheet.cell(row=current_row, column=2, value=count)
+                    
+                    # Prozentangabe
+                    if total_reviewed > 0:
+                        percentage = (count / total_reviewed) * 100
+                        worksheet.cell(row=current_row, column=3, value=f"{percentage:.1f}%")
+                    
+                    current_row += 1
+            
+            # Gesamtsumme
+            worksheet.cell(row=current_row, column=1, value="Gesamt")
+            worksheet.cell(row=current_row, column=2, value=total_reviewed)
+            worksheet.cell(row=current_row, column=3, value="100.0%")
+            worksheet.cell(row=current_row, column=1).font = Font(bold=True)
+            worksheet.cell(row=current_row, column=2).font = Font(bold=True)
+            worksheet.cell(row=current_row, column=3).font = Font(bold=True)
+            
+            # Spaltenbreiten anpassen
+            worksheet.column_dimensions['A'].width = 20
+            worksheet.column_dimensions['B'].width = 10
+            worksheet.column_dimensions['C'].width = 10
+            
+            print("Review-Statistiken erfolgreich exportiert")
+            
+        except Exception as e:
+            print(f"Fehler beim Export der Review-Statistiken: {str(e)}")
+            import traceback
+            traceback.print_exc()
     def _export_progressive_summaries(self, writer, document_summaries):
         """
         Exportiert die finalen Document-Summaries mit verbesserter Fehlerbehandlung.
@@ -10165,12 +9795,9 @@ class ResultsExporter:
 
     def _export_intercoder_analysis(self, writer, segment_codings: Dict[str, List[Dict]], reliability: float):
         """
-        Exportiert die Intercoder-Analyse für Haupt- und Subkategorien mit verbesserter Berechnung.
-
-        Args:
-            writer: Excel Writer Objekt
-            segment_codings: Dictionary mit Kodierungen pro Segment
-            reliability: Berechnete Reliabilität
+        Exportiert die Intercoder-Analyse mit korrekter Behandlung von Mehrfachkodierung.
+        KORRIGIERT: Berücksichtigt, dass bei Mehrfachkodierung Kodierer übereinstimmen können,
+        auch wenn sie verschiedene Instanzen desselben Basis-Segments kodieren.
         """
         try:
             if 'Intercoderanalyse' not in writer.sheets:
@@ -10180,281 +9807,279 @@ class ResultsExporter:
             current_row = 1
 
             # 1. Überschrift und Gesamtreliabilität
-            worksheet.cell(row=current_row, column=1, value="Intercoderanalyse")
+            worksheet.cell(row=current_row, column=1, value="Intercoderanalyse (Mehrfachkodierung berücksichtigt)")
+            worksheet.cell(row=current_row, column=1).font = Font(bold=True, size=14)
             current_row += 2
+            
             worksheet.cell(row=current_row, column=1, value="Krippendorffs Alpha (Hauptkategorien):")
             worksheet.cell(row=current_row, column=2, value=round(reliability, 3))
             current_row += 2
 
-            # 2. Separate Analyse für Haupt- und Subkategorien
-            worksheet.cell(row=current_row, column=1, value="Übereinstimmungsanalyse")
-            current_row += 2
-
-            # 2.1 Hauptkategorien-Analyse
-            worksheet.cell(row=current_row, column=1, value="A. Hauptkategorien")
-            current_row += 1
-
-            headers = [
-                'Segment_ID',
-                'Text',
-                'Anzahl Codierer',
-                'Übereinstimmungsgrad',
-                'Hauptkategorien',
-                'Begründungen'
-            ]
-            for col, header in enumerate(headers, 1):
-                worksheet.cell(row=current_row, column=col, value=header)
-            current_row += 1
-
-            # Analyse für Hauptkategorien
+            # 2. FILTER UND GRUPPIERUNG: Nach Basis-Segmenten
+            print("\nBereite Intercoder-Analyse vor (Mehrfachkodierung)...")
+            
+            # Filtere ursprüngliche Kodierungen
+            original_segment_codings = {}
+            filtered_count = 0
+            
             for segment_id, codings in segment_codings.items():
-                # Normalisiere die Kategorie-Namen für besseren Vergleich
-                categories = [self._sanitize_text_for_excel(c.get('category', '')) for c in codings]
-                # Prüfe, ob alle Kategorien identisch sind
-                category_agreement = len(set(categories)) == 1
-
-                # Verbesserte Text-Extraktion
-                text_chunk = codings[0].get('text', '')
-                if text_chunk:
-                    text_chunk = text_chunk[:200] + ("..." if len(text_chunk) > 200 else "")
-                    # Bereinige Text für Excel
-                    text_chunk = self._sanitize_text_for_excel(text_chunk)
-                else:
-                    text_chunk = "Text nicht verfügbar"
-
-                # Überprüfen Sie die Struktur der 'justification'-Felder
-                justifications = []
-                for c in codings:
-                    justification = c.get('justification', '')
-                    if isinstance(justification, dict):
-                        # Wenn 'justification' ein Dictionary ist, nehmen Sie einen bestimmten Schlüssel
-                        justification_text = justification.get('text', '')
-                    elif isinstance(justification, str):
-                        # Wenn 'justification' ein String ist, verwenden Sie ihn direkt
-                        justification_text = justification
+                original_codings = []
+                
+                for coding in codings:
+                    if (not coding.get('manual_review', False) and 
+                        not coding.get('consolidated_from_multiple', False) and
+                        coding.get('coder_id', '') not in ['consensus', 'majority', 'review']):
+                        original_codings.append(coding)
                     else:
-                        # Wenn 'justification' ein unerwarteter Typ ist, setzen Sie ihn auf einen leeren String
-                        justification_text = ''
-                    
-                    # Bereinige auch die Begründung
-                    justification_text = self._sanitize_text_for_excel(justification_text)
-                    justifications.append(justification_text)
-
-                # Bereinige die Kategorien
-                sanitized_categories = [self._sanitize_text_for_excel(cat) for cat in set(categories)]
-
-                row_data = [
-                    self._sanitize_text_for_excel(segment_id),
-                    text_chunk,
-                    len(codings),
-                    "Vollständig" if category_agreement else "Keine Übereinstimmung",
-                    ' | '.join(sanitized_categories),
-                    '\n'.join([j[:100] + '...' for j in justifications])
-                ]
-
-                for col, value in enumerate(row_data, 1):
-                    worksheet.cell(row=current_row, column=col, value=value)
-                current_row += 1
-
-            # 2.2 Subkategorien-Analyse
-            current_row += 2
-            worksheet.cell(row=current_row, column=1, value="B. Subkategorien")
-            current_row += 1
-
-            headers = [
-                'Segment_ID',
-                'Text',
-                'Anzahl Codierer',
-                'Übereinstimmungsgrad',
-                'Subkategorien',
-                'Begründungen'
-            ]
-            for col, header in enumerate(headers, 1):
-                worksheet.cell(row=current_row, column=col, value=header)
-            current_row += 1
-
-            # Analyse für Subkategorien mit verbesserter Logik
-            for segment_id, codings in segment_codings.items():
-                # Extrahiere die Subkategorien für jede Kodierung
-                subcategories_lists = []
-                for c in codings:
-                    subcats = c.get('subcategories', [])
-                    # Normalisiere die Datenstruktur
-                    if isinstance(subcats, (list, tuple)):
-                        subcategories_lists.append(set(subcats))
-                    else:
-                        # Für den Fall, dass subcategories als String kommt
-                        subcats_list = [s.strip() for s in str(subcats).split(',') if s.strip()]
-                        subcategories_lists.append(set(subcats_list))
-
-                # Verbesserte Text-Extraktion
-                text_chunk = codings[0].get('text', '')
-                if text_chunk:
-                    text_chunk = text_chunk[:200] + ("..." if len(text_chunk) > 200 else "")
-                    # Bereinige Text für Excel
-                    text_chunk = self._sanitize_text_for_excel(text_chunk)
-                else:
-                    text_chunk = "Text nicht verfügbar"
-
-                # Berechne Übereinstimmungsgrad für Subkategorien
-                if subcategories_lists:
-                    # Prüfe vollständige Übereinstimmung
-                    all_equal = all(s == subcategories_lists[0] for s in subcategories_lists)
-                    
-                    # Prüfe auf teilweise Übereinstimmung, wenn nicht vollständig gleich
-                    if not all_equal:
-                        # Prüfe, ob es überhaupt Subkategorien gibt
-                        has_subcats = any(len(s) > 0 for s in subcategories_lists)
-                        
-                        if has_subcats:
-                            # Prüfe, ob es Überschneidungen gibt
-                            partial_overlap = any(len(s1 & s2) > 0 for s1, s2 in itertools.combinations(subcategories_lists, 2) 
-                                            if len(s1) > 0 and len(s2) > 0)
-                            
-                            if partial_overlap:
-                                agreement = "Teilweise"
-                            else:
-                                agreement = "Keine Übereinstimmung"
+                        filtered_count += 1
+                
+                if len(original_codings) >= 2:
+                    original_segment_codings[segment_id] = original_codings
+            
+            # Gruppiere nach Basis-Segmenten
+            base_segment_groups = defaultdict(list)
+            
+            for segment_id, codings in original_segment_codings.items():
+                # Bestimme Basis-Segment-ID
+                base_segment_id = None
+                if codings:
+                    base_segment_id = codings[0].get('Original_Chunk_ID', segment_id)
+                    if not base_segment_id:
+                        if '_inst_' in segment_id:
+                            base_segment_id = segment_id.split('_inst_')[0]
+                        elif segment_id.endswith('-1') or segment_id.endswith('-2'):
+                            base_segment_id = segment_id.rsplit('-', 1)[0]
                         else:
-                            # Wenn keine Subkategorien vorhanden sind
-                            agreement = "Keine Subkategorien"
-                    else:
-                        # Vollständige Übereinstimmung
-                        agreement = "Vollständig"
+                            base_segment_id = segment_id
+                
+                if base_segment_id:
+                    base_segment_groups[base_segment_id].extend(codings)
+            
+            print(f"Basis-Segmente für Intercoder-Analyse: {len(base_segment_groups)}")
+            print(f"Gefilterte Kodierungen: {filtered_count}")
+
+            # 3. Analysiere jedes Basis-Segment
+            worksheet.cell(row=current_row, column=1, value="A. Basis-Segmente Hauptkategorien-Übereinstimmung")
+            worksheet.cell(row=current_row, column=1).font = Font(bold=True)
+            current_row += 1
+
+            headers = [
+                'Basis_Segment_ID',
+                'Text (Auszug)', 
+                'Kodierer',
+                'Identifizierte Kategorien',
+                'Übereinstimmung',
+                'Details'
+            ]
+            
+            # Header formatieren
+            for col, header in enumerate(headers, 1):
+                cell = worksheet.cell(row=current_row, column=col, value=header)
+                cell.font = Font(bold=True)
+                cell.fill = PatternFill(start_color='EEEEEE', end_color='EEEEEE', fill_type='solid')
+            current_row += 1
+
+            # Analysiere jedes Basis-Segment
+            agreement_count = 0
+            total_base_segments = 0
+            
+            for base_segment_id, all_codings in base_segment_groups.items():
+                # Gruppiere nach Kodierern
+                coder_categories = defaultdict(set)
+                coder_details = defaultdict(list)
+                
+                for coding in all_codings:
+                    coder_id = coding.get('coder_id', 'Unbekannt')
+                    category = coding.get('category', '')
+                    subcats = coding.get('subcategories', [])
+                    
+                    if category and category not in ['Nicht kodiert', 'Kein Kodierkonsens']:
+                        coder_categories[coder_id].add(category)
+                        
+                        # Details für Anzeige
+                        if isinstance(subcats, (list, tuple)):
+                            subcats_str = ', '.join(subcats) if subcats else '(keine)'
+                        else:
+                            subcats_str = str(subcats) if subcats else '(keine)'
+                        
+                        instance = coding.get('multiple_coding_instance', 1)
+                        detail = f"Inst.{instance}: {category} [{subcats_str}]"
+                        coder_details[coder_id].append(detail)
+                
+                # Nur Basis-Segmente mit mindestens 2 Kodierern
+                if len(coder_categories) < 2:
+                    continue
+                    
+                total_base_segments += 1
+                
+                # Bestimme Übereinstimmung: Alle Kodierer müssen dieselben Kategorien-Sets haben
+                category_sets = list(coder_categories.values())
+                all_identical = len(set(frozenset(s) for s in category_sets)) == 1
+                
+                if all_identical:
+                    agreement = "✓ Vollständig"
+                    agreement_count += 1
                 else:
-                    agreement = "Keine Subkategorien"
-
-                # Bereinige die Subkategorien
-                all_subcats = set()
-                for subcat_set in subcategories_lists:
-                    all_subcats.update(subcat_set)
-                sanitized_subcats = [self._sanitize_text_for_excel(subcat) for subcat in all_subcats]
-
+                    # Prüfe partielle Übereinstimmung
+                    intersection = set.intersection(*category_sets) if category_sets else set()
+                    if intersection:
+                        agreement = f"◐ Teilweise ({len(intersection)} gemeinsam)"
+                    else:
+                        agreement = "✗ Keine Übereinstimmung"
+                
+                # Sammle alle identifizierten Kategorien
+                all_categories = set()
+                for cat_set in category_sets:
+                    all_categories.update(cat_set)
+                
+                # Extrahiere Beispieltext
+                text_sample = all_codings[0].get('text', '')[:200] + "..." if len(all_codings[0].get('text', '')) > 200 else all_codings[0].get('text', 'Text nicht verfügbar')
+                
+                # Formatiere Kodierer-Details
+                coders_list = sorted(coder_categories.keys())
+                details_text = []
+                for coder in coders_list:
+                    categories = ', '.join(sorted(coder_categories[coder]))
+                    details = '; '.join(coder_details[coder])
+                    details_text.append(f"{coder}: [{categories}] - {details}")
+                
+                # Zeile einfügen
                 row_data = [
-                    self._sanitize_text_for_excel(segment_id),
-                    text_chunk,
-                    len(codings),
+                    self._sanitize_text_for_excel(base_segment_id),
+                    self._sanitize_text_for_excel(text_sample),
+                    ', '.join(coders_list),
+                    self._sanitize_text_for_excel(' | '.join(sorted(all_categories))),
                     agreement,
-                    ' | '.join(sanitized_subcats),
-                    '\n'.join([self._sanitize_text_for_excel(j[:100] + '...') for j in justifications])
+                    self._sanitize_text_for_excel('\n'.join(details_text))
                 ]
-
+                
                 for col, value in enumerate(row_data, 1):
-                    worksheet.cell(row=current_row, column=col, value=value)
-                current_row += 1
-
-            # 3. Übereinstimmungsmatrix für Codierer mit verbesserter Berechnung
-            current_row += 2
-            worksheet.cell(row=current_row, column=1, value="C. Codierer-Vergleichsmatrix")
-            current_row += 1
-
-            # Extrahiere alle eindeutigen Codierer-IDs
-            coders = sorted(list({coding.get('coder_id', 'unknown') for segment_codings_list in segment_codings.values() 
-                                for coding in segment_codings_list}))
-
-            # Erstelle separate Matrizen für Haupt- und Subkategorien
-            for analysis_type in ['Hauptkategorien', 'Subkategorien']:
-                current_row += 1
-                worksheet.cell(row=current_row, column=1, value=f"Matrix für {analysis_type}")
-                current_row += 1
-
-                # Schreibe Spaltenüberschriften
-                for col, coder in enumerate(coders, 2):
-                    worksheet.cell(row=current_row, column=col, value=self._sanitize_text_for_excel(coder))
-                current_row += 1
-
-                # Initialisiere Zähler für die Übereinstimmungsberechnungen
-                agreement_counts = {coder1: {coder2: {'agreements': 0, 'total': 0} 
-                                        for coder2 in coders} 
-                                for coder1 in coders}
-
-                # Berechne Übereinstimmungen für alle Segment-Paare
-                for segment_id, segment_codings_list in segment_codings.items():
-                    # Erstelle ein Dictionary, das jedem Kodierer seine Kodierung für dieses Segment zuordnet
-                    coder_to_coding = {}
-                    for coding in segment_codings_list:
-                        coder_id = coding.get('coder_id', 'unknown')
-                        if analysis_type == 'Hauptkategorien':
-                            # Für Hauptkategorien: Speichere die Kategorie
-                            coder_to_coding[coder_id] = coding.get('category', '')
-                        else:  # Subkategorien
-                            # Für Subkategorien: Speichere die Subkategorien als Set
-                            subcats = coding.get('subcategories', [])
-                            if isinstance(subcats, (list, tuple)):
-                                coder_to_coding[coder_id] = set(subcats)
-                            else:
-                                # Für den Fall, dass subcategories als String kommt
-                                subcats_list = [s.strip() for s in str(subcats).split(',') if s.strip()]
-                                coder_to_coding[coder_id] = set(subcats_list)
-
-                    # Vergleiche alle Paare von Kodierern
-                    for coder1 in coders:
-                        for coder2 in coders:
-                            if coder1 in coder_to_coding and coder2 in coder_to_coding:
-                                # Beide Kodierer haben dieses Segment kodiert
-                                agreement_counts[coder1][coder2]['total'] += 1
-                                
-                                # Überprüfe, ob es eine Übereinstimmung gibt
-                                if analysis_type == 'Hauptkategorien':
-                                    # Für Hauptkategorien: Direkte Gleichheit
-                                    if coder_to_coding[coder1] == coder_to_coding[coder2]:
-                                        agreement_counts[coder1][coder2]['agreements'] += 1
-                                else:  # Subkategorien
-                                    # Für Subkategorien: Überprüfe Set-Gleichheit
-                                    if coder_to_coding[coder1] == coder_to_coding[coder2]:
-                                        agreement_counts[coder1][coder2]['agreements'] += 1
-
-                # Fülle Matrix mit berechneten Übereinstimmungswerten
-                for row_idx, coder1 in enumerate(coders, current_row):
-                    worksheet.cell(row=row_idx, column=1, value=self._sanitize_text_for_excel(coder1))
-
-                    for col_idx, coder2 in enumerate(coders, 2):
-                        # Berechne Prozentsatz der Übereinstimmung
-                        total = agreement_counts[coder1][coder2]['total']
-                        agreements = agreement_counts[coder1][coder2]['agreements']
-                        
-                        if coder1 == coder2:
-                            # Diagonale: 100% Übereinstimmung mit sich selbst
-                            agreement_value = 1.0
-                        elif total > 0:
-                            # Berechne Übereinstimmungsquote
-                            agreement_value = agreements / total
+                    cell = worksheet.cell(row=current_row, column=col, value=value)
+                    cell.alignment = Alignment(wrap_text=True, vertical='top')
+                    
+                    # Farbkodierung basierend auf Übereinstimmung
+                    if col == 5:  # Übereinstimmungs-Spalte
+                        if agreement.startswith("✓"):
+                            cell.fill = PatternFill(start_color='90EE90', end_color='90EE90', fill_type='solid')  # Hellgrün
+                        elif agreement.startswith("◐"):
+                            cell.fill = PatternFill(start_color='FFFF90', end_color='FFFF90', fill_type='solid')  # Hellgelb
                         else:
-                            # Keine gemeinsamen Segmente
-                            agreement_value = 0.0
-                            
-                        cell = worksheet.cell(row=row_idx, column=col_idx, value=agreement_value)
-                        # Formatiere Zelle als Prozentsatz
-                        cell.number_format = '0.00'
-
-                    current_row += 1
-                current_row += 2
-
-            # 4. Zusammenfassende Statistiken
-            current_row += 2
-            worksheet.cell(row=current_row, column=1, value="D. Zusammenfassende Statistiken")
-            current_row += 1
-
-            # Berechne Statistiken
-            total_segments = len(segment_codings)
-            total_coders = len(coders)
-
-            stats = [
-                ('Anzahl analysierter Segmente', total_segments),
-                ('Anzahl Codierer', total_coders),
-                ('Durchschnittliche Übereinstimmung Hauptkategorien', reliability),
-            ]
-
-            for stat_name, stat_value in stats:
-                worksheet.cell(row=current_row, column=1, value=stat_name)
-                cell = worksheet.cell(row=current_row, column=2, value=stat_value)
-                if isinstance(stat_value, float):
-                    cell.number_format = '0.00'
+                            cell.fill = PatternFill(start_color='FFB6C1', end_color='FFB6C1', fill_type='solid')  # Hellrot
+                
                 current_row += 1
 
-            # Formatierung
-            self._format_intercoder_worksheet(worksheet)
+            # Statistik
+            current_row += 1
+            worksheet.cell(row=current_row, column=1, value="Hauptkategorien-Statistik (Basis-Segmente):")
+            worksheet.cell(row=current_row, column=1).font = Font(bold=True)
+            current_row += 1
+            
+            worksheet.cell(row=current_row, column=1, value="Basis-Segmente analysiert:")
+            worksheet.cell(row=current_row, column=2, value=total_base_segments)
+            current_row += 1
+            
+            worksheet.cell(row=current_row, column=1, value="Vollständige Übereinstimmung:")
+            worksheet.cell(row=current_row, column=2, value=f"{agreement_count}/{total_base_segments}")
+            worksheet.cell(row=current_row, column=3, value=f"{(agreement_count/total_base_segments)*100:.1f}%" if total_base_segments > 0 else "0%")
+            current_row += 2
 
+            # 4. Korrigierte Kodierer-Matrix
+            worksheet.cell(row=current_row, column=1, value="B. Kodierer-Übereinstimmungsmatrix (Basis-Segmente)")
+            worksheet.cell(row=current_row, column=1).font = Font(bold=True)
+            current_row += 2
+
+            # Extrahiere alle Kodierer
+            all_coders = set()
+            for codings in base_segment_groups.values():
+                for coding in codings:
+                    all_coders.add(coding.get('coder_id', 'Unbekannt'))
+            
+            coders = sorted(list(all_coders))
+            
+            # Matrix-Header
+            worksheet.cell(row=current_row, column=1, value="Kodierer")
+            for col, coder in enumerate(coders, 2):
+                cell = worksheet.cell(row=current_row, column=col, value=coder)
+                cell.font = Font(bold=True)
+            current_row += 1
+
+            # Berechne paarweise Übereinstimmungen basierend auf Basis-Segmenten
+            for row_idx, coder1 in enumerate(coders):
+                worksheet.cell(row=current_row, column=1, value=coder1)
+                
+                for col_idx, coder2 in enumerate(coders, 2):
+                    if coder1 == coder2:
+                        agreement_value = 1.0
+                    else:
+                        # Berechne Übereinstimmung zwischen coder1 und coder2 auf Basis-Segment-Ebene
+                        common_base_segments = 0
+                        agreements = 0
+                        
+                        for base_segment_id, all_codings in base_segment_groups.items():
+                            # Sammle Kategorien beider Kodierer für dieses Basis-Segment
+                            coder1_categories = set()
+                            coder2_categories = set()
+                            
+                            for coding in all_codings:
+                                coder_id = coding.get('coder_id', '')
+                                category = coding.get('category', '')
+                                
+                                if category and category not in ['Nicht kodiert', 'Kein Kodierkonsens']:
+                                    if coder_id == coder1:
+                                        coder1_categories.add(category)
+                                    elif coder_id == coder2:
+                                        coder2_categories.add(category)
+                            
+                            # Beide Kodierer müssen mindestens eine Kategorie haben
+                            if coder1_categories and coder2_categories:
+                                common_base_segments += 1
+                                # Übereinstimmung wenn beide dieselben Kategorien-Sets haben
+                                if coder1_categories == coder2_categories:
+                                    agreements += 1
+                        
+                        agreement_value = agreements / common_base_segments if common_base_segments > 0 else 0.0
+                    
+                    cell = worksheet.cell(row=current_row, column=col_idx, value=agreement_value)
+                    cell.number_format = '0.00'
+                    
+                    # Farbkodierung
+                    if agreement_value >= 0.8:
+                        cell.fill = PatternFill(start_color='90EE90', end_color='90EE90', fill_type='solid')  # Hellgrün
+                    elif agreement_value >= 0.6:
+                        cell.fill = PatternFill(start_color='FFFF90', end_color='FFFF90', fill_type='solid')  # Hellgelb
+                    else:
+                        cell.fill = PatternFill(start_color='FFB6C1', end_color='FFB6C1', fill_type='solid')  # Hellrot
+                
+                current_row += 1
+
+            # Erklärung hinzufügen
+            current_row += 2
+            worksheet.cell(row=current_row, column=1, value="Erklärung:")
+            worksheet.cell(row=current_row, column=1).font = Font(bold=True)
+            current_row += 1
+            
+            explanation_text = (
+                "Diese Analyse berücksichtigt Mehrfachkodierung korrekt:\n"
+                "- Basis-Segmente werden verwendet (nicht einzelne Kodierungs-Instanzen)\n"
+                "- Kodierer stimmen überein, wenn sie dieselben Kategorien identifizieren\n"
+                "- Auch wenn Kategorien in verschiedenen Mehrfachkodierungs-Instanzen auftreten\n"
+                "- Matrix zeigt Übereinstimmung auf Basis-Segment-Ebene"
+            )
+            
+            cell = worksheet.cell(row=current_row, column=1, value=explanation_text)
+            cell.alignment = Alignment(wrap_text=True, vertical='top')
+            worksheet.merge_cells(start_row=current_row, start_column=1, end_row=current_row, end_column=6)
+
+            # Spaltenbreiten anpassen
+            worksheet.column_dimensions['A'].width = 30
+            worksheet.column_dimensions['B'].width = 40
+            worksheet.column_dimensions['C'].width = 20
+            worksheet.column_dimensions['D'].width = 35
+            worksheet.column_dimensions['E'].width = 20
+            worksheet.column_dimensions['F'].width = 50
+
+            print("Korrigierte Intercoder-Analyse erfolgreich exportiert")
+            
         except Exception as e:
             print(f"Fehler beim Export der Intercoder-Analyse: {str(e)}")
             import traceback
@@ -10728,6 +10353,14 @@ class CategoryRevisionManager:
 
         # Load existing revision history if available
         self._load_revision_history()
+
+        # Prompt-Handler hinzufügen
+        self.prompt_handler = QCAPrompts(
+            forschungsfrage=FORSCHUNGSFRAGE,
+            kodierregeln=KODIERREGELN,
+            deduktive_kategorien=DEDUKTIVE_KATEGORIEN
+        )
+
 
     def revise_category_system(self, 
                                 categories: Dict[str, CategoryDefinition],
@@ -11239,7 +10872,7 @@ class CategoryRevisionManager:
         """
         try:
             # Hole den spezialisierten Prompt für Definitionsverbesserung
-            prompt = self._get_definition_enhancement_prompt(category)
+            prompt = self.prompt_handler.get_definition_enhancement_prompt(category)
             
             input_tokens = estimate_tokens(prompt)
 
@@ -11286,7 +10919,8 @@ class CategoryRevisionManager:
         """
         try:
             # Hole den spezialisierten Prompt für Subkategoriengenerierung
-            prompt = self._get_subcategory_generation_prompt(category)
+            # prompt = self._get_subcategory_generation_prompt(category)
+            prompt = self.prompt_handler.get_subcategory_generation_prompt(category)
             
             input_tokens = estimate_tokens(prompt)
 
@@ -11936,139 +11570,12 @@ class DocumentReader:
             print(f"Fehler beim Extrahieren der Metadaten aus {filename}: {str(e)}")
             return filename, "", ""
 
-# --- Klasse: TokenCounter ---
-class TokenCounter:
-    def __init__(self):
-        self.input_tokens = 0
-        self.output_tokens = 0
 
-    def add_tokens(self, input_tokens: int, output_tokens: int = 0):
-        """
-        Zählt Input- und Output-Tokens.
-        
-        Args:
-            input_tokens: Anzahl der Input-Tokens
-            output_tokens: Anzahl der Output-Tokens (optional, Standard 0)
-        """
-        self.input_tokens += input_tokens
-        self.output_tokens += output_tokens
-
-    def get_report(self):
-        return f"Gesamte Token-Nutzung:\n" \
-               f"Input Tokens: {self.input_tokens}\n" \
-               f"Output Tokens: {self.output_tokens}\n" \
-               f"Gesamt Tokens: {self.input_tokens + self.output_tokens}"
-
-token_counter = TokenCounter()
 
 
 
 # --- Hilfsfunktionen ---
 
-# Hilfsfunktion zur Token-Schätzung
-def estimate_tokens(text: str) -> int:
-    """
-    Schätzt die Anzahl der Tokens in einem Text mit verbesserter Genauigkeit.
-    Berücksichtigt verschiedene Zeichentypen, nicht nur Wortgrenzen.
-    
-    Args:
-        text: Zu schätzender Text
-        
-    Returns:
-        int: Geschätzte Tokenanzahl
-    """
-    if not text:
-        return 0
-        
-    # Grundlegende Schätzung: 1 Token ≈ 4 Zeichen für englischen Text
-    # Für deutsche Texte (mit längeren Wörtern) etwas anpassen: 1 Token ≈ 4.5 Zeichen
-    char_per_token = 4.5
-    
-    # Anzahl der Sonderzeichen, die oft eigene Tokens bilden
-    special_chars = sum(1 for c in text if not c.isalnum() and not c.isspace())
-    
-    # Anzahl der Wörter
-    words = len(text.split())
-    
-    # Gewichtete Berechnung
-    estimated_tokens = int(
-        (len(text) / char_per_token) * 0.7 +  # Zeichenbasierte Schätzung (70% Gewichtung)
-        (words + special_chars) * 0.3          # Wort- und Sonderzeichenbasierte Schätzung (30% Gewichtung)
-    )
-    
-    return max(1, estimated_tokens)  # Mindestens 1 Token
-
-def get_input_with_timeout(prompt: str, timeout: int = 30) -> str:
-    """
-    Fragt nach Benutzereingabe mit Timeout.
-    
-    Args:
-        prompt: Anzuzeigender Text
-        timeout: Timeout in Sekunden
-        
-    Returns:
-        str: Benutzereingabe oder 'n' bei Timeout
-    """
-    import threading
-    import sys
-    import time
-    from threading import Event
-    
-    # Plattformspezifische Imports
-    if sys.platform == 'win32':
-        import msvcrt
-    else:
-        import select
-
-    answer = {'value': None}
-    stop_event = Event()
-    
-    def input_thread():
-        try:
-            # Zeige Countdown
-            remaining_time = timeout
-            while remaining_time > 0 and not stop_event.is_set():
-                sys.stdout.write(f'\r{prompt} ({remaining_time}s): ')
-                sys.stdout.flush()
-                
-                # Plattformspezifische Eingabeprüfung
-                if sys.platform == 'win32':
-                    if msvcrt.kbhit():
-                        answer['value'] = msvcrt.getche().decode().strip().lower()
-                        sys.stdout.write('\n')
-                        stop_event.set()
-                        return
-                else:
-                    if select.select([sys.stdin], [], [], 1)[0]:
-                        answer['value'] = sys.stdin.readline().strip().lower()
-                        stop_event.set()
-                        return
-                
-                time.sleep(1)
-                remaining_time -= 1
-            
-            # Bei Timeout
-            if not stop_event.is_set():
-                sys.stdout.write('\n')
-                sys.stdout.flush()
-                
-        except (KeyboardInterrupt, EOFError):
-            stop_event.set()
-    
-    # Starte Input-Thread
-    thread = threading.Thread(target=input_thread)
-    thread.daemon = True
-    thread.start()
-    
-    # Warte auf Antwort oder Timeout
-    thread.join(timeout)
-    stop_event.set()
-    
-    if answer['value'] is None:
-        print(f"\nKeine Eingabe innerhalb von {timeout} Sekunden - verwende 'n'")
-        return 'n'
-        
-    return answer['value']
 
 async def perform_manual_coding(chunks, categories, manual_coders):
     """
@@ -12207,37 +11714,139 @@ async def perform_manual_coding(chunks, categories, manual_coders):
 async def perform_manual_review(segment_codings, output_dir):
     """
     Führt den manuellen Review für Segmente mit Kodierungsunstimmigkeiten durch.
-    Erweitert um bessere Informationsspeicherung für den Export.
+    KORRIGIERT: Führt auch zu Zusammenführung identischer Hauptcodes pro Chunk.
     
     Args:
         segment_codings: Dictionary mit Segment-ID und zugehörigen Kodierungen
         output_dir: Verzeichnis für Exportdaten
         
     Returns:
-        list: Liste der Review-Entscheidungen
+        list: Liste der finalen Review-Entscheidungen (eine pro Segment)
     """
     review_component = ManualReviewComponent(output_dir)
-    review_decisions = await review_component.review_discrepancies(segment_codings)
     
-    # Erweitere die Review-Entscheidungen um zusätzliche Informationen
-    enhanced_decisions = []
-    for decision in review_decisions:
+    # Führe den manuellen Review durch
+    raw_review_decisions = await review_component.review_discrepancies(segment_codings)
+    
+    # NEUE LOGIK: Führe Hauptcode-Zusammenführung durch
+    print(f"\nVerarbeite {len(raw_review_decisions)} manuelle Review-Entscheidungen...")
+    
+    # Gruppiere Review-Entscheidungen nach Segment-ID
+    segment_decisions = {}
+    for decision in raw_review_decisions:
         segment_id = decision.get('segment_id', '')
-        # Finde die ursprünglichen Kodierungen für dieses Segment
-        original_codings = segment_codings.get(segment_id, [])
-        
-        # Erweitere die Entscheidung um ursprüngliche Kodierungen
-        enhanced_decision = decision.copy()
-        enhanced_decision['competing_codings'] = original_codings
-        enhanced_decision['manual_review'] = True
-        
-        # Extrahiere den Text aus einer der ursprünglichen Kodierungen
-        if original_codings:
-            enhanced_decision['text'] = original_codings[0].get('text', '')
-        
-        enhanced_decisions.append(enhanced_decision)
+        if segment_id:
+            if segment_id not in segment_decisions:
+                segment_decisions[segment_id] = []
+            segment_decisions[segment_id].append(decision)
     
-    return enhanced_decisions
+    # Erstelle finale Review-Entscheidungen (eine pro Segment)
+    final_review_decisions = []
+    consolidation_stats = {
+        'segments_with_multiple_decisions': 0,
+        'segments_consolidated': 0,
+        'total_decisions_before': len(raw_review_decisions),
+        'total_decisions_after': 0
+    }
+    
+    for segment_id, decisions in segment_decisions.items():
+        if len(decisions) > 1:
+            consolidation_stats['segments_with_multiple_decisions'] += 1
+            
+            # Prüfe ob alle Entscheidungen dieselbe Hauptkategorie haben
+            main_categories = [d.get('category', '') for d in decisions]
+            unique_categories = set(main_categories)
+            
+            if len(unique_categories) == 1:
+                # Alle haben dieselbe Hauptkategorie - konsolidiere Subkategorien
+                main_category = list(unique_categories)[0]
+                print(f"  Konsolidiere {len(decisions)} Entscheidungen für Segment {segment_id} (Hauptkategorie: {main_category})")
+                
+                # Sammle alle Subkategorien
+                all_subcategories = []
+                all_justifications = []
+                highest_confidence_decision = None
+                max_confidence = 0
+                
+                for decision in decisions:
+                    # Subkategorien sammeln
+                    subcats = decision.get('subcategories', [])
+                    if isinstance(subcats, (list, tuple)):
+                        all_subcategories.extend(subcats)
+                    
+                    # Begründungen sammeln
+                    justification = decision.get('justification', '')
+                    if justification:
+                        all_justifications.append(justification)
+                    
+                    # Höchste Konfidenz finden
+                    confidence = decision.get('confidence', {})
+                    if isinstance(confidence, dict):
+                        total_conf = confidence.get('total', 0)
+                        if total_conf > max_confidence:
+                            max_confidence = total_conf
+                            highest_confidence_decision = decision
+                
+                # Erstelle konsolidierte Entscheidung
+                if highest_confidence_decision:
+                    consolidated_decision = highest_confidence_decision.copy()
+                    
+                    # Aktualisiere mit konsolidierten Daten
+                    consolidated_decision['subcategories'] = list(set(all_subcategories))  # Entferne Duplikate
+                    consolidated_decision['justification'] = f"[Konsolidiert aus {len(decisions)} manuellen Entscheidungen] " + "; ".join(set(all_justifications))
+                    consolidated_decision['manual_review'] = True
+                    consolidated_decision['consolidated_from_multiple'] = True
+                    consolidated_decision['original_decision_count'] = len(decisions)
+                    
+                    # Hole ursprüngliche Kodierungen für Kontext
+                    original_codings = segment_codings.get(segment_id, [])
+                    consolidated_decision['competing_codings'] = original_codings
+                    
+                    # Extrahiere Text aus ursprünglichen Kodierungen
+                    if original_codings:
+                        consolidated_decision['text'] = original_codings[0].get('text', '')
+                    
+                    final_review_decisions.append(consolidated_decision)
+                    consolidation_stats['segments_consolidated'] += 1
+                    
+                    print(f"    ✓ Konsolidiert zu: {main_category} mit {len(consolidated_decision['subcategories'])} Subkategorien")
+                    
+            else:
+                # Verschiedene Hauptkategorien - das sollte eigentlich nicht passieren bei manuellem Review
+                print(f"  Warnung: Verschiedene Hauptkategorien für Segment {segment_id}: {unique_categories}")
+                # Nimm die erste Entscheidung als Fallback
+                decision = decisions[0]
+                decision['competing_codings'] = segment_codings.get(segment_id, [])
+                if segment_codings.get(segment_id):
+                    decision['text'] = segment_codings[segment_id][0].get('text', '')
+                final_review_decisions.append(decision)
+        else:
+            # Nur eine Entscheidung für dieses Segment
+            decision = decisions[0]
+            # Erweitere die Entscheidung um ursprüngliche Kodierungen
+            original_codings = segment_codings.get(segment_id, [])
+            decision['competing_codings'] = original_codings
+            decision['manual_review'] = True
+            
+            # Extrahiere den Text aus einer der ursprünglichen Kodierungen
+            if original_codings:
+                decision['text'] = original_codings[0].get('text', '')
+            
+            final_review_decisions.append(decision)
+    
+    # Aktualisiere Statistiken
+    consolidation_stats['total_decisions_after'] = len(final_review_decisions)
+    
+    # Zeige Konsolidierungsstatistiken
+    if consolidation_stats['segments_consolidated'] > 0:
+        print(f"\nKonsolidierungsstatistiken:")
+        print(f"- Segmente mit mehreren Entscheidungen: {consolidation_stats['segments_with_multiple_decisions']}")
+        print(f"- Davon konsolidiert: {consolidation_stats['segments_consolidated']}")
+        print(f"- Entscheidungen vor Konsolidierung: {consolidation_stats['total_decisions_before']}")
+        print(f"- Finale Entscheidungen: {consolidation_stats['total_decisions_after']}")
+    
+    return final_review_decisions
+
 
 # ============================ 
 # 5. Hauptprogramm
@@ -12259,6 +11868,19 @@ async def main() -> None:
         else:
             print("Verwende Standard-Konfiguration")
             config = CONFIG
+
+        # Mehrfachkodierungs-Konfiguration anzeigen
+        print(f"""
+╔══════════════════════════════════════════════════════════════╗
+║                    MEHRFACHKODIERUNG                         ║
+╠══════════════════════════════════════════════════════════════╣
+║ Status: {'✓ AKTIVIERT' if CONFIG.get('MULTIPLE_CODINGS', True) else '✗ DEAKTIVIERT'}                                   ║
+║ Schwellenwert: {CONFIG.get('MULTIPLE_CODING_THRESHOLD', 0.6):.1%} Relevanz                        ║
+║ Verhalten: Segmente werden mehrfach kodiert wenn sie         ║
+║           >= {CONFIG.get('MULTIPLE_CODING_THRESHOLD', 0.6):.0%} Relevanz für verschiedene Hauptkategorien   ║
+║           haben                                              ║
+╚══════════════════════════════════════════════════════════════╝""")
+       
 
         # 2. Kategoriensystem initialisieren
         print("\n1. Initialisiere Kategoriensystem...")
@@ -12334,7 +11956,7 @@ async def main() -> None:
                     print("Fahre mit Standard-Kategorien fort")
 
         if not skip_inductive:
-            default_mode = CONFIG.get('ANALYSIS_MODE', 'deductive')
+            default_mode = CONFIG['ANALYSIS_MODE']
             print("\nAktueller Analysemodus aus Codebook: {default_mode}")
             print("Sie haben 10 Sekunden Zeit für die Eingabe.")
             print("Optionen:")
@@ -12637,6 +12259,15 @@ async def main() -> None:
             # 12. Zeige finale Statistiken
             print("\nAnalyse abgeschlossen:")
             print(analysis_manager.get_analysis_report())
+
+            if CONFIG.get('MULTIPLE_CODINGS', True) and all_codings:
+                multiple_coding_stats = _calculate_multiple_coding_stats(all_codings)
+                print(f"""
+                    Mehrfachkodierungs-Statistiken:
+                    - Segmente mit Mehrfachkodierung: {multiple_coding_stats['segments_with_multiple']}
+                    - Durchschnittliche Kodierungen pro Segment: {multiple_coding_stats['avg_codings_per_segment']:.2f}
+                    - Häufigste Kategorie-Kombinationen: {', '.join(multiple_coding_stats['top_combinations'][:3])}
+                    - Fokus-Adherence Rate: {multiple_coding_stats['focus_adherence_rate']:.1%}""")
             
             # Token-Statistiken
             print("\nToken-Nutzung:")
