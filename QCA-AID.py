@@ -7735,37 +7735,158 @@ class ResultsExporter:
 
         
         if best_coding:
-            # Sammle alle Kategorien für competing_categories
-            all_categories = list(set(categories))
-            
-            # Erstelle erweiterte Kodierung
             consensus_coding = best_coding.copy()
-            consensus_coding['multiple_coding_detected'] = True
-            consensus_coding['all_categories'] = all_categories
-            consensus_coding['category_distribution'] = {cat: categories.count(cat) for cat in all_categories}
             
-            # VEREINFACHT: Verwende die Subkategorien der gewählten Kodierung direkt
-            consensus_coding['subcategories'] = best_coding.get('subcategories', [])
+            # KORRIGIERTE Subkategorien-Behandlung
+            main_category = consensus_coding.get('category', '')
+            original_subcats = best_coding.get('subcategories', [])
             
-            consensus_coding['justification'] = f"[Mehrfachkodierung erkannt: {', '.join(all_categories)}] " + consensus_coding.get('justification', '')
+            # Validiere Subkategorien gegen Hauptkategorie
+            validated_subcats = self._validate_subcategories_for_category(
+                original_subcats, main_category
+            )
             
-            # print(f"DEBUG: Consensus coding erstellt für '{consensus_coding.get('category', '')}'")
+            consensus_coding['subcategories'] = validated_subcats
             
             return consensus_coding
         
         # Fallback: Erste Kodierung verwenden
         return segment_codes[0] if segment_codes else {}
 
+    def _validate_subcategories_for_category(self, subcategories: List[str], main_category: str, warn_only: bool = True) -> List[str]:
+        """
+        Validiert Subkategorien gegen eine Hauptkategorie
+        
+        Args:
+            subcategories: Liste der Subkategorien
+            main_category: Hauptkategorie
+            warn_only: Wenn True, nur warnen statt entfernen
+        """
+        if not hasattr(self, 'current_categories') or main_category not in self.current_categories:
+            return subcategories  # Keine Validierung möglich
+        
+        valid_subcats = set(self.current_categories[main_category].subcategories.keys())
+        validated = [sub for sub in subcategories if sub in valid_subcats]
+        invalid = [sub for sub in subcategories if sub not in valid_subcats]
+        
+        if invalid:
+            if warn_only:
+                print(f"WARNUNG: Subkategorien '{invalid}' gehören nicht zu '{main_category}'")
+                print(f"  Gültige Subkategorien: {list(valid_subcats)}")
+                return subcategories  # Behalte alle, nur warnen
+            else:
+                print(f"ENTFERNT: {len(invalid)} ungültige Subkategorien für '{main_category}': {invalid}")
+                return validated
+        
+        return subcategories
+
+    def _get_majority_coding(self, segment_codes: List[Dict]) -> Optional[Dict]:
+        """
+        VEREINFACHT: Nutzt dieselbe Logik wie Schlüsselwörter - nimmt aus bester Kodierung
+        """
+        if not segment_codes:
+            return None
+
+        print(f"\nMehrheitsentscheidung für Segment mit {len(segment_codes)} Kodierungen...")
+
+        # 1. Zähle Hauptkategorien
+        category_counts = Counter(coding['category'] for coding in segment_codes)
+        total_coders = len(segment_codes)
+        
+        # Finde häufigste Hauptkategorie(n)
+        max_count = max(category_counts.values())
+        majority_categories = [
+            category for category, count in category_counts.items()
+            if count == max_count
+        ]
+        
+        print(f"  Kategorieverteilung: {dict(category_counts)}")
+        print(f"  Häufigste Kategorie(n): {majority_categories} ({max_count}/{total_coders})")
+        
+        # 2. Bei eindeutiger Mehrheit
+        if len(majority_categories) == 1:
+            majority_category = majority_categories[0]
+            print(f"  ✓ Eindeutige Mehrheit für: '{majority_category}'")
+        else:
+            # 3. Bei Gleichstand: Wähle nach höchster Konfidenz
+            print(f"  Gleichstand zwischen {len(majority_categories)} Kategorien")
+            
+            # Sammle Kodierungen für die gleichstehenden Kategorien
+            tied_codings = [
+                coding for coding in segment_codes
+                if coding['category'] in majority_categories
+            ]
+            
+            # Finde die Kodierung mit der höchsten Konfidenz
+            highest_confidence = -1
+            best_coding = None
+            
+            for coding in tied_codings:
+                # Extrahiere Konfidenzwert
+                confidence = 0.0
+                if isinstance(coding.get('confidence'), dict):
+                    confidence = float(coding['confidence'].get('total', 0))
+                    if confidence == 0:  # Fallback auf category-Konfidenz
+                        confidence = float(coding['confidence'].get('category', 0))
+                elif isinstance(coding.get('confidence'), (int, float)):
+                    confidence = float(coding['confidence'])
+                
+                if confidence > highest_confidence:
+                    highest_confidence = confidence
+                    best_coding = coding
+                    majority_category = coding['category']
+            
+            print(f"  ✓ Tie-Breaking durch Konfidenz: '{majority_category}' (Konfidenz: {highest_confidence:.2f})")
+        
+        # 4. Sammle alle Kodierungen für die gewählte Mehrheitskategorie
+        matching_codings = [
+            coding for coding in segment_codes
+            if coding['category'] == majority_category
+        ]
+        
+        # VEREINFACHT: Wähle beste Kodierung und nutze ihre Subkategorien direkt
+        base_coding = max(
+            matching_codings,
+            key=lambda x: self._extract_confidence_value(x)
+        )
+        
+        # VEREINFACHT: Keine komplexe Subkategorien-Sammlung
+        majority_coding = base_coding.copy()
+        main_category = majority_coding.get('category', '')
+        original_subcats = base_coding.get('subcategories', [])
+        validated_subcats = self._validate_subcategories_for_category(original_subcats, main_category)
+        majority_coding['subcategories'] = validated_subcats
+        
+        # Kombiniere Begründungen (bleibt gleich)
+        all_justifications = []
+        for coding in matching_codings:
+            justification = coding.get('justification', '')
+            if justification and justification not in all_justifications:
+                all_justifications.append(justification)  
+        
+        if all_justifications:
+            majority_coding['justification'] = f"[Mehrheit aus {len(matching_codings)} Kodierern] " + " | ".join(all_justifications[:3])
+        
+        # Rest der Dokumentation bleibt gleich
+        majority_coding['consensus_info'] = {
+            'total_coders': total_coders,
+            'category_votes': max_count,
+            'category_agreement': max_count / total_coders,
+            'tied_categories': majority_categories if len(majority_categories) > 1 else [],
+            'source_codings': len(matching_codings),
+            'selection_type': 'majority',
+            'tie_broken_by_confidence': len(majority_categories) > 1
+        }
+        
+        print(f"  ✓ Mehrheits-Kodierung erstellt: '{majority_category}' mit {len(majority_coding['subcategories'])} Subkategorien direkt übernommen: {', '.join(majority_coding['subcategories'])}")
+        
+        return majority_coding
+
+
     def _get_single_consensus_coding(self, segment_codes: List[Dict]) -> Optional[Dict]:
         """
         Ermittelt die Konsens-Kodierung für ein Segment basierend auf einem mehrstufigen Prozess.
         KORRIGIERT: Präzise Subkategorien-Zuordnung ohne Vermischung zwischen Hauptkategorien
-        
-        Args:
-            segment_codes: Liste der Kodierungen für ein Segment von verschiedenen Kodierern
-                
-        Returns:
-            Optional[Dict]: Konsens-Kodierung oder konfidenzbasierte Kodierung
         """
         if not segment_codes:
             return None
@@ -7804,8 +7925,7 @@ class ResultsExporter:
                 result_coding = best_coding.copy()
                 
                 # KORRIGIERT: Behalte nur Subkategorien der gewählten Hauptkategorie
-                if 'subcategories' in best_coding:
-                    result_coding['subcategories'] = best_coding['subcategories']
+                result_coding['subcategories'] = best_coding.get('subcategories', [])
                 
                 # Füge Hinweis zur konfidenzbedingten Auswahl hinzu
                 result_coding['justification'] = (f"[Konfidenzbasierte Auswahl: {highest_confidence:.2f}] " + 
@@ -7881,63 +8001,20 @@ class ResultsExporter:
             if coding['category'] == majority_category
         ]
         
-        # 4. PRÄZISE Subkategorien-Konsens NUR für die Mehrheitskategorie
-        # print(f"DEBUG: Analysiere Subkategorien für Hauptkategorie '{majority_category}'")
-        
-        # Sammle Subkategorien gruppiert nach Kodierer
-        coder_subcategories = {}
-        
-        for coding in matching_codings:
-            coder_id = coding.get('coder_id', 'unknown')
-            subcats = coding.get('subcategories', [])
-            
-            # Normalisiere Subkategorien-Datenstruktur
-            if isinstance(subcats, (list, tuple)):
-                coder_subcategories[coder_id] = set(subcats)
-            elif isinstance(subcats, str) and subcats:
-                # Falls als String übergeben, teile bei Komma
-                subcats_list = [s.strip() for s in subcats.split(',') if s.strip()]
-                coder_subcategories[coder_id] = set(subcats_list)
-            else:
-                coder_subcategories[coder_id] = set()
-            
-            print(f"  Kodierer {coder_id}: {list(coder_subcategories[coder_id])}")
-        
-        # Bestimme Konsens-Subkategorien (von mindestens 50% der Kodierer verwendet)
-        all_subcategories = set()
-        for subcat_set in coder_subcategories.values():
-            all_subcategories.update(subcat_set)
-        
-        subcat_counts = {}
-        for subcat in all_subcategories:
-            count = sum(1 for subcat_set in coder_subcategories.values() if subcat in subcat_set)
-            subcat_counts[subcat] = count
-        
-        # Wähle Subkategorien die von mindestens 50% der Kodierer verwendet wurden
-        min_subcat_votes = len(matching_codings) / 2
-        consensus_subcats = [
-            subcat for subcat, count in subcat_counts.items()
-            if count >= min_subcat_votes
-        ]
-        
-        print(f"  Subkategorien-Konsens für '{majority_category}': {len(consensus_subcats)} von {len(all_subcategories)} einzigartige gefunden")
-        for subcat, count in sorted(subcat_counts.items(), key=lambda x: x[1], reverse=True):
-            if count >= min_subcat_votes:
-                print(f"    ✓ {subcat}: {count}/{len(matching_codings)} Kodierer")
-            else:
-                print(f"    ✗ {subcat}: {count}/{len(matching_codings)} Kodierer (nicht genug)")
-        
-        # 5. Wähle die beste Basiskodierung aus
+        # VEREINFACHT: Wähle beste Kodierung und nutze ihre Subkategorien direkt
         base_coding = max(
             matching_codings,
-            key=lambda x: self._calculate_coding_quality(x, consensus_subcats)
+            key=lambda x: self._extract_confidence_value(x)
         )
         
-        # 6. Erstelle finale Konsens-Kodierung
+        # VEREINFACHT: Keine komplexe Subkategorien-Sammlung mehr
         consensus_coding = base_coding.copy()
-        consensus_coding['subcategories'] = consensus_subcats  # NUR Konsens-Subkategorien für diese Hauptkategorie
+        main_category = consensus_coding.get('category', '')
+        original_subcats = base_coding.get('subcategories', [])
+        validated_subcats = self._validate_subcategories_for_category(original_subcats, main_category)
+        consensus_coding['subcategories'] = validated_subcats
         
-        # 7. Kombiniere Begründungen aller matching codings
+        # Kombiniere nur Begründungen der matching codings
         all_justifications = []
         for coding in matching_codings:
             justification = coding.get('justification', '')
@@ -7947,181 +8024,26 @@ class ResultsExporter:
         if all_justifications:
             consensus_coding['justification'] = f"[Konsens aus {len(matching_codings)} Kodierern] " + " | ".join(all_justifications[:3])
         
-        # Dokumentiere den Konsensprozess
         consensus_coding['consensus_info'] = {
             'total_coders': total_coders,
             'category_agreement': max_count / total_coders,
-            'subcategory_agreement': len(consensus_subcats) / len(all_subcategories) if all_subcategories else 1.0,
             'source_codings': len(matching_codings),
-            'selection_type': 'consensus',
-            'subcategory_distribution': dict(subcat_counts)
+            'selection_type': 'consensus'
         }
         
         print(f"\nKonsens-Kodierung erstellt:")
         print(f"- Hauptkategorie: {consensus_coding['category']} ({max_count}/{total_coders} Kodierer)")
-        print(f"- Subkategorien: {len(consensus_subcats)} im Konsens: {', '.join(consensus_subcats)}")
+        print(f"- Subkategorien: {len(consensus_coding['subcategories'])} direkt übernommen: {', '.join(consensus_coding['subcategories'])}")
         print(f"- Übereinstimmung: {(max_count/total_coders)*100:.1f}%")
         
         return consensus_coding
 
-    def _get_majority_coding(self, segment_codes: List[Dict]) -> Optional[Dict]:
-        """
-        Ermittelt die Mehrheits-Kodierung für ein Segment basierend auf einfacher Mehrheit.
-        KORRIGIERT: Subkategorien werden korrekt verarbeitet und zusammengeführt.
-        
-        Args:
-            segment_codes: Liste der Kodierungen für ein Segment von verschiedenen Kodierern
-                
-        Returns:
-            Optional[Dict]: Mehrheits-Kodierung oder konfidenzbasierte Kodierung
-        """
-        if not segment_codes:
-            return None
-
-        print(f"\nMehrheitsentscheidung für Segment mit {len(segment_codes)} Kodierungen...")
-
-        # 1. Zähle Hauptkategorien
-        category_counts = Counter(coding['category'] for coding in segment_codes)
-        total_coders = len(segment_codes)
-        
-        # Finde häufigste Hauptkategorie(n)
-        max_count = max(category_counts.values())
-        majority_categories = [
-            category for category, count in category_counts.items()
-            if count == max_count
-        ]
-        
-        print(f"  Kategorieverteilung: {dict(category_counts)}")
-        print(f"  Häufigste Kategorie(n): {majority_categories} ({max_count}/{total_coders})")
-        
-        # 2. Bei eindeutiger Mehrheit
-        if len(majority_categories) == 1:
-            majority_category = majority_categories[0]
-            print(f"  ✓ Eindeutige Mehrheit für: '{majority_category}'")
-        else:
-            # 3. Bei Gleichstand: Wähle nach höchster Konfidenz
-            print(f"  Gleichstand zwischen {len(majority_categories)} Kategorien")
-            
-            # Sammle Kodierungen für die gleichstehenden Kategorien
-            tied_codings = [
-                coding for coding in segment_codes
-                if coding['category'] in majority_categories
-            ]
-            
-            # Finde die Kodierung mit der höchsten Konfidenz
-            highest_confidence = -1
-            best_coding = None
-            
-            for coding in tied_codings:
-                # Extrahiere Konfidenzwert
-                confidence = 0.0
-                if isinstance(coding.get('confidence'), dict):
-                    confidence = float(coding['confidence'].get('total', 0))
-                    if confidence == 0:  # Fallback auf category-Konfidenz
-                        confidence = float(coding['confidence'].get('category', 0))
-                elif isinstance(coding.get('confidence'), (int, float)):
-                    confidence = float(coding['confidence'])
-                
-                if confidence > highest_confidence:
-                    highest_confidence = confidence
-                    best_coding = coding
-                    majority_category = coding['category']
-            
-            print(f"  ✓ Tie-Breaking durch Konfidenz: '{majority_category}' (Konfidenz: {highest_confidence:.2f})")
-        
-        # 4. Sammle alle Kodierungen für die gewählte Mehrheitskategorie
-        matching_codings = [
-            coding for coding in segment_codes
-            if coding['category'] == majority_category
-        ]
-        
-        # 5. WICHTIG: Subkategorien-Mehrheitsentscheidung
-        all_subcategories = []
-        for coding in matching_codings:
-            subcats = coding.get('subcategories', [])
-            # Normalisiere Datenstruktur
-            if isinstance(subcats, (list, tuple)):
-                all_subcategories.extend(subcats)
-            elif isinstance(subcats, str) and subcats:
-                # Falls als String übergeben, teile bei Komma
-                subcats_list = [s.strip() for s in subcats.split(',') if s.strip()]
-                all_subcategories.extend(subcats_list)
-        
-        # Zähle Subkategorien
-        subcat_counts = Counter(all_subcategories)
-        
-        # Wähle Subkategorien die von mindestens der Hälfte der Kodierer dieser Kategorie verwendet wurden
-        min_subcat_votes = len(matching_codings) / 2
-        majority_subcats = [
-            subcat for subcat, count in subcat_counts.items()
-            if count >= min_subcat_votes
-        ]
-        
-        print(f"  Subkategorien-Mehrheit: {len(majority_subcats)} von {len(set(all_subcategories))} einzigartige")
-        for subcat, count in subcat_counts.most_common():
-            if count >= min_subcat_votes:
-                print(f"    ✓ {subcat}: {count}/{len(matching_codings)} Kodierer")
-            else:
-                print(f"    ✗ {subcat}: {count}/{len(matching_codings)} Kodierer")
-        
-        # 6. Wähle die beste Basiskodierung (höchste Konfidenz unter den Mehrheitskodierungen)
-        base_coding = max(
-            matching_codings,
-            key=lambda x: self._extract_confidence_value(x)
-        )
-        
-        # 7. Erstelle finale Mehrheits-Kodierung
-        majority_coding = base_coding.copy()
-        majority_coding['subcategories'] = majority_subcats  # WICHTIG: Setze Mehrheits-Subkategorien
-        
-        # 8. Kombiniere Begründungen
-        all_justifications = []
-        for coding in matching_codings:
-            justification = coding.get('justification', '')
-            if justification and justification not in all_justifications:
-                all_justifications.append(justification)  
-        
-        if all_justifications:
-            majority_coding['justification'] = f"[Mehrheit aus {len(matching_codings)} Kodierern] " + " | ".join(all_justifications[:3])
-        
-        # Dokumentiere den Mehrheitsprozess
-        majority_coding['consensus_info'] = {
-            'total_coders': total_coders,
-            'category_votes': max_count,
-            'category_agreement': max_count / total_coders,
-            'tied_categories': majority_categories if len(majority_categories) > 1 else [],
-            'subcategory_agreement': len(majority_subcats) / len(set(all_subcategories)) if all_subcategories else 1.0,
-            'selection_type': 'majority',
-            'tie_broken_by_confidence': len(majority_categories) > 1,
-            'subcategory_distribution': dict(subcat_counts)
-        }
-        
-        # Aktualisiere Begründung
-        if len(majority_categories) > 1:
-            majority_coding['justification'] = (
-                f"[Mehrheitsentscheidung mit Tie-Breaking] " + 
-                majority_coding.get('justification', '')
-            )
-        else:
-            majority_coding['justification'] = (
-                f"[Mehrheitsentscheidung: {max_count}/{total_coders}] " + 
-                majority_coding.get('justification', '')
-            )
-        
-        print(f"  ✓ Mehrheits-Kodierung erstellt: '{majority_category}' mit {len(majority_subcats)} Subkategorien: {', '.join(majority_subcats)}")
-        
-        return majority_coding
-    
     def _create_category_specific_codings(self, segment_codes: List[Dict], segment_id: str) -> List[Dict]:
         """
-        Erstellt kategorie-spezifische Kodierungen mit korrekter Subkategorien-Zuordnung
-        KORRIGIERT: Präzise Zuordnung von Subkategorien zu ihren ursprünglichen Hauptkategorien
+        KORRIGIERT: Präzise Subkategorien-Zuordnung OHNE Mehrfachkodierung zu verhindern
         """
         # Gruppiere Kodierungen nach Hauptkategorien
         category_groups = {}
-        
-        # print(f"DEBUG: Erstelle kategorie-spezifische Kodierungen für {segment_id}")
-        # print(f"Input: {len(segment_codes)} Kodierungen")
         
         for coding in segment_codes:
             main_cat = coding.get('category', '')
@@ -8130,55 +8052,64 @@ class ResultsExporter:
                     category_groups[main_cat] = []
                 category_groups[main_cat].append(coding)
         
-        # print(f"DEBUG: Kategorie-Gruppen für {segment_id}: {list(category_groups.keys())}")
-        
-        # Erstelle für jede Hauptkategorie eine konsolidierte Kodierung
         result_codings = []
         
         for i, (main_cat, codings_for_cat) in enumerate(category_groups.items(), 1):
-            # print(f"DEBUG: Verarbeite Hauptkategorie '{main_cat}' mit {len(codings_for_cat)} Kodierungen")
+            print(f"DEBUG: Verarbeite Hauptkategorie '{main_cat}' mit {len(codings_for_cat)} Kodierungen")
             
             # Wähle die beste Kodierung für diese Kategorie als Basis
             best_coding = max(codings_for_cat, key=lambda x: self._extract_confidence_value(x))
             
-            # VEREINFACHT: Sammle Subkategorien basierend auf der Hauptkategorie
-            category_specific_subcats = set()
-
-            for coding in codings_for_cat:
-                # Hole alle Subkategorien aus Kodierungen für diese Hauptkategorie
-                subcats = coding.get('subcategories', [])
-                
-                # Normalisiere Subkategorien-Format
-                if isinstance(subcats, (list, tuple)):
-                    category_specific_subcats.update(subcats)
-                elif isinstance(subcats, str) and subcats:
-                    category_specific_subcats.update([s.strip() for s in subcats.split(',') if s.strip()])
-                
-                print(f"  Kodierung für '{main_cat}': {len(subcats)} Subkategorien gefunden")
-
-            # Konvertiere zu Liste für JSON-Serialisierung
-            unique_subcats = list(category_specific_subcats)
+            # KRITISCH: Sammle NUR Subkategorien, die für DIESE Hauptkategorie kodiert wurden
+            relevant_subcats = []
             
-            # KORRIGIERT: Erstelle konsolidierte Kodierung mit präzisen Subkategorien
+            for coding in codings_for_cat:
+                # Prüfe ob diese Kodierung wirklich für die aktuelle Hauptkategorie ist
+                if coding.get('category') == main_cat:
+                    # Prüfe ob es eine fokussierte Kodierung war
+                    target_category = coding.get('target_category', '')
+                    
+                    if target_category == main_cat or not target_category:
+                        # Diese Kodierung war für diese Hauptkategorie bestimmt
+                        subcats = coding.get('subcategories', [])
+                        if isinstance(subcats, (list, tuple)):
+                            relevant_subcats.extend(subcats)
+                        elif isinstance(subcats, str) and subcats:
+                            subcat_list = [s.strip() for s in subcats.split(',') if s.strip()]
+                            relevant_subcats.extend(subcat_list)
+            
+            # Entferne Duplikate
+            final_subcats = list(set(relevant_subcats))
+            
+            # OPTIONAL: Validiere gegen Kategoriensystem (aber nur als Warnung)
+            if hasattr(self, 'current_categories') and main_cat in self.current_categories:
+                valid_subcats_for_main = set(self.current_categories[main_cat].subcategories.keys())
+                invalid_subcats = [sub for sub in final_subcats if sub not in valid_subcats_for_main]
+                
+                if invalid_subcats:
+                    print(f"  WARNUNG: Ungültige Subkategorien für '{main_cat}' gefunden: {invalid_subcats}")
+                    print(f"  Gültige Subkategorien: {list(valid_subcats_for_main)}")
+                    # NICHT entfernen, nur warnen!
+            
+            print(f"  Finale Subkategorien für '{main_cat}': {final_subcats}")
+            
+            # Erstelle konsolidierte Kodierung
             consolidated_coding = best_coding.copy()
             consolidated_coding['category'] = main_cat
-            consolidated_coding['subcategories'] = unique_subcats  # NUR kategorie-spezifische Subkategorien
+            consolidated_coding['subcategories'] = final_subcats  # Nur relevante Subkategorien
             consolidated_coding['multiple_coding_instance'] = i
             consolidated_coding['total_coding_instances'] = len(category_groups)
             consolidated_coding['target_category'] = main_cat
             consolidated_coding['category_focus_used'] = True
             
-            # Erweiterte Begründung für Mehrfachkodierung
+            # Erweiterte Begründung
             original_justification = consolidated_coding.get('justification', '')
             consolidated_coding['justification'] = f"[Mehrfachkodierung - Kategorie {i}/{len(category_groups)}] {original_justification}"
             
-            print(f"  Kategorie '{main_cat}': {len(unique_subcats)} finale Subkategorien -> {unique_subcats}")
-            
             result_codings.append(consolidated_coding)
         
-        # print(f"DEBUG: Erstellt {len(result_codings)} kategorie-spezifische Kodierungen für {segment_id}")
+        print(f"DEBUG: Erstellt {len(result_codings)} kategorie-spezifische Kodierungen für {segment_id}")
         return result_codings
-    
    
    
     # Zusätzliche Methode für ResultsExporter Klasse
@@ -8345,32 +8276,25 @@ class ResultsExporter:
                     print(f"    Konsens bei manuellen Kodierungen: '{selected_coding['category']}' mit {len(consensus_subcats)} Subkategorien: {', '.join(consensus_subcats)}")
                 else:
                     # Verschiedene Hauptkategorien - wähle nach Konfidenz
-                    print("    Verschiedene Hauptkategorien - wähle nach Konfidenz")
                     selected_coding = max(
                         manual_codings,
                         key=lambda x: self._extract_confidence_value(x)
                     ).copy()
-                    
-                    # WICHTIG: Subkategorien der gewählten Kodierung beibehalten
-                    if 'subcategories' in selected_coding:
-                        original_subcats = selected_coding['subcategories']
-                        selected_coding['subcategories'] = original_subcats
-                    
-                    selected_coding['consensus_info'] = {
-                        'total_coders': len(segment_codes),
-                        'manual_coders': len(manual_codings),
-                        'auto_coders': len(auto_codings),
-                        'selection_type': 'manual_confidence',
-                        'priority_reason': 'Höchste Konfidenz unter manuellen Kodierungen (verschiedene Hauptkategorien)'
-                    }
-                    print(f"    Manuelle Kodierung nach Konfidenz: '{selected_coding['category']}' mit {len(selected_coding.get('subcategories', []))} Subkategorien")
-        
+
+                    # VEREINFACHT: Direkte Übernahme
+                    # selected_coding['subcategories'] = selected_coding.get('subcategories', [])  # DIREKT
+                    main_category = selected_coding.get('category', '')
+                    original_subcats = selected_coding.get('subcategories', [])
+                    validated_subcats = self._validate_subcategories_for_category(original_subcats, main_category)
+                    selected_coding['subcategories'] = validated_subcats
+    
         else:
             # 3. Keine manuellen Kodierungen - verwende automatische mit Konsens
             print("  Keine manuellen Kodierungen - verwende automatische Kodierungen")
             
             # Verwende die bestehende Konsens-Logik für automatische Kodierungen
             consensus_coding = self._get_consensus_coding(auto_codings)
+            
             
             if consensus_coding:
                 selected_coding = consensus_coding.copy()
@@ -8391,27 +8315,9 @@ class ResultsExporter:
                     key=lambda x: self._extract_confidence_value(x)
                 ).copy()
                 
-                # WICHTIG: Subkategorien beibehalten
-                if 'subcategories' in selected_coding:
-                    original_subcats = selected_coding['subcategories']
-                    selected_coding['subcategories'] = original_subcats
-                
-                selected_coding['consensus_info'] = {
-                    'total_coders': len(segment_codes),
-                    'manual_coders': 0,
-                    'auto_coders': len(auto_codings),
-                    'selection_type': 'auto_confidence',
-                    'priority_reason': 'Kein automatischer Konsens - höchste Konfidenz'
-                }
-                print(f"    Automatische Kodierung nach Konfidenz: '{selected_coding['category']}' mit {len(selected_coding.get('subcategories', []))} Subkategorien")
-        
-        # 4. Aktualisiere Begründung mit Prioritätsinformation
-        priority_info = selected_coding['consensus_info']['priority_reason']
-        selected_coding['justification'] = (
-            f"[Manuelle Priorisierung: {priority_info}] " + 
-            selected_coding.get('justification', '')
-        )
-        
+                # VEREINFACHT: Direkte Übernahme
+            selected_coding['subcategories'] = selected_coding.get('subcategories', [])  # DIREKT
+    
         return selected_coding
 
 
@@ -9390,29 +9296,32 @@ class ResultsExporter:
             for segment_id, segment_codes in segment_codings.items():
                 if len(segment_codes) == 1:
                     # Nur eine Kodierung für dieses Segment
-                    reviewed_codings.append(segment_codes[0])
+                    all_reviewed_codings.append(segment_codes[0])
                     continue
                 
-                # Mehrere Kodierungen - führe Review durch
-                if export_mode == "consensus":
-                    final_coding = self._get_consensus_coding(segment_codes)
-                elif export_mode == "majority":
-                    final_coding = self._get_majority_coding(segment_codes)
-                elif export_mode == "manual_priority":
-                    final_coding = self._get_manual_priority_coding(segment_codes)
+                # NEUE LOGIK: Prüfe direkt auf verschiedene Hauptkategorien
+                categories = [coding.get('category', '') for coding in segment_codes]
+                unique_categories = list(set(categories))
                 
-                # Fallback wenn kein Review-Ergebnis
-                if not final_coding:
-                    final_coding = segment_codes[0]
-                    final_coding['category'] = "Kein Kodierkonsens"
-                
-                # KORRIGIERT: Behandle Mehrfachkodierung mit korrekter Subkategorien-Zuordnung
-                if final_coding.get('multiple_coding_detected', False):
-                    # Verwende die neue präzise Methode
+                if len(unique_categories) > 1:
+                    # Echte Mehrfachkodierung: Verschiedene Hauptkategorien
+                    print(f"Mehrfachkodierung erkannt für {segment_id}: {unique_categories}")
                     category_specific_codings = self._create_category_specific_codings(segment_codes, segment_id)
                     all_reviewed_codings.extend(category_specific_codings)
                 else:
-                    # Normale Kodierung ohne Mehrfachkodierung
+                    # Gleiche Hauptkategorie: Normale Review-Logik
+                    if export_mode == "consensus":
+                        final_coding = self._get_consensus_coding(segment_codes)
+                    elif export_mode == "majority":
+                        final_coding = self._get_majority_coding(segment_codes)
+                    elif export_mode == "manual_priority":
+                        final_coding = self._get_manual_priority_coding(segment_codes)
+                    
+                    # Fallback wenn kein Review-Ergebnis
+                    if not final_coding:
+                        final_coding = segment_codes[0]
+                        final_coding['category'] = "Kein Kodierkonsens"
+                    
                     all_reviewed_codings.append(final_coding)
 
             # Verwende reviewed_codings statt codings für den Export
@@ -12475,6 +12384,8 @@ async def main() -> None:
                     analysis_manager=analysis_manager,
                     inductive_coder=reliability_calculator
                 )
+
+                exporter.current_categories = final_categories 
                 
                 # Exportiere Ergebnisse mit Document-Summaries, wenn vorhanden
                 summary_arg = analysis_manager.document_summaries if CONFIG.get('CODE_WITH_CONTEXT', True) else None
