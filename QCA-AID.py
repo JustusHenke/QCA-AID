@@ -18,7 +18,7 @@ New in 0.9.14
 - Neue Export-Felder: Mehrfachkodierung_Instanz, Kategorie_Fokus, Fokus_verwendet
 - Eindeutige Chunk-IDs mit Instanz-Suffix bei Mehrfachkodierung (z.B. "DOC-5-1", "DOC-5-2")
 - Effiziente Batch-Verarbeitung und Caching für Mehrfachkodierungs-Prüfungen
-- Konfigurierbare Deaktivierung der Mehrfachkodierung für traditionelle Einzelkodierung
+- Konfigurierbare Deaktivierung der Mehrfachkodierung für Einzelkodierung
 
 
 Description:
@@ -9511,7 +9511,8 @@ class ResultsExporter:
                     self._export_progressive_summaries(writer, document_summaries)
 
                 # 8. Exportiere Review-Statistiken
-                self._export_review_statistics(writer, export_mode)
+                review_stats = self._calculate_review_statistics(all_reviewed_codings, export_mode)
+                self._export_review_statistics(writer, review_stats, export_mode)
 
                 # Stelle sicher, dass mindestens ein Sheet sichtbar ist
                 if len(writer.book.sheetnames) == 0:
@@ -9531,6 +9532,45 @@ class ResultsExporter:
             import traceback
             traceback.print_exc()
             raise
+    
+    def _calculate_review_statistics(self, codings: List[Dict], export_mode: str) -> Dict[str, int]:
+        """
+        Berechnet Statistiken des Review-Prozesses.
+        
+        Args:
+            codings: Liste der finalen Kodierungen nach Review
+            export_mode: Verwendeter Review-Modus
+            
+        Returns:
+            Dict[str, int]: Statistiken des Review-Prozesses
+        """
+        stats = {
+            'consensus_found': 0,
+            'majority_found': 0,
+            'manual_priority': 0,
+            'no_consensus': 0,
+            'single_coding': 0,
+            'multiple_coding_consolidated': 0
+        }
+        
+        for coding in codings:
+            # Bestimme den Typ der Kodierung basierend auf verfügbaren Informationen
+            if coding.get('manual_review', False):
+                stats['manual_priority'] += 1
+            elif coding.get('consolidated_from_multiple', False):
+                stats['multiple_coding_consolidated'] += 1
+            elif coding.get('consensus_info', {}).get('selection_type') == 'consensus':
+                stats['consensus_found'] += 1
+            elif coding.get('consensus_info', {}).get('selection_type') == 'majority':
+                stats['majority_found'] += 1
+            elif coding.get('consensus_info', {}).get('selection_type') == 'no_consensus':
+                stats['no_consensus'] += 1
+            elif coding.get('category') == 'Kein Kodierkonsens':
+                stats['no_consensus'] += 1
+            else:
+                stats['single_coding'] += 1
+        
+        return stats
 
     def _export_review_statistics(self, writer, review_stats: Dict, export_mode: str):
         """
@@ -9859,8 +9899,7 @@ class ResultsExporter:
     def _export_intercoder_analysis(self, writer, segment_codings: Dict[str, List[Dict]], reliability: float):
         """
         Exportiert die Intercoder-Analyse mit korrekter Behandlung von Mehrfachkodierung.
-        KORRIGIERT: Berücksichtigt, dass bei Mehrfachkodierung Kodierer übereinstimmen können,
-        auch wenn sie verschiedene Instanzen desselben Basis-Segments kodieren.
+        ERWEITERT: Jetzt auch mit Subkategorien-Analyse.
         """
         try:
             if 'Intercoderanalyse' not in writer.sheets:
@@ -9921,7 +9960,7 @@ class ResultsExporter:
             print(f"Basis-Segmente für Intercoder-Analyse: {len(base_segment_groups)}")
             print(f"Gefilterte Kodierungen: {filtered_count}")
 
-            # 3. Analysiere jedes Basis-Segment
+            # 3. HAUPTKATEGORIEN-ANALYSE
             worksheet.cell(row=current_row, column=1, value="A. Basis-Segmente Hauptkategorien-Übereinstimmung")
             worksheet.cell(row=current_row, column=1).font = Font(bold=True)
             current_row += 1
@@ -9942,7 +9981,7 @@ class ResultsExporter:
                 cell.fill = PatternFill(start_color='EEEEEE', end_color='EEEEEE', fill_type='solid')
             current_row += 1
 
-            # Analysiere jedes Basis-Segment
+            # Analysiere jedes Basis-Segment für Hauptkategorien
             agreement_count = 0
             total_base_segments = 0
             
@@ -10031,7 +10070,7 @@ class ResultsExporter:
                 
                 current_row += 1
 
-            # Statistik
+            # Statistik Hauptkategorien
             current_row += 1
             worksheet.cell(row=current_row, column=1, value="Hauptkategorien-Statistik (Basis-Segmente):")
             worksheet.cell(row=current_row, column=1).font = Font(bold=True)
@@ -10046,8 +10085,133 @@ class ResultsExporter:
             worksheet.cell(row=current_row, column=3, value=f"{(agreement_count/total_base_segments)*100:.1f}%" if total_base_segments > 0 else "0%")
             current_row += 2
 
-            # 4. Korrigierte Kodierer-Matrix
-            worksheet.cell(row=current_row, column=1, value="B. Kodierer-Übereinstimmungsmatrix (Basis-Segmente)")
+            # 4. NEU: SUBKATEGORIEN-ANALYSE
+            worksheet.cell(row=current_row, column=1, value="B. Subkategorien-Übereinstimmung")
+            worksheet.cell(row=current_row, column=1).font = Font(bold=True)
+            current_row += 2
+
+            # Header für Subkategorien-Analyse
+            subcat_headers = [
+                'Basis_Segment_ID',
+                'Hauptkategorie', 
+                'Kodierer',
+                'Subkategorien',
+                'Übereinstimmung',
+                'Details'
+            ]
+            
+            for col, header in enumerate(subcat_headers, 1):
+                cell = worksheet.cell(row=current_row, column=col, value=header)
+                cell.font = Font(bold=True)
+                cell.fill = PatternFill(start_color='EEEEEE', end_color='EEEEEE', fill_type='solid')
+            current_row += 1
+
+            # Analysiere Subkategorien für jedes Basis-Segment
+            subcat_agreement_count = 0
+            subcat_total_segments = 0
+            
+            for base_segment_id, all_codings in base_segment_groups.items():
+                # Gruppiere nach Hauptkategorien
+                main_categories = set()
+                for coding in all_codings:
+                    category = coding.get('category', '')
+                    if category and category not in ['Nicht kodiert', 'Kein Kodierkonsens']:
+                        main_categories.add(category)
+                
+                # Für jede Hauptkategorie analysiere Subkategorien-Übereinstimmung
+                for main_cat in main_categories:
+                    # Sammle alle Kodierungen für diese Hauptkategorie
+                    cat_codings = [c for c in all_codings if c.get('category') == main_cat]
+                    
+                    if len(cat_codings) < 2:
+                        continue
+                    
+                    # Gruppiere Subkategorien nach Kodierern
+                    coder_subcats = defaultdict(set)
+                    for coding in cat_codings:
+                        coder_id = coding.get('coder_id', 'Unbekannt')
+                        subcats = coding.get('subcategories', [])
+                        
+                        if isinstance(subcats, (list, tuple)):
+                            coder_subcats[coder_id].update(subcats)
+                        elif isinstance(subcats, str) and subcats:
+                            subcat_list = [s.strip() for s in subcats.split(',') if s.strip()]
+                            coder_subcats[coder_id].update(subcat_list)
+                    
+                    if len(coder_subcats) < 2:
+                        continue
+                    
+                    subcat_total_segments += 1
+                    
+                    # Bestimme Subkategorien-Übereinstimmung
+                    subcat_sets = list(coder_subcats.values())
+                    subcat_identical = len(set(frozenset(s) for s in subcat_sets)) == 1
+                    
+                    if subcat_identical:
+                        subcat_agreement = "✓ Vollständig"
+                        subcat_agreement_count += 1
+                    else:
+                        # Prüfe partielle Übereinstimmung
+                        subcat_intersection = set.intersection(*subcat_sets) if subcat_sets else set()
+                        if subcat_intersection:
+                            subcat_agreement = f"◐ Teilweise ({len(subcat_intersection)} gemeinsam)"
+                        else:
+                            subcat_agreement = "✗ Keine Übereinstimmung"
+                    
+                    # Sammle alle Subkategorien
+                    all_subcats = set()
+                    for subcat_set in subcat_sets:
+                        all_subcats.update(subcat_set)
+                    
+                    # Formatiere Details
+                    coders_list = sorted(coder_subcats.keys())
+                    subcat_details = []
+                    for coder in coders_list:
+                        subcats = ', '.join(sorted(coder_subcats[coder])) if coder_subcats[coder] else '(keine)'
+                        subcat_details.append(f"{coder}: [{subcats}]")
+                    
+                    # Zeile einfügen
+                    subcat_row_data = [
+                        self._sanitize_text_for_excel(base_segment_id),
+                        self._sanitize_text_for_excel(main_cat),
+                        ', '.join(coders_list),
+                        self._sanitize_text_for_excel(', '.join(sorted(all_subcats))),
+                        subcat_agreement,
+                        self._sanitize_text_for_excel('\n'.join(subcat_details))
+                    ]
+                    
+                    for col, value in enumerate(subcat_row_data, 1):
+                        cell = worksheet.cell(row=current_row, column=col, value=value)
+                        cell.alignment = Alignment(wrap_text=True, vertical='top')
+                        
+                        # Farbkodierung basierend auf Übereinstimmung
+                        if col == 5:  # Übereinstimmungs-Spalte
+                            if subcat_agreement.startswith("✓"):
+                                cell.fill = PatternFill(start_color='90EE90', end_color='90EE90', fill_type='solid')
+                            elif subcat_agreement.startswith("◐"):
+                                cell.fill = PatternFill(start_color='FFFF90', end_color='FFFF90', fill_type='solid')
+                            else:
+                                cell.fill = PatternFill(start_color='FFB6C1', end_color='FFB6C1', fill_type='solid')
+                    
+                    current_row += 1
+
+            # Statistik Subkategorien
+            current_row += 1
+            worksheet.cell(row=current_row, column=1, value="Subkategorien-Statistik:")
+            worksheet.cell(row=current_row, column=1).font = Font(bold=True)
+            current_row += 1
+            
+            worksheet.cell(row=current_row, column=1, value="Hauptkategorie-Instanzen analysiert:")
+            worksheet.cell(row=current_row, column=2, value=subcat_total_segments)
+            current_row += 1
+            
+            worksheet.cell(row=current_row, column=1, value="Vollständige Subkat-Übereinstimmung:")
+            worksheet.cell(row=current_row, column=2, value=f"{subcat_agreement_count}/{subcat_total_segments}")
+            worksheet.cell(row=current_row, column=3, value=f"{(subcat_agreement_count/subcat_total_segments)*100:.1f}%" if subcat_total_segments > 0 else "0%")
+            current_row += 2
+
+            # 5. Kodierer-Übereinstimmungsmatrix (bestehend)
+            worksheet.cell(row=current_row, column=1, value="C. Kodierer-Übereinstimmungsmatrix (Basis-Segmente)")
             worksheet.cell(row=current_row, column=1).font = Font(bold=True)
             current_row += 2
 
@@ -10107,11 +10271,11 @@ class ResultsExporter:
                     
                     # Farbkodierung
                     if agreement_value >= 0.8:
-                        cell.fill = PatternFill(start_color='90EE90', end_color='90EE90', fill_type='solid')  # Hellgrün
+                        cell.fill = PatternFill(start_color='90EE90', end_color='90EE90', fill_type='solid')
                     elif agreement_value >= 0.6:
-                        cell.fill = PatternFill(start_color='FFFF90', end_color='FFFF90', fill_type='solid')  # Hellgelb
+                        cell.fill = PatternFill(start_color='FFFF90', end_color='FFFF90', fill_type='solid')
                     else:
-                        cell.fill = PatternFill(start_color='FFB6C1', end_color='FFB6C1', fill_type='solid')  # Hellrot
+                        cell.fill = PatternFill(start_color='FFB6C1', end_color='FFB6C1', fill_type='solid')
                 
                 current_row += 1
 
@@ -10122,11 +10286,11 @@ class ResultsExporter:
             current_row += 1
             
             explanation_text = (
-                "Diese Analyse berücksichtigt Mehrfachkodierung korrekt:\n"
-                "- Basis-Segmente werden verwendet (nicht einzelne Kodierungs-Instanzen)\n"
-                "- Kodierer stimmen überein, wenn sie dieselben Kategorien identifizieren\n"
-                "- Auch wenn Kategorien in verschiedenen Mehrfachkodierungs-Instanzen auftreten\n"
-                "- Matrix zeigt Übereinstimmung auf Basis-Segment-Ebene"
+                "Diese Analyse berücksichtigt Mehrfachkodierung korrekt und analysiert sowohl:\n"
+                "- Hauptkategorien-Übereinstimmung auf Basis-Segment-Ebene\n"
+                "- Subkategorien-Übereinstimmung für jede Hauptkategorie\n"
+                "- Kodierer stimmen überein, wenn sie dieselben Kategorien/Subkategorien identifizieren\n"
+                "- Auch wenn Kategorien in verschiedenen Mehrfachkodierungs-Instanzen auftreten"
             )
             
             cell = worksheet.cell(row=current_row, column=1, value=explanation_text)
@@ -10141,13 +10305,13 @@ class ResultsExporter:
             worksheet.column_dimensions['E'].width = 20
             worksheet.column_dimensions['F'].width = 50
 
-            print("Korrigierte Intercoder-Analyse erfolgreich exportiert")
+            print("Erweiterte Intercoder-Analyse (mit Subkategorien) erfolgreich exportiert")
             
         except Exception as e:
             print(f"Fehler beim Export der Intercoder-Analyse: {str(e)}")
             import traceback
             traceback.print_exc()
-
+   
     def _format_intercoder_worksheet(self, worksheet) -> None:
         """
         Formatiert das Intercoder-Worksheet für bessere Lesbarkeit.
