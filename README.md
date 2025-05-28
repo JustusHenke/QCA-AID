@@ -20,6 +20,7 @@ Dieses Python-Skript implementiert Mayrings Methode der deduktiven Qualitativen 
   - [Konfiguration und Anpassbarkeit](#konfiguration-und-anpassbarkeit)
 
 ### Versionen und Updates
+- [Neu in 0.9.14](#neu-in-0914--2025-05-28)
 - [Neu in 0.9.13](#neu-in-0913--2025-05-15)
 - [Neu in 0.9.12](#neu-in-0912--2025-05-10)
 - [Neu in 0.9.11](#neu-in-0911--2025-04-12)
@@ -120,6 +121,17 @@ Prinzipiell ist die Verarbeitung der Daten per LLM auch auf einem lokalen Rechne
 - **Anpassbarer Analysemodus**: Wahl zwischen vollständiger, abduktiver, deduktiver oder grounded Theory Analyse
 - **Excel-basierte Konfiguration**: Einfache Anpassung aller Einstellungen über Excel-Dateien
 - **Erweiterte Visualisierungsoptionen**: Konfigurierbare Diagramme und Analysen im QCA-AID-Explorer
+
+## Neu in 0.9.14 (2025-05-28)
+- Implementierung der Mehrfachkodierung von Textsegmenten für mehrere Hauptkategorien
+- Neue CONFIG-Parameter: MULTIPLE_CODINGS (default: True) und MULTIPLE_CODING_THRESHOLD (default: 0.7)
+- Erweiterte Relevanzprüfung erkennt Segmente mit Bezug zu mehreren Hauptkategorien (>=70% Relevanz)
+- Fokussierte Kodierung: Segmente werden gezielt für jede relevante Hauptkategorie kodiert
+- Export-Erweiterung: Mehrfach kodierte Segmente erscheinen pro Hauptkategorie separat in der Outputtabelle
+- Neue Export-Felder: Mehrfachkodierung_Instanz, Kategorie_Fokus, Fokus_verwendet
+- Eindeutige Chunk-IDs mit Instanz-Suffix bei Mehrfachkodierung (z.B. "DOC-5-1", "DOC-5-2")
+- Effiziente Batch-Verarbeitung und Caching für Mehrfachkodierungs-Prüfungen
+- Konfigurierbare Deaktivierung der Mehrfachkodierung für traditionelle Einzelkodierung
 
 ## Neu in 0.9.13  (2025-05-15)
 - Vollständige Implementierung des 'majority' Review-Modus mit einfacher Mehrheitsentscheidung
