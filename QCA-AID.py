@@ -142,9 +142,12 @@ import traceback
 
 
 # lokale Imports
-from QCA_Utils import TokenCounter, estimate_tokens, get_input_with_timeout, _calculate_multiple_coding_stats, _patch_tkinter_for_threaded_exit, ConfigLoader
-from QCA_ExportUtils import _sanitize_text_for_excel, _generate_pastel_colors, _format_confidence
-from QCA_LLMProviders import LLMProvider, LLMProviderFactory, LLMResponse, MistralProvider, OpenAIProvider
+from QCA_Utils import (
+    TokenCounter, estimate_tokens, get_input_with_timeout, _calculate_multiple_coding_stats, 
+    _patch_tkinter_for_threaded_exit, ConfigLoader,
+    LLMProvider, LLMProviderFactory, LLMResponse, MistralProvider, OpenAIProvider,
+    _sanitize_text_for_excel, _generate_pastel_colors, _format_confidence
+)
 from QCA_Prompts import QCAPrompts  # Prompt Bibliothek
 
 # Instanziierung des globalen Token-Counters
@@ -7695,12 +7698,13 @@ class ResultsExporter:
         self._generate_pastel_colors = _generate_pastel_colors
         self._format_confidence = _format_confidence
 
-    def _get_consensus_coding(self, segment_codes: List[Dict]) -> List[Dict]:  # Ändere Return-Type
+    def _get_consensus_coding(self, segment_codes: List[Dict]) -> Dict:  # Ändere Return-Type zurück zu Dict
         """
-        GEÄNDERT: Gibt jetzt eine Liste von Kodierungen zurück für Mehrfachkodierung
+        KORRIGIERT: Gibt jetzt wieder eine einzelne Kodierung zurück.
+        Bei Mehrfachkodierung wird die erste/beste Kodierung als Repräsentant gewählt.
         """
         if not segment_codes:
-            return []
+            return {}
 
         # Prüfe ob es echte Mehrfachkodierung gibt (verschiedene Hauptkategorien)
         categories = [coding['category'] for coding in segment_codes]
@@ -7708,25 +7712,53 @@ class ResultsExporter:
         
         # Wenn alle dieselbe Hauptkategorie haben, normale Konsensbildung
         if len(unique_categories) == 1:
-            return [self._get_single_consensus_coding(segment_codes)]
+            return self._get_single_consensus_coding(segment_codes)
         
-        # Mehrfachkodierung: Erstelle separate Kodierungen für jede Hauptkategorie
-        result_codings = []
-        for instance, category in enumerate(unique_categories, 1):
-            category_codings = [c for c in segment_codes if c['category'] == category]
+        # Mehrfachkodierung: Wähle die beste Kodierung als Repräsentant
+        # und markiere sie als Mehrfachkodierung
+        best_coding = None
+        highest_confidence = 0
+        
+        for coding in segment_codes:
+            confidence = self._extract_confidence_value(coding)
+            if confidence > highest_confidence:
+                highest_confidence = confidence
+                best_coding = coding
+        
+        if best_coding:
+            # Sammle alle Kategorien für competing_categories
+            all_categories = list(set(categories))
             
-            if category_codings:
-                consensus_coding = self._get_single_consensus_coding(category_codings)
-                
-                # Füge Mehrfachkodierungs-Metadaten hinzu
-                consensus_coding['multiple_coding_instance'] = instance
-                consensus_coding['total_coding_instances'] = len(unique_categories)
-                consensus_coding['target_category'] = category
-                consensus_coding['category_focus_used'] = True
-                
-                result_codings.append(consensus_coding)
+            # Erstelle erweiterte Kodierung mit Mehrfachkodierungs-Info
+            consensus_coding = best_coding.copy()
+            consensus_coding['multiple_coding_detected'] = True
+            consensus_coding['all_categories'] = all_categories
+            consensus_coding['category_distribution'] = {cat: categories.count(cat) for cat in all_categories}
+            
+            # Sammle alle Subkategorien
+            all_subcategories = []
+            for coding in segment_codes:
+                subcats = coding.get('subcategories', [])
+                if isinstance(subcats, (list, tuple)):
+                    all_subcategories.extend(subcats)
+                elif isinstance(subcats, str) and subcats:
+                    all_subcategories.extend([s.strip() for s in subcats.split(',') if s.strip()])
+            
+            # Entferne Duplikate aber behalte die Reihenfolge
+            unique_subcats = []
+            seen = set()
+            for subcat in all_subcategories:
+                if subcat not in seen:
+                    unique_subcats.append(subcat)
+                    seen.add(subcat)
+            
+            consensus_coding['subcategories'] = unique_subcats
+            consensus_coding['justification'] = f"[Mehrfachkodierung erkannt: {', '.join(all_categories)}] " + consensus_coding.get('justification', '')
+            
+            return consensus_coding
         
-        return result_codings
+        # Fallback: Erste Kodierung verwenden
+        return segment_codes[0] if segment_codes else {}
 
     def _get_single_consensus_coding(self, segment_codes: List[Dict]) -> Optional[Dict]:
         """
@@ -8414,7 +8446,10 @@ class ResultsExporter:
                 display_category = category
                 subcategories = coding.get('subcategories', [])
             
+            # Verbesserte Subkategorien-Verarbeitung
+            subcategories = coding.get('subcategories', [])
             subcats_text = ""
+            
             if subcategories:
                 if isinstance(subcategories, str):
                     # String: Direkt verwenden nach Bereinigung
@@ -8424,17 +8459,26 @@ class ResultsExporter:
                     clean_subcats = []
                     for subcat in subcategories:
                         if subcat and str(subcat).strip():
-                            clean_subcats.append(str(subcat).strip())
+                            clean_text = str(subcat).strip()
+                            # Entferne verschiedene Arten von Klammern und Anführungszeichen
+                            clean_text = clean_text.replace('[', '').replace(']', '').replace("'", "").replace('"', '')
+                            if clean_text:
+                                clean_subcats.append(clean_text)
                     subcats_text = ', '.join(clean_subcats)
                 elif isinstance(subcategories, dict):
                     # Dict: Verwende Schlüssel (falls es ein Dict von Subkategorien ist)
-                    clean_subcats = [str(key).strip() for key in subcategories.keys() if str(key).strip()]
+                    clean_subcats = []
+                    for key in subcategories.keys():
+                        clean_key = str(key).strip()
+                        if clean_key:
+                            clean_subcats.append(clean_key)
                     subcats_text = ', '.join(clean_subcats)
                 else:
-                    # Andere Typen: String-Konversion
+                    # Andere Typen: String-Konversion mit Bereinigung
                     subcats_text = str(subcategories).strip()
+                    subcats_text = subcats_text.replace('[', '').replace(']', '').replace("'", "").replace('"', '')
             
-            # Entferne problematische Zeichen
+            # Zusätzliche Bereinigung für den Export
             subcats_text = subcats_text.replace('[', '').replace(']', '').replace("'", "")
             
             # Bestimme den Kategorietyp und Kodiertstatus
@@ -9288,49 +9332,57 @@ class ResultsExporter:
             print(f"Gefunden: {len(segment_codings)} einzigartige Segmente")
             
             # Führe Review-Prozess durch
+            # Führe Review-Prozess durch
             reviewed_codings = []
-            review_stats = {
-                'consensus_found': 0,
-                'majority_found': 0,
-                'manual_priority': 0,
-                'no_consensus': 0,
-                'single_coding': 0
-            }
             all_reviewed_codings = []
 
             for segment_id, segment_codes in segment_codings.items():
                 if len(segment_codes) == 1:
                     # Nur eine Kodierung für dieses Segment
                     reviewed_codings.append(segment_codes[0])
-                    review_stats['single_coding'] += 1
                     continue
                 
                 # Mehrere Kodierungen - führe Review durch
-                final_codings = []  # Kann mehrere sein bei Mehrfachkodierung
-        
                 if export_mode == "consensus":
-                    final_codings = self._get_consensus_coding(segment_codes)
+                    final_coding = self._get_consensus_coding(segment_codes)  # Gibt jetzt Dict zurück
                 elif export_mode == "majority":
-                    final_codings = self._get_majority_coding(segment_codes)
+                    final_coding = self._get_majority_coding(segment_codes)
                 elif export_mode == "manual_priority":
-                    final_codings = self._get_manual_priority_coding(segment_codes)
+                    final_coding = self._get_manual_priority_coding(segment_codes)
                 
                 # Fallback wenn kein Review-Ergebnis
-                if not final_codings:
-                    final_codings = [segment_codes[0]]  # Nimm die erste
-                    final_codings[0]['category'] = "Kein Kodierkonsens"
+                if not final_coding:
+                    final_coding = segment_codes[0]  # Nimm die erste
+                    final_coding['category'] = "Kein Kodierkonsens"
                 
-                # Füge alle finalen Kodierungen hinzu
-                all_reviewed_codings.extend(final_codings)
-            
-            # Zeige Review-Statistiken
-            print(f"\nReview-Statistiken ({export_mode}-Modus):")
-            for stat_name, count in review_stats.items():
-                if count > 0:
-                    print(f"- {stat_name}: {count}")
-            
-            print(f"\nNach Review: {len(reviewed_codings)} finale Kodierungen")
-            # ===== ENDE NEUER CODE =====
+                # Behandle Mehrfachkodierung: Erstelle separate Einträge wenn nötig
+                if final_coding.get('multiple_coding_detected', False):
+                    # Für jede erkannte Kategorie einen separaten Export-Eintrag erstellen
+                    all_categories = final_coding.get('all_categories', [final_coding['category']])
+                    
+                    for i, category in enumerate(all_categories, 1):
+                        # Erstelle separate Kodierung für jede Kategorie
+                        category_coding = final_coding.copy()
+                        category_coding['category'] = category
+                        category_coding['multiple_coding_instance'] = i
+                        category_coding['total_coding_instances'] = len(all_categories)
+                        category_coding['target_category'] = category
+                        category_coding['category_focus_used'] = True
+                        
+                        # Filtere Subkategorien für diese spezifische Kategorie
+                        # (hier könntest du eine intelligentere Zuordnung implementieren)
+                        category_specific_subcats = []
+                        for coding in segment_codes:
+                            if coding['category'] == category:
+                                subcats = coding.get('subcategories', [])
+                                if isinstance(subcats, (list, tuple)):
+                                    category_specific_subcats.extend(subcats)
+                        
+                        category_coding['subcategories'] = list(set(category_specific_subcats))
+                        all_reviewed_codings.append(category_coding)
+                else:
+                    # Normale Kodierung ohne Mehrfachkodierung
+                    all_reviewed_codings.append(final_coding)
 
             # Verwende reviewed_codings statt codings für den Export
             export_data = []
@@ -9459,7 +9511,7 @@ class ResultsExporter:
                     self._export_progressive_summaries(writer, document_summaries)
 
                 # 8. Exportiere Review-Statistiken
-                self._export_review_statistics(writer, review_stats, export_mode)
+                self._export_review_statistics(writer, export_mode)
 
                 # Stelle sicher, dass mindestens ein Sheet sichtbar ist
                 if len(writer.book.sheetnames) == 0:
