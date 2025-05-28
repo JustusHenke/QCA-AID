@@ -663,9 +663,31 @@ class ConfigLoader:
                 else:
                     print("Warnung: Keine gültigen DEDUKTIVE_KATEGORIEN in Config")
             
+            # WICHTIG: Update das CONFIG Dictionary komplett
+            if 'CONFIG' in self.config:
+                config_from_codebook = self.config['CONFIG']
+                
+                # Aktualisiere das globale CONFIG Dictionary
+                if 'CONFIG' in globals_dict:
+                    globals_dict['CONFIG'].update(config_from_codebook)
+                    print(f"\nCONFIG Dictionary aktualisiert mit {len(config_from_codebook)} Einträgen")
+                    
+                    # Spezielle Debug-Ausgabe für MULTIPLE_CODINGS
+                    if 'MULTIPLE_CODINGS' in config_from_codebook:
+                        print(f"MULTIPLE_CODINGS aus Codebook: {config_from_codebook['MULTIPLE_CODINGS']}")
+                        print(f"MULTIPLE_CODINGS in globalem CONFIG: {globals_dict['CONFIG'].get('MULTIPLE_CODINGS')}")
+                    
+                    # Spezielle Debug-Ausgabe für andere wichtige Settings
+                    important_settings = ['ANALYSIS_MODE', 'REVIEW_MODE', 'CODE_WITH_CONTEXT', 'BATCH_SIZE']
+                    for setting in important_settings:
+                        if setting in config_from_codebook:
+                            print(f"{setting} aus Codebook: {config_from_codebook[setting]}")
+                else:
+                    print("Warnung: CONFIG nicht im globalen Namespace gefunden")
+            
             # Update andere Konfigurationswerte
             for key, value in self.config.items():
-                if key != 'DEDUKTIVE_KATEGORIEN' and key in globals_dict:
+                if key not in ['DEDUKTIVE_KATEGORIEN', 'CONFIG'] and key in globals_dict:
                     if isinstance(value, dict) and isinstance(globals_dict[key], dict):
                         globals_dict[key].clear()
                         globals_dict[key].update(value)
@@ -682,6 +704,15 @@ class ConfigLoader:
                     print("Warnung: Keine Kategorien im globalen Namespace!")
             else:
                 print("Fehler: DEDUKTIVE_KATEGORIEN nicht im globalen Namespace!")
+
+            # Finale Validierung der MULTIPLE_CODINGS Einstellung
+            if 'CONFIG' in globals_dict and 'MULTIPLE_CODINGS' in globals_dict['CONFIG']:
+                final_multiple_codings = globals_dict['CONFIG']['MULTIPLE_CODINGS']
+                print(f"\n🔍 FINALE MULTIPLE_CODINGS Einstellung: {final_multiple_codings}")
+                if not final_multiple_codings:
+                    print("✅ Mehrfachkodierung wurde DEAKTIVIERT")
+                else:
+                    print("ℹ️ Mehrfachkodierung bleibt AKTIVIERT")
 
         except Exception as e:
             print(f"Fehler beim Update der globalen Variablen: {str(e)}")

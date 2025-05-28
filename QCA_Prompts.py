@@ -21,14 +21,7 @@ class QCAPrompts:
     
     def get_deductive_coding_prompt(self, chunk: str, categories_overview: List[Dict]) -> str:
         """
-        Prompt für deduktive Kodierung von Text-Chunks.
-        
-        Args:
-            chunk: Zu kodierender Text
-            categories_overview: Formatierte Kategorienübersicht
-            
-        Returns:
-            str: Vollständiger Prompt für deduktive Kodierung
+        Prompt für deduktive Kodierung von Text-Chunks mit Subkategorie-Validierung.
         """
         return f"""
             Analysiere folgenden Text im Kontext der Forschungsfrage:
@@ -38,78 +31,60 @@ class QCAPrompts:
             {chunk}
 
             ## KATEGORIENSYSTEM:
-            Vergleiche den Text sorgfältig mit den folgenden Kategorien und ihren Beispielen:
-
             {json.dumps(categories_overview, indent=2, ensure_ascii=False)}
 
             ## KODIERREGELN:
             {json.dumps(self.kodierregeln, indent=2, ensure_ascii=False)}
 
-            ## WICHTIG: 
-            1. KATEGORIENVERGLEICH:
+            ## WICHTIG - KATEGORIEN- UND SUBKATEGORIEN-ZUORDNUNG:
+            
+            1. HAUPTKATEGORIEN-WAHL:
             - Vergleiche den Text systematisch mit JEDER Kategoriendefinition
-            - Prüfe explizit die Übereinstimmung mit den Beispielen jeder Kategorie
-            - Identifiziere wörtliche und sinngemäße Übereinstimmungen
-            - Dokumentiere auch teilweise Übereinstimmungen für die Nachvollziehbarkeit
+            - Wähle GENAU EINE Hauptkategorie mit der besten Passung
+            - Bei keiner eindeutigen Passung: "Keine passende Kategorie"
             
-            2. SUBKATEGORIENVERGLEICH:
-            - Bei passender Hauptkategorie: Prüfe ALLE zugehörigen Subkategorien
-            - WICHTIG: Wähle PRIMÄR NUR DIE EINE Subkategorie mit der höchsten Passung zum Text
-            - Vergebe weitere Subkategorien NUR, wenn der Text EINDEUTIG mehrere Subkategorien gleichgewichtig adressiert
-            - Bei mehreren passenden Subkategorien mit ähnlicher Relevanz: Begründe die Wahl klar
+            2. SUBKATEGORIEN-VALIDIERUNG - KRITISCH WICHTIG:
+            - SUBKATEGORIEN DÜRFEN NUR AUS DER GEWÄHLTEN HAUPTKATEGORIE STAMMEN
+            - Prüfe NUR die Subkategorien der gewählten Hauptkategorie
+            - NIEMALS Subkategorien aus anderen Hauptkategorien wählen
+            - Wenn du "Akteure" als Hauptkategorie wählst, darfst du KEINE Subkategorien aus "Prozesse" oder anderen Kategorien nehmen
             
-            3. ENTSCHEIDUNGSREGELN:
-            - Kodiere nur bei eindeutiger Übereinstimmung mit Definition UND Beispielen
-            - Bei konkurrierenden Kategorien: Dokumentiere die Abwägung
-            - Bei niedriger Konfidenz (<0.80): Wähle "Keine passende Kategorie"
-            - Die Interpretation muss sich auf konkrete Textstellen stützen
-            - Keine Annahmen oder Spekulationen über den Text hinaus
-            - Prüfe die Relevanz für die Forschungsfrage explizit
-
-            4. QUALITÄTSSICHERUNG:
-            - Stelle intersubjektive Nachvollziehbarkeit sicher
-            - Dokumentiere Grenzfälle und Abwägungen transparent
-            - Prüfe die Konsistenz mit bisherigen Kodierungen
-            - Bei Unsicherheiten: Lieber konservativ kodieren
+            3. SUBKATEGORIEN-AUSWAHL:
+            - Analysiere ALLE Subkategorien der gewählten Hauptkategorie
+            - Wähle die 1-2 am besten passenden Subkategorien
+            - Bei mehreren passenden: Wähle die spezifischste
+            - Begründe die Subkategorie-Wahl explizit
+            
+            4. QUALITÄTSKONTROLLE:
+            - Validiere am Ende: Gehören alle gewählten Subkategorien zur gewählten Hauptkategorie?
+            - Bei Zweifel: Lieber weniger Subkategorien wählen
+            - Dokumentiere die Zuordnungslogik transparent
 
             ## LIEFERE:
 
-            1. PARAPHRASE:
-            - Erfasse den zentralen Inhalt in max. 40 Wörtern
-            - Verwende sachliche, deskriptive Sprache
-            - Bleibe nah am Originaltext ohne Interpretation
-
-            2. SCHLÜSSELWÖRTER:
-            - 2-3 zentrale Begriffe aus dem Text
-            - Wähle bedeutungstragende Terme
-            - Vermeide zu allgemeine Begriffe
-
-            3. KATEGORIENZUORDNUNG:
-            - Entweder präzise Kategorie oder "Keine passende Kategorie"
-            - Ausführliche Begründung mit Textbelegen
-            - Transparente Konfidenzeinschätzung
-
             Antworte ausschließlich mit einem JSON-Objekt:
             {{
-                "paraphrase": "Deine prägnante Paraphrase hier",
-                "keywords": "Deine Schlüsselwörter hier",
-                "category": "Name der Hauptkategorie oder 'Keine passende Kategorie'",
-                "subcategories": ["Subkategorie", "Subkategorie"],
-                "justification": "Begründung muss enthalten: 1. Konkrete Textstellen, 2. Bezug zur Kategoriendefinition, 3. Verbindung zur Forschungsfrage",
+                "paraphrase": "Prägnante Paraphrase max. 40 Wörter",
+                "keywords": "2-3 zentrale Begriffe",
+                "category": "GENAU EINE Hauptkategorie oder 'Keine passende Kategorie'",
+                "subcategories": ["NUR Subkategorien der gewählten Hauptkategorie"],
+                "justification": "MUSS enthalten: 1. Warum diese Hauptkategorie? 2. Warum diese Subkategorien aus dieser Hauptkategorie? 3. Konkrete Textstellen als Belege",
                 "confidence": {{
                     "total": 0.00-1.00,
                     "category": 0.00-1.00,
                     "subcategories": 0.00-1.00
                 }},
-                "text_references": ["Relevante", "Textstellen"],
-                "definition_matches": ["Welche Aspekte der Definition passen"],
-                "competing_categories": {{
-                    "considered": ["Liste erwogener Kategorien"],
-                    "rejection_reasons": ["Begründung für Nicht-Zuordnung"]
+                "text_references": ["Konkrete Textstellen"],
+                "definition_matches": ["Passende Definitionsaspekte"],
+                "subcategory_validation": {{
+                    "chosen_main_category": "Name der gewählten Hauptkategorie",
+                    "available_subcategories_for_main": ["Alle verfügbaren Subkategorien dieser Hauptkategorie"],
+                    "chosen_subcategories": ["Gewählte Subkategorien"],
+                    "validation_check": "Bestätigung: Alle gewählten Subkategorien gehören zur gewählten Hauptkategorie"
                 }}
             }}
             """
-
+    
     def get_relevance_check_prompt(self, segments_text: str, exclusion_rules: List[str]) -> str:
         """Prompt für Batch-Relevanzprüfung"""
         # Platzhalter - vollständiger Prompt für Relevanzprüfung mit Ausschlussregeln
@@ -324,10 +299,6 @@ class QCAPrompts:
                     "focus_category_score": 0.00-1.00,
                     "chosen_category_score": 0.00-1.00,
                     "deviation_reason": "Grund für Abweichung vom Fokus (falls zutreffend)"
-                }},
-                "competing_categories": {{
-                    "considered": ["Erwogene Kategorien"],
-                    "rejection_reasons": ["Begründungen für Nicht-Zuordnung"]
                 }}
             }}
             """
@@ -423,11 +394,7 @@ class QCAPrompts:
                     }},
                     "text_references": ["Relevante Textstellen"],
                     "definition_matches": ["Welche Aspekte der Definition passen"],
-                    "context_influence": "Wie der Dokumentkontext die Kodierung beeinflusst hat",
-                    "competing_categories": {{
-                        "considered": ["Liste erwogener Kategorien"],
-                        "rejection_reasons": ["Begründung für Nicht-Zuordnung"]
-                    }}
+                    "context_influence": "Wie der Dokumentkontext die Kodierung beeinflusst hat"
                 }},
                 "updated_summary": "Das aktualisierte Document-Summary mit max. 70 Wörtern"
             }}
@@ -529,10 +496,6 @@ class QCAPrompts:
                         "focus_category_score": 0.00-1.00,
                         "chosen_category_score": 0.00-1.00,
                         "deviation_reason": "Grund für Abweichung vom Fokus (falls zutreffend)"
-                    }},
-                    "competing_categories": {{
-                        "considered": ["Erwogene Kategorien"],
-                        "rejection_reasons": ["Begründungen für Nicht-Zuordnung"]
                     }}
                 }}{"," if update_summary else ""}
                 {"updated_summary: Das aktualisierte Document-Summary mit max. 70 Wörtern" if update_summary else ""}
