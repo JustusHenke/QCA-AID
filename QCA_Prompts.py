@@ -221,88 +221,69 @@ class QCAPrompts:
             """
 
     def get_focus_coding_prompt(self, chunk: str, categories_overview: List[Dict], focus_category: str, focus_context: Dict) -> str:
-        """Prompt für fokussierte Kodierung bei Mehrfachkodierung"""
+        """Prompt für fokussierte Kodierung mit strenger Subkategorie-Validierung"""
         return f"""
-            Analysiere folgenden Text mit FOKUS auf die Kategorie "{focus_category}".
-            
-            MEHRFACHKODIERUNGS-KONTEXT:
-            - Dieser Text wurde bereits als relevant für mehrere Kategorien identifiziert
-            - Fokus-Kategorie: {focus_category}
-            - Relevanz-Score: {focus_context.get('relevance_score', 0):.2f}
-            - Begründung: {focus_context.get('justification', '')}
-            - Relevante Textaspekte: {', '.join(focus_context.get('text_aspects', []))}
+            MEHRFACHKODIERUNGS-FOKUS auf: "{focus_category}"
             
             Forschungsfrage: "{self.FORSCHUNGSFRAGE}"
             
             ## TEXT:
             {chunk}
 
+            ## FOCUS-KONTEXT:
+            - Relevanz-Score für {focus_category}: {focus_context.get('relevance_score', 0):.2f}
+            - Begründung: {focus_context.get('justification', '')}
+            
             ## KATEGORIENSYSTEM:
             {json.dumps(categories_overview, indent=2, ensure_ascii=False)}
 
-            ## KODIERREGELN:
-            {json.dumps(self.KODIERREGELN, indent=2, ensure_ascii=False)}
-
-            ## WICHTIG - FOKUSSIERTE MEHRFACHKODIERUNG:
+            ## KRITISCH WICHTIG - SUBKATEGORIE-ZUORDNUNG:
             
-            1. FOKUS-ORIENTIERTE ANALYSE:
-            - Du kodierst diesen Text im Rahmen einer MEHRFACHKODIERUNG
-            - Konzentriere dich auf die Aspekte des Texts, die zu "{focus_category}" passen
-            - Die bereits identifizierten relevanten Textaspekte sollen berücksichtigt werden
-            - Andere Kategorien nur wählen, wenn sie DEUTLICH besser passen (>80% vs <60% Fokus-Kategorie)
+            1. HAUPTKATEGORIEN-ENTSCHEIDUNG:
+            - Bevorzuge "{focus_category}" wenn >= 60% Relevanz
+            - Andere Kategorie nur bei deutlich höherer Passung (>80%)
             
-            2. FOKUS-KATEGORIE BEVORZUGUNG:
-            - "{focus_category}" sollte bevorzugt werden, wenn sie mindestens 60% Relevanz hat
-            - Berücksichtige den vorgegebenen Fokus-Kontext bei der Entscheidung
-            - Dokumentiere, ob du dem Fokus gefolgt bist oder eine andere Kategorie gewählt hast
+            2. SUBKATEGORIEN-VALIDIERUNG - ABSOLUT KRITISCH:
+            - SUBKATEGORIEN DÜRFEN NUR AUS DER GEWÄHLTEN HAUPTKATEGORIE STAMMEN
+            - Wenn du "{focus_category}" wählst, prüfe NUR dessen Subkategorien
+            - NIEMALS Subkategorien aus anderen Hauptkategorien mischen
+            - Validiere am Ende: Gehören alle Subkategorien zur gewählten Hauptkategorie?
             
-            3. SUBKATEGORIEN-FOKUS:
-            - Bei Wahl der Fokus-Kategorie: Analysiere ALLE Subkategorien gründlich
-            - Wähle die Subkategorien, die zu den relevanten Textaspekten passen
-            
-            4. TRANSPARENZ:
-            - Dokumentiere in der Begründung den Einfluss des Kategorie-Fokus
-            - Erkläre, warum du dem Fokus gefolgt bist oder davon abgewichen bist
+            3. FOCUS-SPEZIFISCHE SUBKATEGORIEN:
+            - Bei Wahl der Fokus-Kategorie: Analysiere deren Subkategorien gründlich
+            - Wähle die 1-2 am besten zum Text passenden Subkategorien
+            - Begründe die Subkategorie-Wahl im Kontext des Fokus
 
             ## LIEFERE:
 
-            1. PARAPHRASE:
-            - Erfasse den zentralen Inhalt mit Fokus auf "{focus_category}"-relevante Aspekte
-            - Betone die Aspekte, die zur Fokus-Kategorie passen
-            - Max. 40 Wörter, sachlich und deskriptiv
-
-            2. SCHLÜSSELWÖRTER:
-            - 2-3 zentrale Begriffe mit Bezug zur Fokus-Kategorie
-            - Berücksichtige die identifizierten relevanten Textaspekte
-
-            3. KATEGORIENZUORDNUNG:
-            - Bevorzuge "{focus_category}" wenn >= 60% Relevanz gegeben
-            - Andere Kategorie nur bei deutlich höherer Passung (>80%)
-            - Begründung muss Fokus-Einfluss dokumentieren
-
             Antworte ausschließlich mit einem JSON-Objekt:
             {{
-                "paraphrase": "Fokussierte Paraphrase hier",
-                "keywords": "Fokussierte Schlüsselwörter hier",
-                "category": "Name der Hauptkategorie",
-                "subcategories": ["Subkategorie1", "Subkategorie2"],
-                "justification": "Begründung mit Fokus-Dokumentation: 1. Einfluss des Kategorie-Fokus, 2. Konkrete Textstellen, 3. Bezug zur Kategoriendefinition",
+                "paraphrase": "Fokussierte Paraphrase max. 40 Wörter",
+                "keywords": "2-3 Begriffe mit Fokus-Bezug",
+                "category": "Gewählte Hauptkategorie",
+                "subcategories": ["NUR Subkategorien der gewählten Hauptkategorie"],
+                "justification": "MUSS enthalten: 1. Fokus-Einfluss 2. Hauptkategorie-Begründung 3. Subkategorie-Zuordnung zur gewählten Hauptkategorie",
                 "confidence": {{
                     "total": 0.00-1.00,
                     "category": 0.00-1.00,
                     "subcategories": 0.00-1.00
                 }},
-                "text_references": ["Relevante Textstellen"],
-                "definition_matches": ["Passende Definitionsaspekte"],
                 "focus_adherence": {{
                     "followed_focus": true/false,
                     "focus_category_score": 0.00-1.00,
                     "chosen_category_score": 0.00-1.00,
-                    "deviation_reason": "Grund für Abweichung vom Fokus (falls zutreffend)"
+                    "deviation_reason": "Grund für Abweichung (falls zutreffend)"
+                }},
+                "subcategory_validation": {{
+                    "chosen_main_category": "Name der gewählten Hauptkategorie",
+                    "available_subcategories_for_main": ["Alle Subkategorien dieser Hauptkategorie"],
+                    "chosen_subcategories": ["Gewählte Subkategorien"],
+                    "validation_confirmed": true/false,
+                    "validation_note": "Bestätigung der korrekten Zuordnung"
                 }}
             }}
             """
-
+    
     def get_progressive_context_prompt(self, chunk: str, categories_overview: List[Dict], current_summary: str, position_info: Dict, summary_update_prompt: str) -> str:
         """Prompt für progressive Kontext-Kodierung"""
         return f"""
