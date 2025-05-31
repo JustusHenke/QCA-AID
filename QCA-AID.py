@@ -11039,7 +11039,7 @@ class CategoryRevisionManager:
         """
         try:
             # Hole den spezialisierten Prompt für Definitionsverbesserung
-            prompt = self.prompt_handler.get_definition_enhancement_prompt(category)
+            prompt = self.prompt_handler._get_definition_enhancement_prompt(category)
             
             input_tokens = estimate_tokens(prompt)
 
