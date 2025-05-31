@@ -34,7 +34,7 @@ class QCAPrompts:
             {json.dumps(categories_overview, indent=2, ensure_ascii=False)}
 
             ## KODIERREGELN:
-            {json.dumps(self.kodierregeln, indent=2, ensure_ascii=False)}
+            {json.dumps(self.KODIERREGELN, indent=2, ensure_ascii=False)}
 
             ## WICHTIG - KATEGORIEN- UND SUBKATEGORIEN-ZUORDNUNG:
             
@@ -694,7 +694,7 @@ class QCAPrompts:
         hierarchische Einordnung und Vermeidung zu spezifischer Hauptkategorien.
         """
         return f"""Analysiere das folgende Textsegment für die Entwicklung induktiver Kategorien.
-        Forschungsfrage: "{self.forschungsfrage}"
+        Forschungsfrage: "{self.FORSCHUNGSFRAGE}"
 
         WICHTIG - HIERARCHISCHE EINORDNUNG:
         
