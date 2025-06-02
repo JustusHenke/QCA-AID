@@ -1103,3 +1103,368 @@ def _format_confidence(confidence: dict) -> str:
     except Exception as e:
         print(f"Fehler bei Konfidenz-Formatierung: {str(e)}")
         return "0.00"
+
+
+# Abbruch der Analyse managen 
+    
+import keyboard
+import threading
+import time
+import select
+import sys
+from typing import Optional, Callable, Any, TYPE_CHECKING
+
+# Verwende TYPE_CHECKING um zirkuläre Imports zu vermeiden
+if TYPE_CHECKING:
+    from typing import TYPE_CHECKING
+    # Hier würde normalerweise der Import stehen, aber wir verwenden Any
+
+class EscapeHandler:
+    """
+    Handler für Escape-Taste um Kodierung sicher zu unterbrechen und Zwischenergebnisse zu speichern.
+    """
+    
+    def __init__(self, analysis_manager: Any):  # Verwende Any statt 'IntegratedAnalysisManager'
+        self.analysis_manager = analysis_manager
+        self.escape_pressed = False
+        self.user_wants_to_abort = False
+        self.keyboard_thread = None
+        self.monitoring = False
+        self._keyboard_available = self._check_keyboard_availability()
+        
+    def _check_keyboard_availability(self) -> bool:
+        """Prüft ob keyboard-Modul verfügbar ist"""
+        try:
+            import keyboard
+            return True
+        except ImportError:
+            print("⚠️ 'keyboard' Modul nicht installiert. ESC-Handler nicht verfügbar.")
+            print("   Installieren Sie mit: pip install keyboard")
+            return False
+        
+    def start_monitoring(self):
+        """Startet die Überwachung der Escape-Taste"""
+        if not self._keyboard_available:
+            return
+            
+        if self.monitoring:
+            return
+            
+        self.monitoring = True
+        self.escape_pressed = False
+        self.user_wants_to_abort = False
+        
+        print("\n💡 Tipp: Drücken Sie ESC um die Kodierung sicher zu unterbrechen und Zwischenergebnisse zu speichern")
+        
+        # Starte Keyboard-Monitoring in separatem Thread
+        self.keyboard_thread = threading.Thread(target=self._monitor_escape, daemon=True)
+        self.keyboard_thread.start()
+    
+    def stop_monitoring(self):
+        """Stoppt die Überwachung der Escape-Taste"""
+        self.monitoring = False
+        if self.keyboard_thread and self.keyboard_thread.is_alive():
+            # Warte kurz auf das Ende des Threads
+            self.keyboard_thread.join(timeout=1.0)
+    
+    def _monitor_escape(self):
+        """Überwacht die Escape-Taste in separatem Thread"""
+        if not self._keyboard_available:
+            return
+            
+        try:
+            import keyboard
+            while self.monitoring:
+                if keyboard.is_pressed('esc'):
+                    if not self.escape_pressed:  # Verhindere mehrfache Verarbeitung
+                        self.escape_pressed = True
+                        self._handle_escape()
+                    break
+                time.sleep(0.1)  # Kleine Pause um CPU zu schonen
+        except Exception as e:
+            print(f"Fehler bei Escape-Überwachung: {str(e)}")
+    
+    def _handle_escape(self):
+        """Behandelt das Drücken der Escape-Taste - VERBESSERT"""
+        try:
+            print("\n\n" + "="*60)
+            print("🛑 ESCAPE-TASTE GEDRÜCKT - KODIERUNG UNTERBRECHEN?")
+            print("="*60)
+            
+            # Zeige aktuellen Status
+            current_status = self._get_current_status()
+            print(f"\nAktueller Status:")
+            print(f"- Verarbeitete Segmente: {current_status['processed_segments']}")
+            print(f"- Erstellte Kodierungen: {current_status['total_codings']}")
+            print(f"- Verstrichene Zeit: {current_status['elapsed_time']:.1f} Sekunden")
+            
+            if current_status['total_codings'] > 0:
+                print(f"\n✅ {current_status['total_codings']} Kodierungen wurden bereits erstellt")
+                print("   Diese können als Zwischenergebnisse exportiert werden.")
+            else:
+                print("\n⚠️  Noch keine Kodierungen vorhanden")
+                print("   Ein Export würde leere Ergebnisse erzeugen.")
+            
+            print("\n" + "="*60)
+            print("OPTIONEN:")
+            print("j + ENTER = Kodierung beenden und Zwischenergebnisse exportieren")
+            print("n + ENTER = Kodierung fortsetzen") 
+            print("ESC       = Sofort beenden ohne Export")
+            print("="*60)
+            
+            # Warte auf Benutzereingabe mit Timeout
+            choice = self._get_user_choice_with_timeout(timeout=30)
+            
+            if choice == 'j':
+                print("\n✅ Kodierung wird beendet - Zwischenergebnisse werden exportiert...")
+                self.user_wants_to_abort = True
+                self._trigger_safe_abort()
+                
+            elif choice == 'n':
+                print("\n▶️  Kodierung wird fortgesetzt...")
+                self.escape_pressed = False  # Reset für weitere ESC-Presses
+                self.start_monitoring()  # Überwachung wieder starten
+                
+            elif choice == 'abort_immediately':
+                print("\n🛑 Sofortiger Abbruch ohne Export...")
+                self.user_wants_to_abort = True
+                setattr(self.analysis_manager, '_immediate_abort', True)
+                self._trigger_safe_abort()
+                
+            else:  # Timeout oder ungültige Eingabe
+                print("\n⏰ Keine gültige Eingabe - Kodierung wird fortgesetzt...")
+                self.escape_pressed = False
+                self.start_monitoring()
+                
+        except Exception as e:
+            print(f"Fehler bei Escape-Behandlung: {str(e)}")
+            print("Kodierung wird fortgesetzt...")
+            self.escape_pressed = False
+            self.start_monitoring()
+    
+    def _get_user_choice_with_timeout(self, timeout: int = 30) -> str:
+        """Holt Benutzereingabe mit Timeout - KORRIGIERT"""
+        print(f"\nIhre Wahl (Timeout in {timeout} Sekunden): ", end="", flush=True)
+        
+        try:
+            if sys.platform == "win32":
+                # Windows-spezifische Implementierung mit verbesserter Eingabe-Behandlung
+                try:
+                    import msvcrt
+                    start_time = time.time()
+                    input_chars = []
+                    
+                    while time.time() - start_time < timeout:
+                        if msvcrt.kbhit():
+                            char = msvcrt.getch()
+                            
+                            # Handle verschiedene Eingabetypen
+                            if char == b'\x1b':  # ESC
+                                print("ESC (Sofortiger Abbruch)")
+                                return 'abort_immediately'
+                            elif char == b'\r':  # Enter
+                                user_input = ''.join(input_chars).lower().strip()
+                                print()  # Neue Zeile nach Enter
+                                if user_input in ['j', 'n']:
+                                    return user_input
+                                else:
+                                    print("Ungültige Eingabe. Bitte 'j' oder 'n' eingeben: ", end="", flush=True)
+                                    input_chars = []
+                                    continue
+                            elif char == b'\x08':  # Backspace
+                                if input_chars:
+                                    input_chars.pop()
+                                    print('\b \b', end="", flush=True)  # Löscht Zeichen visuell
+                            else:
+                                try:
+                                    decoded_char = char.decode('utf-8')
+                                    if decoded_char.isprintable():
+                                        input_chars.append(decoded_char)
+                                        print(decoded_char, end="", flush=True)
+                                except UnicodeDecodeError:
+                                    pass  # Ignoriere nicht-dekodierbare Zeichen
+                        
+                        time.sleep(0.05)  # Kürzere Pause für responsivere Eingabe
+                    
+                    print()  # Neue Zeile nach Timeout
+                    return ''  # Timeout erreicht
+                    
+                except ImportError:
+                    print("\nmsvcrt nicht verfügbar, verwende Fallback...")
+                    return self._get_input_fallback(timeout)
+                    
+            else:
+                # Unix/Linux-spezifische Implementierung
+                return self._get_input_unix_with_timeout(timeout)
+                
+        except Exception as e:
+            print(f"\nFehler bei Eingabe-Behandlung: {str(e)}")
+            return self._get_input_fallback(timeout)
+
+    def _get_input_unix_with_timeout(self, timeout: int) -> str:
+        """Unix/Linux-spezifische Eingabe mit Timeout"""
+        try:
+            import select
+            ready, _, _ = select.select([sys.stdin], [], [], timeout)
+            if ready:
+                choice = sys.stdin.readline().strip().lower()
+                if choice in ['j', 'n']:
+                    return choice
+                elif choice == 'esc' or choice == '\x1b':
+                    return 'abort_immediately'
+                else:
+                    print("Ungültige Eingabe.")
+                    return ''
+            else:
+                print()  # Neue Zeile nach Timeout
+                return ''  # Timeout
+        except Exception as e:
+            print(f"Fehler bei Unix-Eingabe: {str(e)}")
+            return self._get_input_fallback(timeout)
+
+    def _get_input_fallback(self, timeout: int) -> str:
+        """Verbesserte Fallback Input-Methode"""
+        try:
+            print(f"\n(Einfache Eingabe-Methode - kein Timeout verfügbar)")
+            print("Geben Sie 'j' für Beenden oder 'n' für Fortsetzen ein:")
+            
+            while True:
+                try:
+                    choice = input("Ihre Wahl [j/n]: ").strip().lower()
+                    if choice in ['j', 'n']:
+                        return choice
+                    elif choice in ['esc', 'escape', 'abbruch']:
+                        return 'abort_immediately'
+                    else:
+                        print("Ungültige Eingabe. Bitte 'j' oder 'n' eingeben.")
+                except KeyboardInterrupt:
+                    print("\nCtrl+C erkannt - sofortiger Abbruch")
+                    return 'abort_immediately'
+                except EOFError:
+                    print("\nEingabe-Ende erkannt - Kodierung wird fortgesetzt")
+                    return 'n'
+                    
+        except Exception as e:
+            print(f"Fehler bei Fallback-Eingabe: {str(e)}")
+            return 'n'  # Standard: Fortsetzen
+    
+    def _get_current_status(self) -> dict:
+        """Holt den aktuellen Status der Analyse"""
+        try:
+            # Versuche get_progress_report zu verwenden
+            if hasattr(self.analysis_manager, 'get_progress_report'):
+                progress_report = self.analysis_manager.get_progress_report()
+                return progress_report.get('progress', {
+                    'processed_segments': 0,
+                    'total_codings': 0,
+                    'elapsed_time': 0
+                })
+            
+            # Fallback: Direkte Attribut-Zugriffe
+            processed_segments = 0
+            total_codings = 0
+            elapsed_time = 0
+            
+            if hasattr(self.analysis_manager, 'processed_segments'):
+                processed_segments = len(getattr(self.analysis_manager, 'processed_segments', []))
+            
+            if hasattr(self.analysis_manager, 'coding_results'):
+                total_codings = len(getattr(self.analysis_manager, 'coding_results', []))
+            
+            if hasattr(self.analysis_manager, 'start_time'):
+                from datetime import datetime
+                start_time = getattr(self.analysis_manager, 'start_time', None)
+                if start_time:
+                    elapsed_time = (datetime.now() - start_time).total_seconds()
+            
+            return {
+                'processed_segments': processed_segments,
+                'total_codings': total_codings,
+                'elapsed_time': elapsed_time
+            }
+            
+        except Exception as e:
+            print(f"Fehler beim Ermitteln des Status: {str(e)}")
+            return {
+                'processed_segments': 0,
+                'total_codings': 0,
+                'elapsed_time': 0
+            }
+    
+    def _trigger_safe_abort(self):
+        """Löst einen sicheren Abbruch aus"""
+        # Setze Flag für die Hauptschleife
+        if hasattr(self.analysis_manager, '_should_abort'):
+            self.analysis_manager._should_abort = True
+        
+        # Alternative: Setze ein neues Attribut
+        setattr(self.analysis_manager, '_escape_abort_requested', True)
+        
+        print("🔄 Abbruch-Signal gesendet...")
+    
+    def should_abort(self) -> bool:
+        """Prüft ob abgebrochen werden soll"""
+        return self.user_wants_to_abort
+
+
+# Hilfsfunktion für die Integration in bestehende Klassen
+def add_escape_handler_to_manager(manager_instance) -> EscapeHandler:
+    """
+    Fügt einen EscapeHandler zu einem bestehenden Analysis Manager hinzu.
+    
+    Args:
+        manager_instance: Instanz des IntegratedAnalysisManager
+        
+    Returns:
+        EscapeHandler: Konfigurierter EscapeHandler
+    """
+    escape_handler = EscapeHandler(manager_instance)
+    
+    # Füge Escape-Handler als Attribut hinzu
+    setattr(manager_instance, 'escape_handler', escape_handler)
+    
+    # Füge Abort-Flag hinzu falls nicht vorhanden
+    if not hasattr(manager_instance, '_should_abort'):
+        setattr(manager_instance, '_should_abort', False)
+    
+    # Füge Helper-Methode hinzu
+    def check_escape_abort(self):
+        """Prüft ob durch Escape abgebrochen werden soll"""
+        return (getattr(self, '_should_abort', False) or 
+                getattr(self, '_escape_abort_requested', False) or
+                (hasattr(self, 'escape_handler') and self.escape_handler.should_abort()))
+    
+    # Binde die Methode an die Instanz
+    import types
+    manager_instance.check_escape_abort = types.MethodType(check_escape_abort, manager_instance)
+    
+    return escape_handler
+
+
+# Decorator für automatische Escape-Handler Integration
+def with_escape_handler(cls):
+    """
+    Decorator um automatisch einen Escape-Handler zu einer Klasse hinzuzufügen.
+    
+    Usage:
+        @with_escape_handler
+        class MyAnalysisManager:
+            pass
+    """
+    original_init = cls.__init__
+    
+    def new_init(self, *args, **kwargs):
+        original_init(self, *args, **kwargs)
+        self.escape_handler = EscapeHandler(self)
+        self._should_abort = False
+        
+        # Füge check_escape_abort Methode hinzu
+        def check_escape_abort():
+            return (getattr(self, '_should_abort', False) or 
+                    getattr(self, '_escape_abort_requested', False) or
+                    self.escape_handler.should_abort())
+        
+        self.check_escape_abort = check_escape_abort
+    
+    cls.__init__ = new_init
+    return cls

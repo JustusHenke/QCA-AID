@@ -18,6 +18,11 @@ class QCAPrompts:
         self.FORSCHUNGSFRAGE = forschungsfrage
         self.KODIERREGELN = kodierregeln
         self.DEDUKTIVE_KATEGORIEN = deduktive_kategorien
+
+        # print(f"QCAPrompts initialisiert:")
+        # print(f"- Forschungsfrage: {len(self.FORSCHUNGSFRAGE)} Zeichen")
+        # print(f"- Kodierregeln: {len(self.KODIERREGELN)} Kategorien")
+        # print(f"- Deduktive Kategorien: {len(self.DEDUKTIVE_KATEGORIEN)} Kategorien")
     
     def get_deductive_coding_prompt(self, chunk: str, categories_overview: List[Dict]) -> str:
         """
@@ -634,6 +639,46 @@ class QCAPrompts:
                 }}
             }}
             """
+    def get_analyze_for_subcategories_prompt(self, segments_text: str, categories_context: List[Dict]) -> str:
+        return f"""
+        ABDUKTIVER MODUS: Entwickle NUR neue Subkategorien für bestehende Hauptkategorien.
+
+        BESTEHENDE HAUPTKATEGORIEN:
+        {json.dumps(categories_context, indent=2, ensure_ascii=False)}
+
+        STRIKTE REGELN FÜR ABDUKTIVEN MODUS:
+        - KEINE neuen Hauptkategorien entwickeln
+        - NUR neue Subkategorien für bestehende Hauptkategorien
+        - Subkategorien müssen neue, relevante Themenaspekte der Hauptkategorie abbilden
+        - Mindestens 2 Textbelege pro neuer Subkategorie
+        - Konfidenz mindestens 0.7
+        - Nur Subkategorien vorschlagen, die das bestehende System sinnvoll verfeinern
+        
+        TEXTSEGMENTE:
+        {segments_text}
+        
+        Antworte NUR mit JSON:
+        {{
+            "extended_categories": {{
+                "hauptkategorie_name": {{
+                    "new_subcategories": [
+                        {{
+                            "name": "Subkategorie Name",
+                            "definition": "Definition der Subkategorie",
+                            "evidence": ["Textbelege aus den Segmenten"],
+                            "confidence": 0.0-1.0,
+                            "thematic_novelty": "Warum diese Subkategorie einen neuen Aspekt der Hauptkategorie abbildet"
+                        }}
+                    ]
+                }}
+            }},
+            "development_assessment": {{
+                "subcategories_developed": 0,
+                "saturation_indicators": ["Liste von Hinweisen auf Sättigung"],
+                "recommendation": "continue/pause/stop"
+            }}
+        }}
+        """
     def _get_definition_enhancement_prompt(self, category: Dict) -> str:
         """
         Prompt zur Verbesserung unzureichender Definitionen.
