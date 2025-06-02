@@ -17,6 +17,7 @@ mistralai==0.0.12
 
 # Benutzeroberfläche
 tk>=8.6.0
+Keyboard
 
 # Abhängigkeiten für spaCy
 # Hinweis: Nach der Installation ausführen: python -m spacy download de_core_news_sm
@@ -27,6 +28,7 @@ C==0.26.0
 # Datentypen und Hilfsmittel
 typing_extensions==4.9.0
 pytesseract==0.3.13
+
 
 # Entwicklungswerkzeuge (optional)
 # pytest==7.4.0
