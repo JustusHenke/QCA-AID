@@ -1490,9 +1490,12 @@ class IntegratedAnalysisManager:
         self.document_summaries = {}
 
         # NEU: Grounded Mode Spezifische Variablen
-        self.collected_subcodes = []  # Sammelt alle Subcodes über alle Batches
-        self.grounded_segment_analyses = []  # Sammelt alle Segment-Analysen
-        self.grounded_keywords_collection = []  # Sammelt alle Keywords aus Subcodes
+        self.grounded_subcodes_collection = []  # Zentrale Sammlung aller Subcodes
+        self.grounded_keywords_collection = []  # Zentrale Sammlung aller Keywords
+        self.grounded_segment_analyses = []     # Zentrale Sammlung aller Segment-Analysen
+        self.grounded_batch_history = []        # Historie der Batch-Ergebnisse
+        self.grounded_saturation_counter = 0    # Zähler für Batches ohne neue Subcodes
+
 
         # NEU: Escape-Handler hinzufügen (unverändert)
         self.escape_handler = EscapeHandler(self)
@@ -1596,124 +1599,99 @@ class IntegratedAnalysisManager:
         print(f"✅ ABDUCTIVE MODE: {len(extended_categories)} Kategorien erweitert")
         return extended_categories
 
+    
     async def _process_grounded_mode(self, relevant_segments: List[str], 
-                                   current_categories: Dict[str, CategoryDefinition]) -> Dict[str, CategoryDefinition]:
+                                current_categories: Dict[str, CategoryDefinition]) -> Dict[str, CategoryDefinition]:
         """
-        GROUNDED MODE: Sammle Subcodes ohne Hauptkategorien - KORREKTE IMPLEMENTIERUNG
-        Während der Batch-Verarbeitung werden KEINE Hauptkategorien erstellt!
+        KORRIGIERT: Diese Methode wird in normalen Batches NICHT aufgerufen im Grounded Mode
         """
-        print("🔄 GROUNDED MODE: Sammle Subcodes ohne Hauptkategorien")
-        
-        # Material-Fortschritt berechnen (mit verbesserter Fehlerbehandlung)
+        print("⚠️ WARNUNG: _process_grounded_mode sollte nicht in separatem Grounded Mode aufgerufen werden!")
+        return {}
+    
+    async def _assess_grounded_saturation(self, batch_count: int, total_batches: int) -> bool:
+        """
+        KORRIGIERTE Sättigungslogik für Grounded Mode.
+        """
         try:
+            # Berechne Material-Fortschritt
             if hasattr(self, 'chunks') and self.chunks:
                 total_segments = sum(len(chunk_list) for chunk_list in self.chunks.values())
             elif hasattr(self, '_total_segments'):
                 total_segments = self._total_segments
             else:
-                # Fallback: Schätze basierend auf processed_segments
-                total_segments = max(len(self.processed_segments) * 3, 20)
-                print(f"⚠️ Warnung: Verwende geschätzte Gesamtsegmente: {total_segments}")
-        
+                total_segments = max(len(self.processed_segments) * 2, 20)
+            
             material_percentage = (len(self.processed_segments) / total_segments) * 100 if total_segments > 0 else 0.0
             
+            # KORRIGIERT: Verwende die richtige Sammlung
+            if not hasattr(self, 'grounded_subcodes_collection'):
+                self.grounded_subcodes_collection = []
+            
+            # Analyse der Subcode-Entwicklung
+            subcode_diversity = len(set(sc['name'] for sc in self.grounded_subcodes_collection))
+            
+            if not hasattr(self, 'grounded_keywords_collection'):
+                self.grounded_keywords_collection = []
+            keyword_diversity = len(set(self.grounded_keywords_collection))
+            
+            # Berechne Sättigungsmetriken
+            avg_subcodes_per_batch = len(self.grounded_subcodes_collection) / max(batch_count, 1)
+            
+            # Kriterien für Grounded Mode Sättigung
+            criteria = {
+                'min_batches': batch_count >= 3,  # Mindestens 3 Batches
+                'material_coverage': material_percentage >= 70,  # 70% Material verarbeitet
+                'subcodes_collected': len(self.grounded_subcodes_collection) >= 8,  # Min. 8 Subcodes
+                'saturation_stability': self.grounded_saturation_counter >= 2,  # 2 Batches ohne neue
+                'diversity_threshold': subcode_diversity >= 5,  # Mindestens 5 verschiedene Subcodes
+                'keyword_richness': keyword_diversity >= 15,  # Mindestens 15 verschiedene Keywords
+            }
+            
+            print(f"\n🔍 Grounded Mode Sättigungsprüfung (Batch {batch_count}/{total_batches}):")
+            print(f"📊 Aktuelle Metriken:")
+            print(f"   - Material-Fortschritt: {material_percentage:.1f}%")
+            print(f"   - Gesammelte Subcodes: {len(self.grounded_subcodes_collection)}")
+            print(f"   - Subcode-Diversität: {subcode_diversity}")
+            print(f"   - Keyword-Diversität: {keyword_diversity}")
+            print(f"   - Sättigungs-Counter: {self.grounded_saturation_counter}")
+            print(f"   - Ø Subcodes/Batch: {avg_subcodes_per_batch:.1f}")
+            
+            print(f"\n🎯 Sättigungskriterien:")
+            for criterion, met in criteria.items():
+                status = "✅" if met else "❌"
+                print(f"   {status} {criterion}: {met}")
+            
+            # Bestimme Sättigungsstatus
+            critical_criteria = ['min_batches', 'subcodes_collected', 'saturation_stability']
+            critical_met = all(criteria[crit] for crit in critical_criteria)
+            
+            # Vollständige Sättigung: Alle Kriterien oder kritische + Material fast vollständig
+            full_saturation = all(criteria.values())
+            partial_saturation = critical_met and (material_percentage >= 85 or criteria['material_coverage'])
+            forced_saturation = material_percentage >= 100  # 100% Material = Zwangssättigung
+            
+            is_saturated = full_saturation or partial_saturation or forced_saturation
+            
+            if is_saturated:
+                saturation_type = "Vollständig" if full_saturation else ("Partiell" if partial_saturation else "Material-bedingt")
+                print(f"\n🎯 GROUNDED MODE SÄTTIGUNG erreicht ({saturation_type}):")
+                print(f"   - Material: {material_percentage:.1f}% verarbeitet")
+                print(f"   - Subcodes: {len(self.grounded_subcodes_collection)} gesammelt")
+                print(f"   - Sättigungs-Counter: {self.grounded_saturation_counter}")
+            else:
+                print(f"\n⏳ Sättigung noch nicht erreicht - setze Subcode-Sammlung fort")
+                missing_criteria = [k for k, v in criteria.items() if not v]
+                print(f"   - Fehlende Kriterien: {', '.join(missing_criteria)}")
+            
+            return is_saturated
+            
         except Exception as e:
-            print(f"⚠️ Fehler bei material_percentage Berechnung: {str(e)}")
-            material_percentage = 50.0
+            print(f"❌ Fehler bei Grounded Mode Sättigungsprüfung: {str(e)}")
+            import traceback
+            traceback.print_exc()
+            # Fallback: Bei Fehler weiter sammeln, außer 100% Material erreicht
+            return material_percentage >= 100
         
-        print(f"📊 Grounded Mode Material-Fortschritt: {material_percentage:.1f}%")
-        
-        # Analysiere Batch für Subcodes (aber erstelle keine Hauptkategorien!)
-        grounded_analysis = await self.inductive_coder.analyze_grounded_batch(
-            segments=relevant_segments,
-            material_percentage=material_percentage
-        )
-        
-        # WICHTIG: Sammle Subcodes, aber erstelle KEINE CategoryDefinition-Objekte
-        new_subcodes_count = 0
-        if grounded_analysis and 'segment_analyses' in grounded_analysis:
-            print(f"📝 Verarbeite {len(grounded_analysis['segment_analyses'])} Segment-Analysen für Subcode-Sammlung")
-            
-            # Sammle alle Segment-Analysen für späteren Zugriff
-            self.grounded_segment_analyses.extend(grounded_analysis['segment_analyses'])
-            
-            for segment_analysis in grounded_analysis['segment_analyses']:
-                subcodes = segment_analysis.get('subcodes', [])
-                
-                for subcode in subcodes:
-                    subcode_name = subcode.get('name', '').strip()
-                    if subcode_name:
-                        # Prüfe auf Duplikate (gleicher Name)
-                        existing_names = [sc['name'] for sc in self.collected_subcodes]
-                        
-                        if subcode_name not in existing_names:
-                            # Neuer Subcode
-                            subcode_data = {
-                                'name': subcode_name,
-                                'definition': subcode.get('definition', ''),
-                                'keywords': subcode.get('keywords', []),
-                                'evidence': subcode.get('evidence', []),
-                                'confidence': subcode.get('confidence', 0.7),
-                                'batch_number': len([s for s in self.processed_segments]) // self.batch_size + 1,
-                                'source_segments': [segment_analysis.get('segment_text', '')[:100]]
-                            }
-                            
-                            self.collected_subcodes.append(subcode_data)
-                            new_subcodes_count += 1
-                            
-                            # Sammle auch Keywords separat
-                            self.grounded_keywords_collection.extend(subcode.get('keywords', []))
-                            
-                            print(f"    ✅ Neuer Subcode: '{subcode_name}' (Keywords: {len(subcode.get('keywords', []))})")
-                        else:
-                            # Erweitere bestehenden Subcode
-                            for existing_subcode in self.collected_subcodes:
-                                if existing_subcode['name'] == subcode_name:
-                                    # Erweitere Keywords und Evidence (ohne Duplikate)
-                                    existing_keywords = set(existing_subcode['keywords'])
-                                    new_keywords = set(subcode.get('keywords', []))
-                                    existing_subcode['keywords'] = list(existing_keywords | new_keywords)
-                                    
-                                    existing_subcode['evidence'].extend(subcode.get('evidence', []))
-                                    existing_subcode['source_segments'].append(segment_analysis.get('segment_text', '')[:100])
-                                    
-                                    # Aktualisiere Konfidenz (Durchschnitt)
-                                    old_conf = existing_subcode.get('confidence', 0.7)
-                                    new_conf = subcode.get('confidence', 0.7)
-                                    existing_subcode['confidence'] = (old_conf + new_conf) / 2
-                                    
-                                    print(f"    🔄 Subcode erweitert: '{subcode_name}' (+{len(new_keywords)} Keywords)")
-                                    break
-        else:
-            print("⚠️ Keine segment_analyses in grounded_analysis gefunden")
-        
-        # Statusbericht
-        print(f"✅ GROUNDED BATCH VERARBEITET:")
-        print(f"   - Neue Subcodes: {new_subcodes_count}")
-        print(f"   - Gesamt gesammelte Subcodes: {len(self.collected_subcodes)}")
-        print(f"   - Gesamt Keywords: {len(self.grounded_keywords_collection)}")
-        
-        # Zeige aktuellen Sammlungsstand (Top Subcodes)
-        if len(self.collected_subcodes) > 0:
-            print(f"\n📋 Subcode-Sammlungsstand:")
-            # Sortiere nach Konfidenz und zeige Top 3
-            sorted_subcodes = sorted(self.collected_subcodes, key=lambda x: x.get('confidence', 0), reverse=True)
-            for i, subcode in enumerate(sorted_subcodes[:3], 1):
-                keywords_preview = ', '.join(subcode['keywords'][:3])
-                if len(subcode['keywords']) > 3:
-                    keywords_preview += f" (+{len(subcode['keywords'])-3})"
-                print(f"   {i}. {subcode['name']} (Konf: {subcode['confidence']:.2f}, Keywords: {keywords_preview})")
-            
-            if len(sorted_subcodes) > 3:
-                print(f"   ... und {len(sorted_subcodes) - 3} weitere Subcodes")
-        
-        # KRITISCH: Gebe LEERES Dictionary zurück!
-        # Keine Hauptkategorien während der Subcode-Sammlungsphase!
-        print(f"\n🔒 Grounded Mode: Keine Hauptkategorien-Erstellung bis alle Batches verarbeitet")
-        print(f"    Segmente werden als 'Nicht kodiert' markiert bis zur Finalisierung")
-        
-        return {}  # LEER! Wichtig für korrekte Grounded Theory Implementierung
-    
     async def _analyze_for_subcategories(self, relevant_segments: List[str], 
                                        current_categories: Dict[str, CategoryDefinition]) -> Dict[str, CategoryDefinition]:
         """
@@ -2189,81 +2167,37 @@ class IntegratedAnalysisManager:
             return (segment_id, 0)
     
     async def _finalize_by_mode(self, analysis_mode: str, current_categories: Dict, 
-                             deductive_categories: Dict, initial_categories: Dict) -> Dict:
+                            deductive_categories: Dict, initial_categories: Dict) -> Dict:
         """
-        Finalisierung abhängig vom Analysemodus - ERWEITERT für korrekten Grounded Mode
+        KORRIGIERTE Finalisierung - gibt immer ein Dictionary zurück
         """
-        if analysis_mode == 'inductive':
-            print(f"\n🔄 INDUCTIVE MODE Finalisierung:")
-            print(f"   - Deduktive Kategorien: IGNORIERT")
-            print(f"   - Induktive Kategorien: {len(current_categories)}")
-            print(f"   → Finales System: NUR {len(current_categories)} induktive Kategorien")
-            
-            # ✅ Nur induktive Kategorien zurückgeben
-            return current_categories
-            
-        elif analysis_mode == 'grounded':
-            print(f"\n🔄 GROUNDED MODE FINALISIERUNG:")
-            print(f"📊 Subcode-Sammlungsstatistiken:")
-            print(f"   - Gesammelte Subcodes: {len(self.collected_subcodes)}")
-            print(f"   - Segment-Analysen: {len(self.grounded_segment_analyses)}")
-            print(f"   - Keywords gesamt: {len(self.grounded_keywords_collection)}")
-            
-            if len(self.collected_subcodes) >= 5:  # Mindestanzahl für sinnvolle Kategorienbildung
-                print(f"\n🔍 Generiere Hauptkategorien aus {len(self.collected_subcodes)} gesammelten Subcodes...")
+        try:
+            if analysis_mode == 'inductive':
+                print(f"\n🔄 INDUCTIVE MODE Finalisierung:")
+                print(f"   - Deduktive Kategorien: IGNORIERT")
+                print(f"   - Induktive Kategorien: {len(current_categories)}")
+                print(f"   → Finales System: NUR {len(current_categories)} induktive Kategorien")
+                return current_categories
                 
-                # Übergebe gesammelte Subcodes an InductiveCoder
-                self.inductive_coder.collected_subcodes = self.collected_subcodes
-                self.inductive_coder.grounded_segment_analyses = self.grounded_segment_analyses
+            elif analysis_mode == 'grounded':
+                # Im separaten Grounded Mode wurde bereits alles erledigt
+                print(f"\n✅ GROUNDED MODE bereits vollständig abgeschlossen")
+                return current_categories
                 
-                # HIER erfolgt die eigentliche Hauptkategorien-Generierung!
-                final_categories = await self.inductive_coder._generate_main_categories_from_subcodes(initial_categories)
+            elif analysis_mode == 'abductive':
+                print(f"\n🔄 ABDUCTIVE MODE Finalisierung:")
+                print(f"   - Erweiterte deduktive Kategorien: {len(current_categories)}")
+                return current_categories
                 
-                print(f"\n✅ GROUNDED MODE ABGESCHLOSSEN:")
-                print(f"   - Generierte Hauptkategorien: {len(final_categories)}")
+            else:  # deductive oder andere
+                print(f"\n🔄 {analysis_mode.upper()} MODE Finalisierung:")
+                print(f"   - Kategorien: {len(current_categories)}")
+                return current_categories
                 
-                # Zeige detaillierte finale Kategorien
-                for cat_name, category in final_categories.items():
-                    subcat_count = len(category.subcategories) if hasattr(category, 'subcategories') else 0
-                    print(f"   - {cat_name}: {subcat_count} zugeordnete Subcodes")
-                    if subcat_count > 0:
-                        subcat_preview = list(category.subcategories.keys())[:3]
-                        print(f"     └─ Beispiel-Subcodes: {', '.join(subcat_preview)}{'...' if subcat_count > 3 else ''}")
-                
-                # Statistiken zu Subcode-Zuordnung
-                total_mapped_subcodes = sum(len(cat.subcategories) for cat in final_categories.values() if hasattr(cat, 'subcategories'))
-                print(f"\n📈 Zuordnungsstatistik:")
-                print(f"   - Subcodes gesammelt: {len(self.collected_subcodes)}")
-                print(f"   - Subcodes zugeordnet: {total_mapped_subcodes}")
-                if len(self.collected_subcodes) > 0:
-                    assignment_rate = (total_mapped_subcodes / len(self.collected_subcodes)) * 100
-                    print(f"   - Zuordnungsrate: {assignment_rate:.1f}%")
-                
-                return final_categories
-            else:
-                print(f"\n⚠️ GROUNDED MODE: Zu wenige Subcodes für Kategorienbildung")
-                print(f"   Benötigt: mindestens 5, vorhanden: {len(self.collected_subcodes)}")
-                print(f"   → Verwende initiale Kategorien als Fallback")
-                
-                # Erstelle wenigstens eine Grounded-Kategorie aus den vorhandenen Subcodes
-                if len(self.collected_subcodes) > 0:
-                    fallback_category = CategoryDefinition(
-                        name="Grounded_Sammlung",
-                        definition=f"Sammlung von {len(self.collected_subcodes)} identifizierten Subcodes aus der Grounded Theory Analyse",
-                        examples=[],
-                        rules=["Alle gesammelten Subcodes aus der Grounded Theory Analyse"],
-                        subcategories={sc['name']: sc['definition'] for sc in self.collected_subcodes},
-                        added_date=datetime.now().strftime("%Y-%m-%d"),
-                        modified_date=datetime.now().strftime("%Y-%m-%d")
-                    )
-                    fallback_categories = initial_categories.copy()
-                    fallback_categories["Grounded_Sammlung"] = fallback_category
-                    return fallback_categories
-                    
-                return initial_categories
-        else:
-            # ABDUCTIVE und andere Modi
-            return current_categories
+        except Exception as e:
+            print(f"Fehler in _finalize_by_mode: {str(e)}")
+            # Fallback: Gebe wenigstens die aktuellen Kategorien zurück
+            return current_categories or initial_categories or {}
 
     def _show_final_development_stats(self, final_categories: Dict, initial_categories: Dict, batch_count: int):
         """
@@ -2321,13 +2255,56 @@ class IntegratedAnalysisManager:
             for phase in self.inductive_coder.category_development_phases:
                 print(f"   Batch {phase['batch']}: +{phase['new_categories']} → {phase['total_categories']} total")
     
+    async def _save_grounded_checkpoint(self):
+        """Speichere Grounded Mode Checkpoint zwischen Batches"""
+        try:
+            checkpoint_path = os.path.join(self.config['OUTPUT_DIR'], 'grounded_checkpoint.json')
+            checkpoint_data = {
+                'subcodes': self.grounded_subcodes_collection,
+                'keywords': list(set(self.grounded_keywords_collection)),
+                'batch_history': self.grounded_batch_history,
+                'saturation_counter': self.grounded_saturation_counter,
+                'segment_analyses_count': len(self.grounded_segment_analyses),
+                'timestamp': datetime.now().isoformat(),
+                'version': '1.0'
+            }
+            
+            with open(checkpoint_path, 'w', encoding='utf-8') as f:
+                json.dump(checkpoint_data, f, indent=2, ensure_ascii=False)
+                
+            print(f"💾 Grounded Checkpoint gespeichert: {len(self.grounded_subcodes_collection)} Subcodes")
+            
+        except Exception as e:
+            print(f"⚠️ Fehler beim Speichern des Grounded Checkpoints: {str(e)}")
+
+    async def _load_grounded_checkpoint(self):
+        """Lade Grounded Mode Checkpoint falls vorhanden"""
+        try:
+            checkpoint_path = os.path.join(self.config['OUTPUT_DIR'], 'grounded_checkpoint.json')
+            if os.path.exists(checkpoint_path):
+                with open(checkpoint_path, 'r', encoding='utf-8') as f:
+                    checkpoint_data = json.load(f)
+                
+                self.grounded_subcodes_collection = checkpoint_data.get('subcodes', [])
+                self.grounded_keywords_collection = checkpoint_data.get('keywords', [])
+                self.grounded_batch_history = checkpoint_data.get('batch_history', [])
+                self.grounded_saturation_counter = checkpoint_data.get('saturation_counter', 0)
+                
+                print(f"💾 Grounded Checkpoint geladen: {len(self.grounded_subcodes_collection)} Subcodes")
+                print(f"   - Keywords: {len(self.grounded_keywords_collection)}")
+                print(f"   - Batch-Historie: {len(self.grounded_batch_history)} Einträge")
+                return True
+        except Exception as e:
+            print(f"⚠️ Fehler beim Laden des Grounded Checkpoints: {str(e)}")
+        
+        return False
     async def analyze_material(self, 
                             chunks: Dict[str, List[str]], 
                             initial_categories: Dict,
                             skip_inductive: bool = False,
                             batch_size: Optional[int] = None) -> Tuple[Dict, List]:
         """
-        KORRIGIERTE Hauptanalyse mit korrekter Relevanzprüfung
+        KORRIGIERTE Hauptanalyse mit besserer Fehlerbehandlung
         """
         try:
             self.escape_handler.start_monitoring()
@@ -2338,35 +2315,11 @@ class IntegratedAnalysisManager:
             all_segments = self._prepare_segments(chunks)
             self._total_segments = len(all_segments)
             
-            # Speichere chunks als Instanzvariable für grounded mode
+            # Speichere chunks als Instanzvariable
             self.chunks = chunks
-            
-            # Übergebe chunks an InductiveCoder
-            if hasattr(self.inductive_coder, 'chunks'):
-                self.inductive_coder.chunks = chunks
-                print(f"✅ Chunks an InductiveCoder übergeben: {sum(len(chunk_list) for chunk_list in chunks.values())} Segmente")
             
             analysis_mode = CONFIG.get('ANALYSIS_MODE', 'inductive')
             
-            # Kategoriensystem-Behandlung
-            if analysis_mode == 'inductive':
-                print(f"\n🔄 INDUCTIVE MODE: Entwickle komplett neues induktives Kategoriensystem")
-                current_categories = {}  # Leeres induktives System
-                deductive_categories = {}  # LEER im inductive mode!
-            elif analysis_mode == 'abductive':
-                print(f"\n🔄 ABDUCTIVE MODE: Erweitere deduktive Kategorien um Subkategorien")
-                current_categories = initial_categories.copy()
-                deductive_categories = initial_categories.copy()
-            elif analysis_mode == 'grounded':
-                print(f"\n🔄 GROUNDED MODE: Sammle Subcodes, generiere später Hauptkategorien")
-                current_categories = {}
-                deductive_categories = {}
-                # Spezielle Variable für Grounded Mode
-                grounded_subcodes = {}
-            else:
-                current_categories = initial_categories.copy()
-                deductive_categories = initial_categories.copy()
-
             # Reset Tracking-Variablen
             self.coding_results = []
             self.processed_segments = set()
@@ -2378,225 +2331,34 @@ class IntegratedAnalysisManager:
             print(f"Verarbeite {total_segments} Segmente mit Batch-Größe {batch_size}...")
             self.history.log_analysis_start(total_segments, len(initial_categories))
 
-            # Initialisiere ImprovedSaturationController
-            saturation_controller = ImprovedSaturationController(analysis_mode)
+            # GROUNDED MODE: Spezielle Behandlung
+            if analysis_mode == 'grounded':
+                result = await self._analyze_grounded_mode(
+                    chunks, initial_categories, all_segments, batch_size
+                )
+            else:
+                # Normale Modi (inductive, abductive, deductive)
+                result = await self._analyze_normal_modes(
+                    chunks, initial_categories, all_segments, skip_inductive, batch_size, analysis_mode
+                )
             
-            # KORRIGIERTE Hauptschleife
-            batch_count = 0
-            use_context = CONFIG.get('CODE_WITH_CONTEXT', False)
+            # KORRIGIERT: Prüfe ob result ein Tupel ist
+            if result is None:
+                print("⚠️ Warnung: Analyse-Methode gab None zurück")
+                return initial_categories, []
             
-            while True:
-                # Escape-Prüfung
-                if self.check_escape_abort():
-                    print("\n🛑 Abbruch durch Benutzer erkannt...")
-                    self.escape_handler.stop_monitoring()
-                    await self._export_intermediate_results(chunks, current_categories, deductive_categories, initial_categories)
-                    return current_categories, self.coding_results
-                
-                batch = await self._get_next_batch(all_segments, batch_size)
-                if not batch:
-                    break
-                    
-                batch_count += 1
-                material_percentage = (len(self.processed_segments) / total_segments) * 100
-                
-                print(f"\n{'='*60}")
-                print(f"📊 BATCH {batch_count}: {len(batch)} Segmente")
-                print(f"📈 Material verarbeitet: {material_percentage:.1f}%")
-                print(f"{'='*60}")
-                
-                batch_start = time.time()
-                
-                try:
-                    # 1. ALLGEMEINE RELEVANZPRÜFUNG (für Forschungsfrage)
-                    print(f"\n🔍 Schritt 1: Allgemeine Relevanzprüfung für Forschungsfrage...")
-                    general_relevance_results = await self.relevance_checker.check_relevance_batch(batch)
-                    
-                    # Filtere allgemein relevante Segmente
-                    generally_relevant_batch = [
-                        (segment_id, text) for segment_id, text in batch 
-                        if general_relevance_results.get(segment_id, False)
-                    ]
-                    
-                    print(f"📊 Allgemeine Relevanz: {len(generally_relevant_batch)} von {len(batch)} Segmenten relevant für Forschungsfrage")
-                    
-                    # Markiere alle Segmente als verarbeitet (auch die nicht relevanten)
-                    self.processed_segments.update(sid for sid, _ in batch)
-                    
-                    # 2. INDUKTIVE KATEGORIENENTWICKLUNG (nur aus relevanten Segmenten)
-                    if not skip_inductive and generally_relevant_batch:
-                        print(f"\n🔍 Schritt 2: Induktive Kategorienentwicklung...")
-                        
-                        if analysis_mode == 'grounded':
-                            print(f"🔄 GROUNDED MODE: Subcode-Sammlung aus {len(generally_relevant_batch)} relevanten Segmenten")
-                            
-                            # Extrahiere nur die Texte für die Grounded-Analyse
-                            relevant_texts = [text for _, text in generally_relevant_batch]
-                            
-                            # Grounded-Analyse
-                            grounded_analysis = await self.inductive_coder.analyze_grounded_batch(
-                                segments=relevant_texts,
-                                material_percentage=material_percentage
-                            )
-                            
-                            if grounded_analysis and 'segment_analyses' in grounded_analysis:
-                                # Neue Subcodes aus diesem Batch extrahieren
-                                new_batch_subcodes = []
-                                for segment_analysis in grounded_analysis['segment_analyses']:
-                                    for subcode in segment_analysis.get('subcodes', []):
-                                        new_batch_subcodes.append(subcode)
-                                
-                                # Speichere für die Hauptkategoriengenerierung am Ende
-                                if not hasattr(self.inductive_coder, 'collected_subcodes'):
-                                    self.inductive_coder.collected_subcodes = []
-                                self.inductive_coder.collected_subcodes.extend(new_batch_subcodes)
-                                
-                                # Erstelle/aktualisiere Kategorien-Dictionary für den deduktiven Kodierer
-                                for subcode in new_batch_subcodes:
-                                    subcode_name = subcode.get('name', '')
-                                    if subcode_name and subcode_name not in grounded_subcodes:
-                                        subcode_definition = subcode.get('definition', '')
-                                        subcode_keywords = subcode.get('keywords', [])
-                                        subcode_evidence = subcode.get('evidence', [])
-                                        
-                                        # Erstelle eine minimale CategoryDefinition
-                                        grounded_subcodes[subcode_name] = CategoryDefinition(
-                                            name=subcode_name,
-                                            definition=subcode_definition,
-                                            examples=subcode_evidence,
-                                            rules=[f"Identifizierte Keywords: {', '.join(subcode_keywords)}"],
-                                            subcategories={},
-                                            added_date=datetime.now().strftime("%Y-%m-%d"),
-                                            modified_date=datetime.now().strftime("%Y-%m-%d")
-                                        )
-                                
-                                print(f"✅ Grounded-Analyse: {len(new_batch_subcodes)} neue Subcodes, Gesamt: {len(grounded_subcodes)}")
-                                
-                                # Aktualisiere das aktuelle Kategoriensystem für die Kodierung
-                                current_categories = grounded_subcodes.copy()
-                                
-                                # Aktualisiere ALLE Kodierer mit dem neuen System
-                                for coder in self.deductive_coders:
-                                    await coder.update_category_system(current_categories)
-                        else:
-                            # Standard induktive Kategorienentwicklung
-                            new_categories = await self._process_batch_inductively(
-                                generally_relevant_batch, 
-                                current_categories
-                            )
-                            
-                            if new_categories:
-                                before_count = len(current_categories)
-                                
-                                # Kategorien integrieren
-                                current_categories = self._merge_category_systems(
-                                    current_categories,
-                                    new_categories
-                                )
-                                
-                                added_count = len(current_categories) - before_count
-                                print(f"✅ {added_count} neue Kategorien integriert")
-                                
-                                # Aktualisiere ALLE Kodierer
-                                for coder in self.deductive_coders:
-                                    await coder.update_category_system(current_categories)
-                                
-                                saturation_controller.reset_stability_counter()
-                            else:
-                                saturation_controller.increment_stability_counter()
-                    
-                    # 3. DEDUKTIVE KODIERUNG (alle Segmente des Batches)
-                    print(f"\n🏷️ Schritt 3: Deduktive Kodierung aller {len(batch)} Segmente...")
-                    
-                    # Bestimme Kodiersystem je nach Modus
-                    if analysis_mode == 'inductive':
-                        if len(current_categories) == 0:
-                            coding_categories = {}
-                            print(f"   📝 Inductive Mode: Keine induktiven Kategorien → 'Nicht kodiert'")
-                        else:
-                            coding_categories = current_categories
-                            print(f"   📝 Inductive Mode: Verwende {len(current_categories)} induktive Kategorien")
-                    elif analysis_mode == 'grounded':
-                        if len(current_categories) == 0:
-                            coding_categories = {}
-                            print(f"   📝 Grounded Mode: Keine Kategorien → 'Nicht kodiert'")
-                        else:
-                            coding_categories = current_categories
-                            print(f"   📝 Grounded Mode: Verwende {len(current_categories)} Subcode-Kategorien")
-                    else:
-                        coding_categories = current_categories
-                    
-                    # Führe Kodierung durch
-                    if use_context:
-                        batch_results = await self._code_batch_with_context(batch, coding_categories)
-                    else:
-                        batch_results = await self._code_batch_deductively(batch, coding_categories)
-                
-                    self.coding_results.extend(batch_results)
-                    
-                    # 4. Sättigungsprüfung
-                    batch_time = time.time() - batch_start
-                    material_percentage = (len(self.processed_segments) / total_segments) * 100
-                    
-                    # Sättigungsprüfung je nach Modus
-                    if analysis_mode == 'grounded':
-                        # Einfachere Sättigungslogik für Grounded Mode
-                        if material_percentage >= 90 or len(getattr(self.inductive_coder, 'collected_subcodes', [])) >= 20:
-                            print(f"\n🎯 GROUNDED MODE SÄTTIGUNG erreicht:")
-                            print(f"   - Material: {material_percentage:.1f}% verarbeitet")
-                            print(f"   - Subcodes: {len(getattr(self.inductive_coder, 'collected_subcodes', []))} gesammelt")
-                            break
-                    else:
-                        # Normale Sättigungsprüfung
-                        saturation_status = saturation_controller.assess_saturation(
-                            current_categories=current_categories,
-                            material_percentage=material_percentage,
-                            batch_count=batch_count,
-                            total_segments=self._total_segments
-                        )
-                    
-                        print(f"\n📊 Sättigungsstatus:")
-                        print(f"   🎯 Theoretische Sättigung: {saturation_status['theoretical_saturation']:.1%}")
-                        print(f"   📈 Materialabdeckung: {saturation_status['material_coverage']:.1%}")
-                        
-                        if saturation_status['is_saturated']:
-                            print(f"\n🎯 SÄTTIGUNG ERREICHT nach {batch_count} Batches!")
-                            break
-                    
-                    # Fortschrittsinfo
-                    print(f"\n📈 Fortschritt:")
-                    print(f"   - Verarbeitete Segmente: {len(self.processed_segments)}/{total_segments}")
-                    print(f"   - Aktuelle Kategorien: {len(current_categories)}")
-                    print(f"   - Kodierungen: {len(self.coding_results)}")
-                    print(f"   - Batch-Zeit: {batch_time:.2f}s")
-                    
-                except Exception as e:
-                    print(f"Fehler bei Batch {batch_count}: {str(e)}")
-                    traceback.print_exc()
-                    continue
+            if not isinstance(result, tuple) or len(result) != 2:
+                print("⚠️ Warnung: Analyse-Methode gab kein gültiges Tupel zurück")
+                return initial_categories, []
+            
+            final_categories, coding_results = result
             
             # Stoppe Escape-Handler
             self.escape_handler.stop_monitoring()
-
-            # Finalisierung
-            print(f"\n🏁 FINALISIERUNG ({analysis_mode.upper()} MODE):")
-
-            final_categories = await self._finalize_by_mode(
-                analysis_mode, current_categories, deductive_categories, initial_categories
-            )
-            
             self.end_time = datetime.now()
 
-            # Zeige finale Statistiken
-            self._show_final_development_stats(final_categories, initial_categories, batch_count)
-
-            # GROUNDED MODE: Nach Hauptkategorien-Generierung müssen die Kodierungen aktualisiert werden!
-            if analysis_mode == 'grounded' and final_categories:
-                print(f"\n🔄 GROUNDED MODE: Aktualisiere Kodierungen mit generierten Hauptkategorien...")
-                await self._recode_segments_with_final_categories(final_categories, chunks)
-            
-            return final_categories, self.coding_results
-                
+            return final_categories, coding_results
+                    
         except Exception as e:
             self.end_time = datetime.now()
             print(f"Fehler in der Analyse: {str(e)}")
@@ -2604,68 +2366,442 @@ class IntegratedAnalysisManager:
             if hasattr(self, 'escape_handler'):
                 self.escape_handler.stop_monitoring()
             raise
+
+    async def _analyze_normal_modes(self, 
+                                chunks: Dict[str, List[str]], 
+                                initial_categories: Dict,
+                                all_segments: List,
+                                skip_inductive: bool,
+                                batch_size: int,
+                                analysis_mode: str) -> Tuple[Dict, List]:
+        """
+        Analysiert normale Modi (inductive, abductive, deductive)
+        KORRIGIERT: Gibt immer ein Tupel zurück
+        """
+        
+        # Kategoriensystem-Behandlung
+        if analysis_mode == 'inductive':
+            print(f"\n🔄 INDUCTIVE MODE: Entwickle komplett neues induktives Kategoriensystem")
+            current_categories = {}  # Leeres induktives System
+            deductive_categories = {}  # LEER im inductive mode!
+        elif analysis_mode == 'abductive':
+            print(f"\n🔄 ABDUCTIVE MODE: Erweitere deduktive Kategorien um Subkategorien")
+            current_categories = initial_categories.copy()
+            deductive_categories = initial_categories.copy()
+        else:  # deductive
+            current_categories = initial_categories.copy()
+            deductive_categories = initial_categories.copy()
+
+        if batch_size is None:
+            batch_size = CONFIG.get('BATCH_SIZE', 5)
+        
+        total_segments = len(all_segments)
+        print(f"Verarbeite {total_segments} Segmente mit Batch-Größe {batch_size}...")
+
+        # Initialisiere ImprovedSaturationController
+        saturation_controller = ImprovedSaturationController(analysis_mode)
+        
+        # HAUPTSCHLEIFE
+        batch_count = 0
+        use_context = CONFIG.get('CODE_WITH_CONTEXT', False)
+        
+        while True:
+            # Escape-Prüfung
+            if self.check_escape_abort():
+                print("\n🛑 Abbruch durch Benutzer erkannt...")
+                await self._export_intermediate_results(chunks, current_categories, deductive_categories, initial_categories)
+                # KORRIGIERT: Gebe immer ein Tupel zurück
+                return current_categories, self.coding_results
+            
+            batch = await self._get_next_batch(all_segments, batch_size)
+            if not batch:
+                break
+                
+            batch_count += 1
+            material_percentage = (len(self.processed_segments) / total_segments) * 100
+            
+            print(f"\n{'='*60}")
+            print(f"📊 BATCH {batch_count}: {len(batch)} Segmente")
+            print(f"📈 Material verarbeitet: {material_percentage:.1f}%")
+            print(f"{'='*60}")
+            
+            batch_start = time.time()
+            
+            try:
+                # 1. ALLGEMEINE RELEVANZPRÜFUNG
+                print(f"\n🔍 Schritt 1: Allgemeine Relevanzprüfung für Forschungsfrage...")
+                general_relevance_results = await self.relevance_checker.check_relevance_batch(batch)
+                
+                # Filtere allgemein relevante Segmente
+                generally_relevant_batch = [
+                    (segment_id, text) for segment_id, text in batch 
+                    if general_relevance_results.get(segment_id, False)
+                ]
+                
+                print(f"📊 Allgemeine Relevanz: {len(generally_relevant_batch)} von {len(batch)} Segmenten relevant für Forschungsfrage")
+                
+                # Markiere alle Segmente als verarbeitet
+                self.processed_segments.update(sid for sid, _ in batch)
+                
+                # 2. INDUKTIVE KATEGORIENENTWICKLUNG
+                if not skip_inductive and generally_relevant_batch:
+                    print(f"\n🔍 Schritt 2: Induktive Kategorienentwicklung...")
+                    
+                    if analysis_mode in ['inductive', 'abductive']:
+                        # Standard induktive Kategorienentwicklung
+                        new_categories = await self._process_batch_inductively(
+                            generally_relevant_batch, 
+                            current_categories
+                        )
+                        
+                        if new_categories:
+                            before_count = len(current_categories)
+                            
+                            # Kategorien integrieren
+                            current_categories = self._merge_category_systems(
+                                current_categories,
+                                new_categories
+                            )
+                            
+                            added_count = len(current_categories) - before_count
+                            print(f"✅ {added_count} neue Kategorien integriert")
+                            
+                            # Aktualisiere ALLE Kodierer
+                            for coder in self.deductive_coders:
+                                await coder.update_category_system(current_categories)
+                            
+                            saturation_controller.reset_stability_counter()
+                        else:
+                            saturation_controller.increment_stability_counter()
+                
+                # 3. DEDUKTIVE KODIERUNG
+                print(f"\n🏷️ Schritt 3: Deduktive Kodierung aller {len(batch)} Segmente...")
+                
+                # Bestimme Kodiersystem je nach Modus
+                if analysis_mode == 'inductive':
+                    if len(current_categories) == 0:
+                        coding_categories = {}
+                        print(f"   📝 Inductive Mode: Keine induktiven Kategorien → 'Nicht kodiert'")
+                    else:
+                        coding_categories = current_categories
+                        print(f"   📝 Inductive Mode: Verwende {len(current_categories)} induktive Kategorien")
+                else:
+                    coding_categories = current_categories
+                
+                # Führe Kodierung durch
+                if use_context:
+                    batch_results = await self._code_batch_with_context(batch, coding_categories)
+                else:
+                    batch_results = await self._code_batch_deductively(batch, coding_categories)
+            
+                self.coding_results.extend(batch_results)
+                
+                # 4. Sättigungsprüfung
+                batch_time = time.time() - batch_start
+                material_percentage = (len(self.processed_segments) / total_segments) * 100
+                total_batches = len(all_segments) / batch_size
+
+                # Normale Sättigungsprüfung
+                saturation_status = saturation_controller.assess_saturation(
+                    current_categories=current_categories,
+                    material_percentage=material_percentage,
+                    batch_count=batch_count,
+                    total_segments=self._total_segments
+                )
+            
+                print(f"\n📊 Sättigungsstatus:")
+                print(f"   🎯 Theoretische Sättigung: {saturation_status['theoretical_saturation']:.1%}")
+                print(f"   📈 Materialabdeckung: {saturation_status['material_coverage']:.1%}")
+                
+                if saturation_status['is_saturated']:
+                    print(f"\n🎯 SÄTTIGUNG ERREICHT nach {batch_count} Batches!")
+                    break
+                
+                # Fortschrittsinfo
+                print(f"\n📈 Fortschritt:")
+                print(f"   - Verarbeitete Segmente: {len(self.processed_segments)}/{total_segments}")
+                print(f"   - Aktuelle Kategorien: {len(current_categories)}")
+                print(f"   - Kodierungen: {len(self.coding_results)}")
+                print(f"   - Batch-Zeit: {batch_time:.2f}s")
+                
+            except Exception as e:
+                print(f"Fehler bei Batch {batch_count}: {str(e)}")
+                traceback.print_exc()
+                continue
+
+        # Finalisierung
+        print(f"\n🏁 FINALISIERUNG ({analysis_mode.upper()} MODE):")
+
+        final_categories = await self._finalize_by_mode(
+            analysis_mode, current_categories, deductive_categories, initial_categories
+        )
+        
+        # Zeige finale Statistiken
+        self._show_final_development_stats(final_categories, initial_categories, batch_count)
+        
+        # KORRIGIERT: Stelle sicher, dass immer ein Tupel zurückgegeben wird
+        return final_categories, self.coding_results
+    
+    async def _analyze_grounded_mode(self, chunks: Dict[str, List[str]], initial_categories: Dict, 
+                                all_segments: List, batch_size: int) -> Tuple[Dict, List]:
+        """
+        NEUE METHODE: Separate Grounded Mode Analyse
+        """
+        print("\n🔄 GROUNDED MODE: Starte spezielle Subcode-Sammlung")
+        
+        if batch_size is None:
+            batch_size = CONFIG.get('BATCH_SIZE', 5)
+        
+        # Initialisiere Grounded-spezifische Variablen
+        self.grounded_subcodes_collection = []
+        self.grounded_segment_analyses = []
+        self.grounded_keywords_collection = []
+        self.grounded_batch_history = []
+        self.grounded_saturation_counter = 0
+        
+        batch_count = 0
+        use_context = CONFIG.get('CODE_WITH_CONTEXT', False)
+        
+        # PHASE 1: NUR SUBCODE-SAMMLUNG (KEINE KODIERUNG)
+        while True:
+            if self.check_escape_abort():
+                print("\n🛑 Abbruch durch Benutzer erkannt...")
+                break
+            
+            batch = await self._get_next_batch(all_segments, batch_size)
+            if not batch:
+                break
+                
+            batch_count += 1
+            material_percentage = (len(self.processed_segments) / len(all_segments)) * 100
+            
+            print(f"\n{'='*60}")
+            print(f"📊 GROUNDED BATCH {batch_count}: {len(batch)} Segmente (NUR SUBCODE-SAMMLUNG)")
+            print(f"📈 Material verarbeitet: {material_percentage:.1f}%")
+            print(f"{'='*60}")
+            
+            # 1. Relevanzprüfung
+            general_relevance_results = await self.relevance_checker.check_relevance_batch(batch)
+            generally_relevant_batch = [
+                (segment_id, text) for segment_id, text in batch 
+                if general_relevance_results.get(segment_id, False)
+            ]
+            
+            # Markiere Segmente als verarbeitet
+            self.processed_segments.update(sid for sid, _ in batch)
+            
+            # 2. NUR SUBCODE-SAMMLUNG (KEINE KODIERUNG!)
+            if generally_relevant_batch:
+                relevant_texts = [text for _, text in generally_relevant_batch]
+                
+                # Grounded-Analyse für Subcodes
+                grounded_analysis = await self.inductive_coder.analyze_grounded_batch(
+                    segments=relevant_texts,
+                    material_percentage=material_percentage
+                )
+                
+                # Sammle Subcodes zentral
+                self._collect_grounded_subcodes(grounded_analysis, batch_count)
+            
+            # 3. Sättigungsprüfung (nur für Subcode-Sammlung)
+            if await self._assess_grounded_saturation(batch_count, len(all_segments) / batch_size):
+                print(f"\n🛑 GROUNDED SUBCODE-SAMMLUNG abgeschlossen nach {batch_count} Batches!")
+                break
+        
+        print(f"\n🎯 GROUNDED PHASE 1 ABGESCHLOSSEN:")
+        print(f"   - Gesammelte Subcodes: {len(self.grounded_subcodes_collection)}")
+        print(f"   - Segment-Analysen: {len(self.grounded_segment_analyses)}")
+        print(f"   - Keywords: {len(self.grounded_keywords_collection)}")
+        
+        # PHASE 2: HAUPTKATEGORIEN GENERIEREN
+        if len(self.grounded_subcodes_collection) >= 5:
+            print(f"\n🔍 PHASE 2: Generiere Hauptkategorien aus Subcodes...")
+            
+            # Übergebe Subcodes an InductiveCoder
+            self.inductive_coder.collected_subcodes = self.grounded_subcodes_collection
+            self.inductive_coder.grounded_segment_analyses = self.grounded_segment_analyses
+            
+            # Generiere Hauptkategorien
+            grounded_categories = await self.inductive_coder._generate_main_categories_from_subcodes(initial_categories)
+            
+            if grounded_categories:
+                print(f"✅ {len(grounded_categories)} Hauptkategorien generiert")
+                
+                # Aktualisiere alle Kodierer mit den neuen Kategorien
+                for coder in self.deductive_coders:
+                    await coder.update_category_system(grounded_categories)
+                
+                # PHASE 3: KODIERUNG MIT GROUNDED KATEGORIEN
+                print(f"\n🏷️ PHASE 3: Kodiere alle Segmente mit Grounded-Kategorien...")
+                coding_results = await self._code_all_segments_with_grounded_categories(
+                    all_segments, grounded_categories, use_context
+                )
+                
+                self.coding_results = coding_results
+                return grounded_categories, coding_results
+            else:
+                print("❌ Keine Hauptkategorien generiert - verwende initiale Kategorien")
+                return initial_categories, []
+        else:
+            print(f"⚠️ Zu wenige Subcodes: {len(self.grounded_subcodes_collection)} < 5")
+            return initial_categories, []
+
+    def _collect_grounded_subcodes(self, grounded_analysis: Dict, batch_number: int):
+        """
+        NEUE METHODE: Sammle Subcodes aus Grounded-Analyse
+        """
+        new_subcodes_count = 0
+        
+        if grounded_analysis and 'segment_analyses' in grounded_analysis:
+            print(f"📝 Verarbeite {len(grounded_analysis['segment_analyses'])} Segment-Analysen")
+            
+            # Speichere alle Segment-Analysen
+            self.grounded_segment_analyses.extend(grounded_analysis['segment_analyses'])
+            
+            for segment_analysis in grounded_analysis['segment_analyses']:
+                subcodes = segment_analysis.get('subcodes', [])
+                
+                for subcode in subcodes:
+                    subcode_name = subcode.get('name', '').strip()
+                    if subcode_name:
+                        # Prüfe auf Duplikate
+                        existing_names = [sc['name'] for sc in self.grounded_subcodes_collection]
+                        
+                        if subcode_name not in existing_names:
+                            # Neuer Subcode
+                            subcode_data = {
+                                'name': subcode_name,
+                                'definition': subcode.get('definition', ''),
+                                'keywords': subcode.get('keywords', []),
+                                'evidence': subcode.get('evidence', []),
+                                'confidence': subcode.get('confidence', 0.7),
+                                'batch_number': batch_number,
+                                'source_segments': [segment_analysis.get('segment_text', '')[:100]]
+                            }
+                            
+                            self.grounded_subcodes_collection.append(subcode_data)
+                            new_subcodes_count += 1
+                            
+                            # Sammle Keywords
+                            self.grounded_keywords_collection.extend(subcode.get('keywords', []))
+                            
+                            print(f"    ✅ Neuer Subcode: '{subcode_name}'")
+                        else:
+                            # Erweitere bestehenden Subcode
+                            for existing_subcode in self.grounded_subcodes_collection:
+                                if existing_subcode['name'] == subcode_name:
+                                    # Erweitere ohne Duplikate
+                                    existing_keywords = set(existing_subcode['keywords'])
+                                    new_keywords = set(subcode.get('keywords', []))
+                                    existing_subcode['keywords'] = list(existing_keywords | new_keywords)
+                                    
+                                    existing_subcode['evidence'].extend(subcode.get('evidence', []))
+                                    existing_subcode['source_segments'].append(
+                                        segment_analysis.get('segment_text', '')[:100]
+                                    )
+                                    
+                                    # Aktualisiere Konfidenz
+                                    old_conf = existing_subcode.get('confidence', 0.7)
+                                    new_conf = subcode.get('confidence', 0.7)
+                                    existing_subcode['confidence'] = (old_conf + new_conf) / 2
+                                    
+                                    print(f"    🔄 Subcode erweitert: '{subcode_name}'")
+                                    break
+        
+        # Aktualisiere Sättigungszähler
+        if new_subcodes_count == 0:
+            self.grounded_saturation_counter += 1
+        else:
+            self.grounded_saturation_counter = 0
+        
+        # Speichere Batch-Historie
+        batch_info = {
+            'batch_number': batch_number,
+            'new_subcodes': new_subcodes_count,
+            'total_subcodes': len(self.grounded_subcodes_collection),
+            'material_percentage': (len(self.processed_segments) / self._total_segments) * 100
+        }
+        self.grounded_batch_history.append(batch_info)
+        
+        print(f"✅ SUBCODE-SAMMLUNG BATCH {batch_number}:")
+        print(f"   - Neue Subcodes: {new_subcodes_count}")
+        print(f"   - Gesamt Subcodes: {len(self.grounded_subcodes_collection)}")
+        print(f"   - Sättigungs-Counter: {self.grounded_saturation_counter}")
+
+    async def _code_all_segments_with_grounded_categories(self, all_segments: List, 
+                                                        grounded_categories: Dict, 
+                                                        use_context: bool) -> List[Dict]:
+        """
+        NEUE METHODE: Kodiere alle Segmente mit den generierten Grounded-Kategorien
+        """
+        print(f"🏷️ Kodiere {len(all_segments)} Segmente mit {len(grounded_categories)} Grounded-Kategorien")
+        
+        coding_results = []
+        batch_size = CONFIG.get('BATCH_SIZE', 5)
+        
+        # Erstelle Batches für die Kodierung
+        for i in range(0, len(all_segments), batch_size):
+            batch = all_segments[i:i + batch_size]
+            print(f"   Kodiere Batch {i//batch_size + 1}: {len(batch)} Segmente")
+            
+            if use_context:
+                batch_results = await self._code_batch_with_context(batch, grounded_categories)
+            else:
+                batch_results = await self._code_batch_deductively(batch, grounded_categories)
+            
+            coding_results.extend(batch_results)
+            
+            # Markiere als verarbeitet (falls noch nicht geschehen)
+            for segment_id, _ in batch:
+                self.processed_segments.add(segment_id)
+        
+        print(f"✅ Kodierung abgeschlossen: {len(coding_results)} Kodierungen erstellt")
+        return coding_results
+    
     async def _recode_segments_with_final_categories(self, final_categories: Dict[str, CategoryDefinition], chunks: Dict[str, List[str]]) -> None:
         """
-        GROUNDED MODE: Kodiere alle Segmente nachträglich mit den generierten Hauptkategorien
-        KORRIGIERT: Direkte Rekonstruktion der Segmente aus chunks statt Abhängigkeit von coding_results
+        GROUNDED MODE: Kodiere alle Segmente nachträglich mit generierten Hauptkategorien
         """
-        print(f"\n🔄 GROUNDED MODE: Nachträgliche Kodierung aller Segmente mit {len(final_categories)} generierten Kategorien")
+        print(f"\n🔄 GROUNDED MODE: Nachträgliche Kodierung mit {len(final_categories)} Kategorien")
         
-        # Aktualisiere alle Kodierer mit den finalen Kategorien
+        # Aktualisiere ALLE Kodierer mit finalen Kategorien
         for coder in self.deductive_coders:
-            await coder.update_category_system(final_categories)
-            print(f"   ✅ Kodierer {coder.coder_id} mit finalen Kategorien aktualisiert")
+            success = await coder.update_category_system(final_categories)
+            if success:
+                print(f"   ✅ Kodierer {coder.coder_id} erfolgreich aktualisiert")
+            else:
+                print(f"   ❌ Fehler bei Kodierer {coder.coder_id}")
         
-        # KORREKTUR: Rekonstruiere alle Segmente direkt aus chunks
+        # Rekonstruiere alle Segmente
         all_segments_to_recode = []
-        
-        print(f"\n📋 Rekonstruiere Segmente aus Chunks:")
         for doc_name, doc_chunks in chunks.items():
-            print(f"   - {doc_name}: {len(doc_chunks)} Chunks")
             for chunk_id, chunk_text in enumerate(doc_chunks):
                 segment_id = f"{doc_name}_chunk_{chunk_id}"
                 all_segments_to_recode.append((segment_id, chunk_text))
         
-        print(f"\n📊 Gesamtübersicht:")
-        print(f"   - Dokumente: {len(chunks)}")
-        print(f"   - Zu kodierende Segmente: {len(all_segments_to_recode)}")
-        print(f"   - Verfügbare Hauptkategorien: {len(final_categories)}")
+        print(f"📊 Kodiere {len(all_segments_to_recode)} Segmente mit Grounded-Kategorien")
         
-        # Zeige die generierten Kategorien
-        print(f"\n🏷️ Generierte Hauptkategorien:")
-        for i, (cat_name, category) in enumerate(final_categories.items(), 1):
-            subcat_count = len(category.subcategories) if hasattr(category, 'subcategories') else 0
-            print(f"   {i}. {cat_name} ({subcat_count} Subkategorien)")
-        
-        # Kodiere Segmente in kleineren Batches
-        recode_batch_size = 5  # Kleine Batches für bessere Performance
+        # Kodiere in Batches
         new_codings = []
-        successfully_coded = 0
-        not_coded_count = 0
+        batch_size = 5
         
-        print(f"\n🔄 Starte nachträgliche Kodierung in Batches à {recode_batch_size} Segmente...")
-        
-        for i in range(0, len(all_segments_to_recode), recode_batch_size):
-            batch = all_segments_to_recode[i:i + recode_batch_size]
-            batch_num = i // recode_batch_size + 1
-            total_batches = (len(all_segments_to_recode) + recode_batch_size - 1) // recode_batch_size
-            
-            print(f"\n   📦 Batch {batch_num}/{total_batches}: {len(batch)} Segmente")
+        for i in range(0, len(all_segments_to_recode), batch_size):
+            batch = all_segments_to_recode[i:i + batch_size]
+            print(f"   Batch {i//batch_size + 1}: {len(batch)} Segmente")
             
             for segment_id, segment_text in batch:
                 try:
-                    # Kodiere mit dem ersten Kodierer (stellvertretend für alle)
+                    # Kodiere mit dem ersten Kodierer (stellvertretend)
                     coding_result = await self.deductive_coders[0].code_chunk(segment_text, final_categories)
                     
                     if coding_result and coding_result.category != 'Nicht kodiert':
-                        # Erstelle neue Kodierung
                         new_coding = {
                             'segment_id': segment_id,
                             'coder_id': self.deductive_coders[0].coder_id,
                             'category': coding_result.category,
                             'subcategories': list(coding_result.subcategories),
                             'confidence': coding_result.confidence,
-                            'justification': f"[Grounded Mode Nachkodierung] {coding_result.justification}",
+                            'justification': f"[Grounded Theory Nachkodierung] {coding_result.justification}",
                             'text': segment_text,
                             'paraphrase': getattr(coding_result, 'paraphrase', ''),
                             'keywords': getattr(coding_result, 'keywords', ''),
@@ -2673,121 +2809,40 @@ class IntegratedAnalysisManager:
                             'multiple_coding_instance': 1,
                             'total_coding_instances': 1,
                             'target_category': '',
-                            'category_focus_used': False,
-                            'original_chunk_id': segment_id
+                            'category_focus_used': False
                         }
-                        
                         new_codings.append(new_coding)
-                        successfully_coded += 1
-                        
-                        # Detaillierte Ausgabe für erste 5 erfolgreiche Kodierungen
-                        if successfully_coded <= 5:
-                            print(f"      ✅ {segment_id}: 'Nicht kodiert' → {coding_result.category}")
-                            if coding_result.subcategories:
-                                print(f"         Subkategorien: {', '.join(coding_result.subcategories)}")
-                        elif successfully_coded == 6:
-                            print(f"      ... (weitere Kodierungen laufen)")
-                    
                     else:
-                        # Erstelle "Nicht kodiert" Eintrag
-                        not_coded_entry = {
+                        # "Nicht kodiert" Fallback
+                        new_codings.append({
                             'segment_id': segment_id,
                             'coder_id': self.deductive_coders[0].coder_id,
                             'category': 'Nicht kodiert',
                             'subcategories': [],
-                            'confidence': {'total': 1.0, 'category': 1.0, 'subcategories': 1.0},
-                            'justification': "Nicht relevant für generierte Kategorien",
+                            'confidence': {'total': 1.0},
+                            'justification': "Nicht relevant für Grounded-Kategorien",
                             'text': segment_text,
-                            'paraphrase': '',
-                            'keywords': '',
-                            'grounded_recoded': False,
-                            'multiple_coding_instance': 1,
-                            'total_coding_instances': 1,
-                            'target_category': '',
-                            'category_focus_used': False,
-                            'original_chunk_id': segment_id
-                        }
+                            'grounded_recoded': False
+                        })
                         
-                        new_codings.append(not_coded_entry)
-                        not_coded_count += 1
-                            
                 except Exception as e:
                     print(f"      ❌ Fehler bei {segment_id}: {str(e)}")
-                    
-                    # Fallback-Kodierung erstellen
-                    fallback_coding = {
-                        'segment_id': segment_id,
-                        'coder_id': self.deductive_coders[0].coder_id,
-                        'category': 'Nicht kodiert',
-                        'subcategories': [],
-                        'confidence': {'total': 0.5, 'category': 0.5, 'subcategories': 0.5},
-                        'justification': f"Kodierungsfehler: {str(e)}",
-                        'text': segment_text,
-                        'paraphrase': '',
-                        'keywords': '',
-                        'grounded_recoded': False,
-                        'multiple_coding_instance': 1,
-                        'total_coding_instances': 1,
-                        'target_category': '',
-                        'category_focus_used': False,
-                        'original_chunk_id': segment_id
-                    }
-                    
-                    new_codings.append(fallback_coding)
-                    not_coded_count += 1
+                    continue
         
-        # KRITISCHE KORREKTUR: Ersetze die coding_results komplett
+        # KRITISCH: Ersetze coding_results komplett
         if new_codings:
-            print(f"\n🔄 Aktualisiere coding_results...")
-            print(f"   - Vorher: {len(self.coding_results)} Kodierungen")
-            
-            # Kompletter Austausch der coding_results
+            print(f"🔄 Ersetze {len(self.coding_results)} alte durch {len(new_codings)} neue Kodierungen")
             self.coding_results = new_codings
             
-            print(f"   - Nachher: {len(self.coding_results)} Kodierungen")
-            
-            # Finale Statistiken
-            print(f"\n✅ Grounded Mode Nachkodierung abgeschlossen:")
-            print(f"   📊 Ergebnis-Statistik:")
-            print(f"   - Segmente verarbeitet: {len(all_segments_to_recode)}")
-            print(f"   - Erfolgreich neu kodiert: {successfully_coded}")
-            print(f"   - Nicht kodiert: {not_coded_count}")
-            print(f"   - Kodierungsrate: {(successfully_coded / len(all_segments_to_recode)) * 100:.1f}%")
-            
-            # Zeige Kategorienverteilung
+            # Statistiken
             from collections import Counter
-            category_dist = Counter(coding.get('category', 'Unbekannt') for coding in self.coding_results)
-            print(f"\n📈 Kategorienverteilung nach Nachkodierung:")
+            category_dist = Counter(coding.get('category', 'Unbekannt') for coding in new_codings)
+            print(f"\n📈 Kategorienverteilung nach Grounded-Nachkodierung:")
             for cat, count in category_dist.most_common():
-                percentage = (count / len(self.coding_results)) * 100
+                percentage = (count / len(new_codings)) * 100
                 print(f"   - {cat}: {count} ({percentage:.1f}%)")
         else:
-            print(f"\n⚠️ Keine Segmente konnten nachkodiert werden")
-            
-            # Erstelle minimale coding_results als Fallback
-            fallback_codings = []
-            for segment_id, segment_text in all_segments_to_recode:
-                fallback_coding = {
-                    'segment_id': segment_id,
-                    'coder_id': self.deductive_coders[0].coder_id if self.deductive_coders else 'fallback_coder',
-                    'category': 'Nicht kodiert',
-                    'subcategories': [],
-                    'confidence': {'total': 1.0, 'category': 1.0, 'subcategories': 1.0},
-                    'justification': "Grounded Mode: Nachkodierung fehlgeschlagen",
-                    'text': segment_text,
-                    'paraphrase': '',
-                    'keywords': '',
-                    'grounded_recoded': False,
-                    'multiple_coding_instance': 1,
-                    'total_coding_instances': 1,
-                    'target_category': '',
-                    'category_focus_used': False,
-                    'original_chunk_id': segment_id
-                }
-                fallback_codings.append(fallback_coding)
-            
-            self.coding_results = fallback_codings
-            print(f"   📝 Fallback: {len(fallback_codings)} 'Nicht kodiert'-Einträge erstellt")
+            print(f"❌ Keine Nachkodierungen erstellt")
     
     def _show_grounded_mode_statistics(self):
         """
@@ -3017,47 +3072,6 @@ class IntegratedAnalysisManager:
         return segments
 
 
-    async def _merge_categories(self,
-                            current_cats: Dict,
-                            new_cats: Dict) -> Dict:
-        """
-        Führt bestehende und neue Kategorien zusammen.
-        
-        Args:
-            current_cats: Bestehendes Kategoriensystem
-            new_cats: Neue Kategorien
-            
-        Returns:
-            Dict: Zusammengeführtes Kategoriensystem
-        """
-        try:
-            # Basiskopie der aktuellen Kategorien
-            merged = current_cats.copy()
-            
-            # Verarbeite neue Kategorien
-            for name, category in new_cats.items():
-                if name in merged:
-                    # Update bestehende Kategorie
-                    current_cat = merged[name]
-                    merged[name] = CategoryDefinition(
-                        name=name,
-                        definition=current_cat.definition,
-                        examples=list(set(current_cat.examples + category.examples)),
-                        rules=list(set(current_cat.rules + category.rules)),
-                        subcategories={**current_cat.subcategories, **category.subcategories},
-                        added_date=current_cat.added_date,
-                        modified_date=datetime.now().strftime("%Y-%m-%d")
-                    )
-                else:
-                    # Füge neue Kategorie hinzu
-                    merged[name] = category
-            
-            return merged
-            
-        except Exception as e:
-            print(f"Fehler beim Zusammenführen der Kategorien: {str(e)}")
-            return current_cats
-
     def _find_similar_category(self, 
                                 category: CategoryDefinition,
                                 existing_categories: Dict[str, CategoryDefinition]) -> Optional[str]:
@@ -3150,166 +3164,8 @@ class IntegratedAnalysisManager:
         self.validation_stats['similarity_calculations'] += 1
         
         return similarity
-
-    def _auto_enhance_category(self, category: CategoryDefinition) -> CategoryDefinition:
-        """Versucht automatisch, eine unvollständige Kategorie zu verbessern."""
-        try:
-            enhanced = category
-
-            # 1. Generiere fehlende Beispiele falls nötig
-            if len(enhanced.examples) < self.MIN_EXAMPLES:
-                # Extrahiere potenzielle Beispiele aus der Definition
-                sentences = enhanced.definition.split('.')
-                potential_examples = [s.strip() for s in sentences if 'z.B.' in s or 'beispielsweise' in s]
-                
-                # Füge gefundene Beispiele hinzu
-                if potential_examples:
-                    enhanced = enhanced._replace(
-                        examples=list(set(enhanced.examples + potential_examples))
-                    )
-
-            # 2. Generiere grundlegende Kodierregeln falls keine vorhanden
-            if not enhanced.rules:
-                enhanced = enhanced._replace(rules=[
-                    f"Kodiere Textstellen, die sich auf {enhanced.name} beziehen",
-                    "Berücksichtige den Kontext der Aussage",
-                    "Bei Unsicherheit dokumentiere die Gründe"
-                ])
-
-            # 3. Generiere Subkategorien aus der Definition falls keine vorhanden
-            if len(enhanced.subcategories) < self.MIN_SUBCATEGORIES:
-                # Suche nach Aufzählungen in der Definition
-                if 'wie' in enhanced.definition:
-                    parts = enhanced.definition.split('wie')[1].split(',')
-                    potential_subcats = []
-                    for part in parts:
-                        if 'und' in part:
-                            potential_subcats.extend(part.split('und'))
-                        else:
-                            potential_subcats.append(part)
-                    
-                    # Bereinige und füge Subkategorien hinzu
-                    cleaned_subcats = {
-                        subcat.strip().strip('.'): ""
-                        for subcat in potential_subcats
-                        if len(subcat.strip()) > 3
-                    }
-                    
-                    if cleaned_subcats:
-                        enhanced = enhanced._replace(
-                            subcategories={**enhanced.subcategories, **cleaned_subcats}
-                        )
-
-            return enhanced
-
-        except Exception as e:
-            print(f"Fehler bei automatischer Kategorienverbesserung: {str(e)}")
-            return category
-        
-    def _normalize_text(self, text: str) -> str:
-        """
-        Normalisiert Text für Vergleiche.
-        
-        Args:
-            text: Zu normalisierender Text
-            
-        Returns:
-            str: Normalisierter Text
-        """
-        # Zu Kleinbuchstaben
-        text = text.lower()
-        
-        # Entferne Sonderzeichen
-        text = re.sub(r'[^\w\s]', '', text)
-        
-        # Entferne Stoppwörter
-        stop_words = {'und', 'oder', 'der', 'die', 'das', 'in', 'im', 'für', 'bei'}
-        words = text.split()
-        words = [w for w in words if w not in stop_words]
-        
-        return ' '.join(words)
-
-    def _merge_category_definitions(self, 
-                                original: CategoryDefinition,
-                                new: CategoryDefinition) -> CategoryDefinition:
-        """
-        Führt zwei Kategoriendefinitionen zusammen.
-        
-        Args:
-            original: Ursprüngliche Kategorie
-            new: Neue Kategorie
-            
-        Returns:
-            CategoryDefinition: Zusammengeführte Kategorie
-        """
-        try:
-            # Kombiniere Definitionen
-            combined_def = f"{original.definition}\n\nErgänzung: {new.definition}"
-            
-            # Kombiniere Beispiele
-            combined_examples = list(set(original.examples + new.examples))
-            
-            # Kombiniere Subkategorien
-            combined_subcats = {**original.subcategories, **new.subcategories}
-            
-            # Erstelle neue CategoryDefinition
-            return CategoryDefinition(
-                name=original.name,  # Behalte ursprünglichen Namen
-                definition=combined_def,
-                examples=combined_examples,
-                rules=original.rules,  # Behalte ursprüngliche Regeln
-                subcategories=combined_subcats,
-                added_date=original.added_date,
-                modified_date=datetime.now().strftime("%Y-%m-%d")
-            )
-            
-        except Exception as e:
-            print(f"Fehler beim Zusammenführen der Kategorien: {str(e)}")
-            return original
-
-    def _validate_and_integrate_categories(self, 
-                                         existing_categories: Dict[str, CategoryDefinition],
-                                         new_categories: Dict[str, CategoryDefinition]) -> Dict[str, CategoryDefinition]:
-        """Verbesserte Validierung und Integration von Kategorien."""
-        try:
-            # Validiere neue Kategorien einzeln
-            valid_new_categories = {}
-            for name, category in new_categories.items():
-                is_valid, issues = self.validator.validate_category(category)
-                if is_valid:
-                    valid_new_categories[name] = category
-                else:
-                    print(f"\nKategorie '{name}' nicht valide:")
-                    for issue in issues:
-                        print(f"- {issue}")
-
-            # Integriere valide neue Kategorien
-            integrated = existing_categories.copy()
-            integrated.update(valid_new_categories)
-
-            # Validiere Gesamtsystem
-            is_valid, system_issues = self.validator.validate_category_system(integrated)
-            if not is_valid:
-                print("\nProbleme nach Integration:")
-                for category, issues in system_issues.items():
-                    print(f"\n{category}:")
-                    for issue in issues:
-                        print(f"- {issue}")
-                
-                # Hier könnte zusätzliche Bereinigungslogik folgen...
-
-            # Zeige Validierungsstatistiken
-            stats = self.validator.get_validation_stats()
-            print("\nValidierungsstatistiken:")
-            print(f"- Cache-Trefferrate: {stats['cache_hit_rate']*100:.1f}%")
-            print(f"- Validierungen gesamt: {stats['total_validations']}")
-
-            return integrated
-
-        except Exception as e:
-            print(f"Fehler bei Kategorienintegration: {str(e)}")
-            return existing_categories
-
+   
+   
     def _prepare_segments(self, chunks: Dict[str, List[str]]) -> List[Tuple[str, str]]:
         """
         Bereitet die Segmente für die Analyse vor.
@@ -4463,27 +4319,7 @@ class DeductiveCoder:
             bool: True wenn der Text relevant ist
         """
         try:
-            prompt = f"""
-            Analysiere sorgfältig die Relevanz des folgenden Texts für die Forschungsfrage:
-            "{FORSCHUNGSFRAGE}"
-            
-            TEXT:
-            {chunk}
-            
-            Prüfe systematisch:
-            1. Inhaltlicher Bezug: Behandelt der Text explizit Aspekte der Forschungsfrage?
-            2. Aussagekraft: Enthält der Text konkrete, analysierbare Aussagen?
-            3. Substanz: Geht der Text über oberflächliche/beiläufige Erwähnungen hinaus?
-            4. Kontext: Ist der Bezug zur Forschungsfrage eindeutig und nicht nur implizit?
-
-            Antworte NUR mit einem JSON-Objekt:
-            {{
-                "is_relevant": true/false,
-                "confidence": 0.0-1.0,
-                "justification": "Kurze Begründung der Entscheidung",
-                "key_aspects": ["Liste", "relevanter", "Aspekte"]
-            }}
-            """
+            prompt = self.prompt_handler.get_segment_relevance_assessment_prompt(chunk)
 
             input_tokens = estimate_tokens(prompt + chunk)
             
@@ -4608,66 +4444,8 @@ class InductiveCoder:
         print(f"- Min. Materialabdeckung: {self.MIN_MATERIAL_COVERAGE:.0%}")
         print(f"- Stabilitätsschwelle: {self.STABILITY_THRESHOLD} Batches")
     
-    async def _prefilter_segments(self, segments: List[str]) -> List[str]:
-        """
-        Filtert Segmente nach Relevanz für Kategorienentwicklung.
-        Optimiert durch Parallelverarbeitung und Caching.
-        """
-        async def check_segment(segment: str) -> Tuple[str, float]:
-            cache_key = hash(segment)
-            if cache_key in self.category_cache:
-                return segment, self.category_cache[cache_key]
-            
-            relevance = await self._assess_segment_relevance(segment)
-            self.category_cache[cache_key] = relevance
-            return segment, relevance
-        
-        # Parallele Relevanzprüfung
-        tasks = [check_segment(seg) for seg in segments]
-        results = await asyncio.gather(*tasks)
-        
-        # Filter relevante Segmente
-        return [seg for seg, relevance in results if relevance > self.MIN_CONFIDENCE]
     
-    async def _assess_segment_relevance(self, segment: str) -> float:
-        """
-        Bewertet die Relevanz eines Segments für die Kategorienentwicklung.
-        """
-        try:
-            prompt = self.prompt_handler.get_segment_relevance_assessment_prompt(segment)
-        except AttributeError:
-            # Fallback: Einfache Relevanzprüfung
-            if len(segment.strip()) < 50:
-                return 0.3  # Zu kurz
-            elif any(keyword in segment.lower() for keyword in ['beispiel', 'kategorie', 'analyse', 'prozess']):
-                return 0.8  # Relevante Keywords
-            else:
-                return 0.6  # Standard-Relevanz
-        
-        try:
-            input_tokens = estimate_tokens(prompt)
-
-            response = await self.llm_provider.create_completion(
-                model=self.model_name,
-                messages=[
-                    {"role": "system", "content": "Du bist ein Experte für qualitative Inhaltsanalyse. Du antwortest auf deutsch."},
-                    {"role": "user", "content": prompt}
-                ],
-                temperature=0.3,
-                response_format={"type": "json_object"}
-            )
-            
-            llm_response = LLMResponse(response)
-            result = json.loads(llm_response.content)
-
-            output_tokens = estimate_tokens(response.choices[0].message.content)
-            token_counter.add_tokens(input_tokens, output_tokens)
-
-            return float(result.get('relevance_score', 0))
-            
-        except Exception as e:
-            print(f"Fehler in Relevanzbeurteilung: {str(e)}")
-            return 0.5  # Fallback-Wert
+    
         
     def _create_proper_batches(self, segments: List[str], batch_size: int) -> List[List[str]]:
         """
@@ -4832,27 +4610,7 @@ class InductiveCoder:
             print(f"Fehler bei CategoryDefinition-Erstellung: {str(e)}")
             return None
     
-    def _calculate_text_similarity(self, text1: str, text2: str) -> float:
-        """Berechnet die Ähnlichkeit zwischen zwei Texten mit Caching."""
-        cache_key = f"{hash(text1)}_{hash(text2)}"
-        
-        if cache_key in self.similarity_cache:
-            return self.similarity_cache[cache_key]
-            
-        # Konvertiere Texte zu Sets von Wörtern
-        words1 = set(text1.lower().split())
-        words2 = set(text2.lower().split())
-        
-        # Berechne Jaccard-Ähnlichkeit
-        intersection = len(words1.intersection(words2))
-        union = len(words1.union(words2))
-        
-        similarity = intersection / union if union > 0 else 0.0
-        
-        # Cache das Ergebnis
-        self.similarity_cache[cache_key] = similarity
-        
-        return similarity
+    
     
     def _format_existing_categories(self, categories: Dict[str, CategoryDefinition]) -> str:
         """Formatiert bestehende Kategorien für Prompt"""
@@ -4866,25 +4624,7 @@ class InductiveCoder:
         
         return "\n".join(formatted)
 
-    def _create_batches(self, segments: List[str], batch_size: int = None) -> List[List[str]]:
-        """
-        Creates batches of segments for processing.
-        
-        Args:
-            segments: List of text segments to process
-            batch_size: Optional custom batch size (defaults to CONFIG BATCH_SIZE)
-            
-        Returns:
-            List[List[str]]: List of segment batches
-        """
-        if batch_size is None:
-            batch_size = CONFIG.get('BATCH_SIZE', 5)
-            
-        return [
-            segments[i:i + batch_size] 
-            for i in range(0, len(segments), batch_size)
-        ]
-
+    
     async def develop_category_system(self, segments: List[str], initial_categories: Dict[str, CategoryDefinition] = None) -> Dict[str, CategoryDefinition]:
         """
         VERBESSERTE Kategorienentwicklung mit korrekter Sättigungslogik
@@ -5465,129 +5205,6 @@ class InductiveCoder:
             for phase in self.category_development_phases:
                 print(f"   Batch {phase['batch']}: +{phase['new_categories']} → {phase['total_categories']} total")
 
-    async def _validate_and_consolidate(self, candidates: Dict[str, CategoryDefinition], existing: Dict[str, CategoryDefinition]) -> Dict[str, CategoryDefinition]:
-        """
-        Validierung und automatische Konsolidierung neuer Kategorien
-        """
-        validated = {}
-        
-        for name, category in candidates.items():
-            # 1. Ähnlichkeitsprüfung
-            similar_existing = self._find_similar_category(category, existing)
-            if similar_existing:
-                print(f"🔄 '{name}' zu ähnlich zu '{similar_existing}' - wird konsolidiert")
-                # Automatische Konsolidierung statt Ablehnung
-                consolidated = await self._auto_merge_categories(
-                    category, existing[similar_existing], name, similar_existing
-                )
-                if consolidated:
-                    existing[similar_existing] = consolidated
-                    # WICHTIG: Nutzung für konsolidierte Kategorie erhöhen
-                    self.category_usage_history[similar_existing] = self.category_usage_history.get(similar_existing, 0) + 1
-                continue
-            
-            # 2. Qualitätsprüfung
-            if await self._meets_quality_standards(category):
-                validated[name] = category
-                # WICHTIG: Nutzung für neue Kategorie setzen
-                self.category_usage_history[name] = self.category_usage_history.get(name, 0) + 1
-                print(f"✅ '{name}' validiert (Nutzung: {self.category_usage_history[name]})")
-            else:
-                print(f"❌ '{name}' erfüllt Qualitätsstandards nicht")
-        
-        return validated
-
-
-    async def _auto_consolidate(self, categories: Dict[str, CategoryDefinition]) -> Dict[str, CategoryDefinition]:
-        """
-        Automatische Konsolidierung ähnlicher Kategorien
-        """
-        print("\n🔄 Starte automatische Konsolidierung...")
-        
-        consolidated = categories.copy()
-        merge_candidates = []
-        
-        # Finde Konsolidierungskandidaten
-        category_names = list(consolidated.keys())
-        for i in range(len(category_names)):
-            for j in range(i + 1, len(category_names)):
-                name1, name2 = category_names[i], category_names[j]
-                if name1 in consolidated and name2 in consolidated:
-                    similarity = self._calculate_category_similarity(
-                        consolidated[name1], consolidated[name2]
-                    )
-                    if similarity > self.similarity_threshold:
-                        merge_candidates.append((name1, name2, similarity))
-        
-        # Sortiere nach Ähnlichkeit
-        merge_candidates.sort(key=lambda x: x[2], reverse=True)
-        
-        # Führe Konsolidierungen durch
-        for name1, name2, similarity in merge_candidates[:3]:  # Max 3 Merges pro Runde
-            if name1 in consolidated and name2 in consolidated:
-                print(f"🔗 Konsolidiere '{name1}' + '{name2}' (Ähnlichkeit: {similarity:.2f})")
-                merged = await self._merge_categories_intelligent(
-                    consolidated[name1], consolidated[name2], name1, name2
-                )
-                if merged:
-                    # Verwende den besseren Namen
-                    better_name = self._choose_better_name(name1, name2)
-                    consolidated[better_name] = merged
-                    
-                    # Entferne die anderen
-                    other_name = name2 if better_name == name1 else name1
-                    del consolidated[other_name]
-                    
-                    print(f"✅ Konsolidiert zu '{better_name}'")
-        
-        return consolidated
-
-    async def _final_cleanup(self, categories: Dict[str, CategoryDefinition]) -> Dict[str, CategoryDefinition]:
-        """
-        Finale Bereinigung des Kategoriensystems
-        """
-        print("\n🧹 Finale Bereinigung...")
-        
-        cleaned = {}
-        
-        for name, category in categories.items():
-            # KORRIGIERT: Verwende deutlich niedrigere Schwelle oder überspringe Check
-            usage_count = self.category_usage_history.get(name, 0)
-            
-            # TEMPORÄRER FIX: Akzeptiere alle Kategorien in der Entwicklungsphase
-            if self.current_phase == "development":
-                print(f"✅ '{name}' übernommen (Entwicklungsphase)")
-                cleaned[name] = category
-                continue
-                
-            # KORRIGIERT: Viel niedrigere Schwelle
-            min_usage = max(1, self.MIN_CATEGORY_USAGE // 3)  # 1 statt 3
-            
-            if usage_count >= min_usage:
-                # Verbessere Definition falls nötig
-                if len(category.definition.split()) < 20:
-                    enhanced = await self._enhance_category_definition(category)
-                    if enhanced:
-                        category = category.replace(definition=enhanced.definition)
-                
-                cleaned[name] = category
-                print(f"✅ '{name}' übernommen (Nutzung: {usage_count})")
-            else:
-                print(f"❌ '{name}' entfernt (Zu wenig genutzt: {usage_count}, Mindest: {min_usage})")
-        
-        return cleaned
-
-    def _phase2_lock_categories(self, categories: Dict[str, CategoryDefinition]):
-        """
-        Phase 2: Sperrt Kategorien für reine Kodierung
-        """
-        self.categories_locked = True
-        self.development_complete = True
-        self.current_phase = "coding"
-        
-        print(f"\n🔒 Kategoriensystem gesperrt: {len(categories)} finale Kategorien")
-        print("Phase 2: Nur noch Kodierung, keine Kategorienentwicklung")
-
     
     
     def _format_existing_categories(self, categories: Dict[str, CategoryDefinition]) -> str:
@@ -5900,72 +5517,12 @@ class InductiveCoder:
             print(f"   - Top Keywords: {', '.join([f'{kw}({count})' for kw, count in top_keywords[:8]])}")
             
             # Erstelle optimierten Prompt für Grounded Theory
-            enhanced_prompt = f"""
-            GROUNDED THEORY: Generiere Hauptkategorien aus gesammelten Subcodes
-
-            Du erhältst {len(subcodes_data)} Subcodes mit ihren Keywords, die während einer Grounded Theory Analyse gesammelt wurden. 
-            Deine Aufgabe ist es, diese zu thematisch kohärenten Hauptkategorien zu gruppieren.
-
-            FORSCHUNGSFRAGE: {FORSCHUNGSFRAGE}
-
-            GESAMMELTE SUBCODES UND KEYWORDS:
-            """
-            
-            for i, subcode in enumerate(subcodes_data, 1):
-                keywords_str = ', '.join(subcode['keywords'][:10])  # Top 10 Keywords
-                enhanced_prompt += f"""
-            
-            {i}. Subcode: {subcode['name']}
-            Definition: {subcode['definition']}
-            Keywords: {keywords_str}
-            Konfidenz: {subcode['confidence']:.2f}
-            Textbelege: {len(subcode['evidence'])}
-            """
-            
-            enhanced_prompt += f"""
-
-            GROUNDED THEORY ANALYSE-ANWEISUNGEN:
-            1. Analysiere die thematischen Verbindungen zwischen den Subcodes
-            2. Gruppiere verwandte Subcodes zu 3-6 kohärenten Hauptkategorien
-            3. Jede Hauptkategorie sollte mindestens 2-3 Subcodes enthalten
-            4. Erstelle aussagekräftige Namen und Definitionen für die Hauptkategorien
-            5. Ordne die Subcodes als Subkategorien den Hauptkategorien zu
-            6. Berücksichtige die Keyword-Häufigkeiten zur Themenfindung
-
-            TOP KEYWORDS ZUR ORIENTIERUNG: {', '.join([kw for kw, _ in top_keywords[:10]])}
-
-            Antworte AUSSCHLIESSLICH mit diesem JSON-Format:
-            {{
-                "main_categories": [
-                    {{
-                        "name": "Hauptkategorie Name",
-                        "definition": "Umfassende Definition der Hauptkategorie (mindestens 30 Wörter)",
-                        "characteristic_keywords": ["Schlüssel", "Keywords", "für", "diese", "Kategorie"],
-                        "examples": ["Beispiel1", "Beispiel2"],
-                        "rules": ["Kodierregel1", "Kodierregel2"],
-                        "subcodes": [
-                            {{
-                                "name": "Subcode Name aus der Liste oben",
-                                "definition": "Definition des Subcodes",
-                                "rationale": "Warum dieser Subcode zu dieser Hauptkategorie gehört"
-                            }}
-                        ],
-                        "thematic_justification": "Warum diese Subcodes thematisch zusammengehören"
-                    }}
-                ],
-                "subcode_mappings": {{
-                    "Subcode Name": "Hauptkategorie Name"
-                }},
-                "meta_analysis": {{
-                    "total_subcodes_processed": {len(subcodes_data)},
-                    "total_main_categories": 0,
-                    "theoretical_saturation": 0.0,
-                    "coverage": 0.0,
-                    "justification": "Begründung für die Kategorienbildung"
-                }}
-            }}
-            """
-            
+            enhanced_prompt = self.prompt_handler.get_main_categories_generation_prompt(
+                subcodes_data=subcodes_data,
+                top_keywords=top_keywords,
+                avg_confidence=avg_confidence
+            )
+                        
             # LLM-Aufruf
             print("\n⏳ Generiere Hauptkategorien via Grounded Theory Analyse...")
             
@@ -6451,102 +6008,7 @@ class InductiveCoder:
             traceback.print_exc()
             return "# Reliability Report\n\nError generating report"
     
-    async def _analyze_abductive_batch(self, batch: List[str], existing_categories: Dict[str, CategoryDefinition]) -> Dict[str, CategoryDefinition]:
-        """
-        Analysiert Batch im abduktiven Modus - nur Subkategorien zu bestehenden Hauptkategorien
-        """
-        segments_text = "\n\n=== SEGMENT BREAK ===\n\n".join(
-            f"SEGMENT {i + 1}:\n{text}" 
-            for i, text in enumerate(batch)
-        )
-
-        # Erstelle Kategorien-Kontext für Prompt
-        categories_context = []
-        for cat_name, cat_def in existing_categories.items():
-            categories_context.append({
-                'name': cat_name,
-                'definition': cat_def.definition,
-                'existing_subcategories': list(cat_def.subcategories.keys())
-            })
-
-        prompt = f"""
-        Analysiere die Textsegmente für NEUE SUBKATEGORIEN zu bestehenden Hauptkategorien.
-        
-        BESTEHENDE HAUPTKATEGORIEN:
-        {json.dumps(categories_context, indent=2, ensure_ascii=False)}
-        
-        STRIKTE REGELN FÜR ABDUKTIVEN MODUS:
-        - KEINE neuen Hauptkategorien entwickeln
-        - NUR neue Subkategorien für bestehende Hauptkategorien
-        - Mindestens 2 Textbelege pro neuer Subkategorie
-        - Konfidenz mindestens 0.6 (niedrigere Schwelle für Subkategorien)
-        - Subkategorien müssen bestehende Hauptkategorie verfeinern
-        
-        TEXTSEGMENTE:
-        {segments_text}
-        
-        Antworte NUR mit JSON:
-        {{
-            "existing_categories": {{
-                "hauptkategorie_name": {{
-                    "new_subcategories": [
-                        {{
-                            "name": "Subkategorie Name",
-                            "definition": "Definition der Subkategorie",
-                            "evidence": ["Textbelege"],
-                            "confidence": 0.0-1.0
-                        }}
-                    ]
-                }}
-            }}
-        }}
-        """
-
-        try:
-            input_tokens = estimate_tokens(prompt)
-            
-            response = await self.llm_provider.create_completion(
-                model=self.model_name,
-                messages=[
-                    {"role": "system", "content": "Du bist ein Experte für qualitative Inhaltsanalyse. Antworte auf deutsch."},
-                    {"role": "user", "content": prompt}
-                ],
-                temperature=0.3,
-                response_format={"type": "json_object"}
-            )
-            
-            llm_response = LLMResponse(response)
-            result = json.loads(llm_response.content)
-            
-            output_tokens = estimate_tokens(response.choices[0].message.content)
-            token_counter.add_tokens(input_tokens, output_tokens)
-            
-            # Verarbeite Ergebnisse - erweitere bestehende Kategorien
-            updated_categories = existing_categories.copy()
-            
-            for main_cat_name, updates in result.get('existing_categories', {}).items():
-                if main_cat_name in updated_categories:
-                    current_cat = updated_categories[main_cat_name]
-                    new_subcats = {}
-                    
-                    for sub_data in updates.get('new_subcategories', []):
-                        if sub_data.get('confidence', 0) >= 0.6:  # Niedrigere Schwelle für Subkategorien
-                            new_subcats[sub_data['name']] = sub_data['definition']
-                            print(f"✅ Neue Subkategorie: {main_cat_name} → {sub_data['name']}")
-                    
-                    if new_subcats:
-                        # Erweitere bestehende Kategorie
-                        updated_categories[main_cat_name] = current_cat.replace(
-                            subcategories={**current_cat.subcategories, **new_subcats},
-                            modified_date=datetime.now().strftime("%Y-%m-%d")
-                        )
-            
-            return updated_categories
-            
-        except Exception as e:
-            print(f"Fehler bei abduktiver Batch-Analyse: {str(e)}")
-            return existing_categories
-
+  
     async def _meets_quality_standards(self, category: CategoryDefinition) -> bool:
         """
         Prüft ob Kategorie strikte Qualitätsstandards erfüllt
@@ -6614,21 +6076,11 @@ class InductiveCoder:
         """
         Intelligente Zusammenführung von Definitionen via LLM
         """
-        prompt = f"""
-        Führe diese beiden Kategoriendefinitionen zu einer kohärenten, präzisen Definition zusammen:
-        
-        Definition 1: {def1}
-        Definition 2: {def2}
-        
-        Erstelle eine neue Definition die:
-        - Die Kernaspekte beider Definitionen vereint
-        - Redundanzen eliminiert
-        - Klar und verständlich ist
-        - Mindestens 20 Wörter hat
-        
-        Antworte nur mit der neuen Definition:
-        """
-        
+        prompt = self.prompt_handler.get_definition_enhancement_prompt({
+            'definition1': def1,
+            'definition2': def2
+        })
+                
         try:
             response = await self.llm_provider.create_completion(
                 model=self.model_name,
@@ -11241,6 +10693,7 @@ async def perform_manual_coding(chunks, categories, manual_coders):
         traceback.print_exc()
         
         # Versuche, alle Fenster zu schließen, selbst im Fehlerfall
+
         for coder in manual_coders:
             if hasattr(coder, 'root') and coder.root:
                 try:

@@ -547,21 +547,55 @@ class QCAPrompts:
             Antworte NUR mit einem JSON-Objekt:
             {json_schema}
             """
-
-    def get_main_categories_generation_prompt(self, subcodes_data: List[Dict]) -> str:
-        """Prompt für Hauptkategoriengenerierung aus Subcodes"""
-
+    def get_main_categories_generation_prompt(self, subcodes_data: List[Dict], top_keywords: List[str], avg_confidence: float) -> str:
+        """
+        Erstellt einen Prompt für die Generierung von Hauptkategorien aus gesammelten Subcodes.
+        
+        Args:
+            subcodes_data: Liste der gesammelten Subcodes mit Definitionen und Keywords
+            top_keywords: Liste der häufigsten Keywords als (keyword, count) Tupel
+            avg_confidence: Durchschnittliche Konfidenz der Subcodes
+            
+        Returns:
+            str: Formatierter Prompt für die Hauptkategorien-Generierung
+        """
+        # Erstelle formatierten Subcode-Text
+        subcodes_text = ""
+        for i, subcode in enumerate(subcodes_data, 1):
+            keywords_str = ', '.join(subcode['keywords'][:10])  # Top 10 Keywords
+            subcodes_text += f"""
+            
+            {i}. Subcode: {subcode['name']}
+            Definition: {subcode['definition']}
+            Keywords: {keywords_str}
+            Konfidenz: {subcode['confidence']:.2f}
+            Textbelege: {len(subcode['evidence'])}
+            """
+        
+        top_keywords_str = ', '.join([kw for kw, _ in top_keywords[:10]])
+        
         return f"""
-            Entwickle ein STARK VERDICHTETES Kategoriensystem basierend auf den folgenden induktiv identifizierten Subcodes.
-            Diese Subcodes wurden durch offenes Kodieren im Sinne der Grounded Theory aus dem Datenmaterial gewonnen.
+        GROUNDED THEORY: Generiere Hauptkategorien aus gesammelten Subcodes
+        
+        Du erhältst {len(subcodes_data)} Subcodes mit ihren Keywords, die während einer Grounded Theory Analyse gesammelt wurden. 
+        Deine Aufgabe ist es, diese zu thematisch kohärenten Hauptkategorien zu gruppieren.
+        
+        FORSCHUNGSFRAGE: {self.FORSCHUNGSFRAGE}
+        
+        GESAMMELTE SUBCODES UND KEYWORDS:
+        {subcodes_text}
+        
+        GROUNDED THEORY ANALYSE-ANWEISUNGEN:
+        1. Analysiere die thematischen Verbindungen zwischen den Subcodes
+        2. Gruppiere verwandte Subcodes zu 3-6 kohärenten Hauptkategorien
+        3. Jede Hauptkategorie sollte mindestens 2-3 Subcodes enthalten
+        4. Erstelle aussagekräftige Namen und Definitionen für die Hauptkategorien
+        5. Ordne die Subcodes als Subkategorien den Hauptkategorien zu
+        6. Berücksichtige die Keyword-Häufigkeiten zur Themenfindung
+        
+        TOP KEYWORDS ZUR ORIENTIERUNG: {top_keywords_str}
 
-            FORSCHUNGSFRAGE:
-            {self.FORSCHUNGSFRAGE}
-
-            IDENTIFIZIERTE SUBCODES MIT IHREN KEYWORDS:
-            {json.dumps(subcodes_data, indent=2, ensure_ascii=False)}
-
-            AUFGABE - DREISTUFIGE ABSTRAKTIONSHIERARCHIE:
+        AUFGABE - DREISTUFIGE ABSTRAKTIONSHIERARCHIE:
             1. KEYWORDS (bereits vorhanden): Textnahe, spezifische Begriffe und Phrasen direkt aus dem Material
             2. SUBCODES (bereits vorhanden): Erste Abstraktionsebene, fassen ähnliche Keywords zusammen
             3. HAUPTKATEGORIEN (zu generieren): DEUTLICH HÖHERE ABSTRAKTIONSEBENE als Subcodes
@@ -602,43 +636,39 @@ class QCAPrompts:
             - Für das spätere Matching ist es ZWINGEND ERFORDERLICH, dass JEDER Subcode einer Hauptkategorie zugeordnet wird
             - Es muss eine klare 1:n Beziehung zwischen Hauptkategorien und Subcodes geben
             - Jeder Subcode muss genau einer Hauptkategorie zugeordnet sein
-
-            Antworte mit einem JSON-Objekt:
-            {{
-                "main_categories": [
-                    {{
-                        "name": "Name der Hauptkategorie (DEUTLICH HÖHERE Abstraktionsebene)",
-                        "definition": "Umfassende Definition der Hauptkategorie, die verschiedene Aspekte zusammenführt",
-                        "characteristic_keywords": ["Übergeordnete Keywords dieser Hauptkategorie"],
-                        "rules": ["Kodierregel 1", "Kodierregel 2", "Kodierregel 3", "Kodierregel 4"],
-                        "subcodes": [
-                            {{
-                                "name": "Name des Subcodes",
-                                "definition": "Definition des Subcodes",
-                                "keywords": ["Keywords des Subcodes"]
-                            }}
-                        ],
-                        "examples": ["Beispiel 1", "Beispiel 2"],
-                        "justification": "Theoretische Begründung für diese Kategorie und die Zusammenführung ihrer Aspekte"
-                    }}
-                ],
-                "subcode_mappings": {{
-                    "subcode_name1": "hauptkategorie_name1",
-                    "subcode_name2": "hauptkategorie_name1",
-                    "subcode_name3": "hauptkategorie_name2"
-                }},
-                "category_relationships": {{
-                    "hauptkategorie_name1": ["Beziehung zu andere Kategorien", "Abgrenzungskriterien"],
-                    "hauptkategorie_name2": ["Beziehung zu andere Kategorien", "Abgrenzungskriterien"]
-                }},
-                "meta_analysis": {{
-                    "theoretical_saturation": 0.0-1.0,
-                    "coverage": 0.0-1.0,
-                    "theoretical_density": 0.0-1.0,
-                    "justification": "Begründung des verdichteten Kategoriensystems und seiner Vorteile"
+        
+        Antworte AUSSCHLIESSLICH mit diesem JSON-Format:
+        {{
+            "main_categories": [
+                {{
+                    "name": "Hauptkategorie Name",
+                    "definition": "Umfassende Definition der Hauptkategorie (mindestens 30 Wörter)",
+                    "characteristic_keywords": ["Schlüssel", "Keywords", "für", "diese", "Kategorie"],
+                    "examples": ["Beispiel1", "Beispiel2"],
+                    "rules": ["Kodierregel1", "Kodierregel2"],
+                    "subcodes": [
+                        {{
+                            "name": "Subcode Name aus der Liste oben",
+                            "definition": "Definition des Subcodes",
+                            "rationale": "Warum dieser Subcode zu dieser Hauptkategorie gehört"
+                        }}
+                    ],
+                    "thematic_justification": "Warum diese Subcodes thematisch zusammengehören"
                 }}
+            ],
+            "subcode_mappings": {{
+                "Subcode Name": "Hauptkategorie Name"
+            }},
+            "meta_analysis": {{
+                "total_subcodes_processed": {len(subcodes_data)},
+                "total_main_categories": 0,
+                "theoretical_saturation": 0.0,
+                "coverage": 0.0,
+                "justification": "Begründung für die Kategorienbildung"
             }}
-            """
+        }}
+        """
+    
     def get_analyze_for_subcategories_prompt(self, segments_text: str, categories_context: List[Dict]) -> str:
         return f"""
         ABDUKTIVER MODUS: Entwickle NUR neue Subkategorien für bestehende Hauptkategorien.
@@ -679,33 +709,62 @@ class QCAPrompts:
             }}
         }}
         """
-    def _get_definition_enhancement_prompt(self, category: Dict) -> str:
+    
+    def get_definition_enhancement_prompt(self, category_data: Dict) -> str:
         """
-        Prompt zur Verbesserung unzureichender Definitionen.
-        """
-        return f"""Erweitere die folgende Kategoriendefinition zu einer vollständigen Definition.
-
-        KATEGORIE: {category['name']}
-        AKTUELLE DEFINITION: {category['definition']}
-        BEISPIEL: {category.get('example', '')}
+        Erstellt einen Prompt zur Verbesserung oder Zusammenführung von Kategoriendefinitionen.
         
-        ANFORDERUNGEN:
-        1. Zentrale Merkmale klar benennen
-        2. Anwendungsbereich definieren
-        3. Abgrenzung zu ähnlichen Konzepten
-        4. Mindestens drei vollständige Sätze
-        5. Fachsprachlich präzise
+        Args:
+            category_data: Dictionary mit Kategorieinformationen
+                        - Für einzelne Kategorie: 'name', 'definition', 'examples'
+                        - Für Zusammenführung: 'definition1', 'definition2'
+            
+        Returns:
+            str: Formatierter Prompt für die Definitionsverbesserung
+        """
+        if 'definition1' in category_data and 'definition2' in category_data:
+            # Zusammenführung von zwei Definitionen
+            return f"""
+            Führe diese beiden Kategoriendefinitionen zu einer kohärenten, präzisen Definition zusammen:
+            
+            Definition 1: {category_data['definition1']}
+            Definition 2: {category_data['definition2']}
+            
+            Erstelle eine neue Definition die:
+            - Die Kernaspekte beider Definitionen vereint
+            - Redundanzen eliminiert
+            - Klar und verständlich ist
+            - Mindestens 20 Wörter hat
+            - Zur Forschungsfrage "{self.FORSCHUNGSFRAGE}" passt
 
-        BEISPIEL GUTER DEFINITION:
-        "Qualitätssicherungsprozesse umfassen alle systematischen Verfahren und Maßnahmen zur 
-        Überprüfung und Gewährleistung definierter Qualitätsstandards in der Hochschule. Sie 
-        beinhalten sowohl interne Evaluationen und Audits als auch externe Begutachtungen und 
-        Akkreditierungen. Im Gegensatz zum allgemeinen Qualitätsmanagement fokussieren sie 
-        sich auf die konkrete Durchführung und Dokumentation von qualitätssichernden 
-        Maßnahmen."
-
-        Antworte nur mit der erweiterten Definition."""
-
+            BEISPIEL GUTER DEFINITION:
+            "Qualitätssicherungsprozesse umfassen alle systematischen Verfahren und Maßnahmen zur 
+            Überprüfung und Gewährleistung definierter Qualitätsstandards in der Hochschule. Sie 
+            beinhalten sowohl interne Evaluationen und Audits als auch externe Begutachtungen und 
+            Akkreditierungen. Im Gegensatz zum allgemeinen Qualitätsmanagement fokussieren sie 
+            sich auf die konkrete Durchführung und Dokumentation von qualitätssichernden 
+            Maßnahmen."
+            
+            Antworte nur mit der neuen Definition:
+            """
+        else:
+            # Verbesserung einer einzelnen Definition
+            return f"""
+            Verbessere die folgende Kategoriendefinition für die qualitative Inhaltsanalyse:
+            
+            Kategorie: {category_data.get('name', 'Unbenannt')}
+            Aktuelle Definition: {category_data.get('definition', '')}
+            Beispiele: {', '.join(category_data.get('examples', []))}
+            
+            Erstelle eine verbesserte Definition die:
+            - Präzise und klar formuliert ist
+            - Mindestens 20 Wörter umfasst
+            - Zur Forschungsfrage "{self.forschungsfrage}" passt
+            - Die Abgrenzung zu anderen Kategorien ermöglicht
+            - Konkrete Kodierhinweise enthält
+            
+            Antworte nur mit der verbesserten Definition:
+            """
     def _get_subcategory_generation_prompt(self, category: Dict) -> str:
         """
         Prompt zur Generierung fehlender Subkategorien.
@@ -817,21 +876,33 @@ class QCAPrompts:
         - Achte auf angemessenes Abstraktionsniveau
         """
 
-    def get_segment_relevance_assessment_prompt(self, segment: str) -> str:
-        """Prompt für Bewertung der Segment-Relevanz"""
-
+    def get_segment_relevance_assessment_prompt(self, chunk: str) -> str:
+        """
+        Erstellt einen Prompt zur Bewertung der Relevanz eines Segments für die Kategorienentwicklung.
+        
+        Args:
+            segment: Zu bewertender Textabschnitt
+            
+        Returns:
+            str: Formatierter Prompt für die Relevanzbeurteilung
+        """
         return f"""
-            Bewerte die Relevanz des folgenden Textsegments für die Kategorienentwicklung.
-            Berücksichtige:
-            1. Bezug zur Forschungsfrage: {self.FORSCHUNGSFRAGE}
-            2. Informationsgehalt
-            3. Abstraktionsniveau
-            
-            Text: {segment}
-            
-            Antworte nur mit einem JSON-Objekt:
-            {{
-                "relevance_score": 0.8,  // 0-1
-                "reasoning": "Kurze Begründung"
-            }}
-            """
+        Analysiere sorgfältig die Relevanz des folgenden Texts für die Forschungsfrage:
+        "{self.FORSCHUNGSFRAGE}"
+        
+        TEXT:
+        {chunk}
+        
+        Prüfe systematisch:
+        1. Inhaltlicher Bezug: Behandelt der Text explizit Aspekte der Forschungsfrage?
+        2. Aussagekraft: Enthält der Text konkrete, analysierbare Aussagen?
+        3. Substanz: Geht der Text über oberflächliche/beiläufige Erwähnungen hinaus?
+        4. Kontext: Ist der Bezug zur Forschungsfrage eindeutig und nicht nur implizit?
+        
+        Antworte NUR mit einem JSON-Objekt:
+        {{
+            "relevance_score": 0.0-1.0,
+            "justification": "Kurze Begründung der Bewertung",
+            "key_aspects": ["Liste", "relevanter", "Aspekte"]
+        }}
+        """
