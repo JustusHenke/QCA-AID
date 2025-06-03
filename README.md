@@ -122,6 +122,26 @@ Prinzipiell ist die Verarbeitung der Daten per LLM auch auf einem lokalen Rechne
 - **Excel-basierte Konfiguration**: Einfache Anpassung aller Einstellungen über Excel-Dateien
 - **Erweiterte Visualisierungsoptionen**: Konfigurierbare Diagramme und Analysen im QCA-AID-Explorer
 
+## Neu in 0.9.15 (2025-06-02)
+- COMPLETE RESTRUCTURING OF INDUCTIVE MODE: Vollständige Neustrukturierung des induktiven Modus
+  • Vereinfachte und robustere Kategorienentwicklung mit verbesserter Konsistenz
+  • Optimierte Sättigungsprüfung und stabilere Kategorienvalidierung
+  • Reduzierte Komplexität bei gleichzeitig erhöhter Methodentreue
+- IMPROVED ABDUCTIVE MODE: Verbesserungen beim abduktiven Modus
+  • Präzisere Subkategorien-Entwicklung zu bestehenden Hauptkategorien
+  • Bessere Integration neuer Subkategorien in das bestehende System
+- GRACEFUL ANALYSIS INTERRUPTION: Analyse kann mit ESC-Taste abgebrochen werden
+  • Zwischenergebnisse werden automatisch gespeichert bei Benutzerabbruch
+  • Wiederaufnahme der Analyse ab dem letzten Checkpoint möglich
+  • Vollständige Datenintegrität auch bei vorzeitigem Abbruch
+- MASSIVE PERFORMANCE BOOST: 4x Beschleunigung durch Parallelisierung
+  • Parallele Verarbeitung aller Segmente eines Batches gleichzeitig
+  • Optimierte API-Calls durch intelligente Bündelung
+  • Dramatisch reduzierte Analysezeiten bei großen Datenmengen
+- Enhanced error handling and stability improvements
+- Improved progress monitoring and user feedback
+- Optimized memory usage for large document sets
+
 ## Neu in 0.9.14 (2025-05-28)
 - Implementierung der Mehrfachkodierung von Textsegmenten für mehrere Hauptkategorien
 - Neue CONFIG-Parameter: MULTIPLE_CODINGS (default: True) und MULTIPLE_CODING_THRESHOLD (default: 0.7)
@@ -203,7 +223,7 @@ QCA-AID.py
 
 ## Zitiervorschlag
 
-Henke, J. (2025). QCA-AID: Qualitative Content Analysis with AI Support (Version 0.9.13) [Software]. 
+Henke, J. (2025). QCA-AID: Qualitative Content Analysis with AI Support (Version 0.9.15) [Software]. 
 Institut für Hochschulforschung Halle-Wittenberg. https://github.com/JustusHenke/QCA-AID
 
 ```BibTex
