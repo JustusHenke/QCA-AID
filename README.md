@@ -20,8 +20,9 @@ Dieses Python-Skript implementiert Mayrings Methode der deduktiven Qualitativen 
   - [Konfiguration und Anpassbarkeit](#konfiguration-und-anpassbarkeit)
 
 ### Versionen und Updates
-- [Neu in 0.9.14](#neu-in-0914--2025-05-28)
-- [Neu in 0.9.13](#neu-in-0913--2025-05-15)
+- [Neu in 0.9.15](#neu-in-0915-2025-06-02)
+- [Neu in 0.9.14](#neu-in-0914-2025-05-28)
+- [Neu in 0.9.13](#neu-in-0913-2025-05-15)
 - [Neu in 0.9.12](#neu-in-0912--2025-05-10)
 - [Neu in 0.9.11](#neu-in-0911--2025-04-12)
 - [Neu in 0.9.10](#neu-in-0910)
@@ -153,7 +154,7 @@ Prinzipiell ist die Verarbeitung der Daten per LLM auch auf einem lokalen Rechne
 - Effiziente Batch-Verarbeitung und Caching für Mehrfachkodierungs-Prüfungen
 - Konfigurierbare Deaktivierung der Mehrfachkodierung für traditionelle Einzelkodierung
 
-## Neu in 0.9.13  (2025-05-15)
+## Neu in 0.9.13 (2025-05-15)
 - Vollständige Implementierung des 'majority' Review-Modus mit einfacher Mehrheitsentscheidung
 - Neue 'manual_priority' Option bevorzugt manuelle vor automatischen Kodierungen
 - Korrigierte Review-Logik: REVIEW_MODE wird jetzt korrekt respektiert, unabhängig von Kodierer-Typ
