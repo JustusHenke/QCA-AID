@@ -1068,6 +1068,7 @@ class RelevanceChecker:
             deduktive_kategorien=DEDUKTIVE_KATEGORIEN
         )
 
+    
     async def check_multiple_category_relevance(self, segments: List[Tuple[str, str]], 
                                             categories: Dict[str, CategoryDefinition]) -> Dict[str, List[Dict]]:
         """
@@ -1199,8 +1200,8 @@ class RelevanceChecker:
     
     async def check_relevance_batch(self, segments: List[Tuple[str, str]]) -> Dict[str, bool]:
         """
-        PARALLELISIERTE VERSION: Prüft die Relevanz mehrerer Segmente parallel.
-        Ersetzt die sequentielle Version für massive Geschwindigkeitssteigerung.
+        KORRIGIERTE VERSION: Prüft die Relevanz mehrerer Segmente parallel mit Batch-Verarbeitung.
+        Behält die bewährte Batch-Logik bei und fügt Parallelisierung nur für große Batches hinzu.
         
         Args:
             segments: Liste von (segment_id, text) Tupeln
@@ -1218,93 +1219,184 @@ class RelevanceChecker:
             return {sid: self.relevance_cache[sid] for sid, _ in segments}
 
         try:
-            print(f"🚀 Parallele Relevanzprüfung: {len(uncached_segments)} Segmente")
+            print(f"🔍 Relevanzprüfung: {len(uncached_segments)} neue Segmente")
             
-            # 🚀 PARALLEL: Hilfsfunktion für einzelnes Segment
-            async def check_single_segment(segment_id: str, text: str) -> Tuple[str, bool, dict]:
-                """Prüft ein einzelnes Segment parallel."""
-                try:
-                    # Schneller Vorfilter
-                    if len(text.strip()) < 30:
-                        return segment_id, False, {'confidence': 1.0, 'reason': 'too_short'}
-                    
-                    # Erstelle individuellen Prompt
-                    prompt = self.prompt_handler.get_relevance_check_prompt(
-                        segments_text=f"SEGMENT:\n{text}",
-                        exclusion_rules=self.exclusion_rules
-                    )
-                    
-                    input_tokens = estimate_tokens(prompt)
-                    
-                    response = await self.llm_provider.create_completion(
-                        model=self.model_name,
-                        messages=[
-                            {"role": "system", "content": "Du bist ein Experte für qualitative Inhaltsanalyse. Du antwortest auf deutsch."},
-                            {"role": "user", "content": prompt}
-                        ],
-                        temperature=0.3,
-                        response_format={"type": "json_object"}
-                    )
-                    
-                    llm_response = LLMResponse(response)
-                    result = json.loads(llm_response.content)
-                    
-                    output_tokens = estimate_tokens(response.choices[0].message.content)
-                    token_counter.add_tokens(input_tokens, output_tokens)
-                    
-                    is_relevant = result.get('is_relevant', False)
-                    details = {
-                        'confidence': result.get('confidence', 0),
-                        'key_aspects': result.get('key_aspects', []),
-                        'justification': result.get('justification', '')
-                    }
-                    
-                    return segment_id, is_relevant, details
-                    
-                except Exception as e:
-                    print(f"⚠️ Fehler bei Segment {segment_id}: {str(e)}")
-                    return segment_id, True, {'confidence': 0.5, 'reason': 'error_fallback'}  # Fallback
+            # STRATEGIE: Kleine Batches (≤5) → bewährte Batch-Methode
+            #           Große Batches (>5) → Parallelisierung in Sub-Batches
             
-            # 🚀 Erstelle alle Tasks
-            tasks = [
-                check_single_segment(segment_id, text) 
-                for segment_id, text in uncached_segments
-            ]
-            
-            # 🚀 Führe alle parallel aus
-            start_time = time.time()
-            results = await asyncio.gather(*tasks, return_exceptions=True)
-            processing_time = time.time() - start_time
-            
-            # Verarbeite Ergebnisse
-            relevance_results = {}
-            successful_checks = 0
-            
-            for result in results:
-                if isinstance(result, Exception):
-                    print(f"⚠️ Ausnahme bei Relevanzprüfung: {result}")
-                    continue
+            if len(uncached_segments) <= 5:
+                # BEWÄHRTE BATCH-METHODE für kleine Gruppen
+                print(f"   📦 Verwende normale Batch-Methode für {len(uncached_segments)} Segmente")
                 
-                segment_id, is_relevant, details = result
-                relevance_results[segment_id] = is_relevant
+                # Erstelle formatierten Text für Batch-Verarbeitung
+                segments_text = "\n\n=== SEGMENT BREAK ===\n\n".join(
+                    f"SEGMENT {i + 1}:\n{text}" 
+                    for i, (_, text) in enumerate(uncached_segments)
+                )
+
+                prompt = self.prompt_handler.get_relevance_check_prompt(
+                    segments_text=segments_text,
+                    exclusion_rules=self.exclusion_rules
+                )
                 
-                # Cache und Details aktualisieren
-                self.relevance_cache[segment_id] = is_relevant
-                self.relevance_details[segment_id] = details
+                input_tokens = estimate_tokens(prompt)
                 
-                # Tracking
-                self.total_segments += 1
-                if is_relevant:
-                    self.relevant_segments += 1
-                successful_checks += 1
+                # Ein API-Call für alle Segmente
+                response = await self.llm_provider.create_completion(
+                    model=self.model_name,
+                    messages=[
+                        {"role": "system", "content": "Du bist ein Experte für qualitative Inhaltsanalyse. Du antwortest auf deutsch."},
+                        {"role": "user", "content": prompt}
+                    ],
+                    temperature=0.3,
+                    response_format={"type": "json_object"}
+                )
+                
+                llm_response = LLMResponse(response)
+                results = json.loads(llm_response.content)
+                
+                output_tokens = estimate_tokens(response.choices[0].message.content)
+                token_counter.add_tokens(input_tokens, output_tokens)
+                
+                # Verarbeite Ergebnisse
+                relevance_results = {}
+                segment_results = results.get('segment_results', [])
+                
+                if len(segment_results) != len(uncached_segments):
+                    print(f"⚠️ Warnung: Anzahl Ergebnisse ({len(segment_results)}) != Anzahl Segmente ({len(uncached_segments)})")
+                    # Fallback: Alle als relevant markieren
+                    for segment_id, _ in uncached_segments:
+                        relevance_results[segment_id] = True
+                        self.relevance_cache[segment_id] = True
+                else:
+                    for i, (segment_id, _) in enumerate(uncached_segments):
+                        segment_result = segment_results[i]
+                        is_relevant = segment_result.get('is_relevant', True)  # Default: relevant
+                        
+                        # Cache-Aktualisierung
+                        self.relevance_cache[segment_id] = is_relevant
+                        self.relevance_details[segment_id] = {
+                            'confidence': segment_result.get('confidence', 0.8),
+                            'key_aspects': segment_result.get('key_aspects', []),
+                            'justification': segment_result.get('justification', '')
+                        }
+                        
+                        relevance_results[segment_id] = is_relevant
+                        
+                        # Tracking-Aktualisierung
+                        self.total_segments += 1
+                        if is_relevant:
+                            self.relevant_segments += 1
+                
+                self.api_calls += 1
+                
+            else:
+                # PARALLELISIERUNG für große Batches
+                print(f"   🚀 Verwende Parallelisierung in Sub-Batches für {len(uncached_segments)} Segmente")
+                
+                # Teile in Sub-Batches von je 3-4 Segmenten
+                sub_batch_size = 3
+                sub_batches = [
+                    uncached_segments[i:i + sub_batch_size] 
+                    for i in range(0, len(uncached_segments), sub_batch_size)
+                ]
+                
+                async def process_sub_batch(sub_batch: List[Tuple[str, str]]) -> Dict[str, bool]:
+                    """Verarbeitet einen Sub-Batch mit der bewährten Methode."""
+                    try:
+                        # Verwende dieselbe Batch-Logik wie oben
+                        segments_text = "\n\n=== SEGMENT BREAK ===\n\n".join(
+                            f"SEGMENT {i + 1}:\n{text}" 
+                            for i, (_, text) in enumerate(sub_batch)
+                        )
+
+                        prompt = self.prompt_handler.get_relevance_check_prompt(
+                            segments_text=segments_text,
+                            exclusion_rules=self.exclusion_rules
+                        )
+                        
+                        input_tokens = estimate_tokens(prompt)
+                        
+                        response = await self.llm_provider.create_completion(
+                            model=self.model_name,
+                            messages=[
+                                {"role": "system", "content": "Du bist ein Experte für qualitative Inhaltsanalyse. Du antwortest auf deutsch."},
+                                {"role": "user", "content": prompt}
+                            ],
+                            temperature=0.3,
+                            response_format={"type": "json_object"}
+                        )
+                        
+                        llm_response = LLMResponse(response)
+                        results = json.loads(llm_response.content)
+                        
+                        output_tokens = estimate_tokens(response.choices[0].message.content)
+                        token_counter.add_tokens(input_tokens, output_tokens)
+                        
+                        # Verarbeite Sub-Batch Ergebnisse
+                        sub_batch_results = {}
+                        segment_results = results.get('segment_results', [])
+                        
+                        if len(segment_results) != len(sub_batch):
+                            # Fallback bei Mismatch
+                            for segment_id, _ in sub_batch:
+                                sub_batch_results[segment_id] = True
+                        else:
+                            for i, (segment_id, _) in enumerate(sub_batch):
+                                segment_result = segment_results[i]
+                                is_relevant = segment_result.get('is_relevant', True)
+                                sub_batch_results[segment_id] = is_relevant
+                                
+                                # Details für Cache speichern
+                                self.relevance_details[segment_id] = {
+                                    'confidence': segment_result.get('confidence', 0.8),
+                                    'key_aspects': segment_result.get('key_aspects', []),
+                                    'justification': segment_result.get('justification', '')
+                                }
+                        
+                        return sub_batch_results
+                        
+                    except Exception as e:
+                        print(f"⚠️ Fehler in Sub-Batch: {str(e)}")
+                        # Fallback: Alle als relevant markieren
+                        return {segment_id: True for segment_id, _ in sub_batch}
+                
+                # Führe alle Sub-Batches parallel aus
+                start_time = time.time()
+                tasks = [process_sub_batch(sub_batch) for sub_batch in sub_batches]
+                sub_batch_results = await asyncio.gather(*tasks, return_exceptions=True)
+                processing_time = time.time() - start_time
+                
+                # Kombiniere Ergebnisse
+                relevance_results = {}
+                successful_batches = 0
+                
+                for result in sub_batch_results:
+                    if isinstance(result, Exception):
+                        print(f"⚠️ Sub-Batch Ausnahme: {result}")
+                        continue
+                    
+                    if isinstance(result, dict):
+                        relevance_results.update(result)
+                        successful_batches += 1
+                
+                # Aktualisiere Cache und Tracking
+                for segment_id, is_relevant in relevance_results.items():
+                    self.relevance_cache[segment_id] = is_relevant
+                    self.total_segments += 1
+                    if is_relevant:
+                        self.relevant_segments += 1
+                
+                # API-Calls = Anzahl der Sub-Batches
+                self.api_calls += successful_batches
+                
+                print(f"   ⚡ {successful_batches} Sub-Batches in {processing_time:.2f}s verarbeitet")
             
-            # Ein API-Call pro Segment (parallel, aber zählen wir als batch)
-            self.api_calls += successful_checks
+            # Debug-Ausgabe der Ergebnisse
+            relevant_count = sum(1 for is_relevant in relevance_results.values() if is_relevant)
+            print(f"   📊 Relevanz-Ergebnisse: {relevant_count}/{len(relevance_results)} als relevant eingestuft")
             
-            print(f"⚡ {successful_checks} Relevanzprüfungen in {processing_time:.2f}s")
-            print(f"🚀 Geschwindigkeit: {successful_checks/processing_time:.1f} Prüfungen/Sekunde")
-            
-            # Kombiniere mit bereits gecachten Ergebnissen
+            # Kombiniere mit bereits gecachten Ergebnissen für finale Antwort
             final_results = {}
             for segment_id, text in segments:
                 if segment_id in relevance_results:
@@ -1316,6 +1408,8 @@ class RelevanceChecker:
 
         except Exception as e:
             print(f"Fehler bei paralleler Relevanzprüfung: {str(e)}")
+            import traceback
+            traceback.print_exc()
             # Fallback: Alle als relevant markieren bei Fehler
             return {sid: True for sid, _ in segments}
     
@@ -1440,42 +1534,26 @@ class IntegratedAnalysisManager:
                                     batch: List[Tuple[str, str]], 
                                     current_categories: Dict[str, CategoryDefinition]) -> Dict[str, CategoryDefinition]:
         """
-        KORRIGIERTE induktive Batch-Verarbeitung mit modusabhängiger Logik
+        VEREINFACHT: Keine weitere Relevanzprüfung mehr nötig
         """
-        try:
-            # Relevanzprüfung
-            relevance_results = await self.relevance_checker.check_relevance_batch(batch)
-            relevant_segments = [
-                text for (segment_id, text) in batch 
-                if relevance_results.get(segment_id, False)
-            ]
-
-            if not relevant_segments:
-                # HIER: Verbessertes Logging einfügen
-                print("   ℹ️ Keine Segmente in diesem Batch als relevant für NEUE Kategorienentwicklung eingestuft")
-                print(f"   ℹ️ Bereits {len(current_categories)} Kategorien entwickelt - strengere Relevanzkriterien aktiv")
-                print(f"   ℹ️ Alle {len(batch)} Segmente werden weiterhin deduktiv kodiert")
-                return {}
+        # Die Segmente sind bereits in analyze_material gefiltert worden
+        relevant_segments = [text for _, text in batch]  # Einfach die Texte extrahieren
         
-            print(f"\n🔍 Entwickle Kategorien aus {len(relevant_segments)} relevanten Segmenten")
-            
-            analysis_mode = CONFIG.get('ANALYSIS_MODE', 'inductive')
-            print(f"🎯 Aktiver Analyse-Modus: {analysis_mode}")
-            
-            # KORRIGIERTE Modi-Logik
-            if analysis_mode == 'inductive':
-                return await self._process_inductive_mode(relevant_segments, current_categories)
-            elif analysis_mode == 'abductive':
-                return await self._process_abductive_mode(relevant_segments, current_categories)
-            elif analysis_mode == 'grounded':
-                return await self._process_grounded_mode(relevant_segments, current_categories)
-            else:
-                print(f"⚠️ Unbekannter Modus: {analysis_mode}")
-                return {}
-                
-        except Exception as e:
-            print(f"Fehler bei Kategorienentwicklung: {str(e)}")
-            traceback.print_exc()
+        if not relevant_segments:
+            print("   ℹ️ Keine Segmente in diesem Batch")
+            return {}
+
+        print(f"\n🔍 Entwickle Kategorien aus {len(relevant_segments)} Segmenten")
+        
+        analysis_mode = CONFIG.get('ANALYSIS_MODE', 'inductive')
+        
+        if analysis_mode == 'inductive':
+            return await self._process_inductive_mode(relevant_segments, current_categories)
+        elif analysis_mode == 'abductive':
+            return await self._process_abductive_mode(relevant_segments, current_categories)
+        elif analysis_mode == 'grounded':
+            return await self._process_grounded_mode(relevant_segments, current_categories)
+        else:
             return {}
 
     async def _process_inductive_mode(self, relevant_segments: List[str], 
@@ -1714,35 +1792,62 @@ class IntegratedAnalysisManager:
                                     categories: Dict[str, CategoryDefinition]) -> List[Dict]:
         """
         PARALLELISIERTE VERSION: Führt die deduktive Kodierung parallel durch.
-        Massive Geschwindigkeitssteigerung durch gleichzeitige Verarbeitung aller Segmente.
+        BUGFIX: Verwendet separate, lockere Relevanzprüfung für Kodierung.
         """
         print(f"\n🚀 PARALLEL-KODIERUNG: {len(batch)} Segmente gleichzeitig")
         start_time = time.time()
         
-        # 1. PARALLEL: Relevanzprüfung für ganzen Batch
-        relevance_results = await self.relevance_checker.check_relevance_batch(batch)
+        print(f"\n🔍 Prüfe Kodierungs-Relevanz...")
+        coding_relevance_results = await self.relevance_checker.check_relevance_batch(batch)
+        
+        # Debug-Ausgaben
+        print(f"\n🔍 Kodierungs-Relevanzprüfung Ergebnisse:")
+        relevant_count = sum(1 for is_relevant in coding_relevance_results.values() if is_relevant)
+        print(f"   - Segmente geprüft: {len(coding_relevance_results)}")
+        print(f"   - Als kodierungsrelevant eingestuft: {relevant_count}")
+        print(f"   - Als nicht kodierungsrelevant eingestuft: {len(coding_relevance_results) - relevant_count}")
+        
         
         # 2. PARALLEL: Mehrfachkodierungs-Prüfung (wenn aktiviert)
         multiple_coding_results = {}
         if CONFIG.get('MULTIPLE_CODINGS', True):
-            relevant_segments = [
+            coding_relevant_segments = [
                 (segment_id, text) for segment_id, text in batch
-                if relevance_results.get(segment_id, False)
+                if coding_relevance_results.get(segment_id, True)
             ]
             
-            if relevant_segments:
-                print(f"  🔄 Prüfe {len(relevant_segments)} relevante Segmente auf Mehrfachkodierung...")
+            if coding_relevant_segments:
+                print(f"  🔄 Prüfe {len(coding_relevant_segments)} kodierungsrelevante Segmente auf Mehrfachkodierung...")
                 multiple_coding_results = await self.relevance_checker.check_multiple_category_relevance(
-                    relevant_segments, categories
+                    coding_relevant_segments, categories
                 )
         
         # 3. PARALLEL: Kodierung aller Segmente
         async def code_single_segment_all_coders(segment_id: str, text: str) -> List[Dict]:
             """Kodiert ein einzelnes Segment mit allen Kodierern und Instanzen parallel."""
             
-            # Prüfe Relevanz
-            if not relevance_results.get(segment_id, False):
-                # Erstelle "Nicht kodiert" Ergebnisse für alle Kodierer
+            is_coding_relevant = coding_relevance_results.get(segment_id, True)  # Default: True
+
+            # Zusätzliche einfache Heuristik für offensichtlich irrelevante Inhalte
+            if len(text.strip()) < 20:
+                is_coding_relevant = False
+                print(f"   🚫 Segment {segment_id} zu kurz für Kodierung")
+                
+            text_lower = text.lower()
+            exclusion_patterns = [
+                'seite ', 'page ', 'copyright', '©', 'datum:', 'date:',
+                'inhaltsverzeichnis', 'table of contents', 'literaturverzeichnis',
+                'bibliography', 'anhang', 'appendix'
+            ]
+            
+            is_metadata = any(pattern in text_lower for pattern in exclusion_patterns)
+            if is_metadata and len(text) < 100:
+                is_coding_relevant = False
+                print(f"   🚫 Segment {segment_id} als Metadaten erkannt")
+            
+            if not is_coding_relevant:
+                print(f"   🚫 Segment {segment_id} wird als 'Nicht kodiert' markiert")
+                
                 not_coded_results = []
                 for coder in self.deductive_coders:
                     result = {
@@ -1751,7 +1856,7 @@ class IntegratedAnalysisManager:
                         'category': "Nicht kodiert",
                         'subcategories': [],
                         'confidence': {'total': 1.0, 'category': 1.0, 'subcategories': 1.0},
-                        'justification': "Nicht relevant für Forschungsfrage",
+                        'justification': "Nicht relevant für Kodierung (zu kurz oder Metadaten)",
                         'text': text,
                         'multiple_coding_instance': 1,
                         'total_coding_instances': 1,
@@ -1873,7 +1978,10 @@ class IntegratedAnalysisManager:
         
         print(f"✅ PARALLEL-BATCH ABGESCHLOSSEN:")
         print(f"   ⚡ Zeit: {processing_time:.2f}s")
-        print(f"   🚀 Geschwindigkeit: {len(batch)/processing_time:.1f} Segmente/Sekunde")
+        if processing_time > 0:
+            print(f"   🚀 Geschwindigkeit: {len(batch)/processing_time:.1f} Segmente/Sekunde")
+        else:
+            print(f"   🚀 Geschwindigkeit: {len(batch)} Segmente in <0.01s (sehr schnell)")
         print(f"   ✓ Erfolgreiche Segmente: {successful_segments}/{len(batch)}")
         print(f"   📊 Gesamte Kodierungen: {len(batch_results)}")
         if error_count > 0:
@@ -2178,10 +2286,10 @@ class IntegratedAnalysisManager:
             print(f"   - Subkategorien: {total_subcats}")
             
         else:
-            # Bestehende Logik für andere Modi
-            initial_count = len(initial_categories) if initial_categories else 0
+            # Bestehende Logik für andere Modi - KORRIGIERT
+            initial_count = len(initial_categories) if initial_categories else 0  # ✅ BUGFIX: len() hinzugefügt
             final_count = len(final_categories)
-            new_count = final_count - initial_categories if initial_categories else final_count
+            new_count = final_count - initial_count  # ✅ Jetzt korrekt: int - int
             
             print(f"📈 Entwicklungsbilanz:")
             print(f"   - Verarbeitete Batches: {batch_count}")
@@ -2192,6 +2300,26 @@ class IntegratedAnalysisManager:
             # Subkategorien-Statistik
             total_subcats = sum(len(cat.subcategories) for cat in final_categories.values())
             print(f"   - Subkategorien: {total_subcats}")
+
+        if (hasattr(self, 'inductive_coder') and 
+            self.inductive_coder and 
+            hasattr(self.inductive_coder, 'theoretical_saturation_history') and
+            self.inductive_coder.theoretical_saturation_history):
+            
+            final_saturation = self.inductive_coder.theoretical_saturation_history[-1]
+            print(f"\n🎯 Finale Sättigung:")
+            print(f"   - Theoretische Sättigung: {final_saturation['theoretical_saturation']:.1%}")
+            print(f"   - Kategorienqualität: {final_saturation['category_quality']:.1%}")
+            print(f"   - Diversität: {final_saturation['category_diversity']:.1%}")
+        
+        if (hasattr(self, 'inductive_coder') and 
+            self.inductive_coder and 
+            hasattr(self.inductive_coder, 'category_development_phases') and
+            self.inductive_coder.category_development_phases):
+            
+            print(f"\n📊 Entwicklungsphasen:")
+            for phase in self.inductive_coder.category_development_phases:
+                print(f"   Batch {phase['batch']}: +{phase['new_categories']} → {phase['total_categories']} total")
     
     async def analyze_material(self, 
                             chunks: Dict[str, List[str]], 
@@ -2199,56 +2327,46 @@ class IntegratedAnalysisManager:
                             skip_inductive: bool = False,
                             batch_size: Optional[int] = None) -> Tuple[Dict, List]:
         """
-        KORRIGIERTE Hauptanalyse mit korrekt initialisiertem SaturationController
-        und chunks-Übergabe an InductiveCoder
+        KORRIGIERTE Hauptanalyse mit korrekter Relevanzprüfung
         """
         try:
             self.escape_handler.start_monitoring()
             self.start_time = datetime.now()
             print(f"\nAnalyse gestartet um {self.start_time.strftime('%H:%M:%S')}")
 
-            # KORREKTUR: Berechne _total_segments ZUERST
+            # Berechne _total_segments ZUERST
             all_segments = self._prepare_segments(chunks)
             self._total_segments = len(all_segments)
             
-            # KORREKTUR: Speichere chunks als Instanzvariable für grounded mode
+            # Speichere chunks als Instanzvariable für grounded mode
             self.chunks = chunks
             
-            # KORREKTUR: Übergebe chunks an InductiveCoder
+            # Übergebe chunks an InductiveCoder
             if hasattr(self.inductive_coder, 'chunks'):
                 self.inductive_coder.chunks = chunks
                 print(f"✅ Chunks an InductiveCoder übergeben: {sum(len(chunk_list) for chunk_list in chunks.values())} Segmente")
             
             analysis_mode = CONFIG.get('ANALYSIS_MODE', 'inductive')
             
-            #Initialisiere ImprovedSaturationController hier
-            saturation_controller = ImprovedSaturationController(analysis_mode)
-            
-            # Kategoriensystem-Behandlung (wie im verbesserten Code)
+            # Kategoriensystem-Behandlung
             if analysis_mode == 'inductive':
                 print(f"\n🔄 INDUCTIVE MODE: Entwickle komplett neues induktives Kategoriensystem")
-                print(f"   - Deduktive Kategorien werden NICHT verwendet")
-                print(f"   - Aufbau eines eigenständigen induktiven Systems")
-                current_categories = {}  # ✅ Leeres induktives System
-                deductive_categories = {}  # ✅ LEER im inductive mode!
+                current_categories = {}  # Leeres induktives System
+                deductive_categories = {}  # LEER im inductive mode!
             elif analysis_mode == 'abductive':
                 print(f"\n🔄 ABDUCTIVE MODE: Erweitere deduktive Kategorien um Subkategorien")
                 current_categories = initial_categories.copy()
                 deductive_categories = initial_categories.copy()
             elif analysis_mode == 'grounded':
                 print(f"\n🔄 GROUNDED MODE: Sammle Subcodes, generiere später Hauptkategorien")
-                print(f"   - Gesamtsegmente: {self._total_segments}")
-                print(f"   - Subcode-Sammlung aktiviert")
-                print(f"   - Hauptkategorien werden erst am Ende generiert")
-                print(f"   - Während der Analyse: Segmente als 'Nicht kodiert' markiert")
                 current_categories = {}
                 deductive_categories = {}
+                # Spezielle Variable für Grounded Mode
+                grounded_subcodes = {}
             else:
                 current_categories = initial_categories.copy()
                 deductive_categories = initial_categories.copy()
 
-            all_segments = self._prepare_segments(chunks)
-            
             # Reset Tracking-Variablen
             self.coding_results = []
             self.processed_segments = set()
@@ -2260,8 +2378,13 @@ class IntegratedAnalysisManager:
             print(f"Verarbeite {total_segments} Segmente mit Batch-Größe {batch_size}...")
             self.history.log_analysis_start(total_segments, len(initial_categories))
 
-            # VERBESSERTE Hauptschleife
+            # Initialisiere ImprovedSaturationController
+            saturation_controller = ImprovedSaturationController(analysis_mode)
+            
+            # KORRIGIERTE Hauptschleife
             batch_count = 0
+            use_context = CONFIG.get('CODE_WITH_CONTEXT', False)
+            
             while True:
                 # Escape-Prüfung
                 if self.check_escape_abort():
@@ -2285,104 +2408,146 @@ class IntegratedAnalysisManager:
                 batch_start = time.time()
                 
                 try:
-                    # 1. Relevanzprüfung und Segment-Verarbeitung
+                    # 1. ALLGEMEINE RELEVANZPRÜFUNG (für Forschungsfrage)
+                    print(f"\n🔍 Schritt 1: Allgemeine Relevanzprüfung für Forschungsfrage...")
+                    general_relevance_results = await self.relevance_checker.check_relevance_batch(batch)
+                    
+                    # Filtere allgemein relevante Segmente
+                    generally_relevant_batch = [
+                        (segment_id, text) for segment_id, text in batch 
+                        if general_relevance_results.get(segment_id, False)
+                    ]
+                    
+                    print(f"📊 Allgemeine Relevanz: {len(generally_relevant_batch)} von {len(batch)} Segmenten relevant für Forschungsfrage")
+                    
+                    # Markiere alle Segmente als verarbeitet (auch die nicht relevanten)
                     self.processed_segments.update(sid for sid, _ in batch)
                     
-                    # 2. Induktive Kategorienentwicklung
-                    if not skip_inductive:
-                        print(f"\n🔍 Induktive Kategorienentwicklung...")
+                    # 2. INDUKTIVE KATEGORIENENTWICKLUNG (nur aus relevanten Segmenten)
+                    if not skip_inductive and generally_relevant_batch:
+                        print(f"\n🔍 Schritt 2: Induktive Kategorienentwicklung...")
                         
-                        new_categories = await self._process_batch_inductively(batch, current_categories)
-                        
-                        if new_categories:
-                            before_count = len(current_categories)
+                        if analysis_mode == 'grounded':
+                            print(f"🔄 GROUNDED MODE: Subcode-Sammlung aus {len(generally_relevant_batch)} relevanten Segmenten")
                             
-                            # KORREKTUR: Unterscheide zwischen Modi für besseres Logging
-                            analysis_mode = CONFIG.get('ANALYSIS_MODE', 'inductive')
+                            # Extrahiere nur die Texte für die Grounded-Analyse
+                            relevant_texts = [text for _, text in generally_relevant_batch]
                             
-                            if analysis_mode == 'abductive':
-                                # Im ABDUCTIVE MODE: Zähle Subkategorien-Updates, nicht neue Hauptkategorien
-                                subcat_updates = 0
-                                total_new_subcats = 0
-                                
-                                for cat_name, new_cat in new_categories.items():
-                                    if cat_name in current_categories:
-                                        old_subcat_count = len(current_categories[cat_name].subcategories)
-                                        new_subcat_count = len(new_cat.subcategories)
-                                        if new_subcat_count > old_subcat_count:
-                                            subcat_updates += 1
-                                            total_new_subcats += (new_subcat_count - old_subcat_count)
-                                
-                                current_categories = self._merge_category_systems(current_categories, new_categories)
-                                
-                                print(f"✅ {subcat_updates} Kategorien mit insgesamt {total_new_subcats} neuen Subkategorien erweitert")
-                                
-                            elif analysis_mode == 'grounded':
-                                # Im Grounded Mode werden KEINE Kategorien zurückgegeben - nur Subcode-Sammlung
-                                print(f"✅ Grounded Mode: Subcodes gesammelt, keine Hauptkategorien erstellt")
-                                
-                            else:
-                                # FULL MODE: Normale Hauptkategorien-Zählung
-                                current_categories = self._merge_category_systems(current_categories, new_categories)
-                                added_count = len(current_categories) - before_count
-                                print(f"✅ {added_count} neue Hauptkategorien integriert")
+                            # Grounded-Analyse
+                            grounded_analysis = await self.inductive_coder.analyze_grounded_batch(
+                                segments=relevant_texts,
+                                material_percentage=material_percentage
+                            )
                             
-
-                            # Aktualisiere Kodierer (außer im Grounded Mode)
-                            if analysis_mode != 'grounded':
+                            if grounded_analysis and 'segment_analyses' in grounded_analysis:
+                                # Neue Subcodes aus diesem Batch extrahieren
+                                new_batch_subcodes = []
+                                for segment_analysis in grounded_analysis['segment_analyses']:
+                                    for subcode in segment_analysis.get('subcodes', []):
+                                        new_batch_subcodes.append(subcode)
+                                
+                                # Speichere für die Hauptkategoriengenerierung am Ende
+                                if not hasattr(self.inductive_coder, 'collected_subcodes'):
+                                    self.inductive_coder.collected_subcodes = []
+                                self.inductive_coder.collected_subcodes.extend(new_batch_subcodes)
+                                
+                                # Erstelle/aktualisiere Kategorien-Dictionary für den deduktiven Kodierer
+                                for subcode in new_batch_subcodes:
+                                    subcode_name = subcode.get('name', '')
+                                    if subcode_name and subcode_name not in grounded_subcodes:
+                                        subcode_definition = subcode.get('definition', '')
+                                        subcode_keywords = subcode.get('keywords', [])
+                                        subcode_evidence = subcode.get('evidence', [])
+                                        
+                                        # Erstelle eine minimale CategoryDefinition
+                                        grounded_subcodes[subcode_name] = CategoryDefinition(
+                                            name=subcode_name,
+                                            definition=subcode_definition,
+                                            examples=subcode_evidence,
+                                            rules=[f"Identifizierte Keywords: {', '.join(subcode_keywords)}"],
+                                            subcategories={},
+                                            added_date=datetime.now().strftime("%Y-%m-%d"),
+                                            modified_date=datetime.now().strftime("%Y-%m-%d")
+                                        )
+                                
+                                print(f"✅ Grounded-Analyse: {len(new_batch_subcodes)} neue Subcodes, Gesamt: {len(grounded_subcodes)}")
+                                
+                                # Aktualisiere das aktuelle Kategoriensystem für die Kodierung
+                                current_categories = grounded_subcodes.copy()
+                                
+                                # Aktualisiere ALLE Kodierer mit dem neuen System
                                 for coder in self.deductive_coders:
-                                    if analysis_mode == 'inductive':
-                                        combined_system = {**deductive_categories, **current_categories}
-                                        await coder.update_category_system(combined_system)
-                                    else:
-                                        await coder.update_category_system(current_categories)
-                            
-                            saturation_controller.reset_stability_counter()
+                                    await coder.update_category_system(current_categories)
                         else:
-                            saturation_controller.increment_stability_counter()
+                            # Standard induktive Kategorienentwicklung
+                            new_categories = await self._process_batch_inductively(
+                                generally_relevant_batch, 
+                                current_categories
+                            )
+                            
+                            if new_categories:
+                                before_count = len(current_categories)
+                                
+                                # Kategorien integrieren
+                                current_categories = self._merge_category_systems(
+                                    current_categories,
+                                    new_categories
+                                )
+                                
+                                added_count = len(current_categories) - before_count
+                                print(f"✅ {added_count} neue Kategorien integriert")
+                                
+                                # Aktualisiere ALLE Kodierer
+                                for coder in self.deductive_coders:
+                                    await coder.update_category_system(current_categories)
+                                
+                                saturation_controller.reset_stability_counter()
+                            else:
+                                saturation_controller.increment_stability_counter()
                     
-                    # 3. Deduktive Kodierung
-                    print(f"\n🏷️ Deduktive Kodierung...")
+                    # 3. DEDUKTIVE KODIERUNG (alle Segmente des Batches)
+                    print(f"\n🏷️ Schritt 3: Deduktive Kodierung aller {len(batch)} Segmente...")
                     
                     # Bestimme Kodiersystem je nach Modus
                     if analysis_mode == 'inductive':
                         if len(current_categories) == 0:
-                            # Noch keine induktiven Kategorien → verwende leeres System
                             coding_categories = {}
                             print(f"   📝 Inductive Mode: Keine induktiven Kategorien → 'Nicht kodiert'")
                         else:
-                            # Verwende nur induktive Kategorien
                             coding_categories = current_categories
                             print(f"   📝 Inductive Mode: Verwende {len(current_categories)} induktive Kategorien")
                     elif analysis_mode == 'grounded':
-                        # Im Grounded Mode: Leeres System = alles wird "Nicht kodiert"
-                        coding_categories = {}
-                        print(f"   📝 Grounded Mode: Verwende leeres Kategoriensystem (Segmente → 'Nicht kodiert')")
+                        if len(current_categories) == 0:
+                            coding_categories = {}
+                            print(f"   📝 Grounded Mode: Keine Kategorien → 'Nicht kodiert'")
+                        else:
+                            coding_categories = current_categories
+                            print(f"   📝 Grounded Mode: Verwende {len(current_categories)} Subcode-Kategorien")
                     else:
                         coding_categories = current_categories
                     
-                    if CONFIG.get('CODE_WITH_CONTEXT', False):
+                    # Führe Kodierung durch
+                    if use_context:
                         batch_results = await self._code_batch_with_context(batch, coding_categories)
                     else:
                         batch_results = await self._code_batch_deductively(batch, coding_categories)
                 
                     self.coding_results.extend(batch_results)
                     
-                    # 4. KORRIGIERTE Sättigungsprüfung
+                    # 4. Sättigungsprüfung
                     batch_time = time.time() - batch_start
                     material_percentage = (len(self.processed_segments) / total_segments) * 100
                     
-                    # Im Grounded Mode: Sättigung basiert nur auf Subcode-Sammlung
+                    # Sättigungsprüfung je nach Modus
                     if analysis_mode == 'grounded':
                         # Einfachere Sättigungslogik für Grounded Mode
-                        if material_percentage >= 90 or len(self.collected_subcodes) >= 20:
+                        if material_percentage >= 90 or len(getattr(self.inductive_coder, 'collected_subcodes', [])) >= 20:
                             print(f"\n🎯 GROUNDED MODE SÄTTIGUNG erreicht:")
                             print(f"   - Material: {material_percentage:.1f}% verarbeitet")
-                            print(f"   - Subcodes: {len(self.collected_subcodes)} gesammelt")
-                            print(f"   - Bereit für Hauptkategorien-Generierung")
+                            print(f"   - Subcodes: {len(getattr(self.inductive_coder, 'collected_subcodes', []))} gesammelt")
                             break
                     else:
-                        # Normale Sättigungsprüfung für andere Modi
+                        # Normale Sättigungsprüfung
                         saturation_status = saturation_controller.assess_saturation(
                             current_categories=current_categories,
                             material_percentage=material_percentage,
@@ -2390,17 +2555,13 @@ class IntegratedAnalysisManager:
                             total_segments=self._total_segments
                         )
                     
-                    print(f"\n📊 Sättigungsstatus:")
-                    print(f"   🎯 Theoretische Sättigung: {saturation_status['theoretical_saturation']:.1%}")
-                    print(f"   📈 Materialabdeckung: {saturation_status['material_coverage']:.1%}")
-                    print(f"   🔄 Stabilität: {saturation_status['stability_batches']} Batches")
-                    print(f"   ⭐ Kategorienqualität: {saturation_status['category_quality']:.1%}")
-                    
-                    # Prüfe Sättigungskriterien
-                    if saturation_status['is_saturated']:
-                        print(f"\n🎯 SÄTTIGUNG ERREICHT nach {batch_count} Batches!")
-                        print(f"📊 Sättigungsgrund: {saturation_status['saturation_reason']}")
-                        break
+                        print(f"\n📊 Sättigungsstatus:")
+                        print(f"   🎯 Theoretische Sättigung: {saturation_status['theoretical_saturation']:.1%}")
+                        print(f"   📈 Materialabdeckung: {saturation_status['material_coverage']:.1%}")
+                        
+                        if saturation_status['is_saturated']:
+                            print(f"\n🎯 SÄTTIGUNG ERREICHT nach {batch_count} Batches!")
+                            break
                     
                     # Fortschrittsinfo
                     print(f"\n📈 Fortschritt:")
@@ -2417,7 +2578,7 @@ class IntegratedAnalysisManager:
             # Stoppe Escape-Handler
             self.escape_handler.stop_monitoring()
 
-            # KRITISCHE FINALISIERUNG: Hier erfolgt im Grounded Mode die Hauptkategorien-Generierung!
+            # Finalisierung
             print(f"\n🏁 FINALISIERUNG ({analysis_mode.upper()} MODE):")
 
             final_categories = await self._finalize_by_mode(
@@ -2443,7 +2604,6 @@ class IntegratedAnalysisManager:
             if hasattr(self, 'escape_handler'):
                 self.escape_handler.stop_monitoring()
             raise
-    
     async def _recode_segments_with_final_categories(self, final_categories: Dict[str, CategoryDefinition], chunks: Dict[str, List[str]]) -> None:
         """
         GROUNDED MODE: Kodiere alle Segmente nachträglich mit den generierten Hauptkategorien
@@ -4743,14 +4903,14 @@ class InductiveCoder:
         
         # VERBESSERTE Batch-Erstellung (keine künstliche Reduzierung)
         print("\n📦 Erstelle optimierte Batches...")
-        relevant_segments = await self._prefilter_segments(segments)
+
+        # Erstelle Batches direkt
+        effective_batch_size = min(CONFIG.get('BATCH_SIZE', 5), len(segments))
+        batches = self._create_proper_batches(segments, effective_batch_size)
         
-        # VERBESSERUNG: Nutze sinnvolle Batch-Größe ohne künstliche Reduzierung
-        effective_batch_size = min(CONFIG.get('BATCH_SIZE', 5), len(relevant_segments))
-        batches = self._create_proper_batches(relevant_segments, effective_batch_size)
         
         print(f"📊 Batch-Konfiguration:")
-        print(f"- Relevante Segmente: {len(relevant_segments)}")
+        print(f"- Relevante Segmente: {len(segments)}")
         print(f"- Batch-Größe: {effective_batch_size}")
         print(f"- Anzahl Batches: {len(batches)}")
         
@@ -11344,7 +11504,7 @@ async def main() -> None:
             print("\nAktueller Analysemodus aus Codebook: {default_mode}")
             print("Sie haben 10 Sekunden Zeit für die Eingabe.")
             print("Optionen:")
-            print("1 = full (volle induktive Analyse)")
+            print("1 = inductive (volle induktive Analyse)")
             print("2 = abductive (nur Subkategorien entwickeln)")
             print("3 = deductive (nur deduktiv)")
             print("4 = grounded (Subkategorien sammeln, später Hauptkategorien generieren)")
