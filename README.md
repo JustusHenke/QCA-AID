@@ -41,6 +41,7 @@ Dieses Python-Skript implementiert Mayrings Methode der deduktiven Qualitativen 
   - [Starten der Analyse](#starten-der-analyse)
 
 ### Praktische Anwendung
+- [Batch-Größe und Performance-Optimierung](#batch-größe-und-performance-optimierung)
 - [Empfohlene Workflows](#empfohlene-workflows)
   - [Erste Schritte mit QCA-AID](#1-erste-schritte-mit-qca-aid)
   - [Fortgeschrittene Analysestrategien](#2-fortgeschrittene-analysestrategien)
@@ -423,13 +424,15 @@ Empfehlung:
 - Sichern Sie regelmäßig die QCA-AID-Codebook.xlsx
 - Die Verzeichnispfade können in der CONFIG angepasst werden
 
-## Batch-Größe und Performance-Optimierung
+## Praktische Anwendungshinweise
 
-### Was ist die Batch-Größe?
+### Batch-Größe und Performance-Optimierung
+
+#### Was ist die Batch-Größe?
 
 Die **Batch-Größe** bestimmt, wie viele Textsegmente gleichzeitig in einem API-Call verarbeitet werden. Bei einer `BATCH_SIZE` von 6 werden 6 Textsegmente in einem einzigen Prompt zusammengefasst und gemeinsam analysiert.
 
-### Funktionsweise
+#### Funktionsweise
 
 ```python
 # Konfiguration in der config.json
@@ -457,7 +460,7 @@ SEGMENT 3:
 Analysiere alle 3 Segmente und kodiere sie entsprechend.
 ```
 
-### Auswirkungen verschiedener Batch-Größen
+#### Auswirkungen verschiedener Batch-Größen
 
 | Batch-Größe | Geschwindigkeit | Kosten | Qualität | Empfohlen für |
 |-------------|----------------|--------|----------|---------------|
@@ -465,7 +468,7 @@ Analysiere alle 3 Segmente und kodiere sie entsprechend.
 | **4-8** | 🚀 Mittel | 💰💰 Moderat | ⭐⭐ Gut | **Standard-Empfehlung** |
 | **9-15** | ⚡ Schnell | 💰 Niedrig | ⭐ Akzeptabel | Große Datenmengen, explorative Analysen |
 
-### Performance-Boost durch Parallelisierung
+#### Performance-Boost durch Parallelisierung
 
 QCA-AID v0.9.15+ nutzt **parallele Batch-Verarbeitung** für bis zu **4x schnellere** Analysen:
 
@@ -477,52 +480,19 @@ Mit Parallelisierung:   Batch 1 ↘
                         Batch 4 ↙
 ```
 
-### Empfehlungen
+#### Empfehlungen
 
 - **Einsteiger:** `BATCH_SIZE = 5-6` für optimale Balance
 - **Große Datenmengen:** `BATCH_SIZE = 10-12` für Geschwindigkeit  
 - **Hohe Präzision:** `BATCH_SIZE = 3-4` für beste Qualität
 - **Token-Budget begrenzt:** Größere Batches sparen bis zu 40% der API-Kosten
 
-### Anpassung der Batch-Größe
+#### Anpassung der Batch-Größe
 
 Editieren Sie den Wert für das Feld `BATCH_SIZE` im Codebook.xlsx im Blatt "CONFIG"
 
 > **💡 Tipp:** Starten Sie mit der Standard-Einstellung (`BATCH_SIZE = 8`) und passen Sie bei Bedarf an. Das Skript zeigt Ihnen die Verarbeitungsgeschwindigkeit in Echtzeit an.
 
-## Häufige Probleme und Lösungen
-
-### 1. Fehler bei der Installation der Abhängigkeiten
-Wenn `pip install -r requirements.txt` fehlschlägt:
-- Bei Windows-Nutzern: Stellen Sie sicher, dass die C++ Build Tools korrekt installiert sind
-- Bei Mac/Linux: Installieren Sie die erforderlichen Entwicklungsbibliotheken (`build-essential` für Ubuntu/Debian)
-
-### 2. Fehler beim Importieren von spaCy
-Wenn das Programm mit einem Fehler beim Importieren von spaCy abbricht:
-```
-Bitte installieren Sie das deutsche Sprachmodell:
-python -m spacy download de_core_news_sm
-```
-
-### 3. API-Schlüssel nicht gefunden
-- Überprüfen Sie, ob die .environ.env Datei im richtigen Verzeichnis liegt
-- Überprüfen Sie, ob der API-Schlüssel gültig ist und noch Guthaben vorhanden ist
-
-### 4. Fehler bei der Verarbeitung bestimmter Dokumenttypen
-- Versuchen Sie, das Dokument in das .txt-Format zu konvertieren
-- Prüfen Sie, ob das Dokument Sonderzeichen oder komplexe Formatierungen enthält
-
-### 5. Probleme mit dem manuellen Kodierungsmodus
-- Wenn die Kodierungsoberfläche nicht startet, prüfen Sie die Tkinter-Installation
-- Bei Problemen mit der Fortschrittssicherung: Überprüfen Sie die AUTO_SAVE_INTERVAL-Einstellung
-- Bei Darstellungsproblemen: Stellen Sie sicher, dass Ihre Bildschirmauflösung ausreichend ist
-
-### 6. Probleme mit dem QCA-AID-Explorer
-- Bei Fehlern bei der Excel-Konfiguration: Überprüfen Sie das Format der QCA-AID-Explorer-Config.xlsx
-- Bei Visualisierungsproblemen: Stellen Sie sicher, dass alle erforderlichen Python-Pakete installiert sind
-- Bei Export-Fehlern: Überprüfen Sie die Schreibrechte im Ausgabeverzeichnis
-
-## Praktische Anwendungshinweise
 
 ### Empfohlene Workflows
 
@@ -600,21 +570,21 @@ python -m spacy download de_core_news_sm
 - **Interviews**:
   ```
   CHUNK_SIZE: 1000
-  CHUNK_OVERLAP: 200
+  CHUNK_OVERLAP: 50
   CODE_WITH_CONTEXT: true
   ```
 
 - **Längere Texte**:
   ```
   CHUNK_SIZE: 1500
-  CHUNK_OVERLAP: 300
+  CHUNK_OVERLAP: 100
   CODE_WITH_CONTEXT: true
   ```
 
 - **Kurze Dokumente**:
   ```
   CHUNK_SIZE: 800
-  CHUNK_OVERLAP: 100
+  CHUNK_OVERLAP: 30
   CODE_WITH_CONTEXT: false
   ```
 
@@ -679,9 +649,9 @@ python -m spacy download de_core_news_sm
 2. **Konfiguration**:
    ```
    # CONFIG-Einstellungen
-   ANALYSIS_MODE: full
+   ANALYSIS_MODE: abductive
    CHUNK_SIZE: 1000
-   CHUNK_OVERLAP: 200
+   CHUNK_OVERLAP: 40
    CODE_WITH_CONTEXT: true
    REVIEW_MODE: consensus
    ```
@@ -697,3 +667,36 @@ python -m spacy download de_core_news_sm
    - Erstellen Sie Visualisierungen
    - Exportieren Sie die Ergebnisse
    - Dokumentieren Sie die Analyse
+
+
+### Häufige Probleme und Lösungen
+
+#### 1. Fehler bei der Installation der Abhängigkeiten
+Wenn `pip install -r requirements.txt` fehlschlägt:
+- Bei Windows-Nutzern: Stellen Sie sicher, dass die C++ Build Tools korrekt installiert sind
+- Bei Mac/Linux: Installieren Sie die erforderlichen Entwicklungsbibliotheken (`build-essential` für Ubuntu/Debian)
+
+#### 2. Fehler beim Importieren von spaCy
+Wenn das Programm mit einem Fehler beim Importieren von spaCy abbricht:
+```
+Bitte installieren Sie das deutsche Sprachmodell:
+python -m spacy download de_core_news_sm
+```
+
+#### 3. API-Schlüssel nicht gefunden
+- Überprüfen Sie, ob die .environ.env Datei im richtigen Verzeichnis liegt
+- Überprüfen Sie, ob der API-Schlüssel gültig ist und noch Guthaben vorhanden ist
+
+#### 4. Fehler bei der Verarbeitung bestimmter Dokumenttypen
+- Versuchen Sie, das Dokument in das .txt-Format zu konvertieren
+- Prüfen Sie, ob das Dokument Sonderzeichen oder komplexe Formatierungen enthält
+
+#### 5. Probleme mit dem manuellen Kodierungsmodus
+- Wenn die Kodierungsoberfläche nicht startet, prüfen Sie die Tkinter-Installation
+- Bei Problemen mit der Fortschrittssicherung: Überprüfen Sie die AUTO_SAVE_INTERVAL-Einstellung
+- Bei Darstellungsproblemen: Stellen Sie sicher, dass Ihre Bildschirmauflösung ausreichend ist
+
+#### 6. Probleme mit dem QCA-AID-Explorer
+- Bei Fehlern bei der Excel-Konfiguration: Überprüfen Sie das Format der QCA-AID-Explorer-Config.xlsx
+- Bei Visualisierungsproblemen: Stellen Sie sicher, dass alle erforderlichen Python-Pakete installiert sind
+- Bei Export-Fehlern: Überprüfen Sie die Schreibrechte im Ausgabeverzeichnis
