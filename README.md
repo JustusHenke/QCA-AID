@@ -423,6 +423,73 @@ Empfehlung:
 - Sichern Sie regelmäßig die QCA-AID-Codebook.xlsx
 - Die Verzeichnispfade können in der CONFIG angepasst werden
 
+## Batch-Größe und Performance-Optimierung
+
+### Was ist die Batch-Größe?
+
+Die **Batch-Größe** bestimmt, wie viele Textsegmente gleichzeitig in einem API-Call verarbeitet werden. Bei einer `BATCH_SIZE` von 6 werden 6 Textsegmente in einem einzigen Prompt zusammengefasst und gemeinsam analysiert.
+
+### Funktionsweise
+
+```python
+# Konfiguration in der config.json
+{
+  "BATCH_SIZE": 8,  // 8 Segmente pro API-Call
+  "CHUNK_SIZE": 1200
+}
+```
+
+**Beispiel-Prompt bei BATCH_SIZE = 3:**
+```
+SEGMENT 1:
+[Ihr erster Textabschnitt...]
+
+=== SEGMENT BREAK ===
+
+SEGMENT 2: 
+[Ihr zweiter Textabschnitt...]
+
+=== SEGMENT BREAK ===
+
+SEGMENT 3:
+[Ihr dritter Textabschnitt...]
+
+Analysiere alle 3 Segmente und kodiere sie entsprechend.
+```
+
+### Auswirkungen verschiedener Batch-Größen
+
+| Batch-Größe | Geschwindigkeit | Kosten | Qualität | Empfohlen für |
+|-------------|----------------|--------|----------|---------------|
+| **1-3** | 🐌 Langsam | 💰💰💰 Hoch | ⭐⭐⭐ Sehr gut | Präzise Analysen, komplexe Texte |
+| **4-8** | 🚀 Mittel | 💰💰 Moderat | ⭐⭐ Gut | **Standard-Empfehlung** |
+| **9-15** | ⚡ Schnell | 💰 Niedrig | ⭐ Akzeptabel | Große Datenmengen, explorative Analysen |
+
+### Performance-Boost durch Parallelisierung
+
+QCA-AID v0.9.15+ nutzt **parallele Batch-Verarbeitung** für bis zu **4x schnellere** Analysen:
+
+```
+Ohne Parallelisierung:  Batch 1 → Batch 2 → Batch 3 → Batch 4
+Mit Parallelisierung:   Batch 1 ↘
+                        Batch 2 → Alle gleichzeitig → Fertig!
+                        Batch 3 ↗
+                        Batch 4 ↙
+```
+
+### Empfehlungen
+
+- **Einsteiger:** `BATCH_SIZE = 5-6` für optimale Balance
+- **Große Datenmengen:** `BATCH_SIZE = 10-12` für Geschwindigkeit  
+- **Hohe Präzision:** `BATCH_SIZE = 3-4` für beste Qualität
+- **Token-Budget begrenzt:** Größere Batches sparen bis zu 40% der API-Kosten
+
+### Anpassung der Batch-Größe
+
+Editieren Sie den Wert für das Feld `BATCH_SIZE` im Codebook.xlsx im Blatt "CONFIG"
+
+> **💡 Tipp:** Starten Sie mit der Standard-Einstellung (`BATCH_SIZE = 8`) und passen Sie bei Bedarf an. Das Skript zeigt Ihnen die Verarbeitungsgeschwindigkeit in Echtzeit an.
+
 ## Häufige Probleme und Lösungen
 
 ### 1. Fehler bei der Installation der Abhängigkeiten
