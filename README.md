@@ -231,10 +231,10 @@ Institut für Hochschulforschung Halle-Wittenberg. https://github.com/JustusHenk
 @software{Henke_QCA-AID_2025,
   author       = {Henke, Justus},
   title        = {{QCA-AID: Qualitative Content Analysis with AI Support}},
-  month        = may,
+  month        = june,
   year         = {2025},
   publisher    = {Institut für Hochschulforschung Halle-Wittenberg},
-  version      = {0.9.13},
+  version      = {0.9.15},
   url          = {https://github.com/JustusHenke/QCA-AID}
 }
 ```
