@@ -8,10 +8,6 @@ Dieses Python-Skript implementiert Mayrings Methode der deduktiven Qualitativen 
 
 ### Grundlagen
 - [Anwendungsmöglichkeiten](#anwendungsmöglichkeiten)
-- [Zu beachten](#zu-beachten)
-- [Hinweis zum Datenschutz](#hinweis-zum-datenschutz)
-
-### Funktionen
 - [Merkmale von QCA-AID](#merkmale-von-qca-aid)
   - [Textverarbeitung und Vorbereitung](#textverarbeitung-und-vorbereitung)
   - [Kodierungsfunktionen](#kodierungsfunktionen)
@@ -63,7 +59,7 @@ Dieses Python-Skript implementiert Mayrings Methode der deduktiven Qualitativen 
 - QCA-AID kann auch ganz ohne KI-Coder genutzt werden, als Alternative zu kostenpflichtigen Programmen.
 - Es ermöglicht zusätzliche explorative Dokumentenanalysen, die sonst aus pragmatischen Gründen mit einfacheren Verfahren umgesetzt würden
 
-## Zu beachten
+**Zu beachten**
 
 - Gefahr der Überkonfidenz in eine automatisiert ermittelte Struktur der Daten 
 - Bei geringer Anzahl von Dokumenten überwiegen weiterhin die Vorteile menschlicher Kodierung (Close-reading, Kontextverständnis, Erfahrung)
@@ -78,20 +74,20 @@ Sie verwenden das Skript auf eigene Verantwortung, ohne jegliche Gewährleistung
 --> Feedback ist willkommen! <--
 Kontakt: justus.henke@hof.uni-halle.de
 
-## Hinweis zum Datenschutz
+__Hinweis zum Datenschutz__
 
 Die KI-gestützte Datenverarbeitung nutzt die Schnittstelle von OpenAI bzw. Mistral. Auch wenn diese Anfragen offiziell nicht für das Training von Modellen genutzt werden, stellt diese eine Verarbeitung durch Dritte dar. Prüfen Sie, ob Ihre Dokumente dafür freigegeben sind und entfernen Sie ggf. sensible Informationen. Eine Nutzung mit hochsensiblen Daten wird ausdrücklich nicht empfohlen. 
 
 Prinzipiell ist die Verarbeitung der Daten per LLM auch auf einem lokalen Rechner möglich. Dafür kann OLLAMA oder LMSTUDIO genutzt werden und das Setup im Client muss etwas angepasst werden. Mehr dazu hier: https://ollama.com/blog/openai-compatibility oder https://lmstudio.ai/docs/api/endpoints/openai
 
-## Merkmale von QCA-AID
+### Merkmale von QCA-AID
 
-### Textverarbeitung und Vorbereitung
+#### Textverarbeitung und Vorbereitung
 - **Automatisierte Textvorverarbeitung**: Konvertierung verschiedener Dokumentformate (.txt, .pdf, .docx)
 - **Intelligentes Chunking**: Aufteilung von Texten in analysierbare Segmente mit konfigurierbarer Überlappung
 - **Relevanzprüfung**: Automatische Bewertung der Textsegmente vor der Kodierung mit konfigurierbaren Ausschlusskriterien
 
-### Kodierungsfunktionen
+#### Kodierungsfunktionen
 - **Deduktive Kategorienanwendung**: Systematische Anwendung vordefinierter Kategorien
 - **Induktive Kategorienerweiterung**: Erkennung neuer Kategorien und Subkategorien im Material
 - **Abduktiver Modus**: Erweiterung nur auf Subkategorien-Ebene ohne neue Hauptkategorien
@@ -101,7 +97,7 @@ Prinzipiell ist die Verarbeitung der Daten per LLM auch auf einem lokalen Rechne
 - **Batch-Verarbeitung**: Konfigurierbare Anzahl gleichzeitig zu verarbeitender Textsegmente
 - **Manueller Kodierungsmodus**: Intuitive Benutzeroberfläche für menschliche Kodierung mit Fortschrittssicherung
 
-### Qualitätssicherung
+#### Qualitätssicherung
 - **Intercoder-Reliabilitätsanalyse**: Automatische Berechnung der Übereinstimmung zwischen Kodierern
 - **Konsensbildung**: Mehrstufiger Prozess zur Konsensfindung bei divergierenden Kodierungen
 - **Manuelles Code-Review**: Systematische Überprüfung und Korrektur von Kodierungsentscheidungen
@@ -109,14 +105,14 @@ Prinzipiell ist die Verarbeitung der Daten per LLM auch auf einem lokalen Rechne
 - **Sättigungsprüfungen**: Iterative Analyse mit automatischer Erkennung theoretischer Sättigung
 - **Fortschrittssicherung**: Automatische Sicherung des Kodierfortschritts für kontinuierliche Arbeit
 
-### Export und Dokumentation
+#### Export und Dokumentation
 - **Umfassender Analysebericht**: Excel-Export mit Kodierungen, Häufigkeitsanalysen und Intercoderstatistiken
 - **Kategorienentwicklungs-Dokumentation**: Nachvollziehbare Historisierung aller Änderungen am Kategoriensystem
 - **Codebook-Export**: Speicherung des erweiterten Kodierungssystems für zukünftige Analysen
 - **Attributbasierte Analyse**: Automatische Extraktion von Metadaten aus Dateinamen für vergleichende Auswertungen
 - **Token-Tracking**: Schätzung und Dokumentation der verwendeten API-Tokens
 
-### Konfiguration und Anpassbarkeit
+#### Konfiguration und Anpassbarkeit
 - **Flexible Modellwahl**: Unterstützung verschiedener KI-Anbieter (OpenAI und Mistral)
 - **Konfigurierbare Parameter**: Anpassung von Chunk-Größe, Überlappung, Batch-Größe und weiteren Einstellungen
 - **Temperaturstufen**: Steuerung der "Kreativität" bei der induktiven Kategorienentwicklung
@@ -124,7 +120,9 @@ Prinzipiell ist die Verarbeitung der Daten per LLM auch auf einem lokalen Rechne
 - **Excel-basierte Konfiguration**: Einfache Anpassung aller Einstellungen über Excel-Dateien
 - **Erweiterte Visualisierungsoptionen**: Konfigurierbare Diagramme und Analysen im QCA-AID-Explorer
 
-## Neu in 0.9.15 (2025-06-02)
+## Versionshinweise
+
+### Neu in 0.9.15 (2025-06-02)
 - COMPLETE RESTRUCTURING OF INDUCTIVE MODE: Vollständige Neustrukturierung des induktiven Modus
   • Vereinfachte und robustere Kategorienentwicklung mit verbesserter Konsistenz
   • Optimierte Sättigungsprüfung und stabilere Kategorienvalidierung
@@ -144,7 +142,7 @@ Prinzipiell ist die Verarbeitung der Daten per LLM auch auf einem lokalen Rechne
 - Improved progress monitoring and user feedback
 - Optimized memory usage for large document sets
 
-## Neu in 0.9.14 (2025-05-28)
+### Neu in 0.9.14 (2025-05-28)
 - Implementierung der Mehrfachkodierung von Textsegmenten für mehrere Hauptkategorien
 - Neue CONFIG-Parameter: MULTIPLE_CODINGS (default: True) und MULTIPLE_CODING_THRESHOLD (default: 0.7)
 - Erweiterte Relevanzprüfung erkennt Segmente mit Bezug zu mehreren Hauptkategorien (>=70% Relevanz)
@@ -155,7 +153,7 @@ Prinzipiell ist die Verarbeitung der Daten per LLM auch auf einem lokalen Rechne
 - Effiziente Batch-Verarbeitung und Caching für Mehrfachkodierungs-Prüfungen
 - Konfigurierbare Deaktivierung der Mehrfachkodierung für traditionelle Einzelkodierung
 
-## Neu in 0.9.13 (2025-05-15)
+### Neu in 0.9.13 (2025-05-15)
 - Vollständige Implementierung des 'majority' Review-Modus mit einfacher Mehrheitsentscheidung
 - Neue 'manual_priority' Option bevorzugt manuelle vor automatischen Kodierungen
 - Korrigierte Review-Logik: REVIEW_MODE wird jetzt korrekt respektiert, unabhängig von Kodierer-Typ
@@ -163,7 +161,7 @@ Prinzipiell ist die Verarbeitung der Daten per LLM auch auf einem lokalen Rechne
 - Verbesserte Tie-Breaking-Mechanismen bei Gleichstand zwischen Kodierungen
 - Erweiterte Dokumentation der Review-Modi im consensus_info Export-Feld
 
-## Neu in 0.9.12  (2025-05-10)
+### Neu in 0.9.12  (2025-05-10)
 - Verbesserter manueller Kodierungsworkflow mit korrekter Handhabung des letzten Segments
 - Verbesserte Funktionalität der Schaltflächen "Kodieren & Abschließen" für eine intuitivere Vervollständigung der Kodierung
 - Robustes manuelles Code-Review-System zur Behebung von Unstimmigkeiten zwischen den Codierern hinzugefügt
@@ -174,7 +172,7 @@ Prinzipiell ist die Verarbeitung der Daten per LLM auch auf einem lokalen Rechne
 - Verbesserte Benutzerführung im manuellen Kodierungsmodus
 - Optimierte Darstellung der Kodierhistorie
 
-## Neu in 0.9.11  (2025-04-12)
+### Neu in 0.9.11  (2025-04-12)
 - Neuer 'grounded' Analysemodus hinzugefügt, inspiriert von Grounded Theory und Kuckartz
 - Im 'grounded' Modus werden die Subcodes schrittweise gesammelt, ohne sie den Hauptkategorien zuzuordnen
 - Die gesammelten Subcodes werden vom deduktiven Kodierer direkt zur Kodierung verwendet
@@ -184,7 +182,7 @@ Prinzipiell ist die Verarbeitung der Daten per LLM auch auf einem lokalen Rechne
 - Verbesserte Fortschrittsvisualisierung während der Subcode-Erfassung
 - Verbesserte Handhabung von Schlüsselwörtern mit direkter Verbindung zu Subcodes
 
-## Neu in 0.9.10
+### Neu in 0.9.10
 QCA-AID-Explorer.py
 - kann mit Excel konfiguriert werden und muss nicht mehr manuell angepasst werden.
 - Konfiguration über Excel-Datei "QCA-AID-Explorer-Config.xlsx"
@@ -195,19 +193,19 @@ QCA-AID.py
 - Hinzufügen eines Präfixes zur Chunk-Nummer für eindeutige Segment-IDs
 - prägnantere progessive Zusammenfassungen, weniger verlustbehaftet
 
-## Neu in 0.9.9
+### Neu in 0.9.9
 - Abduktivmodus: induktive Codierung nur für Subcodes ohne Hinzufügen von Hauptcodes
 - kann entweder beim starten des Skripts ausgewählt oder im Codebook konfiguriert
 - leicht verschärfte Relevanzprüfung für Textsegmente (aus Interviews)
 - Kodierkonsens: Segmente ohne Konsens als "kein Kodierkonsens" markieren; wenn kein Konsens besteht, wird die  Kodierung mit höherem Konfidenzwert gewählt, sonst "kein Kodierkonsens"
 
-## Weitere Hinweise zur Version (0.9.8)
+### Weitere Hinweise zur Version (0.9.8)
 
 - Progressive Dokumentenzusammenfassung als Kodierungskontext (max. 80 Wörter)
 - Aktivieren durch Setzen des CONFIG-Wertes `CODE_WITH_CONTEXT` im Codebook auf 'true' (Standard: false)
 - Eignet sich insbesondere bei deduktivem Kodieren. Es kann Einfluss auf die Kodierung nehmen, daher testen, ob die Funktion zu besseren Ergebnissen führt. Den Kontext beizufügen, erleichtert es dem Sprachmodell einzuschätzen, ob die Inhalte im größeren Zusammenhang des Textes bedeutsam sind. Damit wird gewissermaßen ein Gedächtnis des bisherigen Textes in die Verarbeitung des Textsegments integriert. 
 
-## Weitere Hinweise zur Version (0.9.7)
+### Weitere Hinweise zur Version (0.9.7)
 
 - NEU: Mistral Support! Es kann jetzt auch die Mistral API genutzt werden. Umschalten zwischen OpenAI und Mistral mit CONFIG-Parameter 'MODEL_PROVIDER'. Standardmodell für OpenAI ist 'GPT-4o-mini', für Mistral 'mistral-small'.
 - NEU: Ausschlusskriterien während der Relevanzprüfung in 'KODIERREGELN' definieren (z.B. Literaturverzeichnis)
@@ -216,12 +214,6 @@ QCA-AID.py
 - Verbesserte Relevanzprüfung, Rechtfertigung und Aufforderung zur Kodierung von Segmenten
 - NEU: Erstellen von Zusammenfassungen und Diagrammen aus Ihren kodierten Daten mit 'QCA-AID-Explorer.py'.
 
-## Weitere Hinweise 
-- Sollte die induktive Kodierung zu großzügig sein und zu viele Subcodes erstellen, kann können Sie den CONFIG-Wert `Temperature` herunterregeln (z.B. auf '0.1'), dann wird konservativer kodiert. 
-- Beachten Sie, dass die Forschungsfrage am besten alle Aspekte der Hauptkategorien abdeckt bzw. letztere sich aus der Frage ableiten lassen. Damit ist eine zuverlässigere Kodierung möglich, da die Forschungsfrage zentral ist, um ein Textsegment als relevant vorauszuwählen. Die Forschungsfrage sollte die Aspekte der Hauptkategorien möglichst ausgewogen adressieren und nicht bereits eine Hauptkategorie bevorzugen (es sei denn, das ist beabsichtigt).
-- Während der Bearbeitung werden mehrere API-Calls durchgeführt (Relevanzprüfung, Code-Entwicklung, Sättigungsprüfung), die Verarbeitung von Texten ist also relativ langsam: Ca. 400 Textsegmente à 1.000 Zeichen je Stunde, also ca. 200-250 Seiten je Stunde.  
-- Momentan wird nur Konsensentscheidung der Kodierer zugelassen, Mehrheitsvoting (bei n>2 Kodierern) oder Manuelles Review bei unterschiedlichen Kodierungen für ein Segment ist noch nicht implementiert. 
-- Die Konsensbildung erfolgt in einem mehrstufigen Prozess: Zunächst wird die Hauptkategorie mit der höchsten Übereinstimmung unter den Kodierern bestimmt, wobei bei Gleichstand die Kategorie mit der höchsten durchschnittlichen Konfidenz gewählt wird. Anschließend werden Subkategorien identifiziert, die von mindestens 50 % der Kodierer genutzt wurden, und die finale Konsens-Kodierung basiert auf der qualitativ besten Einzelskodierung mit den ermittelten Konsens-Subkategorien.
 
 ## Zitiervorschlag
 
