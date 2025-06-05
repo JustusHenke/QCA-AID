@@ -3,12 +3,15 @@ import asyncio
 import sys
 import time
 from datetime import datetime
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple
 import os
 import json
 import pandas as pd
 from openpyxl import load_workbook
-from datetime import datetime
+import tkinter as tk
+from tkinter import ttk, messagebox
+
+
 
 CONFIG = { } # hier leer, in Hauptskript integriert 
 
@@ -72,6 +75,23 @@ def estimate_tokens(text: str) -> int:
     
     return max(1, estimated_tokens)  # Mindestens 1 Token
 
+def _safe_speed_calculation(count: int, time_elapsed: float) -> str:
+    """
+    Sichere Geschwindigkeitsberechnung mit Division-by-Zero Schutz.
+    
+    Args:
+        count: Anzahl der verarbeiteten Elemente
+        time_elapsed: Verstrichene Zeit in Sekunden
+        
+    Returns:
+        str: Formatierte Geschwindigkeitsangabe
+    """
+    if time_elapsed > 0:
+        speed = count / time_elapsed
+        return f"{speed:.1f} Elemente/Sekunde"
+    else:
+        return f"{count} Elemente in <0.01s (sehr schnell)"
+    
 def get_input_with_timeout(prompt: str, timeout: int = 30) -> str:
     """
     Fragt nach Benutzereingabe mit Timeout.
@@ -213,6 +233,370 @@ def _patch_tkinter_for_threaded_exit():
     tkinter.Variable.__del__ = safe_del
     print("Tkinter für sicheres Beenden gepatcht.")
 
+
+# Neue Ergänzungen für QCA_Utils.py - Mehrfachkodierung im manuellen Modus
+
+import tkinter as tk
+from tkinter import ttk, messagebox
+from typing import Dict, List, Optional, Tuple
+from datetime import datetime
+
+class MultiSelectListbox(tk.Listbox):
+    """
+    Erweiterte Listbox mit Mehrfachauswahl per Ctrl+Klick
+    für manuelle Mehrfachkodierung
+    """
+    
+    def __init__(self, parent, **kwargs):
+        # Aktiviere erweiterte Mehrfachauswahl
+        kwargs['selectmode'] = tk.EXTENDED
+        super().__init__(parent, **kwargs)
+        
+        # Bindings für Mehrfachauswahl
+        self.bind('<Button-1>', self._on_single_click)
+        self.bind('<Control-Button-1>', self._on_ctrl_click)
+        self.bind('<Shift-Button-1>', self._on_shift_click)
+        
+        # Speichere ursprüngliche Auswahl für Ctrl-Klick
+        self._last_selection = set()
+        
+    def _on_single_click(self, event):
+        """Normale Einzelauswahl"""
+        # Lasse normale Behandlung durch tkinter zu
+        self.after_idle(self._update_last_selection)
+        
+    def _on_ctrl_click(self, event):
+        """Ctrl+Klick für Mehrfachauswahl"""
+        index = self.nearest(event.y)
+        
+        if index in self.curselection():
+            # Deselektiere wenn bereits ausgewählt
+            self.selection_clear(index)
+        else:
+            # Füge zur Auswahl hinzu
+            self.selection_set(index)
+            
+        self._update_last_selection()
+        return "break"  # Verhindert normale Behandlung
+        
+    def _on_shift_click(self, event):
+        """Shift+Klick für Bereichsauswahl"""
+        if not self._last_selection:
+            return
+            
+        index = self.nearest(event.y)
+        last_indices = list(self._last_selection)
+        
+        if last_indices:
+            start = min(last_indices[0], index)
+            end = max(last_indices[0], index)
+            
+            # Wähle Bereich aus
+            for i in range(start, end + 1):
+                self.selection_set(i)
+                
+        self._update_last_selection()
+        return "break"
+        
+    def _update_last_selection(self):
+        """Aktualisiert die gespeicherte Auswahl"""
+        self._last_selection = set(self.curselection())
+
+class ManualMultipleCodingDialog:
+    """
+    Dialog für die Bestätigung und Konfiguration von Mehrfachkodierungen
+    """
+    
+    def __init__(self, parent, selected_categories: List[Dict], segment_text: str):
+        self.parent = parent
+        self.selected_categories = selected_categories
+        self.segment_text = segment_text
+        self.result = None
+        self.dialog = None
+        
+    def show_dialog(self) -> Optional[List[Dict]]:
+        """
+        Zeigt den Bestätigungsdialog für Mehrfachkodierung
+        
+        Returns:
+            Optional[List[Dict]]: Liste der bestätigten Kodierungen oder None bei Abbruch
+        """
+        self.dialog = tk.Toplevel(self.parent)
+        self.dialog.title("Mehrfachkodierung bestätigen")
+        self.dialog.geometry("600x500")
+        self.dialog.transient(self.parent)
+        self.dialog.grab_set()
+        
+        # Zentriere Dialog
+        self.dialog.update_idletasks()
+        x = (self.dialog.winfo_screenwidth() // 2) - (600 // 2)
+        y = (self.dialog.winfo_screenheight() // 2) - (500 // 2)
+        self.dialog.geometry(f"600x500+{x}+{y}")
+        
+        self._create_widgets()
+        
+        # Warte auf Schließung des Dialogs
+        self.dialog.wait_window()
+        
+        return self.result
+    
+    def _create_widgets(self):
+        """Erstellt die Dialog-Widgets"""
+        main_frame = ttk.Frame(self.dialog)
+        main_frame.pack(padx=10, pady=10, fill=tk.BOTH, expand=True)
+        
+        # Titel
+        title_label = ttk.Label(
+            main_frame, 
+            text="Mehrfachkodierung erkannt",
+            font=('Arial', 12, 'bold')
+        )
+        title_label.pack(pady=(0, 10))
+        
+        # Informationstext
+        info_text = f"Sie haben {len(self.selected_categories)} Kategorien/Subkategorien ausgewählt.\n"
+        
+        # Analysiere Auswahltyp
+        main_categories = set()
+        for cat in self.selected_categories:
+            main_categories.add(cat['main_category'])
+            
+        if len(main_categories) == 1:
+            info_text += f"Alle gehören zur Hauptkategorie '{list(main_categories)[0]}'.\n"
+            info_text += "Dies wird als eine Kodierung mit mehreren Subkategorien behandelt."
+        else:
+            info_text += f"Sie umfassen {len(main_categories)} verschiedene Hauptkategorien.\n"
+            info_text += "Dies wird als Mehrfachkodierung behandelt (mehrere Zeilen im Export)."
+        
+        info_label = ttk.Label(main_frame, text=info_text, wraplength=550)
+        info_label.pack(pady=(0, 15))
+        
+        # Textsegment anzeigen
+        text_frame = ttk.LabelFrame(main_frame, text="Textsegment")
+        text_frame.pack(fill=tk.BOTH, expand=True, pady=(0, 15))
+        
+        text_widget = tk.Text(text_frame, height=8, wrap=tk.WORD, state=tk.DISABLED)
+        text_widget.pack(padx=5, pady=5, fill=tk.BOTH, expand=True)
+        text_widget.config(state=tk.NORMAL)
+        text_widget.insert(tk.END, self.segment_text[:1000] + ("..." if len(self.segment_text) > 1000 else ""))
+        text_widget.config(state=tk.DISABLED)
+        
+        # Ausgewählte Kategorien anzeigen
+        selection_frame = ttk.LabelFrame(main_frame, text="Ihre Auswahl")
+        selection_frame.pack(fill=tk.X, pady=(0, 15))
+        
+        selection_text = tk.Text(selection_frame, height=6, wrap=tk.WORD, state=tk.DISABLED)
+        selection_text.pack(padx=5, pady=5, fill=tk.X)
+        
+        selection_text.config(state=tk.NORMAL)
+        for i, cat in enumerate(self.selected_categories, 1):
+            if cat['type'] == 'main':
+                selection_text.insert(tk.END, f"{i}. Hauptkategorie: {cat['name']}\n")
+            else:
+                selection_text.insert(tk.END, f"{i}. Subkategorie: {cat['name']} (→ {cat['main_category']})\n")
+        selection_text.config(state=tk.DISABLED)
+        
+        # Buttons
+        button_frame = ttk.Frame(main_frame)
+        button_frame.pack(fill=tk.X)
+        
+        ttk.Button(
+            button_frame,
+            text="Bestätigen",
+            command=self._confirm_selection
+        ).pack(side=tk.LEFT, padx=(0, 10))
+        
+        ttk.Button(
+            button_frame,
+            text="Ändern",
+            command=self._modify_selection
+        ).pack(side=tk.LEFT, padx=(0, 10))
+        
+        ttk.Button(
+            button_frame,
+            text="Abbrechen",
+            command=self._cancel_selection
+        ).pack(side=tk.RIGHT)
+    
+    def _confirm_selection(self):
+        """Bestätigt die aktuelle Auswahl"""
+        self.result = self.selected_categories
+        self.dialog.destroy()
+    
+    def _modify_selection(self):
+        """Schließt Dialog zum Ändern der Auswahl"""
+        self.result = "MODIFY"
+        self.dialog.destroy()
+    
+    def _cancel_selection(self):
+        """Bricht die Mehrfachkodierung ab"""
+        self.result = None
+        self.dialog.destroy()
+
+def create_multiple_coding_results(selected_categories: List[Dict], 
+                                 text: str, 
+                                 coder_id: str) -> List:
+    """
+    Erstellt CodingResult-Objekte für Mehrfachkodierung
+    
+    Args:
+        selected_categories: Liste der ausgewählten Kategorien
+        text: Zu kodierender Text
+        coder_id: ID des Kodierers
+        
+    Returns:
+        List: Liste von Kodierungs-Dictionaries (da CodingResult nicht importierbar)
+    """
+    from datetime import datetime
+    
+    # Gruppiere nach Hauptkategorien
+    main_category_groups = {}
+    for cat in selected_categories:
+        main_cat = cat['main_category']
+        if main_cat not in main_category_groups:
+            main_category_groups[main_cat] = {
+                'main_category': main_cat,
+                'subcategories': []
+            }
+        
+        if cat['type'] == 'sub':
+            main_category_groups[main_cat]['subcategories'].append(cat['name'])
+    
+    # Erstelle Kodierungsergebnisse als Dictionaries
+    coding_results = []
+    total_instances = len(main_category_groups)
+    
+    for instance_num, (main_cat, group_data) in enumerate(main_category_groups.items(), 1):
+        # Erstelle immer Dictionary (einfacher und zuverlässiger)
+        coding_result = {
+            'category': main_cat,
+            'subcategories': tuple(group_data['subcategories']),
+            'justification': f"Manuelle Mehrfachkodierung (Instanz {instance_num}/{total_instances})",
+            'confidence': {'total': 1.0, 'category': 1.0, 'subcategories': 1.0},
+            'text_references': (text[:100],),
+            'uncertainties': None,
+            'paraphrase': "",
+            'keywords': "",
+            'multiple_coding_instance': instance_num,
+            'total_coding_instances': total_instances,
+            'manual_multiple_coding': True,
+            'coding_date': datetime.now().isoformat(),
+            'coder_id': coder_id,
+            'text': text
+        }
+        
+        coding_results.append(coding_result)
+    
+    return coding_results
+
+def show_multiple_coding_info(parent, num_categories: int, main_categories: List[str]) -> bool:
+    """
+    Zeigt Informationen über erkannte Mehrfachkodierung
+    
+    Args:
+        parent: Parent-Widget
+        num_categories: Anzahl ausgewählter Kategorien
+        main_categories: Liste der Hauptkategorien
+        
+    Returns:
+        bool: True wenn fortgefahren werden soll
+    """
+    if len(main_categories) == 1:
+        message = (f"Sie haben {num_categories} Subkategorien der Hauptkategorie "
+                  f"'{main_categories[0]}' ausgewählt.\n\n"
+                  f"Dies wird als eine Kodierung mit mehreren Subkategorien behandelt.")
+        title = "Mehrere Subkategorien"
+    else:
+        message = (f"Sie haben Kategorien aus {len(main_categories)} verschiedenen "
+                  f"Hauptkategorien ausgewählt:\n"
+                  f"{', '.join(main_categories)}\n\n"
+                  f"Dies wird als Mehrfachkodierung behandelt - das Segment erscheint "
+                  f"mehrmals im Export (einmal pro Hauptkategorie).")
+        title = "Mehrfachkodierung erkannt"
+    
+    return messagebox.askyesno(
+        title,
+        message + "\n\nMöchten Sie fortfahren?",
+        parent=parent
+    )
+
+# Zusätzliche Hilfsfunktionen für die GUI
+
+def setup_manual_coding_window_enhanced(root, categories, chunk_text, coder_id, is_last_segment=False):
+    """
+    Erweiterte Einrichtung des manuellen Kodierungsfensters mit Mehrfachauswahl
+    
+    Args:
+        root: Tkinter Root-Fenster
+        categories: Verfügbare Kategorien
+        chunk_text: Zu kodierender Text
+        coder_id: ID des Kodierers
+        is_last_segment: Ob es das letzte Segment ist
+        
+    Returns:
+        Dict: GUI-Komponenten für erweiterte Funktionalität
+    """
+    # Hauptframe
+    main_frame = ttk.Frame(root)
+    main_frame.pack(padx=10, pady=10, fill=tk.BOTH, expand=True)
+    
+    # Instruktionen für Mehrfachauswahl
+    instructions = ttk.Label(
+        main_frame,
+        text="💡 Tipp: Verwenden Sie Strg+Klick für Mehrfachauswahl von Kategorien",
+        font=('Arial', 9, 'italic'),
+        foreground='blue'
+    )
+    instructions.pack(pady=(0, 10))
+    
+    # Fortschrittsinfo
+    if is_last_segment:
+        progress_label = ttk.Label(
+            main_frame,
+            text="🏁 LETZTES SEGMENT - Kodierung wird nach diesem Segment abgeschlossen",
+            font=('Arial', 10, 'bold'),
+            foreground='red'
+        )
+        progress_label.pack(pady=(0, 10))
+    
+    return main_frame
+
+def validate_multiple_selection(selected_indices: List[int], 
+                              category_map: Dict[int, Dict]) -> Tuple[bool, str, List[Dict]]:
+    """
+    Validiert eine Mehrfachauswahl von Kategorien
+    
+    Args:
+        selected_indices: Liste der ausgewählten Indizes
+        category_map: Mapping von Index zu Kategorie-Info
+        
+    Returns:
+        Tuple[bool, str, List[Dict]]: (Gültig, Fehlermeldung, Kategorien-Liste)
+    """
+    if not selected_indices:
+        return False, "Keine Kategorie ausgewählt", []
+    
+    if len(selected_indices) == 1:
+        # Einzelauswahl - normal verarbeiten
+        return True, "", []
+    
+    # Mehrfachauswahl validieren
+    selected_categories = []
+    main_categories = set()
+    
+    for idx in selected_indices:
+        if idx not in category_map:
+            return False, f"Ungültiger Index: {idx}", []
+        
+        cat_info = category_map[idx]
+        selected_categories.append(cat_info)
+        main_categories.add(cat_info['main_category'])
+    
+    # Prüfe auf gültige Kombinationen
+    if len(main_categories) > 3:
+        return False, "Maximal 3 verschiedene Hauptkategorien können gleichzeitig ausgewählt werden", []
+    
+    return True, "", selected_categories
 
 
 # --- Klasse: ConfigLoader ---
