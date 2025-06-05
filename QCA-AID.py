@@ -7,7 +7,7 @@ enhanced with AI capabilities through the OpenAI API.
 
 Version:
 --------
-0.9.15.1 (2025-06-05)
+0.9.16 (2025-06-05)
 
 New in 0.9.16
 - ERWEITERTE MANUELLE KODIERUNG: Mehrfachkodierung-Support für manuelles Kodieren
@@ -6583,7 +6583,16 @@ class ManualCoder:
                     "Der manuelle Kodierungsprozess wird beendet."
                 )
             
-            self.root.quit()
+            # KORRIGIERT: Füge destroy() hinzu um das Fenster komplett zu schließen
+            try:
+                if self.root and self.root.winfo_exists():
+                    self.root.quit()
+                    self.root.destroy()  # HINZUGEFÜGT: Zerstört das Fenster komplett
+                    self.root = None     # HINZUGEFÜGT: Setze Referenz auf None
+            except Exception as e:
+                print(f"Info: Fehler beim Schließen des Fensters: {str(e)}")
+                # Fallback: Setze root auf None auch bei Fehlern
+                self.root = None
 
     def _safe_abort_coding(self):
         """
