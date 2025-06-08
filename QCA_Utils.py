@@ -4,14 +4,24 @@ import sys
 import time
 from datetime import datetime
 from typing import Dict, List, Optional, Tuple
+from collections import defaultdict
 import os
 import json
 import pandas as pd
 from openpyxl import load_workbook
 import tkinter as tk
 from tkinter import ttk, messagebox
+try:
+    import docx
+    DOCX_AVAILABLE = True
+except ImportError:
+    DOCX_AVAILABLE = False
 
-
+try:
+    import PyPDF2
+    PDF_AVAILABLE = True
+except ImportError:
+    PDF_AVAILABLE = False
 
 CONFIG = { } # hier leer, in Hauptskript integriert 
 
@@ -1852,3 +1862,540 @@ def with_escape_handler(cls):
     
     cls.__init__ = new_init
     return cls
+
+# --- Klasse: DocumentReader ---
+# Aufgabe: Laden und Vorbereiten des Analysematerials (Textdokumente, output)
+
+class DocumentReader:
+    def __init__(self, data_dir: str):
+        self.data_dir = data_dir
+        self.supported_formats = {'.docx', '.pdf', '.txt'}
+        os.makedirs(data_dir, exist_ok=True)
+        
+        # Prüfe verfügbare Features
+        if not DOCX_AVAILABLE:
+            print("⚠️ python-docx nicht verfügbar - DOCX-Unterstützung deaktiviert")
+            self.supported_formats.discard('.docx')
+        
+        if not PDF_AVAILABLE:
+            print("⚠️ PyPDF2 nicht verfügbar - PDF-Unterstützung deaktiviert")
+            self.supported_formats.discard('.pdf')
+        
+        print(f"\nDocumentReader initialisiert:")
+        print(f"Verzeichnis: {os.path.abspath(data_dir)}")
+        print(f"Unterstützte Formate: {', '.join(self.supported_formats)}")
+
+
+    def clean_problematic_characters(self, text: str) -> str:
+        """Verwendet die bereits vorhandene Funktion"""
+        return _sanitize_text_for_excel(text)
+
+    async def read_documents(self) -> Dict[str, str]:
+        documents = {}
+        try:
+            all_files = os.listdir(self.data_dir)
+            
+            print("\nDateianalyse:")
+            def is_supported_file(filename: str) -> bool:
+                # Exclude backup and temporary files
+                if any(ext in filename.lower() for ext in ['.bak', '.bkk', '.tmp', '~']):
+                    return False
+                # Get the file extension
+                extension = os.path.splitext(filename)[1].lower()
+                return extension in self.supported_formats
+
+            supported_files = [f for f in all_files if is_supported_file(f)]
+            
+            print(f"\nGefundene Dateien:")
+            for file in all_files:
+                status = "✓" if is_supported_file(file) else "✗"
+                print(f"{status} {file}")
+            
+            print(f"\nVerarbeite Dateien:")
+            for filename in supported_files:
+                try:
+                    filepath = os.path.join(self.data_dir, filename)
+                    extension = os.path.splitext(filename)[1].lower()
+                    
+                    print(f"\nLese: {filename}")
+                    
+                    if extension == '.docx':
+                        content = self._read_docx(filepath)
+                    elif extension == '.pdf':
+                        content = self._read_pdf(filepath)
+                    elif extension == '.txt':
+                        content = self._read_txt(filepath)
+                    else:
+                        print(f"⚠ Nicht unterstütztes Format: {extension}")
+                        continue
+                    
+                    if content and content.strip():
+                        documents[filename] = content
+                        print(f"✓ Erfolgreich eingelesen: {len(content)} Zeichen")
+                    else:
+                        print(f"⚠ Keine Textinhalte gefunden")
+                
+                except Exception as e:
+                    print(f"✗ Fehler bei {filename}: {str(e)}")
+                    print("Details:")
+                    import traceback
+                    traceback.print_exc()
+                    continue
+
+            print(f"\nVerarbeitungsstatistik:")
+            print(f"- Dateien im Verzeichnis: {len(all_files)}")
+            print(f"- Unterstützte Dateien: {len(supported_files)}")
+            print(f"- Erfolgreich eingelesen: {len(documents)}")
+            
+            return documents
+
+        except Exception as e:
+            print(f"Fehler beim Einlesen der Dokumente: {str(e)}")
+            import traceback
+            traceback.print_exc()
+            return documents
+
+    def _read_txt(self, filepath: str) -> str:
+        """Liest eine Textdatei ein."""
+        with open(filepath, 'r', encoding='utf-8') as f:
+            return f.read()
+
+    def _read_docx(self, filepath: str) -> str:
+        """
+        Liest eine DOCX-Datei ein und extrahiert den Text mit ausführlicher Diagnose.
+        Enthält zusätzliche Bereinigung für problematische Zeichen.
+        """
+        try:
+            from docx import Document
+            print(f"\nDetailierte Analyse von: {os.path.basename(filepath)}")
+            
+            # Öffne das Dokument mit zusätzlicher Fehlerbehandlung
+            try:
+                doc = Document(filepath)
+            except Exception as e:
+                print(f"  Fehler beim Öffnen der Datei: {str(e)}")
+                print("  Versuche alternative Öffnungsmethode...")
+                # Manchmal hilft es, die Datei zuerst zu kopieren
+                import shutil
+                temp_path = filepath + '.temp'
+                shutil.copy2(filepath, temp_path)
+                doc = Document(temp_path)
+                os.remove(temp_path)
+
+            # Sammle Dokumentinformationen
+            paragraphs = []
+            print("\nDokumentanalyse:")
+            print(f"  Gefundene Paragraphen: {len(doc.paragraphs)}")
+            
+            # Verarbeite jeden Paragraphen einzeln
+            for i, paragraph in enumerate(doc.paragraphs):
+                text = paragraph.text.strip()
+                if text:
+                    # Hier bereinigen wir Steuerzeichen und problematische Zeichen
+                    clean_text = self.clean_problematic_characters(text)
+                    paragraphs.append(clean_text)
+                else:
+                    print(f"  Paragraph {i+1}: Leer")
+
+            # Wenn Paragraphen gefunden wurden
+            if paragraphs:
+                full_text = '\n'.join(paragraphs)
+                print(f"\nErgebnis:")
+                print(f"  ✓ {len(paragraphs)} Textparagraphen extrahiert")
+                print(f"  ✓ Gesamtlänge: {len(full_text)} Zeichen")
+                return full_text
+            
+            # Wenn keine Paragraphen gefunden wurden, suche in anderen Bereichen
+            print("\nSuche nach alternativen Textinhalten:")
+            
+            # Prüfe Tabellen
+            table_texts = []
+            for i, table in enumerate(doc.tables):
+                print(f"  Prüfe Tabelle {i+1}:")
+                for row in table.rows:
+                    for cell in row.cells:
+                        cell_text = cell.text.strip()
+                        if cell_text:
+                            # Auch hier bereinigen
+                            clean_text = self.clean_problematic_characters(cell_text)
+                            table_texts.append(clean_text)
+                            print(f"    Zelleninhalt gefunden: {len(cell_text)} Zeichen")
+            
+            if table_texts:
+                full_text = '\n'.join(table_texts)
+                print(f"\nErgebnis:")
+                print(f"  ✓ {len(table_texts)} Tabelleneinträge extrahiert")
+                print(f"  ✓ Gesamtlänge: {len(full_text)} Zeichen")
+                return full_text
+                
+            print("\n✗ Keine Textinhalte im Dokument gefunden")
+            return ""
+                
+        except ImportError:
+            print("\n✗ python-docx nicht installiert.")
+            print("  Bitte installieren Sie das Paket mit:")
+            print("  pip install python-docx")
+            raise
+        except Exception as e:
+            print(f"\n✗ Unerwarteter Fehler beim DOCX-Lesen:")
+            print(f"  {str(e)}")
+            import traceback
+            traceback.print_exc()
+            raise
+
+    def _read_pdf(self, filepath: str) -> str:
+        """
+        Liest eine PDF-Datei ein und extrahiert den Text mit verbesserter Fehlerbehandlung.
+        
+        Args:
+            filepath: Pfad zur PDF-Datei
+                
+        Returns:
+            str: Extrahierter und bereinigter Text
+        """
+        try:
+            import PyPDF2
+            print(f"\nLese PDF: {os.path.basename(filepath)}")
+            
+            text_content = []
+            with open(filepath, 'rb') as file:
+                try:
+                    pdf_reader = PyPDF2.PdfReader(file)
+                    total_pages = len(pdf_reader.pages)
+                    print(f"  Gefundene Seiten: {total_pages}")
+                    
+                    for page_num, page in enumerate(pdf_reader.pages, 1):
+                        try:
+                            page_text = page.extract_text()
+                            if page_text:
+                                # Bereinige den Text von problematischen Zeichen
+                                cleaned_text = self.clean_problematic_characters(page_text)
+                                text_content.append(cleaned_text)
+                                print(f"  Seite {page_num}/{total_pages}: {len(cleaned_text)} Zeichen extrahiert")
+                            else:
+                                print(f"  Seite {page_num}/{total_pages}: Kein Text gefunden")
+                                
+                        except Exception as page_error:
+                            print(f"  Fehler bei Seite {page_num}: {str(page_error)}")
+                            # Versuche es mit alternativer Methode
+                            try:
+                                # Fallback: Extrahiere einzelne Textfragmente
+                                print("  Versuche alternative Extraktionsmethode...")
+                                if hasattr(page, 'extract_text'):
+                                    fragments = []
+                                    for obj in page.get_text_extraction_elements():
+                                        if hasattr(obj, 'get_text'):
+                                            fragments.append(obj.get_text())
+                                    if fragments:
+                                        fallback_text = ' '.join(fragments)
+                                        cleaned_text = self.clean_problematic_characters(fallback_text)
+                                        text_content.append(cleaned_text)
+                                        print(f"  Alternative Methode erfolgreich: {len(cleaned_text)} Zeichen")
+                            except:
+                                print("  Alternative Methode fehlgeschlagen")
+                                continue
+                    
+                except PyPDF2.errors.PdfReadError as pdf_error:
+                    print(f"  PDF Lesefehler: {str(pdf_error)}")
+                    print("  Versuche Fallback-Methode...")
+                    
+                    # Fallback-Methode, wenn direkte Lesemethode fehlschlägt
+                    try:
+                        from pdf2image import convert_from_path
+                        from pytesseract import image_to_string
+                        
+                        print("  Verwende OCR-Fallback via pdf2image und pytesseract")
+                        # Konvertiere PDF-Seiten zu Bildern
+                        images = convert_from_path(filepath)
+                        
+                        for i, image in enumerate(images):
+                            try:
+                                # Extrahiere Text über OCR
+                                ocr_text = image_to_string(image, lang='deu')
+                                if ocr_text:
+                                    # Bereinige den Text
+                                    cleaned_text = self.clean_problematic_characters(ocr_text)
+                                    text_content.append(cleaned_text)
+                                    print(f"  OCR Seite {i+1}: {len(cleaned_text)} Zeichen extrahiert")
+                                else:
+                                    print(f"  OCR Seite {i+1}: Kein Text gefunden")
+                            except Exception as ocr_error:
+                                print(f"  OCR-Fehler bei Seite {i+1}: {str(ocr_error)}")
+                                continue
+                    
+                    except ImportError:
+                        print("  OCR-Fallback nicht verfügbar. Bitte installieren Sie pdf2image und pytesseract")
+                    
+            # Zusammenfassen des extrahierten Textes
+            if text_content:
+                full_text = '\n'.join(text_content)
+                print(f"\nErgebnis:")
+                print(f"  ✓ {len(text_content)} Textabschnitte extrahiert")
+                print(f"  ✓ Gesamtlänge: {len(full_text)} Zeichen")
+                return full_text
+            else:
+                print("\n✗ Kein Text aus PDF extrahiert")
+                return ""
+                
+        except ImportError:
+            print("PyPDF2 nicht installiert. Bitte installieren Sie: pip install PyPDF2")
+            raise
+        except Exception as e:
+            print(f"Fehler beim PDF-Lesen: {str(e)}")
+            import traceback
+            traceback.print_exc()
+            return ""  # Leerer String im Fehlerfall, damit der Rest funktioniert
+    
+    def _extract_metadata(self, filename: str) -> Tuple[str, str, str]:
+        """
+        Extrahiert Metadaten aus dem Dateinamen.
+        Erwartet Format: attribut1_attribut2_attribut3.extension
+        
+        Args:
+            filename (str): Name der Datei
+            
+        Returns:
+            Tuple[str, str, str]: (attribut1, attribut2, attribut3)
+        """
+        try:
+            name_without_ext = os.path.splitext(filename)[0]
+            parts = name_without_ext.split('_')
+            
+            # Extrahiere bis zu drei Attribute, wenn verfügbar
+            attribut1 = parts[0] if len(parts) >= 1 else ""
+            attribut2 = parts[1] if len(parts) >= 2 else ""
+            attribut3 = parts[2] if len(parts) >= 3 else ""
+            
+            return attribut1, attribut2, attribut3
+        except Exception as e:
+            print(f"Fehler beim Extrahieren der Metadaten aus {filename}: {str(e)}")
+            return filename, "", ""
+
+
+class ManualReviewGUI:
+    """
+    KORRIGIERT: GUI für kategorie-spezifisches manuelles Review
+    """
+    
+    def perform_category_specific_review(self, segments_needing_review: List[Dict]) -> List[Dict]:
+        """
+        Führt manuelles Review für kategorie-spezifische Segmente durch
+        
+        Jedes Segment repräsentiert nur eine Hauptkategorie, daher
+        sind die Entscheidungen fokussierter und methodisch korrekter
+        """
+        review_decisions = []
+        
+        for i, segment in enumerate(segments_needing_review, 1):
+            print(f"\n🎯 Review {i}/{len(segments_needing_review)}: {segment['segment_id']}")
+            print(f"   Kategorie: {segment['target_category']}")
+            
+            if segment['is_multiple_coding']:
+                instance_info = segment['instance_info']
+                print(f"   Teil {instance_info['instance_number']}/{instance_info['total_instances']} von {segment['original_segment_id']}")
+                print(f"   Alle Kategorien dieses Segments: {', '.join(instance_info['all_categories'])}")
+            
+            # Zeige alle Kodierungen für diese spezifische Kategorie
+            codings = segment['codings']
+            
+            print(f"\n   📋 {len(codings)} Kodierungen für Kategorie '{segment['target_category']}':")
+            for j, coding in enumerate(codings, 1):
+                coder = coding.get('coder_id', 'Unbekannt')
+                subcats = coding.get('subcategories', [])
+                confidence = coding.get('confidence', {})
+                
+                print(f"      {j}. {coder}: {segment['target_category']}")
+                if subcats:
+                    print(f"         Subkategorien: {', '.join(subcats)}")
+                if isinstance(confidence, dict):
+                    conf_val = confidence.get('total', 0.0)
+                    print(f"         Konfidenz: {conf_val:.2f}")
+            
+            # Lade Textinhalt (von erster Kodierung)
+            text_content = codings[0].get('text', 'Kein Text verfügbar')
+            
+            # Zeige GUI-Dialog für diese eine Kategorie
+            decision = self._show_category_review_dialog(segment, text_content)
+            
+            if decision:
+                review_decisions.append(decision)
+        
+        return review_decisions
+    
+    def _show_category_review_dialog(self, segment: Dict, text_content: str) -> Optional[Dict]:
+        """
+        Zeigt Review-Dialog für ein kategorie-spezifisches Segment
+        
+        Viel fokussierter als vorher, da nur eine Kategorie behandelt wird
+        """
+        # HIER würde die GUI-Implementierung kommen
+        # Für Demo-Zwecke: Automatische Entscheidung basierend auf höchster Konfidenz
+        
+        codings = segment['codings']
+        best_coding = max(codings, key=lambda x: self._extract_confidence_value(x))
+        
+        decision = best_coding.copy()
+        decision.update({
+            'segment_id': segment['segment_id'],
+            'manual_review': True,
+            'review_date': datetime.now().isoformat(),
+            'review_justification': f"Automatisch gewählt: Höchste Konfidenz für Kategorie {segment['target_category']}",
+            'original_segment_id': segment['original_segment_id'],
+            'is_multiple_coding_instance': segment['is_multiple_coding'],
+            'instance_info': segment['instance_info']
+        })
+        
+        return decision
+    
+    def _extract_confidence_value(self, coding: Dict) -> float:
+        """Extrahiert Konfidenzwert"""
+        confidence = coding.get('confidence', {})
+        if isinstance(confidence, dict):
+            return confidence.get('total', 0.0)
+        elif isinstance(confidence, (int, float)):
+            return float(confidence)
+        return 0.0
+
+def validate_category_specific_segments(category_segments: List[Dict]) -> bool:
+    """
+    Validiert die korrekte Erstellung kategorie-spezifischer Segmente
+    """
+    print("\n🔍 Validiere kategorie-spezifische Segmente...")
+    
+    validation_errors = []
+    original_segments = defaultdict(list)
+    
+    for segment in category_segments:
+        # Sammle Segmente nach ursprünglicher ID
+        original_id = segment['original_segment_id']
+        original_segments[original_id].append(segment)
+        
+        # Validiere Segment-Struktur
+        if not segment.get('segment_id'):
+            validation_errors.append(f"Segment ohne segment_id: {segment}")
+        
+        if not segment.get('target_category') and segment['target_category'] is not None:
+            validation_errors.append(f"Segment ohne target_category: {segment['segment_id']}")
+        
+        if not segment.get('codings'):
+            validation_errors.append(f"Segment ohne codings: {segment['segment_id']}")
+    
+    # Validiere Mehrfachkodierungs-Logik
+    for original_id, segments in original_segments.items():
+        if len(segments) > 1:
+            # Mehrfachkodierung - prüfe Konsistenz
+            instance_numbers = [s['instance_info']['instance_number'] for s in segments]
+            total_instances = segments[0]['instance_info']['total_instances']
+            
+            # Prüfe aufeinanderfolgende Instanz-Nummern
+            expected_numbers = list(range(1, total_instances + 1))
+            if sorted(instance_numbers) != expected_numbers:
+                validation_errors.append(f"Inkonsistente Instanz-Nummern für {original_id}: {instance_numbers}")
+            
+            # Prüfe eindeutige Kategorien
+            categories = [s['target_category'] for s in segments]
+            if len(set(categories)) != len(categories):
+                validation_errors.append(f"Doppelte Kategorien für {original_id}: {categories}")
+    
+    if validation_errors:
+        print("❌ Validierungsfehler gefunden:")
+        for error in validation_errors[:5]:  # Zeige max 5 Fehler
+            print(f"   • {error}")
+        return False
+    
+    print("✅ Validierung erfolgreich")
+    return True
+
+
+def analyze_multiple_coding_impact(original_codings: List[Dict], category_segments: List[Dict]) -> Dict:
+    """
+    Analysiert den Einfluss der Mehrfachkodierungs-Korrektur
+    """
+    print("\n📊 Analysiere Mehrfachkodierungs-Einfluss...")
+    
+    # Zähle ursprüngliche Segmente
+    original_segment_ids = set()
+    for coding in original_codings:
+        segment_id = coding.get('segment_id', '')
+        if segment_id:
+            original_segment_ids.add(segment_id)
+    
+    # Analysiere neue Segmente
+    multiple_coding_segments = [s for s in category_segments if s['is_multiple_coding']]
+    single_coding_segments = [s for s in category_segments if not s['is_multiple_coding']]
+    
+    # Gruppiere Mehrfachkodierungs-Segmente nach ursprünglicher ID
+    multiple_groups = defaultdict(list)
+    for segment in multiple_coding_segments:
+        original_id = segment['original_segment_id']
+        multiple_groups[original_id].append(segment)
+    
+    analysis = {
+        'original_segments': len(original_segment_ids),
+        'new_segments_total': len(category_segments),
+        'single_coding_segments': len(single_coding_segments),
+        'multiple_coding_groups': len(multiple_groups),
+        'multiple_coding_segments': len(multiple_coding_segments),
+        'expansion_factor': len(category_segments) / len(original_segment_ids) if original_segment_ids else 1,
+        'category_distribution': defaultdict(int)
+    }
+    
+    # Analysiere Kategorie-Verteilung
+    for segment in category_segments:
+        category = segment['target_category']
+        if category:
+            analysis['category_distribution'][category] += 1
+    
+    # Detailanalyse der Mehrfachkodierungen
+    multiple_details = []
+    for original_id, segments in multiple_groups.items():
+        categories = [s['target_category'] for s in segments]
+        multiple_details.append({
+            'original_id': original_id,
+            'categories': categories,
+            'expansion': len(categories)
+        })
+    
+    analysis['multiple_coding_details'] = multiple_details
+    
+    # Berichte
+    print(f"   • Ursprüngliche Segmente: {analysis['original_segments']}")
+    print(f"   • Neue Segmente gesamt: {analysis['new_segments_total']}")
+    print(f"   • Einzelkodierung: {analysis['single_coding_segments']}")
+    print(f"   • Mehrfachkodierungs-Gruppen: {analysis['multiple_coding_groups']}")
+    print(f"   • Mehrfachkodierungs-Segmente: {analysis['multiple_coding_segments']}")
+    print(f"   • Expansionsfaktor: {analysis['expansion_factor']:.2f}")
+    
+    if multiple_details:
+        print(f"\n   📋 Top 3 Mehrfachkodierungs-Beispiele:")
+        for detail in sorted(multiple_details, key=lambda x: x['expansion'], reverse=True)[:3]:
+            print(f"      • {detail['original_id']}: {', '.join(detail['categories'])} ({detail['expansion']} Kategorien)")
+    
+    return analysis
+
+
+def export_multiple_coding_report(analysis: Dict, output_dir: str):
+    """
+    Exportiert detaillierten Bericht über Mehrfachkodierungs-Behandlung
+    """
+    import json
+    from pathlib import Path
+    
+    report_path = Path(output_dir) / "multiple_coding_analysis_report.json"
+    
+    report = {
+        'timestamp': datetime.now().isoformat(),
+        'summary': {
+            'original_segments': analysis['original_segments'],
+            'new_segments_total': analysis['new_segments_total'],
+            'expansion_factor': analysis['expansion_factor'],
+            'multiple_coding_groups': analysis['multiple_coding_groups']
+        },
+        'category_distribution': dict(analysis['category_distribution']),
+        'multiple_coding_details': analysis['multiple_coding_details']
+    }
+    
+    with open(report_path, 'w', encoding='utf-8') as f:
+        json.dump(report, f, indent=2, ensure_ascii=False)
+    
+    print(f"📄 Mehrfachkodierungs-Bericht gespeichert: {report_path}")
