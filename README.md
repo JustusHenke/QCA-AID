@@ -16,6 +16,7 @@ Dieses Python-Skript implementiert Mayrings Methode der deduktiven Qualitativen 
   - [Konfiguration und Anpassbarkeit](#konfiguration-und-anpassbarkeit)
 
 ### Versionen und Updates
+- [Neu in 0.9.16.2](#neu-in-09162-2025-06-11)
 - [Neu in 0.9.15](#neu-in-0915-2025-06-02)
 - [Neu in 0.9.14](#neu-in-0914-2025-05-28)
 - [Neu in 0.9.13](#neu-in-0913-2025-05-15)
@@ -121,6 +122,29 @@ Prinzipiell ist die Verarbeitung der Daten per LLM auch auf einem lokalen Rechne
 - **Erweiterte Visualisierungsoptionen**: Konfigurierbare Diagramme und Analysen im QCA-AID-Explorer
 
 ## Versionshinweise
+
+Versionen und Updates
+### Neu in 0.9.16.2 (2025-06-11)
+Bugfixes und Verbesserungen
+
+Verbessertes Kodierungsergebnisse Sheet: Optimierte Darstellung und Formatierung der Kodierungsergebnisse im Excel-Export
+Grounded Mode Optimierung: Entfernung deduktiver Kategorien bei der Kodierung im Grounded Mode für reinere induktive Kategorienentwicklung
+Neuer Token-Counter: Präziserer Token-Counter basierend auf tatsächlichen Tokens beim API Provider für genauere Kostenberechnung
+
+### Neu in 0.9.16.1
+Bugfixes und Verbesserungen
+
+Überarbeitete Intercoder-Berechnung: Verbesserte Intercoder-Reliabilitätsberechnung um der Mehrfachkodierung gerecht zu werden, nach Krippendorf 2011 mittels Sets
+Export-Layout überarbeitet: Komplett überarbeiteter Aufbau und Layout des Excel-Exports für bessere Übersichtlichkeit
+
+### Neu in 0.9.16
+Erweiterte manuelle Kodierung mit Mehrfachkodierung-Support
+
+Mehrfachkategorien-Auswahl: Benutzer können nun mehrere Kategorien gleichzeitig auswählen (Strg+Klick, Shift+Klick)
+Intelligente Validierung: Automatische Validierung verhindert inkonsistente Mehrfachauswahlen
+Separate Kodierungsinstanzen: Automatische Erstellung separater Kodierungsinstanzen bei verschiedenen Hauptkategorien
+Verbesserte GUI: Erweiterte Benutzeroberfläche mit Auswahlinfo und speziellem Mehrfachkodierungs-Dialog
+Nahtlose Integration: Konsistente Integration mit dem bestehenden Mehrfachkodierungs-System
 
 ### Neu in 0.9.15 (2025-06-02)
 - COMPLETE RESTRUCTURING OF INDUCTIVE MODE: Vollständige Neustrukturierung des induktiven Modus
