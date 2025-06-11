@@ -7,7 +7,12 @@ enhanced with AI capabilities through the OpenAI API.
 
 Version:
 --------
-0.9.16.1 (2025-06-05)
+0.9.16.2(2025-06-11)
+
+0.9.16.2 Bugfixes
+- Improve Kodierungsergebnisse Sheet 
+- Entferne deduktive Kategorien bei Grounded Mode für die Kodierung
+- Neuer Token-Counter auf Basis tatsächlicher Tokens beim API Provider
 
 0.9.16.1 Bugfixes
 - Überarbeitete Intercoder Berechnung um der Mehrfachkodierung gerecht zu werden, nach Krippendorf 2011 mittels Sets.
@@ -177,9 +182,9 @@ import traceback
 # ============================
 
 
-# lokale Imports
+# lokale Imports 
 from QCA_Utils import (
-    TokenCounter, estimate_tokens, get_input_with_timeout, _calculate_multiple_coding_stats, 
+    TokenTracker, get_input_with_timeout, _calculate_multiple_coding_stats,
     _patch_tkinter_for_threaded_exit, ConfigLoader,
     LLMProvider, LLMProviderFactory, LLMResponse, MistralProvider, OpenAIProvider,
     _sanitize_text_for_excel, _generate_pastel_colors, _format_confidence,
@@ -191,7 +196,7 @@ from QCA_Utils import (
 from QCA_Prompts import QCAPrompts  # Prompt Bibliothek
 
 # Instanziierung des globalen Token-Counters
-token_counter = TokenCounter()
+token_counter = TokenTracker()
 
 
 
@@ -1127,7 +1132,7 @@ class RelevanceChecker:
                         multiple_threshold=self.multiple_threshold
                     )
                     
-                    input_tokens = estimate_tokens(prompt)
+                    token_counter.start_request()
                     
                     response = await self.llm_provider.create_completion(
                         model=self.model_name,
@@ -1142,8 +1147,8 @@ class RelevanceChecker:
                     llm_response = LLMResponse(response)
                     result = json.loads(llm_response.content)
                     
-                    output_tokens = estimate_tokens(response.choices[0].message.content)
-                    token_counter.add_tokens(input_tokens, output_tokens)
+                    
+                    token_counter.track_response(response, self.model_name)
                     
                     # Verarbeite Ergebnisse - erwarte single segment format
                     segment_result = result.get('segment_results', [{}])[0] if result.get('segment_results') else result
@@ -1257,7 +1262,7 @@ class RelevanceChecker:
                     exclusion_rules=self.exclusion_rules
                 )
                 
-                input_tokens = estimate_tokens(prompt)
+                token_counter.start_request()
                 
                 # Ein API-Call für alle Segmente
                 response = await self.llm_provider.create_completion(
@@ -1273,8 +1278,8 @@ class RelevanceChecker:
                 llm_response = LLMResponse(response)
                 results = json.loads(llm_response.content)
                 
-                output_tokens = estimate_tokens(response.choices[0].message.content)
-                token_counter.add_tokens(input_tokens, output_tokens)
+                
+                token_counter.track_response(response, self.model_name)
                 
                 # Verarbeite Ergebnisse
                 relevance_results = {}
@@ -1333,7 +1338,7 @@ class RelevanceChecker:
                             exclusion_rules=self.exclusion_rules
                         )
                         
-                        input_tokens = estimate_tokens(prompt)
+                        token_counter.start_request()
                         
                         response = await self.llm_provider.create_completion(
                             model=self.model_name,
@@ -1348,8 +1353,8 @@ class RelevanceChecker:
                         llm_response = LLMResponse(response)
                         results = json.loads(llm_response.content)
                         
-                        output_tokens = estimate_tokens(response.choices[0].message.content)
-                        token_counter.add_tokens(input_tokens, output_tokens)
+                        
+                        token_counter.track_response(response, self.model_name)
                         
                         # Verarbeite Sub-Batch Ergebnisse
                         sub_batch_results = {}
@@ -1736,7 +1741,7 @@ class IntegratedAnalysisManager:
         
 
         try:
-            input_tokens = estimate_tokens(prompt)
+            token_counter.start_request()
             
             response = await self.inductive_coder.llm_provider.create_completion(
                 model=self.inductive_coder.model_name,
@@ -1751,8 +1756,8 @@ class IntegratedAnalysisManager:
             llm_response = LLMResponse(response)
             result = json.loads(llm_response.content)
             
-            output_tokens = estimate_tokens(response.choices[0].message.content)
-            token_counter.add_tokens(input_tokens, output_tokens)
+            
+            token_counter.track_response(response, self.model_name)
             
             # Verarbeite Ergebnisse - erweitere bestehende Kategorien
             extended_categories = current_categories.copy()
@@ -2326,6 +2331,8 @@ class IntegratedAnalysisManager:
         KORRIGIERTE Hauptanalyse mit besserer Fehlerbehandlung
         """
         try:
+            token_counter.reset_session() # Token-Session zurücksetzen für neue Analyse
+
             self.escape_handler.start_monitoring()
             self.start_time = datetime.now()
             print(f"\nAnalyse gestartet um {self.start_time.strftime('%H:%M:%S')}")
@@ -2523,6 +2530,16 @@ class IntegratedAnalysisManager:
                     else:
                         coding_categories = current_categories
                         print(f"   📝 Inductive Mode: Verwende {len(current_categories)} induktive Kategorien")
+                elif analysis_mode == 'grounded':
+                    # FIX: Im grounded mode nur rein induktive Kategorien verwenden
+                    grounded_categories = {}
+                    for name, cat in current_categories.items():
+                        if name not in DEDUKTIVE_KATEGORIEN:
+                            grounded_categories[name] = cat
+                    
+                    coding_categories = grounded_categories
+                    print(f"   📝 Grounded Mode: Verwende {len(grounded_categories)} rein induktive Kategorien")
+                    print(f"   🚫 Ausgeschlossen: {len(current_categories) - len(grounded_categories)} deduktive Kategorien")
                 else:
                     coding_categories = current_categories
                 
@@ -3589,13 +3606,23 @@ class DeductiveCoder:
             print(f"Fehler bei Provider-Initialisierung für {coder_id}: {str(e)}")
             raise
         
-        # Prompt-Handler initialisieren
-        self.prompt_handler = QCAPrompts(
-            forschungsfrage=FORSCHUNGSFRAGE,
-            kodierregeln=KODIERREGELN,
-            deduktive_kategorien=DEDUKTIVE_KATEGORIEN
-
-        )
+        # FIX: Prompt-Handler nur im grounded mode ohne deduktive Kategorien initialisieren
+        analysis_mode = CONFIG.get('ANALYSIS_MODE', 'deductive')
+        if analysis_mode == 'grounded':
+            # FIX: Im grounded mode KEINE deduktiven Kategorien verwenden
+            self.prompt_handler = QCAPrompts(
+                forschungsfrage=FORSCHUNGSFRAGE,
+                kodierregeln=KODIERREGELN,
+                deduktive_kategorien={}  # FIX: Leeres Dict statt DEDUKTIVE_KATEGORIEN
+            )
+            print(f"   🔄 Grounded Mode: Kodierer {coder_id} ohne vordefinierte Kategorien initialisiert")
+        else:
+            # Normale Modi verwenden deduktive Kategorien
+            self.prompt_handler = QCAPrompts(
+                forschungsfrage=FORSCHUNGSFRAGE,
+                kodierregeln=KODIERREGELN,
+                deduktive_kategorien=DEDUKTIVE_KATEGORIEN
+            )
 
     async def update_category_system(self, categories: Dict[str, CategoryDefinition]) -> bool:
         """
@@ -3608,6 +3635,27 @@ class DeductiveCoder:
             bool: True wenn Update erfolgreich
         """
         try:
+            # FIX: Prüfe Analysemodus vor Update
+            analysis_mode = CONFIG.get('ANALYSIS_MODE', 'deductive')
+            
+            if analysis_mode == 'grounded':
+                # FIX: Im grounded mode nur mit rein induktiven Kategorien arbeiten
+                # Filtere alle deduktiven Kategorien heraus
+                grounded_categories = {}
+                for name, cat in categories.items():
+                    if name not in DEDUKTIVE_KATEGORIEN:
+                        grounded_categories[name] = cat
+                
+                print(f"   🔄 Grounded Mode: Kodierer {self.coder_id} aktualisiert mit {len(grounded_categories)} rein induktiven Kategorien")
+                print(f"   📝 Ausgeschlossen: {len(categories) - len(grounded_categories)} deduktive Kategorien")
+                
+                # Verwende nur die gefilterten Kategorien
+                categories_to_use = grounded_categories
+            else:
+                # Andere Modi verwenden alle Kategorien
+                categories_to_use = categories
+                print(f"   🔄 {analysis_mode.upper()} Mode: Kodierer {self.coder_id} aktualisiert mit {len(categories_to_use)} Kategorien")
+
             # Konvertiere CategoryDefinition in serialisierbares Dict
             categories_dict = {
                 name: {
@@ -3615,49 +3663,68 @@ class DeductiveCoder:
                     'examples': list(cat.examples) if isinstance(cat.examples, set) else cat.examples,
                     'rules': list(cat.rules) if isinstance(cat.rules, set) else cat.rules,
                     'subcategories': dict(cat.subcategories) if isinstance(cat.subcategories, set) else cat.subcategories
-                } for name, cat in categories.items()
+                } for name, cat in categories_to_use.items()
             }
 
-            # Aktualisiere das Kontextwissen des Kodierers
-            prompt = f"""
-            Das Kategoriensystem wurde aktualisiert. Neue Zusammensetzung:
-            {json.dumps(categories_dict, indent=2, ensure_ascii=False)}
+            # FIX: Aktualisiere das Kontextwissen des Kodierers modusabhängig
+            if analysis_mode == 'grounded':
+                prompt = f"""
+                GROUNDED THEORY MODUS: Das Kategoriensystem wurde mit rein induktiven Kategorien aktualisiert.
+                
+                Aktuelle induktive Kategorien:
+                {json.dumps(categories_dict, indent=2, ensure_ascii=False)}
+                
+                WICHTIGE REGELN FÜR GROUNDED KODIERUNG:
+                1. Verwende NUR die oben aufgeführten induktiven Kategorien
+                2. KEINE deduktiven Kategorien aus dem ursprünglichen Codebook verwenden
+                3. Diese Kategorien wurden bottom-up aus den Texten entwickelt
+                4. Kodiere nur dann, wenn das Segment eindeutig zu einer dieser Kategorien passt
+                5. Bei Unsicherheit: "Nicht kodiert" verwenden
+                
+                Antworte einfach mit "Verstanden" wenn du die Anweisung erhalten hast.
+                """
+            else:
+                prompt = f"""
+                Das Kategoriensystem wurde aktualisiert. Neue Zusammensetzung:
+                {json.dumps(categories_dict, indent=2, ensure_ascii=False)}
+                
+                Berücksichtige bei der Kodierung:
+                1. Verwende alle verfügbaren Kategorien entsprechend ihrer Definitionen
+                2. Prüfe auch Subkategorien bei der Zuordnung
+                3. Kodiere nur bei eindeutiger Zuordnung
+                
+                Antworte einfach mit "Verstanden" wenn du die Anweisung erhalten hast.
+                """
+
+            # Aktualisiere internes Kategoriensystem
+            # FIX: Verwende gefilterte Kategorien statt alle
+            self.current_categories = categories_to_use
             
-            Berücksichtige bei der Kodierung:
-            1. Sowohl ursprüngliche als auch neue Kategorien verwenden
-            2. Auf Überschneidungen zwischen Kategorien achten
-            3. Subkategorien der neuen Kategorien einbeziehen
-            """
+            # FIX: Aktualisiere auch den Prompt-Handler mit den richtigen Kategorien
+            if analysis_mode == 'grounded':
+                # FIX: Im grounded mode deduktive Kategorien leer lassen
+                self.prompt_handler.deduktive_kategorien({})
+            else:
+                # Andere Modi behalten deduktive Kategorien
+                self.prompt_handler.deduktive_kategorien(DEDUKTIVE_KATEGORIEN)
 
-            input_tokens = estimate_tokens(prompt)
-
-            response = await self.llm_provider.create_completion(
-                    model=self.model_name,
-                    messages=[
-                        {"role": "system", "content": "Du bist ein Experte für qualitative Inhaltsanalyse. Du antwortest auf deutsch."},
-                        {"role": "user", "content": prompt}
-                    ],
-                    temperature=0.3
-                )
+            # Test-Anfrage um sicherzustellen, dass das System bereit ist
+            response = await self.llm_provider.chat(
+                messages=[
+                    {"role": "system", "content": "Du bist ein QCA-Kodierer. Antworte auf deutsch."},
+                    {"role": "user", "content": prompt}
+                ],
+                temperature=0.3
+            )
             
-            # Zähle Tokens
-            output_tokens = estimate_tokens(response.choices[0].message.content)
-            token_counter.add_tokens(input_tokens, output_tokens)
-
-            if response.choices[0].message.content:
-
-                self.current_categories = categories
-
-                print(f"Kategoriensystem für Kodierer {self.coder_id} aktualisiert")
-                print(f"- {len(categories)} Kategorien verfügbar")
+            if "verstanden" in response.content.lower():
                 return True
-            
-            return False
-
+            else:
+                print(f"⚠️ Unerwartete Antwort von Kodierer {self.coder_id}: {response.content}")
+                return True  # Fahre trotzdem fort
+                
         except Exception as e:
-            print(f"Fehler beim Update des Kategoriensystems für {self.coder_id}: {str(e)}")
-            print("Details:")
-            traceback.print_exc()
+            print(f"❌ Fehler beim Update von Kodierer {self.coder_id}: {str(e)}")
             return False
 
     async def code_chunk_with_context_switch(self, 
@@ -3753,7 +3820,7 @@ class DeductiveCoder:
 
 
             try:
-                input_tokens = estimate_tokens(prompt)
+                token_counter.start_request()
 
                 response = await self.llm_provider.create_completion(
                     model=self.model_name,
@@ -3769,8 +3836,8 @@ class DeductiveCoder:
                 llm_response = LLMResponse(response)
                 result = json.loads(llm_response.content)
 
-                output_tokens = estimate_tokens(response.choices[0].message.content)
-                token_counter.add_tokens(input_tokens, output_tokens)
+                
+                token_counter.track_response(response, self.model_name)
                 
                 if result and isinstance(result, dict):
                     if result.get('category'):
@@ -3979,7 +4046,7 @@ class DeductiveCoder:
             )
             
             # API-Call
-            input_tokens = estimate_tokens(prompt)
+            token_counter.start_request()
 
             response = await self.llm_provider.create_completion(
                 model=self.model_name,
@@ -3995,8 +4062,8 @@ class DeductiveCoder:
             llm_response = LLMResponse(response)
             result = json.loads(llm_response.content)
 
-            output_tokens = estimate_tokens(response.choices[0].message.content)
-            token_counter.add_tokens(input_tokens, output_tokens)
+            
+            token_counter.track_response(response, self.model_name)
             
             # Extrahiere relevante Teile
             if result and isinstance(result, dict):
@@ -4107,7 +4174,7 @@ class DeductiveCoder:
             )
             
             try:
-                input_tokens = estimate_tokens(prompt)
+                token_counter.start_request()
 
                 response = await self.llm_provider.create_completion(
                     model=self.model_name,
@@ -4123,8 +4190,8 @@ class DeductiveCoder:
                 llm_response = LLMResponse(response)
                 result = json.loads(llm_response.content)
 
-                output_tokens = estimate_tokens(response.choices[0].message.content)
-                token_counter.add_tokens(input_tokens, output_tokens)
+                
+                token_counter.track_response(response, self.model_name)
                 
                 if result and isinstance(result, dict):
                     if result.get('category'):
@@ -4272,7 +4339,7 @@ class DeductiveCoder:
             
 
             # API-Call
-            input_tokens = estimate_tokens(prompt)
+            token_counter.start_request()
 
             response = await self.llm_provider.create_completion(
                 model=self.model_name,
@@ -4288,8 +4355,8 @@ class DeductiveCoder:
             llm_response = LLMResponse(response)
             result = json.loads(llm_response.content)
 
-            output_tokens = estimate_tokens(response.choices[0].message.content)
-            token_counter.add_tokens(input_tokens, output_tokens)
+            
+            token_counter.track_response(response, self.model_name)
             
             # Extrahiere relevante Teile
             if result and isinstance(result, dict):
@@ -4359,7 +4426,7 @@ class DeductiveCoder:
         try:
             prompt = self.prompt_handler.get_segment_relevance_assessment_prompt(chunk)
 
-            input_tokens = estimate_tokens(prompt + chunk)
+            token_counter.start_request()
             
             response = await self.llm_provider.create_completion(
                     model=self.model_name,
@@ -4375,8 +4442,8 @@ class DeductiveCoder:
             llm_response = LLMResponse(response)
             result = json.loads(llm_response.content)
             
-            output_tokens = estimate_tokens(response.choices[0].message.content)
-            token_counter.add_tokens(input_tokens, output_tokens)
+            
+            token_counter.track_response(response, self.model_name)
 
             # Detaillierte Ausgabe der Relevanzprüfung
             if result.get('is_relevant'):
@@ -5116,7 +5183,7 @@ class InductiveCoder:
             prompt = self._create_standard_prompt(segments_text, existing_categories)
 
         try:
-            input_tokens = estimate_tokens(prompt)
+            token_counter.start_request()
             
             response = await self.llm_provider.create_completion(
                 model=self.model_name,
@@ -5131,8 +5198,8 @@ class InductiveCoder:
             llm_response = LLMResponse(response)
             result = json.loads(llm_response.content)
             
-            output_tokens = estimate_tokens(response.choices[0].message.content)
-            token_counter.add_tokens(input_tokens, output_tokens)
+            
+            token_counter.track_response(response, self.model_name)
             
             # Verarbeite Ergebnisse
             candidates = {}
@@ -5350,7 +5417,7 @@ class InductiveCoder:
                 json_schema=json_schema
             )
             
-            input_tokens = estimate_tokens(prompt)
+            token_counter.start_request()
 
             # API-Call
             response = await self.llm_provider.create_completion(
@@ -5367,8 +5434,8 @@ class InductiveCoder:
             llm_response = LLMResponse(response)
             result = json.loads(llm_response.content)
             
-            output_tokens = estimate_tokens(response.choices[0].message.content)
-            token_counter.add_tokens(input_tokens, output_tokens)
+            
+            token_counter.track_response(response, self.model_name)
 
             # Cache das Ergebnis
             self.analysis_cache[cache_key] = result
@@ -5458,7 +5525,7 @@ class InductiveCoder:
         prompt = self.prompt_handler.get_segment_relevance_assessment_prompt(segment)
                 
         try:
-            input_tokens = estimate_tokens(prompt)
+            token_counter.start_request()
 
             response = await self.llm_provider.create_completion(
                     model=self.model_name,
@@ -5474,8 +5541,8 @@ class InductiveCoder:
             llm_response = LLMResponse(response)
             result = json.loads(llm_response.content)
 
-            output_tokens = estimate_tokens(response.choices[0].message.content)
-            token_counter.add_tokens(input_tokens, output_tokens)
+            
+            token_counter.track_response(response, self.model_name)
 
             return float(result.get('relevance_score', 0))
             
@@ -5564,7 +5631,8 @@ class InductiveCoder:
             # LLM-Aufruf
             print("\n⏳ Generiere Hauptkategorien via Grounded Theory Analyse...")
             
-            input_tokens = estimate_tokens(enhanced_prompt)
+            token_counter.start_request()
+
             response = await self.llm_provider.create_completion(
                 model=self.model_name,
                 messages=[
@@ -5578,8 +5646,8 @@ class InductiveCoder:
             llm_response = LLMResponse(response)
             result = json.loads(llm_response.content)
             
-            output_tokens = estimate_tokens(response.choices[0].message.content)
-            token_counter.add_tokens(input_tokens, output_tokens)
+            
+            token_counter.track_response(response, self.model_name)
             
             # Verarbeite Ergebnisse zu CategoryDefinition-Objekten
             grounded_categories = {}
@@ -8964,199 +9032,6 @@ class ResultsExporter:
         
         print(f"Optimierungsanalyse exportiert nach: {analysis_path}")
   
-    def _prepare_coding_for_export(self, coding: dict, chunk: str, chunk_id: int, doc_name: str) -> dict:
-        """
-        Bereitet eine Kodierung für den Export vor.
-        KORRIGIERT: Nutzt präzises Kategorie-Subkategorie-Mapping bei Mehrfachkodierung
-        """
-        try:
-            # Extrahiere Attribute aus dem Dateinamen
-            attribut1, attribut2, attribut3 = self._extract_metadata(doc_name)
-            
-            # Erstelle eindeutigen Präfix für Chunk-Nr
-            chunk_prefix = ""
-            if attribut1 and attribut2:
-                chunk_prefix = (attribut1[:2] + attribut2[:2] + attribut3[:2]).upper()
-            else:
-                chunk_prefix = doc_name[:5].upper()
-            
-            # Prüfe ob eine gültige Kategorie vorhanden ist
-            category = coding.get('category', '')
-            
-            # KORRIGIERT: Nutze Kategorie-Subkategorie-Mapping bei Mehrfachkodierung
-            subcategories = coding.get('subcategories', [])
-            
-            # Prüfe auf Hauptkategorie im grounded Modus
-            main_category = coding.get('main_category', '')
-            if main_category and main_category != category:
-                if CONFIG.get('ANALYSIS_MODE') == 'grounded':
-                    display_category = main_category
-                    if category and category not in subcategories:
-                        subcategories = list(subcategories) + [category]
-                else:
-                    display_category = category
-            else:
-                display_category = category
-            
-            # Verbesserte Subkategorien-Verarbeitung mit Bereinigung
-            subcats_text = ""
-            
-            if subcategories:
-                if isinstance(subcategories, str):
-                    # String: Direkt verwenden nach Bereinigung
-                    subcats_text = subcategories.strip()
-                elif isinstance(subcategories, (list, tuple)):
-                    # Liste/Tupel: Bereinige und verbinde
-                    clean_subcats = []
-                    for subcat in subcategories:
-                        if subcat and str(subcat).strip():
-                            clean_text = str(subcat).strip()
-                            # Entferne verschiedene Arten von Klammern und Anführungszeichen
-                            clean_text = clean_text.replace('[', '').replace(']', '').replace("'", "").replace('"', '')
-                            if clean_text:
-                                clean_subcats.append(clean_text)
-                    subcats_text = ', '.join(clean_subcats)
-                elif isinstance(subcategories, dict):
-                    # Dict: Verwende Schlüssel (falls es ein Dict von Subkategorien ist)
-                    clean_subcats = []
-                    for key in subcategories.keys():
-                        clean_key = str(key).strip()
-                        if clean_key:
-                            clean_subcats.append(clean_key)
-                    subcats_text = ', '.join(clean_subcats)
-                else:
-                    # Andere Typen: String-Konversion mit Bereinigung
-                    subcats_text = str(subcategories).strip()
-                    subcats_text = subcats_text.replace('[', '').replace(']', '').replace("'", "").replace('"', '')
-            
-            # Zusätzliche Bereinigung für den Export
-            subcats_text = subcats_text.replace('[', '').replace(']', '').replace("'", "")
-                       
-            # Bestimme den Kategorietyp und Kodiertstatus
-            if display_category == "Kein Kodierkonsens":
-                kategorie_typ = "unkodiert"
-                is_coded = 'Nein'
-            elif display_category == "Nicht kodiert":
-                kategorie_typ = "unkodiert"
-                is_coded = 'Nein'
-            else:
-                if display_category in DEDUKTIVE_KATEGORIEN:
-                    kategorie_typ = "deduktiv"
-                elif CONFIG.get('ANALYSIS_MODE') == 'grounded':
-                    kategorie_typ = "grounded"
-                else:
-                    kategorie_typ = "induktiv"
-                is_coded = 'Ja'
-                        
-            # Formatiere Keywords
-            raw_keywords = coding.get('keywords', '')
-            if isinstance(raw_keywords, list):
-                formatted_keywords = [kw.strip() for kw in raw_keywords]
-            else:
-                formatted_keywords = raw_keywords.replace("[", "").replace("]", "").replace("'", "").split(",")
-                formatted_keywords = [kw.strip() for kw in formatted_keywords if kw.strip()]
-            
-            # Formatierung der Begründung 
-            justification = ""
-            
-            # Priorisiere Review-Begründungen (editierte Versionen)
-            if coding.get('manual_review', False):
-                # Für manuelle Reviews: Verwende die editierte Begründung
-                justification = coding.get('justification', '')  # Das ist bereits die editierte Version
-                
-                # Optional: Zeige an, dass es sich um eine Review-Entscheidung handelt
-                original_coder = coding.get('coder_id', 'Unbekannt')
-                if not justification.startswith('[Review'):
-                    justification = f"[Review-Entscheidung] {justification}"
-                    
-            else:
-                # Für normale Kodierungen: Verwende ursprüngliche Begründung
-                justification = coding.get('justification', '')
-        
-            # Bereinige alte Review-Prefixes (falls vorhanden)
-            for prefix in ['[Konsens', '[Mehrheit', '[Manuelle Priorisierung', '[Konfidenzbasierte Auswahl']:
-                if justification.startswith(prefix):
-                    parts = justification.split('] ', 1)
-                    if len(parts) > 1:
-                        justification = parts[1].strip()
-                    break
-            
-                        
-            # Export-Dictionary mit allen erforderlichen Feldern
-            export_data = {
-                'Dokument': self._sanitize_text_for_excel(doc_name),
-                self.attribute_labels['attribut1']: self._sanitize_text_for_excel(attribut1),
-                self.attribute_labels['attribut2']: self._sanitize_text_for_excel(attribut2),
-            }
-            
-            # Füge attribut3 hinzu, wenn es definiert ist
-            if 'attribut3' in self.attribute_labels and self.attribute_labels['attribut3']:
-                export_data[self.attribute_labels['attribut3']] = self._sanitize_text_for_excel(attribut3)
-            
-
-            # Erstelle eindeutige Chunk-ID mit Mehrfachkodierungs-Suffix
-            if coding.get('total_coding_instances', 1) > 1:
-                unique_chunk_id = f"{chunk_prefix}-{chunk_id}-{coding.get('multiple_coding_instance', 1)}"
-                mehrfachkodierung_status = 'Ja'
-            else:
-                unique_chunk_id = f"{chunk_prefix}-{chunk_id}"
-                mehrfachkodierung_status = 'Nein'
-            
-
-            # Rest der Daten in der gewünschten Reihenfolge
-            additional_fields = {
-                'Chunk_Nr': unique_chunk_id,
-                'Text': self._sanitize_text_for_excel(chunk),
-                'Paraphrase': self._sanitize_text_for_excel(coding.get('paraphrase', '')),
-                'Kodiert': is_coded,
-                'Hauptkategorie': self._sanitize_text_for_excel(display_category),
-                'Kategorietyp': kategorie_typ,
-                'Subkategorien': self._sanitize_text_for_excel(subcats_text), 
-                'Schlüsselwörter': self._sanitize_text_for_excel(', '.join(formatted_keywords)),
-                'Begründung': self._sanitize_text_for_excel(justification),
-                'Konfidenz': self._sanitize_text_for_excel(self._format_confidence(coding.get('confidence', {}))),
-                'Mehrfachkodierung': mehrfachkodierung_status, 
-                # Neue Felder für Mehrfachkodierung:
-                'Mehrfachkodierung_Instanz': coding.get('multiple_coding_instance', 1),
-                'Mehrfachkodierung_Gesamt': coding.get('total_coding_instances', 1),
-                'Fokus_Kategorie': self._sanitize_text_for_excel(coding.get('target_category', '')),
-                'Fokus_verwendet': 'Ja' if coding.get('category_focus_used', False) else 'Nein',
-                'Original_Chunk_ID': f"{chunk_prefix}-{chunk_id}"
-            }
-
-            export_data.update(additional_fields)
-
-            # Nur Kontext-bezogene Felder hinzufügen, wenn vorhanden
-            if 'context_summary' in coding and coding['context_summary']:
-                export_data['Progressive_Context'] = self._sanitize_text_for_excel(coding.get('context_summary', ''))
-            
-            if 'context_influence' in coding and coding['context_influence']:
-                export_data['Context_Influence'] = self._sanitize_text_for_excel(coding.get('context_influence', ''))
-            
-            # Optional: Bewahre ursprüngliche Begründung in separatem Feld auf
-            if coding.get('original_justification'):
-                export_data['Original_Begründung'] = self._sanitize_text_for_excel(coding.get('original_justification', ''))
-            
-            return export_data
-                
-        except Exception as e:
-            print(f"Fehler bei der Exportvorbereitung für Chunk {chunk_id}: {str(e)}")
-            print("Details:")
-            import traceback
-            traceback.print_exc()
-            return {
-                'Dokument': self._sanitize_text_for_excel(doc_name),
-                'Chunk_Nr': f"{doc_name[:5].upper()}-{chunk_id}",
-                'Text': self._sanitize_text_for_excel(chunk),
-                'Paraphrase': '',
-                'Kodiert': 'Nein',
-                'Hauptkategorie': 'Fehler bei Verarbeitung',
-                'Kategorietyp': 'unbekannt',
-                'Begründung': self._sanitize_text_for_excel(f'Fehler: {str(e)}'),
-                'Subkategorien': '',
-                'Konfidenz': '',
-                'Mehrfachkodierung': 'Nein'
-            }
     
     def _validate_export_data(self, export_data: List[dict]) -> bool:
         """
@@ -9377,94 +9252,214 @@ class ResultsExporter:
     def _export_main_results(self, writer, codings: List[Dict], original_categories: Dict):
         """
         Exportiert Haupt-Kodierungsergebnisse
+        FIX: Übernimmt alle fehlenden Spalten und Logik aus _prepare_coding_for_export
         """
-
-        all_categories = set(coding.get('category', '') for coding in codings if coding.get('category'))
-        all_categories.discard('')
-        all_categories.discard('Nicht kodiert')
-        all_categories.discard('Kein Kodierkonsens')
         
-        try:
-            category_colors = self._generate_pastel_colors(len(all_categories))
-            # Mappe Kategorien zu Farben
-            category_list = list(all_categories)
-            if isinstance(category_colors, dict):
-                # Falls _generate_pastel_colors bereits ein Dict zurückgibt
-                pass
-            elif isinstance(category_colors, list):
-                # Falls _generate_pastel_colors eine Liste von Farben zurückgibt
-                category_colors = {category_list[i]: category_colors[i] 
-                                for i in range(min(len(category_list), len(category_colors)))}
-            else:
-                # Fallback
-                category_colors = {}
-        except Exception as e:
-            print(f"⚠️ Fehler bei Farbgenerierung: {str(e)}")
-            category_colors = {}
-        
-        # Erstelle Daten
+        # DataFrame erstellen
         data = []
         
         for coding in codings:
-            # PUNKT 2: Korrekte Dokumentnamen-Extraktion
+            # FIX: Übernehme Dokumentname-Extraktion aus _prepare_coding_for_export
             doc_name = coding.get('document', '')
             if not doc_name:
-                # Fallback: Extrahiere aus segment_id falls document fehlt
+                # Fallback: Extrahiere aus segment_id
                 segment_id = coding.get('segment_id', '')
-                doc_name = self._extract_document_from_segment_id(segment_id)
+                if segment_id and '_chunk_' in segment_id:
+                    doc_name = segment_id.split('_chunk_')[0]
+                else:
+                    doc_name = 'Unbekanntes_Dokument'
             
-            # PUNKT 3: Korrekte Attribut-Extraktion (1-3)
-            attribut1, attribut2, attribut3 = self._extract_three_attributes_from_document(doc_name)
+            # FIX: Übernehme _extract_metadata Logik für drei Attribute
+            if hasattr(self, '_extract_metadata'):
+                attribut1, attribut2, attribut3 = self._extract_metadata(doc_name)
+            else:
+                # Fallback: Extrahiere aus Dokumentname
+                from pathlib import Path
+                tokens = Path(doc_name).stem.split("_")
+                attribut1 = tokens[0] if len(tokens) >= 1 else ""
+                attribut2 = tokens[1] if len(tokens) >= 2 else ""
+                attribut3 = tokens[2] if len(tokens) >= 3 else ""
             
-            # PUNKT 4: Korrekte Chunk-Nummerierung (AABBCC-01-01)
-            chunk_id = self._generate_correct_chunk_id(coding, attribut1, attribut2, attribut3)
+            # FIX: Erstelle eindeutigen Präfix für Chunk-Nr wie in _prepare_coding_for_export
+            chunk_prefix = ""
+            if attribut1 and attribut2:
+                chunk_prefix = (attribut1[:2] + attribut2[:2] + attribut3[:2]).upper()
+            else:
+                chunk_prefix = doc_name[:5].upper()
             
-            # Weitere Datenfelder
+            # FIX: Korrekte chunk_id Extraktion
+            chunk_id = 0
+            segment_id = coding.get('segment_id', '')
+            
+            # Versuche chunk_id direkt zu bekommen
+            if 'chunk_id' in coding and isinstance(coding['chunk_id'], int):
+                chunk_id = coding['chunk_id']
+            elif segment_id and '_chunk_' in segment_id:
+                # Extrahiere aus segment_id
+                try:
+                    chunk_part = segment_id.split('_chunk_')[1]
+                    # Falls Mehrfachkodierung: "123-1" -> nimm nur "123"
+                    if '-' in chunk_part:
+                        chunk_id = int(chunk_part.split('-')[0])
+                    else:
+                        chunk_id = int(chunk_part)
+                except (ValueError, IndexError):
+                    chunk_id = 0
+            
+            # Haupt-Spalten
             text = coding.get('text', '')
             paraphrase = coding.get('paraphrase', '')
+            
+            # FIX: Hole Kategorie und behandle leere Kategorien explizit
             category = coding.get('category', '')
             
-            # Kodiert-Status
-            is_coded = 'Ja' if category and category not in ['Nicht kodiert', 'Kein Kodierkonsens'] else 'Nein'
+            # FIX: Zentrale Behandlung von leeren/fehlenden Kategorien
+            if not category or category == '' or category is None:
+                display_category = "Nicht kodiert"
+                is_coded = 'Nein'
+                category_type = 'unkodiert'
+            elif category == "Kein Kodierkonsens":
+                display_category = "Kein Kodierkonsens"
+                is_coded = 'Nein'
+                category_type = 'unkodiert'
+            else:
+                display_category = category
+                is_coded = 'Ja'
+                # Kategorietyp bestimmen für gültige Kategorien
+                if hasattr(self, '_determine_category_type'):
+                    category_type = self._determine_category_type(category, original_categories or {})
+                else:
+                    # Fallback-Logik
+                    if original_categories and category in original_categories:
+                        category_type = 'deduktiv'
+                    else:
+                        category_type = 'induktiv'
+            # FIX: Ende
             
-            # Kategorietyp
-            category_type = self._determine_category_type(category, original_categories or {})
+            # FIX: Subkategorien verarbeiten wie in _prepare_coding_for_export
+            subcategories = coding.get('subcategories', [])
+            subcats_text = ""
+            if subcategories:
+                if isinstance(subcategories, str):
+                    subcats_text = subcategories.strip()
+                elif isinstance(subcategories, (list, tuple)):
+                    clean_subcats = []
+                    for subcat in subcategories:
+                        if subcat and str(subcat).strip():
+                            clean_text = str(subcat).strip()
+                            clean_text = clean_text.replace('[', '').replace(']', '').replace("'", "").replace('"', '')
+                            if clean_text:
+                                clean_subcats.append(clean_text)
+                    subcats_text = ', '.join(clean_subcats)
+                elif isinstance(subcategories, dict):
+                    clean_subcats = []
+                    for key in subcategories.keys():
+                        clean_key = str(key).strip()
+                        if clean_key:
+                            clean_subcats.append(clean_key)
+                    subcats_text = ', '.join(clean_subcats)
+                else:
+                    subcats_text = str(subcategories).strip()
+                    subcats_text = subcats_text.replace('[', '').replace(']', '').replace("'", "").replace('"', '')
             
-            # Weitere Felder
-            subcats_text = ', '.join(coding.get('subcategories', []))
-            keywords = coding.get('keywords', '')
+            # Zusätzliche Bereinigung
+            subcats_text = subcats_text.replace('[', '').replace(']', '').replace("'", "")
+            
+            # FIX: Keywords verarbeiten wie in _prepare_coding_for_export
+            raw_keywords = coding.get('keywords', '')
+            if isinstance(raw_keywords, list):
+                formatted_keywords = [kw.strip() for kw in raw_keywords]
+            else:
+                formatted_keywords = raw_keywords.replace("[", "").replace("]", "").replace("'", "").split(",")
+                formatted_keywords = [kw.strip() for kw in formatted_keywords if kw.strip()]
+            keywords_text = ', '.join(formatted_keywords)
+            
+            # FIX: Justification verarbeiten wie in _prepare_coding_for_export
             justification = coding.get('justification', '')
-            confidence = self._extract_confidence_from_coding(coding)
+            # Entferne Review-Prefixes
+            if justification.startswith('[Konsens'):
+                parts = justification.split('] ', 1)
+                if len(parts) > 1:
+                    remaining_text = parts[1]
+                    if ' | ' in remaining_text:
+                        split_parts = remaining_text.split(' | ')
+                        if len(split_parts) > 1 and split_parts[0].strip() == split_parts[1].strip():
+                            justification = split_parts[0].strip()
+                        else:
+                            justification = split_parts[0].strip()
+                    else:
+                        justification = remaining_text.strip()
+            elif justification.startswith(('[Mehrheit', '[Manuelle Priorisierung', '[Konfidenzbasierte Auswahl')):
+                parts = justification.split('] ', 1)
+                if len(parts) > 1:
+                    justification = parts[1].strip()
             
-            # Mehrfachkodierungs-Info
+            # FIX: Konfidenz korrekt extrahieren
+            confidence = coding.get('confidence', {})
+            if isinstance(confidence, dict):
+                confidence_value = confidence.get('total', 0.0)
+            elif isinstance(confidence, (int, float)):
+                confidence_value = float(confidence)
+            else:
+                confidence_value = 0.0
+            
+            # FIX: Mehrfachkodierungs-Info wie in _prepare_coding_for_export
             consensus_info = coding.get('consensus_info', {})
             original_chunk_id = consensus_info.get('original_segment_id', chunk_id)
             is_multiple = consensus_info.get('is_multiple_coding_instance', False)
             instance_info = consensus_info.get('instance_info', {})
-                        
-            # Zeile erstellen
+            
+            # FIX: Erstelle eindeutige Chunk-ID mit Mehrfachkodierungs-Suffix
+            if coding.get('total_coding_instances', 1) > 1:
+                unique_chunk_id = f"{chunk_prefix}-{chunk_id}-{coding.get('multiple_coding_instance', 1)}"
+                mehrfachkodierung_status = 'Ja'
+            else:
+                unique_chunk_id = f"{chunk_prefix}-{chunk_id}"
+                mehrfachkodierung_status = 'Nein'
+            
+            # FIX: Zeile erstellen mit ALLEN Spalten aus _prepare_coding_for_export
             row_data = {
-                'Dokument': doc_name,
-                self.attribute_labels.get('attribut1', 'Attribut1'): attribut1,
-                self.attribute_labels.get('attribut2', 'Attribut2'): attribut2,
-                self.attribute_labels.get('attribut3', 'Attribut3'): attribut3,
-                'Chunk_Nr': chunk_id,
-                'Text': text,
-                'Paraphrase': paraphrase,
-                'Kodiert': is_coded,
-                'Hauptkategorie': category,
-                'Kategorietyp': category_type,
-                'Subkategorien': subcats_text,
-                'Schlüsselwörter': keywords,
-                'Begründung': justification,
-                'Konfidenz': f"{confidence:.2f}",
-                'Original_Chunk_Nr': original_chunk_id,
-                'Mehrfachkodierung': 'Ja' if is_multiple else 'Nein',
-                'Instanz_Nr': instance_info.get('instance_number', 1) if is_multiple else 1,
-                'Gesamt_Instanzen': instance_info.get('total_instances', 1) if is_multiple else 1,
-                'Review_Typ': consensus_info.get('selection_type', 'single'),
-                'Kodierer': coding.get('coder_id', 'Unbekannt')
+                'Dokument': _sanitize_text_for_excel(doc_name),  # FIX: Korrekte Parameterübergabe
+                self.attribute_labels.get('attribut1', 'Attribut1'): _sanitize_text_for_excel(attribut1),
+                self.attribute_labels.get('attribut2', 'Attribut2'): _sanitize_text_for_excel(attribut2),
             }
+            
+            # FIX: Füge attribut3 hinzu, wenn es definiert ist
+            if 'attribut3' in self.attribute_labels and self.attribute_labels['attribut3']:
+                row_data[self.attribute_labels['attribut3']] = _sanitize_text_for_excel(attribut3)
+            
+            # FIX: Alle weiteren Spalten hinzufügen
+            additional_fields = {
+                'Chunk_Nr': unique_chunk_id,
+                'Text': _sanitize_text_for_excel(text),  # FIX: Korrekte Funktionsaufrufe
+                'Paraphrase': _sanitize_text_for_excel(paraphrase),
+                'Kodiert': is_coded,  # FIX: Verwende korrekten is_coded Wert
+                'Hauptkategorie': _sanitize_text_for_excel(display_category),  # FIX: Korrigiere Leerzeichen-Fehlern
+                'Kategorietyp': category_type,  # FIX: Verwende korrekten category_type
+                'Subkategorien': _sanitize_text_for_excel(subcats_text),
+                'Schlüsselwörter': _sanitize_text_for_excel(keywords_text),
+                'Begründung': _sanitize_text_for_excel(justification),
+                'Konfidenz': f"{confidence_value:.2f}",  # FIX: Korrekte Konfidenz-Formatierung
+                'Original_Chunk_Nr': original_chunk_id,  # FIX: Hinzugefügt
+                'Mehrfachkodierung': mehrfachkodierung_status,  # FIX: Korrekte Mehrfachkodierung-Logik
+                'Instanz_Nr': instance_info.get('instance_number', 1) if is_multiple else 1,  # FIX: Hinzugefügt
+                'Gesamt_Instanzen': instance_info.get('total_instances', 1) if is_multiple else 1,  # FIX: Hinzugefügt
+                'Review_Typ': consensus_info.get('selection_type', 'single'),  # FIX: Hinzugefügt
+                'Kodierer': coding.get('coder_id', 'Unbekannt'),  # FIX: Hinzugefügt
+                
+                'Fokus_Kategorie': _sanitize_text_for_excel(coding.get('target_category', '')),
+                'Fokus_verwendet': 'Ja' if coding.get('category_focus_used', False) else 'Nein',
+                'Original_Chunk_ID': f"{chunk_prefix}-{chunk_id}"
+            }
+            
+            row_data.update(additional_fields)
+            
+            # FIX: Kontext-bezogene Felder hinzufügen, wenn vorhanden
+            if 'context_summary' in coding and coding['context_summary']:
+                row_data['Progressive_Context'] = _sanitize_text_for_excel(coding.get('context_summary', ''))
+            
+            if 'context_influence' in coding and coding['context_influence']:
+                row_data['Context_Influence'] = _sanitize_text_for_excel(coding.get('context_influence', ''))
             
             data.append(row_data)
         
@@ -9473,18 +9468,14 @@ class ResultsExporter:
             df = pd.DataFrame(data)
             df.to_excel(writer, sheet_name='Kodierungsergebnisse', index=False)
             
-            # PUNKT 1: Excel-Tabelle mit Filterfunktionen erstellen
+            # FIX: Aktiviere Tabellenfunktionalität explizit
             worksheet = writer.sheets['Kodierungsergebnisse']
-            self._create_excel_table_with_filters(worksheet, df, 'KodierungsTabelle')
+            print(f"FIX: Formatiere Worksheet 'Kodierungsergebnisse' mit {len(df)} Zeilen und {len(df.columns)} Spalten")
+            print(f"FIX: Spalten: {list(df.columns)}")
+            self._format_worksheet(worksheet, as_table=True)  # FIX: Explizit as_table=True
             
-            # PUNKT 5: Farbkodierung der Hauptkategorien anwenden
-            self._apply_category_color_coding(worksheet, df, category_colors)
-            
-            # PUNKT 7: Formatierung anwenden
-            self._format_main_worksheet_complete(worksheet, len(df.columns), len(df))
         else:
             print("⚠️ Keine Hauptergebnisse zum Exportieren")
-    
     
     def _extract_document_from_segment_id(self, segment_id: str) -> str:
         """
@@ -9634,43 +9625,149 @@ class ResultsExporter:
     def _format_worksheet(self, worksheet, as_table: bool = False) -> None:
         """
         Formatiert das Detail-Worksheet mit flexibler Farbkodierung und adaptiven Spaltenbreiten
-        für eine variable Anzahl von Attributen.
+        FIX: Korrigiert AutoFilter/Tabellen-Konflikt
         """
         try:
-            # Prüfe ob Daten vorhanden sind
-            if worksheet.max_row < 2:
-                print(f"Warnung: Worksheet '{worksheet.title}' enthält keine Daten")
+            if worksheet.max_row <= 1:
+                print(f"⚠️ Worksheet '{worksheet.title}' enthält keine Daten")
                 return
 
-            from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
-            from openpyxl.utils import get_column_letter
+            # FIX: Hole DataFrame für Farbinitialisierung
+            df_data = []
+            headers = [cell.value for cell in worksheet[1]]
             
-            # FIX: AutoFilter erstellen wenn gewünscht - AM ENDE nach allen anderen Operationen
+            for row in worksheet.iter_rows(min_row=2, values_only=True):
+                if any(cell is not None for cell in row):
+                    df_data.append(row)
+            
+            if df_data and 'Hauptkategorie' in headers:
+                # Erstelle DataFrame für Farbinitialisierung
+                df = pd.DataFrame(df_data, columns=headers)
+                
+                # FIX: Initialisiere Kategorie-Farben wenn noch nicht vorhanden
+                if not hasattr(self, 'category_colors') or not self.category_colors:
+                    self._initialize_category_colors(df)
+                
+                print(f"Verfügbare Kategorie-Farben: {list(self.category_colors.keys())}")
+
+            # Bestimme Spaltenbreiten adaptiv
+            column_widths = []
+            for col in range(1, worksheet.max_column + 1):
+                max_length = 0
+                column = get_column_letter(col)
+                
+                for row in range(1, min(worksheet.max_row + 1, 101)):
+                    cell = worksheet[f"{column}{row}"]
+                    if cell.value:
+                        max_length = max(max_length, len(str(cell.value)))
+                
+                # Spaltenbreite setzen (min 8, max 50)
+                width = min(max(max_length + 2, 8), 50)
+                column_widths.append(width)
+                worksheet.column_dimensions[column].width = width
+
+            # Header und Datenformatierung
+            from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+            
+            header_font = Font(bold=True, color="FFFFFF")
+            header_fill = PatternFill(start_color="4472C4", end_color="4472C4", fill_type="solid")
+            thin_border = Border(
+                left=Side(style='thin'), right=Side(style='thin'),
+                top=Side(style='thin'), bottom=Side(style='thin')
+            )
+
+            # FIX: Finde Hauptkategorie-Spalten-Index korrekt
+            hauptkategorie_idx = None
+            headers = [cell.value for cell in worksheet[1]]
+            for i, header in enumerate(headers, 1):
+                if header == 'Hauptkategorie':
+                    hauptkategorie_idx = i
+                    break
+            
+            print(f"Hauptkategorie-Spalte gefunden bei Index: {hauptkategorie_idx}")
+            
+            # Header formatieren
+            for cell in worksheet[1]:
+                cell.font = header_font
+                cell.fill = header_fill
+                cell.alignment = Alignment(wrap_text=True, vertical='center', horizontal='center')
+                cell.border = thin_border
+
+            # FIX: Verbesserte Datenformatierung mit Farbkodierung
+            for row in worksheet.iter_rows(min_row=2):
+                for cell in row:
+                    cell.alignment = Alignment(wrap_text=False, vertical='top')
+                    cell.border = thin_border
+
+                    # FIX: Farbkodierung für Hauptkategorien-Spalte
+                    if (hauptkategorie_idx and 
+                        cell.column == hauptkategorie_idx and 
+                        cell.value and 
+                        hasattr(self, 'category_colors') and 
+                        cell.value in self.category_colors):
+                        
+                        color = self.category_colors[cell.value]
+                        cell.fill = PatternFill(start_color=color, end_color=color, fill_type='solid')
+                        
+                        print(f"Farbe angewendet für '{cell.value}': {color} in Zeile {cell.row}")
+
+            # FIX: Excel-Tabelle oder AutoFilter erstellen - NICHT BEIDES gleichzeitig
             if as_table:
                 try:
-                    # FIX: Bestimme Dimensionen anhand der tatsächlichen Worksheet-Inhalte
-                    actual_max_col = worksheet.max_column
-                    actual_max_row = worksheet.max_row
+                    # Entferne vorhandene Tabellen sicher
+                    table_names = list(worksheet.tables.keys()).copy()
+                    for table_name in table_names:
+                        del worksheet.tables[table_name]
                     
-                    print(f"Worksheet '{worksheet.title}' - Dimensionen: {actual_max_row} Zeilen, {actual_max_col} Spalten")
+                    # FIX: Entferne auch eventuelle AutoFilter vor Tabellenerstellung
+                    worksheet.auto_filter.ref = None
                     
-                    # FIX: Verwende nur AutoFilter statt Excel-Table
-                    if actual_max_row > 1 and actual_max_col > 0:
-                        filter_range = f"A1:{get_column_letter(actual_max_col)}{actual_max_row}"
+                    # Sichere Bestimmung der letzten Spalte und Zeile
+                    last_col_index = worksheet.max_column
+                    last_col_letter = get_column_letter(last_col_index)
+                    last_row = worksheet.max_row
+                    
+                    # Generiere eindeutigen Tabellennamen
+                    safe_table_name = f"Table_{worksheet.title.replace(' ', '_').replace('-', '_')}"
+                    
+                    # Tabellenverweis generieren
+                    table_ref = f"A1:{last_col_letter}{last_row}"
+                    
+                    # FIX: Erstelle NUR Excel-Tabelle (nicht AutoFilter)
+                    tab = Table(displayName=safe_table_name, ref=table_ref)
+                    style = TableStyleInfo(
+                        name="TableStyleMedium9", 
+                        showFirstColumn=False,
+                        showLastColumn=False, 
+                        showRowStripes=True, 
+                        showColumnStripes=False
+                    )
+                    tab.tableStyleInfo = style
+                    worksheet.add_table(tab)
+                    
+                    print(f"Excel-Tabelle '{safe_table_name}' erfolgreich erstellt")
+                    
+                except Exception as table_error:
+                    print(f"Warnung bei Tabellenerstellung: {str(table_error)}")
+                    # FIX: Fallback zu AutoFilter wenn Tabelle fehlschlägt
+                    try:
+                        last_col_index = worksheet.max_column
+                        last_col_letter = get_column_letter(last_col_index)
+                        last_row = worksheet.max_row
+                        filter_range = f"A1:{last_col_letter}{last_row}"
                         worksheet.auto_filter.ref = filter_range
-                        print(f"AutoFilter erfolgreich erstellt (Bereich: {filter_range})")
-                    # FIX: Ende
-                    
-                except Exception as filter_error:
-                    print(f"Warnung bei AutoFilter-Erstellung: {str(filter_error)}")
+                        print(f"AutoFilter als Fallback erstellt: {filter_range}")
+                    except Exception as filter_error:
+                        print(f"Auch AutoFilter-Fallback fehlgeschlagen: {str(filter_error)}")
 
-            print(f"Worksheet '{worksheet.title}' erfolgreich formatiert")
+            print(f"Worksheet '{worksheet.title}' erfolgreich formatiert" + 
+                (f" mit Farbkodierung für Hauptkategorien (Spalte {hauptkategorie_idx})" if hauptkategorie_idx else ""))
             
         except Exception as e:
             print(f"Fehler bei der Formatierung von {worksheet.title}: {str(e)}")
             import traceback
             traceback.print_exc()
-
+    
     def _apply_category_color_coding(self, worksheet, df, category_colors):
         """
         Wendet Farbkodierung auf Hauptkategorien-Spalte an
@@ -10073,55 +10170,6 @@ class ResultsExporter:
         for col, width in column_widths.items():
             worksheet.column_dimensions[col].width = width
     
-    def _format_main_worksheet_complete(self, worksheet, num_columns: int, num_rows: int):
-        """
-        PUNKT 7: Vollständige Formatierung des Haupt-Worksheets
-        """
-        # Spaltenbreiten (optimiert für alle Spalten)
-        column_widths = {
-            1: 25,   # Dokument
-            2: 12,   # Attribut1
-            3: 12,   # Attribut2
-            4: 12,   # Attribut3
-            5: 15,   # Chunk_Nr
-            6: 50,   # Text
-            7: 30,   # Paraphrase
-            8: 8,    # Kodiert
-            9: 20,   # Hauptkategorie
-            10: 12,  # Kategorietyp
-            11: 25,  # Subkategorien
-            12: 20,  # Schlüsselwörter
-            13: 40,  # Begründung
-            14: 8,   # Konfidenz
-            15: 15,  # Original_Chunk_Nr
-            16: 12,  # Mehrfachkodierung
-            17: 8,   # Instanz_Nr
-            18: 12,  # Gesamt_Instanzen
-            19: 12,  # Review_Typ
-            20: 12   # Kodierer
-        }
-        
-        for col, width in column_widths.items():
-            if col <= num_columns:
-                worksheet.column_dimensions[get_column_letter(col)].width = width
-        
-        # KEINE Text-Wrapping (PUNKT 1: Keine Zeilenumbrüche)
-        # Header-Zeile speziell formatieren
-        for col in range(1, num_columns + 1):
-            cell = worksheet.cell(row=1, column=col)
-            cell.font = Font(bold=True, color='FFFFFF')
-            cell.fill = PatternFill(start_color='366092', end_color='366092', fill_type='solid')
-            cell.alignment = Alignment(horizontal='center')
-        
-        # Datenzeilen formatieren
-        for row in range(2, num_rows + 2):
-            for col in range(1, num_columns + 1):
-                cell = worksheet.cell(row=row, column=col)
-                # Keine Text-Wrapping, linksbündig
-                cell.alignment = Alignment(horizontal='left', vertical='top', wrap_text=False)
-        
-        print(f"✅ Hauptworksheet formatiert: {num_columns} Spalten, {num_rows} Zeilen")
-
     
     def _export_intercoder_bericht(self, writer, original_codings: List[Dict], reliability: float):
         """

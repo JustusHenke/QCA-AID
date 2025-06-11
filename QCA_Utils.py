@@ -25,6 +25,332 @@ except ImportError:
 
 CONFIG = { } # hier leer, in Hauptskript integriert 
 
+
+# FIX: Kompletter Ersatz der TokenCounter-Klasse durch präzisen TokenTracker
+class TokenTracker:
+    def __init__(self):
+        self.session_stats = {'input': 0, 'output': 0, 'requests': 0, 'cost': 0.0}
+        self.daily_stats = self.load_daily_stats()
+        self.model_prices = {
+            # === CLAUDE MODELLE (bereits korrekt mit vielen Nachkommastellen) ===
+            'claude-sonnet-4-20250514': {'input': 0.000015, 'output': 0.000075},     # $15/$75 per 1M tokens
+            'claude-opus-4-20241022': {'input': 0.000075, 'output': 0.000375},       # $75/$375 per 1M tokens
+            'claude-3-5-sonnet-20241022': {'input': 0.000003, 'output': 0.000015},   # $3/$15 per 1M tokens
+            'claude-3-5-haiku-20241022': {'input': 0.00000025, 'output': 0.00000125}, # $0.25/$1.25 per 1M tokens
+            
+            # === OPENAI GPT-4.1 SERIE ===
+            'gpt-4.1': {'input': 0.000003, 'output': 0.000015},                     # $3/$15 per 1M tokens
+            'gpt-4.1-mini': {'input': 0.000001, 'output': 0.000004},                # $1/$4 per 1M tokens  
+            'gpt-4.1-nano': {'input': 0.0000001, 'output': 0.0000004},              # $0.10/$0.40 per 1M tokens
+            
+            # === OPENAI GPT-4O SERIE ===
+            'gpt-4o': {'input': 0.000003, 'output': 0.00001},                       # $3/$10 per 1M tokens
+            'gpt-4o-2024-11-20': {'input': 0.000003, 'output': 0.00001},
+            'gpt-4o-mini': {'input': 0.00000015, 'output': 0.0000006},              # $0.15/$0.60 per 1M tokens
+            'gpt-4o-mini-2024-07-18': {'input': 0.00000015, 'output': 0.0000006},
+            
+            # === GPT-4O AUDIO/REALTIME ===
+            'gpt-4o-realtime-preview': {'input': 0.000005, 'output': 0.00002},       # $5/$20 per 1M tokens (text)
+            'gpt-4o-audio-preview': {'input': 0.000005, 'output': 0.00002},
+            
+            # === LEGACY GPT-4 MODELLE ===
+            'gpt-4': {'input': 0.00003, 'output': 0.00006},                         # $30/$60 per 1M tokens
+            'gpt-4-turbo': {'input': 0.00001, 'output': 0.00003},                   # $10/$30 per 1M tokens
+            'gpt-4-turbo-2024-04-09': {'input': 0.00001, 'output': 0.00003},
+            'gpt-4-1106-preview': {'input': 0.00001, 'output': 0.00003},
+            'gpt-4-vision-preview': {'input': 0.00001, 'output': 0.00003},
+            
+            # === GPT-3.5 TURBO ===
+            'gpt-3.5-turbo': {'input': 0.000001, 'output': 0.000002},               # $1/$2 per 1M tokens
+            'gpt-3.5-turbo-0125': {'input': 0.000001, 'output': 0.000002},
+            'gpt-3.5-turbo-instruct': {'input': 0.0000015, 'output': 0.000002},
+            
+            # === BATCH API PREISE (50% Rabatt) ===
+            'gpt-4o-batch': {'input': 0.0000015, 'output': 0.000005},               # 50% günstiger
+            'gpt-4o-mini-batch': {'input': 0.000000075, 'output': 0.0000003},       # 50% günstiger
+            'gpt-4-turbo-batch': {'input': 0.000005, 'output': 0.000015},           # 50% günstiger
+        }
+        
+        self.request_start_time = None
+        self.request_start_time = None
+        
+        # FIX: Debug-Tracking hinzufügen
+        self.debug_calls = []
+    
+    def get_model_price(self, model_name):
+        """
+        Ermittelt den Preis für ein Modell mit Fallback-Logik.
+        """
+        # Exakte Übereinstimmung
+        if model_name in self.model_prices:
+            return self.model_prices[model_name]
+        
+        # Fallback-Logik für ähnliche Modelle
+        model_lower = model_name.lower()
+        
+        # GPT-4.1 Familie
+        if 'gpt-4.1' in model_lower:
+            if 'nano' in model_lower:
+                return self.model_prices['gpt-4.1-nano']
+            elif 'mini' in model_lower:
+                return self.model_prices['gpt-4.1-mini']
+            else:
+                return self.model_prices['gpt-4.1']
+        
+        # GPT-4o Familie
+        elif 'gpt-4o' in model_lower:
+            if 'mini' in model_lower:
+                return self.model_prices['gpt-4o-mini']
+            elif 'batch' in model_lower:
+                return self.model_prices['gpt-4o-batch']
+            else:
+                return self.model_prices['gpt-4o']
+        
+        # GPT-4 Familie
+        elif 'gpt-4' in model_lower:
+            if 'turbo' in model_lower:
+                return self.model_prices['gpt-4-turbo']
+            else:
+                return self.model_prices['gpt-4']
+        
+        # GPT-3.5 Familie
+        elif 'gpt-3.5' in model_lower:
+            return self.model_prices['gpt-3.5-turbo']
+        
+        # Claude Familie
+        elif 'claude' in model_lower:
+            if 'sonnet-4' in model_lower:
+                return self.model_prices['claude-sonnet-4-20250514']
+            elif 'opus-4' in model_lower:
+                return self.model_prices['claude-opus-4-20241022']
+            else:
+                return self.model_prices['claude-3-5-sonnet-20241022']
+        
+        # Default Fallback (GPT-4o-mini - günstig aber leistungsfähig)
+        print(f"⚠️ Unbekanntes Modell '{model_name}' - verwende GPT-4o-mini Preise als Fallback")
+        return self.model_prices['gpt-4o-mini']
+    
+    def load_daily_stats(self):
+        """Lade Tagesstatistiken aus Datei"""
+        from datetime import date
+        import json
+        import os
+        
+        today = str(date.today())
+        try:
+            if os.path.exists('token_stats.json'):
+                with open('token_stats.json', 'r') as f:
+                    data = json.load(f)
+                    if data.get('date') == today:
+                        return data.get('stats', {'input': 0, 'output': 0, 'requests': 0, 'cost': 0.0})
+        except:
+            pass
+        return {'input': 0, 'output': 0, 'requests': 0, 'cost': 0.0}
+    
+    def save_daily_stats(self):
+        """Speichere Tagesstatistiken in Datei"""
+        from datetime import date
+        import json
+        
+        data = {
+            'date': str(date.today()),
+            'stats': self.daily_stats
+        }
+        try:
+            with open('token_stats.json', 'w') as f:
+                json.dump(data, f)
+        except:
+            pass
+    
+    def start_request(self):
+        """Markiere Start einer Anfrage"""
+        import time
+        self.request_start_time = time.time()
+        # FIX: Debug-Log für start_request
+        # print(f"🟢 DEBUG: start_request() aufgerufen um {time.time()}")
+        
+    def add_tokens(self, input_tokens: int, output_tokens: int = 0):
+        """
+        Kompatibilitätsmethode für Legacy-Code mit ausführlichem Debug.
+        """
+        import time
+        
+        # FIX: Ausführliches Debug-Logging
+        # print(f"🔵 DEBUG: add_tokens() aufgerufen")
+        # print(f"   📨 Input: {input_tokens}, 📤 Output: {output_tokens}")
+        # print(f"   🕐 Zeit: {time.time()}")
+        
+        # Session-Stats aktualisieren
+        old_session_total = self.session_stats['input'] + self.session_stats['output']
+        
+        self.session_stats['input'] += input_tokens
+        self.session_stats['output'] += output_tokens
+        self.session_stats['requests'] += 1
+        
+        new_session_total = self.session_stats['input'] + self.session_stats['output']
+        
+        # Daily-Stats aktualisieren  
+        self.daily_stats['input'] += input_tokens
+        self.daily_stats['output'] += output_tokens
+        self.daily_stats['requests'] += 1
+        self.save_daily_stats()
+        
+        # Debug-Info
+        print(f"   ✅ Session-Total: {old_session_total} → {new_session_total}")
+        print(f"   📊 Session-Stats: {self.session_stats}")
+        
+        # Debug-Call protokollieren
+        self.debug_calls.append({
+            'method': 'add_tokens',
+            'input': input_tokens,
+            'output': output_tokens,
+            'time': time.time(),
+            'session_total_after': new_session_total
+        })
+    
+    def track_response(self, response_data, model):
+        """Verfolge Token-Verbrauch mit aktualisierter Preislogik"""
+        import time
+        
+        try:
+            # Usage-Daten finden
+            usage_data = None
+            if hasattr(response_data, 'usage'):
+                usage_data = response_data.usage
+            elif isinstance(response_data, dict) and 'usage' in response_data:
+                usage_data = response_data['usage']
+            else:
+                return
+            
+            if usage_data:
+                input_tokens = 0
+                output_tokens = 0
+                
+                # Multi-Provider Token-Extraktion
+                if hasattr(usage_data, 'prompt_tokens'):
+                    input_tokens = usage_data.prompt_tokens
+                elif hasattr(usage_data, 'input_tokens'):
+                    input_tokens = usage_data.input_tokens
+                elif isinstance(usage_data, dict):
+                    input_tokens = usage_data.get('prompt_tokens', 0) or usage_data.get('input_tokens', 0)
+                
+                if hasattr(usage_data, 'completion_tokens'):
+                    output_tokens = usage_data.completion_tokens
+                elif hasattr(usage_data, 'output_tokens'):
+                    output_tokens = usage_data.output_tokens
+                elif isinstance(usage_data, dict):
+                    output_tokens = usage_data.get('completion_tokens', 0) or usage_data.get('output_tokens', 0)
+                
+                if input_tokens > 0 or output_tokens > 0:
+                    # FIX: Verwende neue Preislogik
+                    price = self.get_model_price(model)
+                    cost = (input_tokens * price['input']) + (output_tokens * price['output'])
+                    
+                    # Stats aktualisieren
+                    self.session_stats['input'] += input_tokens
+                    self.session_stats['output'] += output_tokens
+                    self.session_stats['requests'] += 1
+                    self.session_stats['cost'] += cost
+                    
+                    self.daily_stats['input'] += input_tokens
+                    self.daily_stats['output'] += output_tokens
+                    self.daily_stats['requests'] += 1
+                    self.daily_stats['cost'] += cost
+                    self.save_daily_stats()
+                    
+                    # Console Output
+                    duration = time.time() - self.request_start_time if self.request_start_time else 0
+                    # self.print_stats(input_tokens, output_tokens, cost, model, duration)
+                    
+                    # Rate Limit Warnung
+                    self.check_rate_limits(input_tokens, output_tokens)
+                    
+        except Exception as e:
+            print(f"Token-Tracking-Fehler: {e}")
+    
+    def print_debug_summary(self):
+        """Zeige Debug-Zusammenfassung"""
+        print(f"\n🔍 DEBUG-ZUSAMMENFASSUNG:")
+        print(f"   📞 Gesamt Debug-Calls: {len(self.debug_calls)}")
+        
+        add_tokens_calls = [c for c in self.debug_calls if c['method'] == 'add_tokens']
+        track_response_calls = [c for c in self.debug_calls if c['method'] == 'track_response']
+        
+        print(f"   🔵 add_tokens aufrufe: {len(add_tokens_calls)}")
+        print(f"   🟡 track_response aufrufe: {len(track_response_calls)}")
+        
+        if add_tokens_calls:
+            total_add_tokens = sum(c['input'] + c['output'] for c in add_tokens_calls)
+            print(f"   📊 add_tokens Gesamt: {total_add_tokens}")
+            
+        if track_response_calls:
+            total_track_tokens = sum(c['input'] + c['output'] for c in track_response_calls)
+            print(f"   📊 track_response Gesamt: {total_track_tokens}")
+    
+    def print_stats(self, input_tokens, output_tokens, cost, model, duration):
+        """Zeige detaillierte Statistiken in der Konsole"""
+        print(f"\n🔢 Token-Statistiken:")
+        print(f"   📨 Input: {input_tokens:,} | 📤 Output: {output_tokens:,}")
+        print(f"   💰 Kosten: ${cost:.6f} | ⏱️ Dauer: {duration:.2f}s")
+        print(f"   🤖 Modell: {model}")
+        print(f"   📊 Session: {self.session_stats['input']:,}in + {self.session_stats['output']:,}out = ${self.session_stats['cost']:.4f}")
+        print(f"   📅 Heute: {self.daily_stats['input']:,}in + {self.daily_stats['output']:,}out = ${self.daily_stats['cost']:.4f}")
+    
+    def check_rate_limits(self, input_tokens, output_tokens):
+        """Prüfe und warne vor Rate-Limits"""
+        total_tokens = input_tokens + output_tokens
+        
+        # Warnung bei hohem Token-Verbrauch
+        if total_tokens > 50000:
+            print(f"⚠️  WARNUNG: Hoher Token-Verbrauch ({total_tokens:,} Tokens)")
+        
+        # Warnung bei hohen Tageskosten
+        if self.daily_stats['cost'] > 10.0:
+            print(f"⚠️  WARNUNG: Hohe Tageskosten (${self.daily_stats['cost']:.2f})")
+        
+        # Warnung bei vielen Requests
+        if self.daily_stats['requests'] > 1000:
+            print(f"⚠️  WARNUNG: Viele Requests heute ({self.daily_stats['requests']})")
+    
+    # FIX: Abwärtskompatibilität zur alten get_report Methode
+    def get_report(self):
+        """
+        Kompatibilitätsmethode für detaillierten Report.
+        Erweitert um Session- und Tagesstatistiken sowie Kosten.
+        """
+        return (f"📊 DETAILLIERTE TOKEN-STATISTIKEN\n"
+                f"{'='*50}\n"
+                f"🎯 Session-Statistiken:\n"
+                f"   📨 Input Tokens: {self.session_stats['input']:,}\n"
+                f"   📤 Output Tokens: {self.session_stats['output']:,}\n"
+                f"   🔢 Gesamt Tokens: {self.session_stats['input'] + self.session_stats['output']:,}\n"
+                f"   🔄 Requests: {self.session_stats['requests']}\n"
+                f"   💰 Session-Kosten: ${self.session_stats['cost']:.4f}\n"
+                f"\n📅 Tages-Statistiken:\n"
+                f"   📨 Input Tokens: {self.daily_stats['input']:,}\n"
+                f"   📤 Output Tokens: {self.daily_stats['output']:,}\n"
+                f"   🔢 Gesamt Tokens: {self.daily_stats['input'] + self.daily_stats['output']:,}\n"
+                f"   🔄 Requests: {self.daily_stats['requests']}\n"
+                f"   💰 Tages-Kosten: ${self.daily_stats['cost']:.4f}\n"
+                f"{'='*50}")
+    
+    def get_session_cost(self):
+        """Gibt die Session-Kosten zurück"""
+        return self.session_stats['cost']
+    
+    def get_daily_cost(self):
+        """Gibt die Tages-Kosten zurück"""
+        return self.daily_stats['cost']
+    
+    def reset_session(self):
+        """Setzt Session-Statistiken zurück"""
+        self.session_stats = {'input': 0, 'output': 0, 'requests': 0, 'cost': 0.0}
+        print("✅ Session-Statistiken zurückgesetzt")
+
+
+# FIX: Globale Instanz anpassen (ersetzt den alten TokenCounter)
+token_counter = TokenTracker()
+
 # --- Klasse: TokenCounter ---
 class TokenCounter:
     def __init__(self):
@@ -48,42 +374,44 @@ class TokenCounter:
                f"Output Tokens: {self.output_tokens}\n" \
                f"Gesamt Tokens: {self.input_tokens + self.output_tokens}"
 
-token_counter = TokenCounter()
+    def estimate_tokens(self,text: str) -> int:
+        """
+        Schätzt die Anzahl der Tokens in einem Text mit verbesserter Genauigkeit.
+        Berücksichtigt verschiedene Zeichentypen, nicht nur Wortgrenzen.
+        
+        Args:
+            text: Zu schätzender Text
+            
+        Returns:
+            int: Geschätzte Tokenanzahl
+        """
+        if not text:
+            return 0
+            
+        # Grundlegende Schätzung: 1 Token ≈ 4 Zeichen für englischen Text
+        # Für deutsche Texte (mit längeren Wörtern) etwas anpassen: 1 Token ≈ 4.5 Zeichen
+        char_per_token = 4.5
+        
+        # Anzahl der Sonderzeichen, die oft eigene Tokens bilden
+        special_chars = sum(1 for c in text if not c.isalnum() and not c.isspace())
+        
+        # Anzahl der Wörter
+        words = len(text.split())
+        
+        # Gewichtete Berechnung
+        estimated_tokens = int(
+            (len(text) / char_per_token) * 0.7 +  # Zeichenbasierte Schätzung (70% Gewichtung)
+            (words + special_chars) * 0.3          # Wort- und Sonderzeichenbasierte Schätzung (30% Gewichtung)
+        )
+        
+        return max(1, estimated_tokens)  # Mindestens 1 Token
+
+#token_counter = TokenCounter()
 
 
 
 # Hilfsfunktion zur Token-Schätzung
-def estimate_tokens(text: str) -> int:
-    """
-    Schätzt die Anzahl der Tokens in einem Text mit verbesserter Genauigkeit.
-    Berücksichtigt verschiedene Zeichentypen, nicht nur Wortgrenzen.
-    
-    Args:
-        text: Zu schätzender Text
-        
-    Returns:
-        int: Geschätzte Tokenanzahl
-    """
-    if not text:
-        return 0
-        
-    # Grundlegende Schätzung: 1 Token ≈ 4 Zeichen für englischen Text
-    # Für deutsche Texte (mit längeren Wörtern) etwas anpassen: 1 Token ≈ 4.5 Zeichen
-    char_per_token = 4.5
-    
-    # Anzahl der Sonderzeichen, die oft eigene Tokens bilden
-    special_chars = sum(1 for c in text if not c.isalnum() and not c.isspace())
-    
-    # Anzahl der Wörter
-    words = len(text.split())
-    
-    # Gewichtete Berechnung
-    estimated_tokens = int(
-        (len(text) / char_per_token) * 0.7 +  # Zeichenbasierte Schätzung (70% Gewichtung)
-        (words + special_chars) * 0.3          # Wort- und Sonderzeichenbasierte Schätzung (30% Gewichtung)
-    )
-    
-    return max(1, estimated_tokens)  # Mindestens 1 Token
+
 
 def _safe_speed_calculation(count: int, time_elapsed: float) -> str:
     """
@@ -1401,43 +1729,52 @@ from typing import Dict, List
 
 def _sanitize_text_for_excel(text):
     """
-    Bereinigt Text für Excel-Export, entfernt ungültige Zeichen.
-    
-    Args:
-        text: Zu bereinigender Text
-        
-    Returns:
-        str: Bereinigter Text ohne problematische Zeichen
+    FIX: Robuste Textbereinigung für Excel-Export
     """
-    if text is None:
+    if not text:
         return ""
-        
+    
+    # Konvertiere zu String falls nicht bereits ein String
     if not isinstance(text, str):
-        # Konvertiere zu String falls nötig
         text = str(text)
     
-    # Liste von problematischen Zeichen, die in Excel Probleme verursachen können
-    # Hier definieren wir Steuerzeichen und einige bekannte Problemzeichen
-    problematic_chars = [
-        # ASCII-Steuerzeichen 0-31 außer Tab (9), LF (10) und CR (13)
-        *[chr(i) for i in range(0, 9)],
-        *[chr(i) for i in range(11, 13)],
-        *[chr(i) for i in range(14, 32)],
-        # Einige bekannte problematische Sonderzeichen
-        '\u0000', '\u0001', '\u0002', '\u0003', '\ufffe', '\uffff',
-        # Emojis und andere Sonderzeichen, die Probleme verursachen könnten
-        '☺', '☻', '♥', '♦', '♣', '♠'
-    ]
-    
-    # Ersetze alle problematischen Zeichen
-    for char in problematic_chars:
-        text = text.replace(char, '')
-    
-    # Alternative Methode mit Regex für Steuerzeichen
+    # FIX: Entferne problematische Steuerzeichen (erweitert)
     import re
-    text = re.sub(r'[\x00-\x08\x0B\x0C\x0E-\x1F\uFFFE\uFFFF]', '', text)
+    # Entferne NULL-Bytes und andere problematische Steuerzeichen
+    text = re.sub(r'[\x00-\x08\x0B\x0C\x0E-\x1F\x7F\uFFFE\uFFFF]', '', text)
     
-    return text
+    # FIX: Entferne Vertical Tab (0x0B) und Form Feed (0x0C) separat
+    text = text.replace('\x0B', ' ').replace('\x0C', ' ')
+    
+    # FIX: Behandle verschiedene Zeilenendetypen
+    text = text.replace('\r\n', '\n').replace('\r', '\n')
+    
+    # FIX: Entferne übermäßig lange Zeilenumbrüche (mehr als 2 aufeinander)
+    text = re.sub(r'\n{3,}', '\n\n', text)
+    
+    # FIX: Ersetze bekannte problematische Sonderzeichen
+    problematic_chars = {
+        '☺': ':)', '☻': ':)', '♥': '<3', '♦': 'diamond', '♣': 'club', '♠': 'spade',
+        '†': '+', '‡': '++', '•': '*', '‰': 'promille', '™': '(TM)', '©': '(C)',
+        '®': '(R)', '§': 'section', '¶': 'paragraph', '±': '+/-'
+    }
+    
+    for char, replacement in problematic_chars.items():
+        text = text.replace(char, replacement)
+    
+    # FIX: Normalisiere Unicode-Zeichen
+    import unicodedata
+    text = unicodedata.normalize('NFKD', text)
+    
+    # FIX: Entferne Zeichen die Excel-Probleme verursachen können
+    # Entferne private use area characters
+    text = re.sub(r'[\uE000-\uF8FF]', '', text)
+    
+    # FIX: Begrenze Textlänge für Excel-Zellen (Excel-Limit: 32.767 Zeichen)
+    if len(text) > 32760:  # Sicherheitspuffer
+        text = text[:32760] + "..."
+    
+    return text.strip()
 
 def _generate_pastel_colors(num_colors):
     """
