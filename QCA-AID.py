@@ -9314,7 +9314,7 @@ class ResultsExporter:
             category = coding.get('category', '')
             
             # FIX: Zentrale Behandlung von leeren/fehlenden Kategorien
-            if not category or category == '' or category is None:
+            if not category or str(category).strip() == "":
                 display_category = "Nicht kodiert"
                 is_coded = 'Nein'
                 category_type = 'unkodiert'
