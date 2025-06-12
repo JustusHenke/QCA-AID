@@ -9,10 +9,10 @@ Version:
 --------
 0.9.16.2(2025-06-11)
 
-0.9.16.2 Bugfixes
-- Improve Kodierungsergebnisse Sheet 
+0.9.16.2 Bugfixe
+- Verbessungen bzw. Fixes Kodierungsergebnisse Sheet (Tabellenfunktion)
 - Entferne deduktive Kategorien bei Grounded Mode für die Kodierung
-- Neuer Token-Counter auf Basis tatsächlicher Tokens beim API Provider
+- Neuer Token-Counter auf Basis tatsächlicher Tokens beim API Provider und berechnung der Kosten
 
 0.9.16.1 Bugfixes
 - Überarbeitete Intercoder Berechnung um der Mehrfachkodierung gerecht zu werden, nach Krippendorf 2011 mittels Sets.
@@ -9709,7 +9709,7 @@ class ResultsExporter:
                         color = self.category_colors[cell.value]
                         cell.fill = PatternFill(start_color=color, end_color=color, fill_type='solid')
                         
-                        print(f"Farbe angewendet für '{cell.value}': {color} in Zeile {cell.row}")
+                        # print(f"Farbe angewendet für '{cell.value}': {color} in Zeile {cell.row}")
 
             # FIX: Excel-Tabelle oder AutoFilter erstellen - NICHT BEIDES gleichzeitig
             if as_table:
