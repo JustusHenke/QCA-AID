@@ -1,6 +1,6 @@
 ![QCA-AID](banner-qca-aid.png)
 
-# QCA-AID: Qualitative Content Analysis - AI Discovery
+# QCA-AID: Qualitative Content Analysis - with AI-supported Discovery
 
 Dieses Python-Skript implementiert Mayrings Methode der deduktiven Qualitativen Inhaltsanalyse mit induktiver Erweiterung mit KI-Unterstützung durch die OpenAI API. Es kombiniert traditionelle qualitative Forschungsmethoden mit modernen KI-Fähigkeiten, um Forschende bei der Analyse von Dokumenten- und Interviewdaten zu unterstützen. Das Ziel dieses Tools ist nicht, die menschliche Arbeit der Inhaltsanalyse zu ersetzen, sondern neue Möglichkeiten zu eröffnen, mehr Zeit für die Analyse und Reflexion bereits vorstrukturierter Textdaten zu gewinnen. 
 
@@ -241,17 +241,17 @@ QCA-AID.py
 
 ## Zitiervorschlag
 
-Henke, J. (2025). QCA-AID: Qualitative Content Analysis with AI Support (Version 0.9.15) [Software]. 
+Henke, J. (2025). QCA-AID: Qualitative Content Analysis with AI-supported Discovery (Version 0.9.16) [Software]. 
 Institut für Hochschulforschung Halle-Wittenberg. https://github.com/JustusHenke/QCA-AID
 
 ```BibTex
 @software{Henke_QCA-AID_2025,
   author       = {Henke, Justus},
-  title        = {{QCA-AID: Qualitative Content Analysis with AI Support}},
+  title        = {{QCA-AID: Qualitative Content Analysis with AI-supported Discovery}},
   month        = june,
   year         = {2025},
   publisher    = {Institut für Hochschulforschung Halle-Wittenberg},
-  version      = {0.9.15},
+  version      = {0.9.16},
   url          = {https://github.com/JustusHenke/QCA-AID}
 }
 ```
