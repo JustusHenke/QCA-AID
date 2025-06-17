@@ -7,9 +7,13 @@ enhanced with AI capabilities through the OpenAI API.
 
 Version:
 --------
-0.9.16.2(2025-06-11)
+0.9.16.3 (2025-06-17)
 
-0.9.16.2 Bugfixe
+0.9.16.3 Bugfixes
+- fix final stats in console regarding multiple codings
+- include justifications for non-relevant segments in output column
+
+0.9.16.2 Bugfixes
 - Verbessungen bzw. Fixes Kodierungsergebnisse Sheet (Tabellenfunktion)
 - Entferne deduktive Kategorien bei Grounded Mode für die Kodierung
 - Neuer Token-Counter auf Basis tatsächlicher Tokens beim API Provider und berechnung der Kosten
@@ -1298,11 +1302,16 @@ class RelevanceChecker:
                         
                         # Cache-Aktualisierung
                         self.relevance_cache[segment_id] = is_relevant
+                        # FIX: Erweiterte Details-Speicherung mit Begründung
                         self.relevance_details[segment_id] = {
                             'confidence': segment_result.get('confidence', 0.8),
                             'key_aspects': segment_result.get('key_aspects', []),
-                            'justification': segment_result.get('justification', '')
+                            'justification': segment_result.get('justification', ''),
+                            'reasoning': segment_result.get('reasoning', 'Keine Begründung verfügbar'),
+                            'main_themes': segment_result.get('main_themes', []),
+                            'exclusion_match': segment_result.get('exclusion_match', False)
                         }
+                        # FIX: Ende
                         
                         relevance_results[segment_id] = is_relevant
                         
@@ -1370,12 +1379,16 @@ class RelevanceChecker:
                                 is_relevant = segment_result.get('is_relevant', True)
                                 sub_batch_results[segment_id] = is_relevant
                                 
-                                # Details für Cache speichern
+                                # FIX: Erweiterte Details-Speicherung mit Begründung
                                 self.relevance_details[segment_id] = {
                                     'confidence': segment_result.get('confidence', 0.8),
                                     'key_aspects': segment_result.get('key_aspects', []),
-                                    'justification': segment_result.get('justification', '')
+                                    'justification': segment_result.get('justification', ''),
+                                    'reasoning': segment_result.get('reasoning', 'Keine Begründung verfügbar'),
+                                    'main_themes': segment_result.get('main_themes', []),
+                                    'exclusion_match': segment_result.get('exclusion_match', False)
                                 }
+                                # FIX: Ende
                         
                         return sub_batch_results
                         
@@ -1788,11 +1801,9 @@ class IntegratedAnalysisManager:
             print(f"Fehler bei abduktiver Analyse: {str(e)}")
             return current_categories
 
-    async def _code_batch_deductively(self,
-                                    batch: List[Tuple[str, str]],
-                                    categories: Dict[str, CategoryDefinition]) -> List[Dict]:
+    async def _code_batch_deductively(self, batch: List[Tuple[str, str]], categories: Dict[str, CategoryDefinition]) -> List[Dict]:
         """
-        PARALLELISIERTE VERSION: Führt die deduktive Kodierung parallel durch.
+        Kodiert einen Batch parallel ohne progressive Kontext-Funktionalität.
         BUGFIX: Verwendet separate, lockere Relevanzprüfung für Kodierung.
         """
         print(f"\n🚀 PARALLEL-KODIERUNG: {len(batch)} Segmente gleichzeitig")
@@ -1849,6 +1860,22 @@ class IntegratedAnalysisManager:
             if not is_coding_relevant:
                 print(f"   🚫 Segment {segment_id} wird als 'Nicht kodiert' markiert")
                 
+                # FIX: Hole Begründung aus RelevanceChecker falls verfügbar
+                relevance_details = self.relevance_checker.get_relevance_details(segment_id)
+                justification = "Nicht relevant für Kodierung (zu kurz oder Metadaten)"
+                if relevance_details:
+                    if 'reasoning' in relevance_details and relevance_details['reasoning']:
+                        justification = relevance_details['reasoning']
+                    elif 'justification' in relevance_details and relevance_details['justification']:
+                        justification = relevance_details['justification']
+                
+                # Spezifische Fallback-Begründungen
+                if len(text.strip()) < 20:
+                    justification = "Segment zu kurz für sinnvolle Kodierung"
+                elif is_metadata:
+                    justification = "Segment als Metadaten (z.B. Seitenzahl, Inhaltsverzeichnis) erkannt"
+                # FIX: Ende
+                
                 not_coded_results = []
                 for coder in self.deductive_coders:
                     result = {
@@ -1857,7 +1884,7 @@ class IntegratedAnalysisManager:
                         'category': "Nicht kodiert",
                         'subcategories': [],
                         'confidence': {'total': 1.0, 'category': 1.0, 'subcategories': 1.0},
-                        'justification': "Nicht relevant für Kodierung (zu kurz oder Metadaten)",
+                        'justification': justification,  # FIX: Verwende spezifische Begründung
                         'text': text,
                         'multiple_coding_instance': 1,
                         'total_coding_instances': 1,
@@ -2057,6 +2084,16 @@ class IntegratedAnalysisManager:
             if not is_relevant:
                 print(f"  ↪ Segment als nicht relevant markiert - wird übersprungen")
                 
+                # FIX: Hole spezifische Begründung aus RelevanceChecker
+                relevance_details = self.relevance_checker.get_relevance_details(segment_id)
+                justification = "Nicht relevant für Forschungsfrage"
+                if relevance_details:
+                    if 'reasoning' in relevance_details and relevance_details['reasoning']:
+                        justification = relevance_details['reasoning']
+                    elif 'justification' in relevance_details and relevance_details['justification']:
+                        justification = relevance_details['justification']
+                # FIX: Ende
+                
                 # Erstelle "Nicht kodiert" Ergebnis für alle Kodierer
                 for coder in self.deductive_coders:
                     result = {
@@ -2065,7 +2102,7 @@ class IntegratedAnalysisManager:
                         'category': "Nicht kodiert",
                         'subcategories': [],
                         'confidence': {'total': 1.0, 'category': 1.0, 'subcategories': 1.0},
-                        'justification': "Nicht relevant für Forschungsfrage",
+                        'justification': justification,  # FIX: Verwende spezifische Begründung
                         'text': text,
                         'context_summary': current_summary,
                         'multiple_coding_instance': 1,
@@ -7542,7 +7579,7 @@ class ReliabilityCalculator:
         """
         original_codings = []
         
-        print(f"🔍 Debug Filter - Input: {len(codings)} Kodierungen")
+        # print(f"🔍 Debug Filter - Input: {len(codings)} Kodierungen")
         
         for i, coding in enumerate(codings):
             coder_id = coding.get('coder_id', '')
@@ -7551,8 +7588,8 @@ class ReliabilityCalculator:
             selection_type = consensus_info.get('selection_type', '')
             
             # FIX: Debug-Ausgabe für erste 3 Kodierungen
-            if i < 3:
-                print(f"  Kodierung {i}: coder_id='{coder_id}', manual_review={manual_review}, selection_type='{selection_type}'")
+            # if i < 3:
+            #     print(f"  Kodierung {i}: coder_id='{coder_id}', manual_review={manual_review}, selection_type='{selection_type}'")
             
             # FIX: Weniger strenger Filter - akzeptiere mehr Kodierungen
             is_excluded = (
@@ -9376,23 +9413,54 @@ class ResultsExporter:
             
             # FIX: Justification verarbeiten wie in _prepare_coding_for_export
             justification = coding.get('justification', '')
-            # Entferne Review-Prefixes
-            if justification.startswith('[Konsens'):
-                parts = justification.split('] ', 1)
-                if len(parts) > 1:
-                    remaining_text = parts[1]
-                    if ' | ' in remaining_text:
-                        split_parts = remaining_text.split(' | ')
-                        if len(split_parts) > 1 and split_parts[0].strip() == split_parts[1].strip():
-                            justification = split_parts[0].strip()
-                        else:
-                            justification = split_parts[0].strip()
+
+
+            if display_category == "Nicht kodiert":
+                # Debug: Zeige verfügbare Begründungsfelder
+                segment_id = coding.get('segment_id', 'unknown')
+                print(f"🔍 DEBUG 'Nicht kodiert' Segment {segment_id}:")
+                print(f"   - justification: '{justification}'")
+                print(f"   - reasoning: '{coding.get('reasoning', 'NICHT VORHANDEN')}'")
+                print(f"   - original_justification: '{coding.get('original_justification', 'NICHT VORHANDEN')}'")
+                
+                # Falls justification leer oder generisch ist, suche nach besseren Alternativen
+                if not justification or justification.strip() == "" or justification == "Keine Begründung verfügbar":
+                    # Versuche alternative Begründungsfelder
+                    if 'reasoning' in coding and coding['reasoning']:
+                        justification = coding['reasoning']
+                        print(f"   → Verwende 'reasoning': '{justification}'")
+                    elif 'original_justification' in coding and coding['original_justification']:
+                        justification = coding['original_justification']
+                        print(f"   → Verwende 'original_justification': '{justification}'")
                     else:
-                        justification = remaining_text.strip()
-            elif justification.startswith(('[Mehrheit', '[Manuelle Priorisierung', '[Konfidenzbasierte Auswahl')):
-                parts = justification.split('] ', 1)
-                if len(parts) > 1:
-                    justification = parts[1].strip()
+                        # Fallback-Begründungen basierend auf Textanalyse
+                        text_content = coding.get('text', '').lower()
+                        if len(text_content.strip()) < 20:
+                            justification = "Segment zu kurz für sinnvolle Kodierung"
+                        elif any(pattern in text_content for pattern in ['seite ', 'page ', 'copyright', '©', 'inhaltsverzeichnis']):
+                            justification = "Segment als Metadaten (z.B. Seitenzahl, Inhaltsverzeichnis) erkannt"
+                        else:
+                            justification = "Nicht relevant für die Forschungsfrage"
+                        print(f"   → Verwende Fallback: '{justification}'")
+            else:
+                # Für normale kodierte Segmente: bestehende Logik
+                # Entferne Review-Prefixes
+                if justification.startswith('[Konsens'):
+                    parts = justification.split('] ', 1)
+                    if len(parts) > 1:
+                        remaining_text = parts[1]
+                        if ' | ' in remaining_text:
+                            split_parts = remaining_text.split(' | ')
+                            if len(split_parts) > 1 and split_parts[0].strip() == split_parts[1].strip():
+                                justification = split_parts[0].strip()
+                            else:
+                                justification = split_parts[0].strip()
+                        else:
+                            justification = remaining_text.strip()
+                elif justification.startswith(('[Mehrheit', '[Manuelle Priorisierung', '[Konfidenzbasierte Auswahl')):
+                    parts = justification.split('] ', 1)
+                    if len(parts) > 1:
+                        justification = parts[1].strip()
             
             # FIX: Konfidenz korrekt extrahieren
             confidence = coding.get('confidence', {})
@@ -9470,8 +9538,8 @@ class ResultsExporter:
             
             # FIX: Aktiviere Tabellenfunktionalität explizit
             worksheet = writer.sheets['Kodierungsergebnisse']
-            print(f"FIX: Formatiere Worksheet 'Kodierungsergebnisse' mit {len(df)} Zeilen und {len(df.columns)} Spalten")
-            print(f"FIX: Spalten: {list(df.columns)}")
+            # print(f"FIX: Formatiere Worksheet 'Kodierungsergebnisse' mit {len(df)} Zeilen und {len(df.columns)} Spalten")
+            # print(f"FIX: Spalten: {list(df.columns)}")
             self._format_worksheet(worksheet, as_table=True)  # FIX: Explizit as_table=True
             
         else:
@@ -10391,7 +10459,6 @@ class ResultsExporter:
 
             current_row = 1
             
-            # FIX: Verwende direkt apply_professional_formatting für DataFrame-Export
             from openpyxl.styles import Font
             title_font = Font(bold=True, size=12)
 
@@ -10400,7 +10467,7 @@ class ResultsExporter:
             cell.font = title_font
             current_row += 2
 
-            # Pivot-Tabelle für Hauptkategorien, inkl. "Nicht kodiert"
+            # FIX: Verwende dieselbe einfache Methode wie für Subkategorien
             pivot_main = pd.pivot_table(
                 df_all,
                 index=['Hauptkategorie'],
@@ -10412,36 +10479,41 @@ class ResultsExporter:
                 fill_value=0
             )
 
-            # FIX: Erstelle separates Arbeitsblatt für Hauptkategorien mit apply_professional_formatting
-            temp_df_main = pivot_main.copy()
-            temp_df_main.index.name = 'Hauptkategorie'
-            temp_df_main = temp_df_main.reset_index()
+            # FIX: Konvertiere zu DataFrame für einfache Ausgabe
+            temp_df_main = pivot_main.copy().reset_index()
             
-            # Exportiere direkt mit apply_professional_formatting
-            temp_df_main.to_excel(writer, sheet_name='Temp_Hauptkat', index=False)
-            temp_worksheet = writer.sheets['Temp_Hauptkat']
-            self._apply_professional_formatting(temp_worksheet, temp_df_main)
+            # Formatierte Spaltenbezeichnungen
+            formatted_columns = []
+            for col in pivot_main.columns:
+                if isinstance(col, tuple):
+                    col_parts = [str(part) for part in col if part and part != '']
+                    formatted_columns.append(' - '.join(col_parts))
+                else:
+                    formatted_columns.append(str(col))
             
-            # FIX: Kopiere nur Werte und wende eigene Formatierung an
-            for row_idx, row in enumerate(temp_df_main.index):
-                for col_idx, col in enumerate(temp_df_main.columns):
-                    source_cell = temp_worksheet.cell(row=row_idx+1, column=col_idx+1)
-                    target_cell = worksheet.cell(row=current_row + row_idx, column=col_idx+1, value=source_cell.value)
+            # FIX: Erstelle Header-Zeile mit korrekten Spaltennamen wie bei Subkategorien
+            headers = ['Hauptkategorie'] + formatted_columns
+            for col_idx, header in enumerate(headers):
+                worksheet.cell(row=current_row, column=col_idx+1, value=header)
             
-            # Wende apply_professional_formatting direkt auf den Bereich an
-            self._apply_professional_formatting_to_range(worksheet, current_row, 1, len(temp_df_main), len(temp_df_main.columns))
+            # FIX: Exportiere Daten-Zeilen (beginne bei current_row + 1)
+            for row_idx, (index, row) in enumerate(temp_df_main.iterrows()):
+                for col_idx, value in enumerate(row):
+                    worksheet.cell(row=current_row + 1 + row_idx, column=col_idx+1, value=value)
+            
+            # Formatiere den Bereich (Header + Daten)
+            self._apply_professional_formatting_to_range(worksheet, current_row, 1, len(temp_df_main) + 1, len(headers))
             
             # Zusätzliche Farbkodierung für Hauptkategorien
-            for row_idx in range(1, len(temp_df_main)):
-                kategorie = temp_df_main.iloc[row_idx]['Hauptkategorie']
+            for row_idx in range(1, len(temp_df_main) + 1):
+                kategorie = temp_df_main.iloc[row_idx-1]['Hauptkategorie']
                 if kategorie != 'Gesamt' and kategorie in self.category_colors:
                     color = self.category_colors[kategorie]
                     from openpyxl.styles import PatternFill
                     worksheet.cell(row=current_row + row_idx, column=1).fill = PatternFill(start_color=color, end_color=color, fill_type='solid')
             
-            # Lösche temporäres Arbeitsblatt
-            writer.book.remove(temp_worksheet)
             current_row += len(temp_df_main) + 3
+            # FIX: Ende - einfache Methode wie bei Subkategorien
 
             # 2. Subkategorien-Hierarchie (nur für kodierte Segmente)
             cell = worksheet.cell(row=current_row, column=1, value="2. Subkategorien nach Hauptkategorien")
@@ -10465,7 +10537,7 @@ class ResultsExporter:
                 fill_value=0
             )
 
-            # FIX: DataFrame für Subkategorien mit korrekten Spaltennamen
+            # DataFrame für Subkategorien mit korrekten Spaltennamen
             temp_df_sub = pivot_sub.copy().reset_index()
             
             # Formatierte Spaltenbezeichnungen
@@ -10477,12 +10549,12 @@ class ResultsExporter:
                 else:
                     formatted_columns.append(str(col))
             
-            # FIX: Erstelle Header-Zeile mit korrekten Spaltennamen
+            # Erstelle Header-Zeile mit korrekten Spaltennamen
             headers = ['Hauptkategorie', 'Subkategorie'] + formatted_columns
             for col_idx, header in enumerate(headers):
                 worksheet.cell(row=current_row, column=col_idx+1, value=header)
             
-            # FIX: Exportiere Daten-Zeilen (beginne bei current_row + 1)
+            # Exportiere Daten-Zeilen (beginne bei current_row + 1)
             for row_idx, (index, row) in enumerate(temp_df_sub.iterrows()):
                 for col_idx, value in enumerate(row):
                     worksheet.cell(row=current_row + 1 + row_idx, column=col_idx+1, value=value)
@@ -10491,12 +10563,11 @@ class ResultsExporter:
             self._apply_professional_formatting_to_range(worksheet, current_row, 1, len(temp_df_sub) + 1, len(headers))
             current_row += len(temp_df_sub) + 2
 
-            # 3. Attribut-Analysen mit vereinfachter Formatierung
+            # 3. Attribut-Analysen
             cell = worksheet.cell(row=current_row, column=1, value="3. Verteilung nach Attributen")
             cell.font = title_font
             current_row += 2
 
-            # FIX: Vereinfachter Export für Attribut-Analysen
             # 3.1 Attribut 1
             cell = worksheet.cell(row=current_row, column=1, value=f"3.1 Verteilung nach {attribut1_label}")
             cell.font = title_font
@@ -10550,7 +10621,7 @@ class ResultsExporter:
                 self._apply_professional_formatting_to_range(worksheet, current_row, 1, len(attr3_data), 2)
                 current_row += len(attr3_data) + 3
 
-            # 3.4 Kreuztabellen der Attribute
+            # FIX: 3.4 Kreuztabellen der Attribute wieder hinzugefügt
             cell = worksheet.cell(row=current_row, column=1, value="3.4 Kreuztabelle der Attribute")
             cell.font = title_font
             current_row += 1
@@ -10617,7 +10688,7 @@ class ResultsExporter:
             print(f"❌ Fehler bei Häufigkeitsanalysen: {str(e)}")
             import traceback
             traceback.print_exc()
-
+    
     def _apply_professional_formatting_to_range(self, worksheet, start_row: int, start_col: int, num_rows: int, num_cols: int) -> None:
         """
         FIX: Hilfsmethode für die Formatierung eines bestimmten Bereichs ohne StyleProxy-Probleme
@@ -11961,14 +12032,23 @@ async def main() -> None:
             print("\nAnalyse abgeschlossen:")
             print(analysis_manager.get_analysis_report())
 
-            if CONFIG.get('MULTIPLE_CODINGS', True) and all_codings:
-                multiple_coding_stats = _calculate_multiple_coding_stats(all_codings)
-                print(f"""
+            if CONFIG.get('MULTIPLE_CODINGS', True):
+                # Verwende die ursprünglichen Kodierungen für Mehrfachkodierungs-Statistiken
+                codings_for_stats = original_codings_for_reliability if original_codings_for_reliability else all_codings
+                
+                if codings_for_stats:
+                    multiple_coding_stats = _calculate_multiple_coding_stats(codings_for_stats)
+                    print(f"""
                     Mehrfachkodierungs-Statistiken:
                     - Segmente mit Mehrfachkodierung: {multiple_coding_stats['segments_with_multiple']}
                     - Durchschnittliche Kodierungen pro Segment: {multiple_coding_stats['avg_codings_per_segment']:.2f}
-                    - Häufigste Kategorie-Kombinationen: {', '.join(multiple_coding_stats['top_combinations'][:3])}
-                    - Fokus-Adherence Rate: {multiple_coding_stats['focus_adherence_rate']:.1%}""")
+                    - Häufigste Kategorie-Kombinationen: {', '.join(multiple_coding_stats['top_combinations'][:3]) if multiple_coding_stats['top_combinations'] else 'Keine'}
+                    - Fokus-Adherence Rate: {multiple_coding_stats['focus_adherence_rate']:.1%}
+                    - Mehrfachkodierungs-Faktor: {multiple_coding_stats['avg_codings_per_segment'] / len(set(c.get('coder_id', '') for c in codings_for_stats if c.get('coder_id', '').startswith('auto'))):.2f}x""")
+                else:
+                    print("\n                    Mehrfachkodierungs-Statistiken: Keine Kodierungen für Analyse verfügbar")
+            else:
+                print("\n                    Mehrfachkodierungs-Statistiken: DEAKTIVIERT")
             
             # Token-Statistiken
             print("\nToken-Nutzung:")

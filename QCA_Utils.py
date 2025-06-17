@@ -504,7 +504,11 @@ def get_input_with_timeout(prompt: str, timeout: int = 30) -> str:
 
 def _calculate_multiple_coding_stats(all_codings: List[Dict]) -> Dict:
     """
-    Berechnet Statistiken zur Mehrfachkodierung.
+    Berechnung der Mehrfachkodierungs-Statistiken
+    
+    Berücksichtigt sowohl:
+    1. Mehrfachkodierung durch verschiedene Kodierer (deduktiver Modus)
+    2. Echte Mehrfachkodierung (verschiedene Kategorien für gleichen Text)
     
     Args:
         all_codings: Liste aller Kodierungen
@@ -514,28 +518,52 @@ def _calculate_multiple_coding_stats(all_codings: List[Dict]) -> Dict:
     """
     from collections import defaultdict, Counter
     
-    segment_counts = defaultdict(int)
+    # Gruppiere nach Segment-ID und analysiere die verschiedenen Arten von Mehrfachkodierung
+    segment_codings = defaultdict(list)
     focus_adherence = []
     category_combinations = []
     
     for coding in all_codings:
         segment_id = coding.get('segment_id', '')
-        segment_counts[segment_id] += 1
+        segment_codings[segment_id].append(coding)
         
         # Focus adherence tracking
         if coding.get('category_focus_used', False):
             focus_adherence.append(coding.get('target_category', '') == coding.get('category', ''))
-        
-        # Kategorie-Kombinationen sammeln
-        if coding.get('total_coding_instances', 1) > 1:
-            # Sammle alle Kategorien für dieses Segment
-            segment_categories = [c.get('category', '') for c in all_codings 
-                                if c.get('segment_id', '') == segment_id]
-            if len(segment_categories) > 1:
-                category_combinations.append(' + '.join(sorted(set(segment_categories))))
     
-    segments_with_multiple = len([count for count in segment_counts.values() if count > 1])
-    total_segments = len(segment_counts)
+    # Analysiere verschiedene Arten von Mehrfachkodierung
+    segments_with_multiple_coders = 0
+    segments_with_multiple_categories = 0
+    segments_with_true_multiple_coding = 0
+    
+    for segment_id, codings in segment_codings.items():
+        if len(codings) > 1:
+            # Verschiedene Kodierer für gleiches Segment
+            unique_coders = set(c.get('coder_id', '') for c in codings)
+            if len(unique_coders) > 1:
+                segments_with_multiple_coders += 1
+            
+            # Verschiedene Kategorien für gleiches Segment
+            unique_categories = set(c.get('category', '') for c in codings)
+            if len(unique_categories) > 1:
+                segments_with_multiple_categories += 1
+                # Sammle Kategorie-Kombinationen
+                category_combinations.append(' + '.join(sorted(unique_categories)))
+            
+            # Echte Mehrfachkodierung (verschiedene Instanzen)
+            multiple_instances = any(c.get('total_coding_instances', 1) > 1 for c in codings)
+            if multiple_instances:
+                segments_with_true_multiple_coding += 1
+    
+    # Bestimme die dominante Art der Mehrfachkodierung für Statistik-Output
+    if segments_with_multiple_coders > segments_with_true_multiple_coding:
+        # Deduktiver Modus: Zähle Segmente mit mehreren Kodierern als Mehrfachkodierung
+        segments_with_multiple = segments_with_multiple_coders
+    else:
+        # Echter Mehrfachkodierungs-Modus: Zähle nur echte Mehrfachkodierungen
+        segments_with_multiple = segments_with_true_multiple_coding
+    
+    total_segments = len(segment_codings)
     total_codings = len(all_codings)
     
     combination_counter = Counter(category_combinations)
@@ -545,8 +573,13 @@ def _calculate_multiple_coding_stats(all_codings: List[Dict]) -> Dict:
         'total_segments': total_segments,
         'avg_codings_per_segment': total_codings / total_segments if total_segments > 0 else 0,
         'top_combinations': [combo for combo, _ in combination_counter.most_common(5)],
-        'focus_adherence_rate': sum(focus_adherence) / len(focus_adherence) if focus_adherence else 0
+        'focus_adherence_rate': sum(focus_adherence) / len(focus_adherence) if focus_adherence else 0,
+        # Zusätzliche Details für erweiterte Ausgaben (optional)
+        'segments_with_multiple_coders': segments_with_multiple_coders,
+        'segments_with_multiple_categories': segments_with_multiple_categories,
+        'segments_with_true_multiple_coding': segments_with_true_multiple_coding
     }
+
 
 def _patch_tkinter_for_threaded_exit():
     """
