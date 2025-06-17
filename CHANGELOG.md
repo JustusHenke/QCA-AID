@@ -1,4 +1,4 @@
-## Versionshinweise
+# Changelog
 
 Versionen und Updates
 ### Neu in 0.9.16.2 (2025-06-11)

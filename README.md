@@ -15,6 +15,8 @@ Dieses Python-Skript implementiert Mayrings Methode der deduktiven Qualitativen 
   - [Export und Dokumentation](#export-und-dokumentation)
   - [Konfiguration und Anpassbarkeit](#konfiguration-und-anpassbarkeit)
 
+📄 [Zur vollständigen Release-Historie](CHANGELOG.md)
+
 
 ### Installation und Einrichtung
 - [Empfehlungen für die Installation](#empfehlungen-für-die-installation)
