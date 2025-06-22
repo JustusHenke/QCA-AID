@@ -1,10 +1,16 @@
 Changelog
 
 Versionen und Updates
+<<<<<<< HEAD
+
+### Neu in 0.9.17 (2025-06-22)
+- Input dateien können jetzt als annotierte Version exportiert werden
+- PDF werden direkt annotiert, TXT und DOCX werden in PDF umgewandelt und annotiert. 
+- kann über 'EXPORT_ANNOTATED_PDFS': True (default) bzw. mit False deaktiviert werden.
+
+### Neu in 0.9.16.2 (2025-06-11)
 Neu in 0.9.16.2 (2025-06-11)
-
 Bugfixes und Verbesserungen
-
 Verbessertes Kodierungsergebnisse Sheet: Optimierte Darstellung und Formatierung der Kodierungsergebnisse im Excel-Export Grounded Mode Optimierung: Entfernung deduktiver Kategorien bei der Kodierung im Grounded Mode für reinere induktive Kategorienentwicklung Neuer Token-Counter: Präziserer Token-Counter basierend auf tatsächlichen Tokens beim API Provider für genauere Kostenberechnung
 Neu in 0.9.16.1
 
