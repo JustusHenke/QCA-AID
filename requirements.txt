@@ -34,3 +34,9 @@ pytesseract==0.3.13
 # pytest==7.4.0
 # black==23.7.0
 # flake8==6.1.0
+
+
+# PDF-Annotation Unterstützung
+PyMuPDF>=1.23.0
+# Für TXT/DOCX zu PDF Konvertierung
+reportlab>=3.6.0

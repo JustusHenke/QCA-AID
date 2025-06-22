@@ -1,6 +1,12 @@
 # Changelog
 
 Versionen und Updates
+
+### Neu in 0.9.17 (2025-06-22)
+- Input dateien können jetzt als annotierte Version exportiert werden
+- PDF werden direkt annotiert, TXT und DOCX werden in PDF umgewandelt und annotiert. 
+- kann über 'EXPORT_ANNOTATED_PDFS': True (default) bzw. mit False deaktiviert werden.
+
 ### Neu in 0.9.16.2 (2025-06-11)
 Bugfixes und Verbesserungen
 

@@ -7,7 +7,12 @@ enhanced with AI capabilities through the OpenAI API.
 
 Version:
 --------
-0.9.16.3 (2025-06-17)
+0.9.17 (2025-06-22)
+
+0.9.17
+- Input dateien können jetzt als annotierte Version exportiert werden
+- PDF werden direkt annotiert, TXT und DOCX werden in PDF umgewandelt und annotiert. 
+- kann über 'EXPORT_ANNOTATED_PDFS': True (default) bzw. mit False deaktiviert werden.
 
 0.9.16.3 Bugfixes
 - fix final stats in console regarding multiple codings
@@ -197,6 +202,11 @@ from QCA_Utils import (
     setup_manual_coding_window_enhanced, validate_multiple_selection,
     DocumentReader, ManualReviewGUI, validate_category_specific_segments, analyze_multiple_coding_impact, export_multiple_coding_report
 )
+try:
+    from QCA_Utils import PDFAnnotator, DocumentToPDFConverter
+    pdf_annotation_available = True
+except ImportError:
+    pdf_annotation_available = False
 from QCA_Prompts import QCAPrompts  # Prompt Bibliothek
 
 # Instanziierung des globalen Token-Counters
@@ -354,6 +364,10 @@ CONFIG = {
         'attribut2': 'Attribut2',
         'attribut3': 'Attribut3'  
     },
+    'EXPORT_ANNOTATED_PDFS': True,  # Aktiviert/deaktiviert PDF-Annotation
+    'PDF_ANNOTATION_FUZZY_THRESHOLD': 0.85,  # Schwellenwert für Fuzzy-Text-Matching
+    'PDF_SIDEBAR_BAR_WIDTH': 8,  # Breite der Sidebar-Marker in Pixeln
+    'PDF_SIDEBAR_SPACING': 2,  # Abstand zwischen Sidebar-Markern
     'CODER_SETTINGS': [
         {
             'temperature': 0.3,
@@ -9426,22 +9440,19 @@ class ResultsExporter:
                 # Falls justification leer oder generisch ist, suche nach besseren Alternativen
                 if not justification or justification.strip() == "" or justification == "Keine Begründung verfügbar":
                     # Versuche alternative Begründungsfelder
-                    if 'reasoning' in coding and coding['reasoning']:
+                    if 'reasoning' in coding and coding['reasoning'] and coding['reasoning'] != 'NICHT VORHANDEN':
                         justification = coding['reasoning']
-                        print(f"   → Verwende 'reasoning': '{justification}'")
-                    elif 'original_justification' in coding and coding['original_justification']:
+                    elif 'original_justification' in coding and coding['original_justification'] and coding['original_justification'] != 'NICHT VORHANDEN':
                         justification = coding['original_justification']
-                        print(f"   → Verwende 'original_justification': '{justification}'")
                     else:
                         # Fallback-Begründungen basierend auf Textanalyse
-                        text_content = coding.get('text', '').lower()
+                        text_content = text.lower()
                         if len(text_content.strip()) < 20:
                             justification = "Segment zu kurz für sinnvolle Kodierung"
                         elif any(pattern in text_content for pattern in ['seite ', 'page ', 'copyright', '©', 'inhaltsverzeichnis']):
-                            justification = "Segment als Metadaten (z.B. Seitenzahl, Inhaltsverzeichnis) erkannt"
+                            justification = "Segment als Metadaten (z.B. Seitenzahlen, Copyright) erkannt"
                         else:
                             justification = "Nicht relevant für die Forschungsfrage"
-                        print(f"   → Verwende Fallback: '{justification}'")
             else:
                 # Für normale kodierte Segmente: bestehende Logik
                 # Entferne Review-Prefixes
@@ -11290,6 +11301,257 @@ class ResultsExporter:
             print(f"❌ Fehler beim DataFrame erstellen: {str(e)}")
             return pd.DataFrame()
     
+    def export_annotated_pdfs(self, 
+                             codings: List[Dict], 
+                             chunks: Dict[str, List[str]], 
+                             data_dir: str) -> List[str]:
+        """
+        FIX: Neue Methode für ResultsExporter Klasse
+        Exportiert annotierte PDFs für alle gefundenen PDF-Eingabedateien
+        
+        Args:
+            codings: Liste der finalen Kodierungen
+            chunks: Dictionary mit chunk_id -> text mapping
+            data_dir: Input-Verzeichnis mit Original-PDF-Dateien (aus CONFIG['DATA_DIR'])
+            
+        Returns:
+            List[str]: Liste der Pfade zu erstellten annotierten PDFs
+        """
+        print(f"\n🎨 Beginne PDF-Annotations-Export...")
+        
+        try:
+            # FIX: Importiere PDF-Annotator (nur wenn benötigt)
+            from QCA_Utils import PDFAnnotator
+        except ImportError:
+            print("   ❌ PyMuPDF nicht verfügbar - PDF-Annotation übersprungen")
+            print("   💡 Installieren Sie mit: pip install PyMuPDF")
+            return []
+        
+        # FIX: Initialisiere PDF-Annotator
+        pdf_annotator = PDFAnnotator(self)
+        
+        # FIX: Nutze os.path (wie im Rest von QCA-AID) statt Path
+        pdf_files = []
+        
+        # FIX: Finde PDF-Dateien mit der gleichen Logik wie DocumentReader
+        try:
+            if not os.path.exists(data_dir):
+                print(f"   ⚠️ Verzeichnis {data_dir} existiert nicht")
+                return []
+
+            for file in os.listdir(data_dir):
+                file_path = os.path.join(data_dir, file)
+                file_ext = os.path.splitext(file)[1].lower()
+                
+                if os.path.isfile(file_path) and file_ext == '.pdf':
+                    pdf_files.append((file, file_path))
+                    
+        except Exception as e:
+            print(f"   ❌ Fehler beim Durchsuchen des Verzeichnisses: {e}")
+            return []
+        
+        if not pdf_files:
+            print("   ℹ️ Keine PDF-Dateien im Input-Verzeichnis gefunden")
+            return []
+        
+        print(f"   📄 {len(pdf_files)} PDF-Dateien gefunden")
+        annotated_files = []
+        
+        # FIX: Annotiere jede PDF-Datei
+        for filename, file_path in pdf_files:
+            print(f"\n   📄 Verarbeite: {filename}")
+            
+            # FIX: Filtere nur konsolidierte/Review-Kodierungen für diese Datei
+            file_stem = os.path.splitext(filename)[0]
+            file_codings = []
+            
+            for coding in codings:
+                # FIX: Nur Kodierungen nach Review/Consensus nehmen
+                is_review_coding = (
+                    coding.get('consensus_info') is not None or          # Hat Consensus-Info
+                    coding.get('review_decision') is not None or         # Hat Review-Entscheidung  
+                    coding.get('selection_type') in ['consensus', 'majority', 'manual_priority'] or  # Ist Review-Ergebnis
+                    len([c for c in codings if c.get('segment_id') == coding.get('segment_id')]) == 1  # Einzige Kodierung für Segment
+                )
+                
+                # FIX: Prüfe ob Kodierung zu dieser Datei gehört
+                matches_file = (
+                    file_stem in coding.get('document', '') or 
+                    file_stem in coding.get('segment_id', '')
+                )
+                
+                if is_review_coding and matches_file:
+                    file_codings.append(coding)
+                    
+            print(f"      📋 {len(file_codings)} Review-Kodierungen für {filename} gefunden")
+            
+            if not file_codings:
+                print(f"      ⚠️ Keine Kodierungen für {filename} gefunden")
+                continue
+            
+            # FIX: Erstelle Ausgabepfad mit os.path
+            output_filename = f"{file_stem}_QCA_annotiert.pdf"
+            output_file = os.path.join(self.output_dir, output_filename)
+            
+            # FIX: Annotiere PDF
+            try:
+                result_path = pdf_annotator.annotate_pdf_with_codings(
+                    file_path,
+                    file_codings,
+                    chunks,
+                    output_file
+                )
+                
+                if result_path:
+                    annotated_files.append(result_path)
+                    print(f"      ✅ Erstellt: {os.path.basename(result_path)}")
+                
+            except Exception as e:
+                print(f"      ❌ Fehler bei {filename}: {e}")
+                continue
+        
+        print(f"\n✅ PDF-Annotation abgeschlossen: {len(annotated_files)} Dateien erstellt")
+        return annotated_files
+    
+    def export_annotated_pdfs_all_formats(self, 
+                                         codings: List[Dict], 
+                                         chunks: Dict[str, List[str]], 
+                                         data_dir: str) -> List[str]:
+        """
+        FIX: Neue Methode für ResultsExporter Klasse - Erweiterte PDF-Annotation für alle Formate
+        
+        Args:
+            codings: Liste der finalen Kodierungen
+            chunks: Dictionary mit chunk_id -> text mapping
+            data_dir: Input-Verzeichnis mit Original-Dateien
+            
+        Returns:
+            List[str]: Liste der Pfade zu erstellten annotierten PDFs
+        """
+        print(f"\n🎨 Beginne erweiterte PDF-Annotations-Export für alle Formate...")
+        
+        try:
+            # FIX: Importiere benötigte Klassen
+            from QCA_Utils import PDFAnnotator, DocumentToPDFConverter
+        except ImportError:
+            print("   ❌ Benötigte Bibliotheken nicht verfügbar")
+            print("   💡 Installieren Sie mit: pip install PyMuPDF reportlab")
+            return []
+        
+        # FIX: Initialisiere Konverter und Annotator
+        try:
+            pdf_converter = DocumentToPDFConverter(self.output_dir)
+            pdf_annotator = PDFAnnotator(self)
+        except Exception as e:
+            print(f"   ❌ Fehler beim Initialisieren: {e}")
+            return []
+        
+        # FIX: Finde alle unterstützten Dateien
+        supported_extensions = ['.pdf', '.txt', '.docx', '.doc']
+        input_files = []
+        
+        try:
+            if not os.path.exists(data_dir):
+                print(f"   ⚠️ Verzeichnis {data_dir} existiert nicht")
+                return []
+
+            for file in os.listdir(data_dir):
+                file_path = os.path.join(data_dir, file)
+                file_ext = os.path.splitext(file)[1].lower()
+                
+                if os.path.isfile(file_path) and file_ext in supported_extensions:
+                    input_files.append((file, file_path, file_ext))
+                    
+        except Exception as e:
+            print(f"   ❌ Fehler beim Durchsuchen des Verzeichnisses: {e}")
+            return []
+        
+        if not input_files:
+            print("   ℹ️ Keine unterstützten Dateien im Input-Verzeichnis gefunden")
+            return []
+        
+        print(f"   📁 {len(input_files)} Dateien gefunden:")
+        for filename, _, ext in input_files:
+            print(f"      • {filename} ({ext})")
+        
+        annotated_files = []
+        
+        # FIX: Verarbeite jede Datei
+        for filename, file_path, file_ext in input_files:
+            print(f"\n   📄 Verarbeite: {filename}")
+            
+            # FIX: Filtere Review-Kodierungen für diese Datei
+            file_stem = os.path.splitext(filename)[0]
+            file_codings = []
+            
+            for coding in codings:
+                # FIX: Nur Kodierungen nach Review/Consensus nehmen
+                is_review_coding = (
+                    coding.get('consensus_info') is not None or          
+                    coding.get('review_decision') is not None or         
+                    coding.get('selection_type') in ['consensus', 'majority', 'manual_priority'] or  
+                    len([c for c in codings if c.get('segment_id') == coding.get('segment_id')]) == 1  
+                )
+                
+                # FIX: Prüfe ob Kodierung zu dieser Datei gehört
+                matches_file = (
+                    file_stem in coding.get('document', '') or 
+                    file_stem in coding.get('segment_id', '')
+                )
+                
+                if is_review_coding and matches_file:
+                    file_codings.append(coding)
+            
+            if not file_codings:
+                print(f"      ⚠️ Keine Review-Kodierungen für {filename} gefunden")
+                continue
+            
+            print(f"      📋 {len(file_codings)} Review-Kodierungen gefunden")
+            
+            # FIX: Konvertiere zu PDF falls nötig
+            if file_ext == '.pdf':
+                pdf_path = file_path
+                print(f"      ✅ Bereits PDF")
+            else:
+                print(f"      🔄 Konvertiere {file_ext.upper()} zu PDF...")
+                pdf_path = pdf_converter.convert_document_to_pdf(file_path)
+                
+                if not pdf_path:
+                    print(f"      ❌ Konvertierung fehlgeschlagen")
+                    continue
+                
+                print(f"      ✅ PDF erstellt: {os.path.basename(pdf_path)}")
+            
+            # FIX: Annotiere PDF
+            try:
+                output_filename = f"{file_stem}_QCA_annotiert.pdf"
+                output_file = os.path.join(self.output_dir, output_filename)
+                
+                result_path = pdf_annotator.annotate_pdf_with_codings(
+                    pdf_path,
+                    file_codings,
+                    chunks,
+                    output_file
+                )
+                
+                if result_path:
+                    annotated_files.append(result_path)
+                    print(f"      ✅ Annotiert: {os.path.basename(result_path)}")
+                else:
+                    print(f"      ❌ Annotation fehlgeschlagen")
+                
+            except Exception as e:
+                print(f"      ❌ Fehler bei Annotation: {e}")
+                continue
+        
+        # FIX: Bereinige temporäre Dateien
+        try:
+            pdf_converter.cleanup_temp_pdfs()
+        except Exception as e:
+            print(f"   ⚠️ Fehler bei Bereinigung: {e}")
+        
+        print(f"\n✅ Erweiterte PDF-Annotation abgeschlossen: {len(annotated_files)} Dateien erstellt")
+        return annotated_files
     
 # --- Klasse: CategoryRevisionManager ---
 # Aufgabe: Verwaltung der iterativen Kategorienrevision
@@ -12023,7 +12285,37 @@ async def main() -> None:
                         print(f"\n📄 {doc_name}:")
                         print(f"  {summary}")
 
-                print("Export erfolgreich abgeschlossen")
+                if CONFIG.get('EXPORT_ANNOTATED_PDFS', True) and pdf_annotation_available:
+                    try:
+                        print("\n11. Exportiere annotierte PDFs für alle Dateiformate...")
+                        
+                        # FIX: Verwende erweiterte Methode für alle Formate
+                        annotated_pdfs = exporter.export_annotated_pdfs_all_formats(
+                            codings=all_codings,
+                            chunks=chunks,
+                            data_dir=CONFIG['DATA_DIR']
+                        )
+                        
+                        if annotated_pdfs:
+                            print(f"📄 {len(annotated_pdfs)} annotierte PDFs erstellt:")
+                            for pdf_path in annotated_pdfs:
+                                print(f"   • {os.path.basename(pdf_path)}")
+                        else:
+                            print("   ℹ️ Keine Dateien für Annotation gefunden")
+                            
+                    except Exception as e:
+                        print(f"   ❌ Fehler bei erweiterter PDF-Annotation: {e}")
+                        print("   💡 PDF-Annotation übersprungen, normaler Export fortgesetzt")
+                
+                elif not pdf_annotation_available:
+                    print("\n   ℹ️ PDF-Annotation nicht verfügbar (PyMuPDF/ReportLab fehlt)")
+                    print("   💡 Installieren Sie mit: pip install PyMuPDF reportlab")
+                
+                elif not CONFIG.get('EXPORT_ANNOTATED_PDFS', True):
+                    print("\n   ℹ️ PDF-Annotation deaktiviert (EXPORT_ANNOTATED_PDFS=False)")
+
+                print("Export erfolgreich abgeschlossen")  # FIX: Diese Zeile bleibt bestehen
+
             else:
                 print("Keine Kodierungen zum Exportieren vorhanden")
 
