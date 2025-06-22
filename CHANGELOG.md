@@ -1,7 +1,6 @@
-Changelog
+# Changelog
 
-Versionen und Updates
-<<<<<<< HEAD
+## Versionen und Updates
 
 ### Neu in 0.9.17 (2025-06-22)
 - Input dateien können jetzt als annotierte Version exportiert werden
