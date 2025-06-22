@@ -8,10 +8,11 @@
 - kann über 'EXPORT_ANNOTATED_PDFS': True (default) bzw. mit False deaktiviert werden.
 
 ### Neu in 0.9.16.2 (2025-06-11)
-Neu in 0.9.16.2 (2025-06-11)
+
 Bugfixes und Verbesserungen
 Verbessertes Kodierungsergebnisse Sheet: Optimierte Darstellung und Formatierung der Kodierungsergebnisse im Excel-Export Grounded Mode Optimierung: Entfernung deduktiver Kategorien bei der Kodierung im Grounded Mode für reinere induktive Kategorienentwicklung Neuer Token-Counter: Präziserer Token-Counter basierend auf tatsächlichen Tokens beim API Provider für genauere Kostenberechnung
-Neu in 0.9.16.1
+
+### Neu in 0.9.16.1
 
 Bugfixes und Verbesserungen
 
@@ -21,6 +22,7 @@ Neu in 0.9.16
 Erweiterte manuelle Kodierung mit Mehrfachkodierung-Support
 
 Mehrfachkategorien-Auswahl: Benutzer können nun mehrere Kategorien gleichzeitig auswählen (Strg+Klick, Shift+Klick) Intelligente Validierung: Automatische Validierung verhindert inkonsistente Mehrfachauswahlen Separate Kodierungsinstanzen: Automatische Erstellung separater Kodierungsinstanzen bei verschiedenen Hauptkategorien Verbesserte GUI: Erweiterte Benutzeroberfläche mit Auswahlinfo und speziellem Mehrfachkodierungs-Dialog Nahtlose Integration: Konsistente Integration mit dem bestehenden Mehrfachkodierungs-System
+### 
 Neu in 0.9.15 (2025-06-02)
 
     COMPLETE RESTRUCTURING OF INDUCTIVE MODE: Vollständige Neustrukturierung des induktiven Modus • Vereinfachte und robustere Kategorienentwicklung mit verbesserter Konsistenz • Optimierte Sättigungsprüfung und stabilere Kategorienvalidierung • Reduzierte Komplexität bei gleichzeitig erhöhter Methodentreue
@@ -31,7 +33,7 @@ Neu in 0.9.15 (2025-06-02)
     Improved progress monitoring and user feedback
     Optimized memory usage for large document sets
 
-Neu in 0.9.14 (2025-05-28)
+### Neu in 0.9.14 (2025-05-28)
 
     Implementierung der Mehrfachkodierung von Textsegmenten für mehrere Hauptkategorien
     Neue CONFIG-Parameter: MULTIPLE_CODINGS (default: True) und MULTIPLE_CODING_THRESHOLD (default: 0.7)
@@ -43,7 +45,7 @@ Neu in 0.9.14 (2025-05-28)
     Effiziente Batch-Verarbeitung und Caching für Mehrfachkodierungs-Prüfungen
     Konfigurierbare Deaktivierung der Mehrfachkodierung für traditionelle Einzelkodierung
 
-Neu in 0.9.13 (2025-05-15)
+### Neu in 0.9.13 (2025-05-15)
 
     Vollständige Implementierung des 'majority' Review-Modus mit einfacher Mehrheitsentscheidung
     Neue 'manual_priority' Option bevorzugt manuelle vor automatischen Kodierungen
@@ -52,7 +54,7 @@ Neu in 0.9.13 (2025-05-15)
     Verbesserte Tie-Breaking-Mechanismen bei Gleichstand zwischen Kodierungen
     Erweiterte Dokumentation der Review-Modi im consensus_info Export-Feld
 
-Neu in 0.9.12 (2025-05-10)
+### Neu in 0.9.12 (2025-05-10)
 
     Verbesserter manueller Kodierungsworkflow mit korrekter Handhabung des letzten Segments
     Verbesserte Funktionalität der Schaltflächen "Kodieren & Abschließen" für eine intuitivere Vervollständigung der Kodierung
@@ -64,7 +66,7 @@ Neu in 0.9.12 (2025-05-10)
     Verbesserte Benutzerführung im manuellen Kodierungsmodus
     Optimierte Darstellung der Kodierhistorie
 
-Neu in 0.9.11 (2025-04-12)
+### Neu in 0.9.11 (2025-04-12)
 
     Neuer 'grounded' Analysemodus hinzugefügt, inspiriert von Grounded Theory und Kuckartz
     Im 'grounded' Modus werden die Subcodes schrittweise gesammelt, ohne sie den Hauptkategorien zuzuordnen
@@ -75,7 +77,7 @@ Neu in 0.9.11 (2025-04-12)
     Verbesserte Fortschrittsvisualisierung während der Subcode-Erfassung
     Verbesserte Handhabung von Schlüsselwörtern mit direkter Verbindung zu Subcodes
 
-Neu in 0.9.10
+### Neu in 0.9.10
 
 QCA-AID-Explorer.py
 
@@ -87,20 +89,20 @@ QCA-AID-Explorer.py
     Hinzufügen eines Präfixes zur Chunk-Nummer für eindeutige Segment-IDs
     prägnantere progessive Zusammenfassungen, weniger verlustbehaftet
 
-Neu in 0.9.9
+### Neu in 0.9.9
 
     Abduktivmodus: induktive Codierung nur für Subcodes ohne Hinzufügen von Hauptcodes
     kann entweder beim starten des Skripts ausgewählt oder im Codebook konfiguriert
     leicht verschärfte Relevanzprüfung für Textsegmente (aus Interviews)
     Kodierkonsens: Segmente ohne Konsens als "kein Kodierkonsens" markieren; wenn kein Konsens besteht, wird die Kodierung mit höherem Konfidenzwert gewählt, sonst "kein Kodierkonsens"
 
-Weitere Hinweise zur Version (0.9.8)
+### Weitere Hinweise zur Version (0.9.8)
 
     Progressive Dokumentenzusammenfassung als Kodierungskontext (max. 80 Wörter)
     Aktivieren durch Setzen des CONFIG-Wertes CODE_WITH_CONTEXT im Codebook auf 'true' (Standard: false)
     Eignet sich insbesondere bei deduktivem Kodieren. Es kann Einfluss auf die Kodierung nehmen, daher testen, ob die Funktion zu besseren Ergebnissen führt. Den Kontext beizufügen, erleichtert es dem Sprachmodell einzuschätzen, ob die Inhalte im größeren Zusammenhang des Textes bedeutsam sind. Damit wird gewissermaßen ein Gedächtnis des bisherigen Textes in die Verarbeitung des Textsegments integriert.
 
-Weitere Hinweise zur Version (0.9.7)
+### Weitere Hinweise zur Version (0.9.7)
 
     NEU: Mistral Support! Es kann jetzt auch die Mistral API genutzt werden. Umschalten zwischen OpenAI und Mistral mit CONFIG-Parameter 'MODEL_PROVIDER'. Standardmodell für OpenAI ist 'GPT-4o-mini', für Mistral 'mistral-small'.
     NEU: Ausschlusskriterien während der Relevanzprüfung in 'KODIERREGELN' definieren (z.B. Literaturverzeichnis)
