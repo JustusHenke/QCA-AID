@@ -10028,10 +10028,10 @@ class ResultsExporter:
             if attribut1 and attribut2:
                 # FIX: Extrahiere bis zu 6 Buchstaben pro Attribut (oder alle verfügbaren)
                 import re
-                attr1_letters = re.sub(r'[^a-zA-Z]', '', attribut1)[:6]
-                attr2_letters = re.sub(r'[^a-zA-Z]', '', attribut2)[:6] 
-                attr3_letters = re.sub(r'[^a-zA-Z]', '', attribut3)[:6]
-                chunk_prefix = (attr1_letters + "_" + attr2_letters + "_"   + attr3_letters).upper()
+                attr1_letters = re.sub(r'[^a-zA-Z0-9]', '', attribut1)[:6]
+                attr2_letters = re.sub(r'[^a-zA-Z0-9]', '', attribut2)[:6]
+                attr3_letters = re.sub(r'[^a-zA-Z0-9]', '', attribut3)[:6]
+                chunk_prefix = (attr1_letters + "_" + attr2_letters + "_" + attr3_letters).upper()
             else:
                 chunk_prefix = doc_name[:5].upper()
             
