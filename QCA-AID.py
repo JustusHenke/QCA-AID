@@ -2396,26 +2396,28 @@ class IntegratedAnalysisManager:
             async def code_with_coder_and_instance(coder, instance_info):
                 """FIX: Kodiert mit einem Kodierer unter Verwendung der vollständigen CategoryDefinition-Objekte."""
                 try:
+
                     # FIX: Bei Fokuskodierung die target_category zu effective_categories hinzufügen
                     enhanced_categories = effective_categories.copy()
-                    if instance_info['target_category'] and instance_info['target_category'] not in enhanced_categories:
-                        # FIX: Fokuskategorie aus vollständigem Kategoriensystem hinzufügen
-                        target_cat = instance_info['target_category']
-                        if hasattr(self, 'current_categories') and target_cat in self.current_categories:
-                            enhanced_categories[target_cat] = self.current_categories[target_cat]
-                            print(f"    🎯 Fokuskategorie '{target_cat}' zu verfügbaren Kategorien hinzugefügt")
-                    
-                    if instance_info['target_category']:
-                        # Mehrfachkodierung mit Fokus
+                    target_cat = instance_info['target_category']
+                    if target_cat:
+                        if target_cat and target_cat not in enhanced_categories:
+                            if target_cat in categories:  
+                                enhanced_categories[target_cat] = categories[target_cat]  
+                                print(f"    🎯 Fokuskategorie '{target_cat}' zu verfügbaren Kategorien hinzugefügt")
+                            else:
+                                print(f"    ⚠️ Fokuskategorie '{target_cat}' nicht in Kategorien vorhanden")
+
+                    if target_cat:
                         coding = await coder.code_chunk_with_focus(
-                            text, enhanced_categories,  # FIX: Erweiterte Kategorien mit Fokuskategorie
-                            focus_category=instance_info['target_category'],
+                            text, enhanced_categories,
+                            focus_category=target_cat,
                             focus_context=instance_info['category_context']
                         )
                     else:
-                        # Standard-Kodierung
-                        coding = await coder.code_chunk(text, enhanced_categories)  # FIX: Verwende erweiterte Kategorien
-                    
+                        coding = await coder.code_chunk(text, enhanced_categories)
+
+
                     if coding and isinstance(coding, CodingResult):
                         main_category = coding.category
                         original_subcats = list(coding.subcategories)
@@ -2736,7 +2738,7 @@ class IntegratedAnalysisManager:
                         if instance_info['target_category']:
                             # FIX: Mehrfachkodierung mit Fokus und Kontext (mit gefilterten Kategorien)
                             combined_result = await coder.code_chunk_with_focus_and_context(
-                                text, effective_categories,  # FIX: Verwende gefilterte Kategorien
+                                text, effective_categories,  
                                 focus_category=instance_info['target_category'],
                                 focus_context=instance_info['category_context'],
                                 current_summary=updated_summary if should_update_summary else current_summary,
@@ -2747,7 +2749,7 @@ class IntegratedAnalysisManager:
                             # FIX: Standard Kontext-Kodierung (mit gefilterten Kategorien)
                             combined_result = await coder.code_chunk_with_progressive_context(
                                 text, 
-                                effective_categories,  # FIX: Verwende gefilterte Kategorien
+                                categories,  
                                 updated_summary if should_update_summary else current_summary,
                                 segment_info
                             )
@@ -4574,17 +4576,15 @@ class DeductiveCoder:
                     
                     coding_result = CodingResult(
                         category=result.get('category', 'Nicht kodiert'),
-                        subcategories=set(validated_subcats),  # FIX: Nutze validierte Subkategorien
+                        subcategories=tuple(validated_subcats),  # ✅ Tuple statt Set
                         confidence=result.get('confidence', {}),
                         justification=result.get('justification', ''),
                         paraphrase=result.get('paraphrase', ''),
                         keywords=result.get('keywords', ''),
-                        text_references=result.get('text_references', []),
-                        uncertainties=result.get('uncertainties'),
-                        manual_coding=False,
-                        coder_id=self.coder_id
+                        text_references=tuple(result.get('text_references', [])),  # ✅ Tuple
+                        uncertainties=tuple(result.get('uncertainties', [])) if result.get('uncertainties') else None
                     )
-                    
+                                        
                     return coding_result
                 else:
                     print(f"Ungültige API-Antwort von {self.coder_id}")
@@ -4833,19 +4833,17 @@ class DeductiveCoder:
         Returns:
             Optional[CodingResult]: Kodierungsergebnis mit Fokus-Kennzeichnung
         """
+        
         try:
-            # Verwende das interne Kategoriensystem wenn vorhanden, sonst das übergebene
-            current_categories = self.current_categories or categories
-            
-            if not current_categories:
+            if not categories:
                 print(f"Fehler: Kein Kategoriensystem für Kodierer {self.coder_id} verfügbar")
                 return None
 
             print(f"    🎯 Fokuskodierung für Kategorie: {focus_category} (Relevanz: {focus_context.get('relevance_score', 0):.2f})")
-            
+
             # Erstelle formatierte Kategorienübersicht mit Fokus-Hervorhebung
             categories_overview = []
-            for name, cat in current_categories.items():
+            for name, cat in categories.items():  
                 # Hebe Fokus-Kategorie hervor
                 display_name = name
                 if name == focus_category:
@@ -4971,18 +4969,15 @@ class DeductiveCoder:
             Dict: Enthält sowohl Kodierungsergebnis als auch aktualisiertes Summary
         """
         try:
-            # Verwende das interne Kategoriensystem wenn vorhanden, sonst das übergebene
-            current_categories = self.current_categories or categories
-            
-            if not current_categories:
+            if not categories:
                 print(f"Fehler: Kein Kategoriensystem für Kodierer {self.coder_id} verfügbar")
                 return None
 
-            print(f"      🎯 Fokus-Kontext-Kodierung für: {focus_category}")
-            
+            print(f"    🎯 Fokuskodierung für Kategorie: {focus_category} (Relevanz: {focus_context.get('relevance_score', 0):.2f})")
+
             # Erstelle formatierte Kategorienübersicht mit Fokus-Hervorhebung
             categories_overview = []
-            for name, cat in current_categories.items():
+            for name, cat in categories.items():  
                 # Hebe Fokus-Kategorie hervor
                 display_name = name
                 if name == focus_category:
