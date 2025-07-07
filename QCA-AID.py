@@ -2396,36 +2396,43 @@ class IntegratedAnalysisManager:
             async def code_with_coder_and_instance(coder, instance_info):
                 """FIX: Kodiert mit einem Kodierer unter Verwendung der vollständigen CategoryDefinition-Objekte."""
                 try:
+                    # FIX: Bei Fokuskodierung die target_category zu effective_categories hinzufügen
+                    enhanced_categories = effective_categories.copy()
+                    if instance_info['target_category'] and instance_info['target_category'] not in enhanced_categories:
+                        # FIX: Fokuskategorie aus vollständigem Kategoriensystem hinzufügen
+                        target_cat = instance_info['target_category']
+                        if hasattr(self, 'current_categories') and target_cat in self.current_categories:
+                            enhanced_categories[target_cat] = self.current_categories[target_cat]
+                            print(f"    🎯 Fokuskategorie '{target_cat}' zu verfügbaren Kategorien hinzugefügt")
+                    
                     if instance_info['target_category']:
                         # Mehrfachkodierung mit Fokus
-                        # FIX: effective_categories enthält jetzt vollständige CategoryDefinition-Objekte
                         coding = await coder.code_chunk_with_focus(
-                            text, effective_categories,  # FIX: Vollständige CategoryDefinition-Objekte
+                            text, enhanced_categories,  # FIX: Erweiterte Kategorien mit Fokuskategorie
                             focus_category=instance_info['target_category'],
                             focus_context=instance_info['category_context']
                         )
                     else:
                         # Standard-Kodierung
-                        # FIX: effective_categories enthält jetzt vollständige CategoryDefinition-Objekte
-                        coding = await coder.code_chunk(text, effective_categories)  # FIX: Vollständige CategoryDefinition-Objekte
+                        coding = await coder.code_chunk(text, enhanced_categories)  # FIX: Verwende erweiterte Kategorien
                     
                     if coding and isinstance(coding, CodingResult):
                         main_category = coding.category
                         original_subcats = list(coding.subcategories)
                         
-                        # FIX: Verwende effective_categories für Validierung (sie haben jetzt vollständige Definitionen)
+                        # FIX: Verwende enhanced_categories für Validierung
                         validated_subcats = original_subcats  # Fallback
                         validation_source = "keine"
                         
-                        # FIX: Verwende effective_categories direkt (sie haben jetzt Subkategorie-Definitionen)
-                        if main_category in effective_categories and hasattr(effective_categories[main_category], 'subcategories'):
+                        # 1. Priorität: enhanced_categories (gefilterte + Fokuskategorien)
+                        if main_category in enhanced_categories and hasattr(enhanced_categories[main_category], 'subcategories'):
                             try:
                                 validated_subcats = CategoryValidator.validate_subcategories_for_category(
-                                    original_subcats, main_category, effective_categories, warn_only=False
+                                    original_subcats, main_category, enhanced_categories, warn_only=False
                                 )
-                                validation_source = "effective_categories"
+                                validation_source = "enhanced_categories"
                             except Exception as e:
-                                print(f"    ❌ Validierung mit effective_categories fehlgeschlagen: {str(e)}")
+                                print(f"    ❌ Validierung mit enhanced_categories fehlgeschlagen: {str(e)}")
                                 # FIX: Fallback zu self.current_categories
                                 if hasattr(self, 'current_categories') and main_category in self.current_categories:
                                     try:
@@ -2436,24 +2443,23 @@ class IntegratedAnalysisManager:
                                     except Exception as e2:
                                         print(f"    ❌ Auch Fallback-Validierung fehlgeschlagen: {str(e2)}")
                         else:
-                            # FIX: Erkenne das ursprüngliche Problem genauer
-                            if main_category not in effective_categories:
-                                print(f"    ⚠️ Kategorie '{main_category}' nicht in effective_categories - mögliches Filterungsproblem")
-                                print(f"    🎯 Effective Categories: {list(effective_categories.keys())}")
-                            elif not hasattr(effective_categories[main_category], 'subcategories'):
-                                print(f"    ⚠️ KRITISCH: Kein categories_dict verfügbar für Validierung!")
-                                print(f"    ⚠️ effective_categories['{main_category}'] hat keine Subkategorie-Definitionen!")
+                            # FIX: Informative Meldung bei nicht verfügbaren Kategorien
+                            if main_category not in enhanced_categories:
+                                print(f"    ℹ️ Kategorie '{main_category}' nicht in verfügbaren Kategorien")
+                                print(f"    🎯 Verfügbare Kategorien: {list(enhanced_categories.keys())}")
+                            elif not hasattr(enhanced_categories[main_category], 'subcategories'):
+                                print(f"    ℹ️ Keine Subkategorie-Definitionen verfügbar für '{main_category}'")
                         
                         # FIX: Debug-Ausgabe nur bei wichtigen Ereignissen
                         if len(original_subcats) != len(validated_subcats):
                             removed = set(original_subcats) - set(validated_subcats)
-                            print(f"    ⚠️ Subkategorien bereinigt: {len(original_subcats)} → {len(validated_subcats)}")
+                            print(f"    🔧 Subkategorien bereinigt: {len(original_subcats)} → {len(validated_subcats)}")
                             if removed:
                                 print(f"    🔧 Entfernt: {list(removed)} (Quelle: {validation_source})")
                         elif validation_source != "keine" and original_subcats:
                             print(f"    ✅ Alle {len(original_subcats)} Subkategorien gültig (Quelle: {validation_source})")
                         elif validation_source == "keine" and original_subcats:
-                            print(f"    ⚠️ Keine Subkategorien-Validierung möglich für '{main_category}' (Quelle: {validation_source})")
+                            print(f"    ℹ️ Subkategorien-Validierung übersprungen für '{main_category}' (Quelle: {validation_source})")
                         
                         return {
                             'segment_id': segment_id,
@@ -2469,16 +2475,18 @@ class IntegratedAnalysisManager:
                             'total_coding_instances': instance_info['total_instances'],
                             'target_category': instance_info['target_category'],
                             'category_focus_used': bool(instance_info['target_category']),
-                            # FIX: Verbesserte Debug-Informationen
+                            # FIX: Verbesserte Debug-Informationen für enhanced_categories
                             'category_preselection_used': bool(preferred_cats),
                             'preferred_categories': preferred_cats,
                             'effective_categories_count': len(effective_categories),
+                            'enhanced_categories_count': len(enhanced_categories),  # FIX: Neue Info
                             'preselection_reasoning': preselection.get('reasoning', ''),
                             'subcategories_validated': len(original_subcats) != len(validated_subcats),
                             'validation_source': validation_source,
                             'validation_successful': validation_source != "keine",
-                            'category_in_effective': main_category in effective_categories,
-                            'effective_has_subcategories': main_category in effective_categories and hasattr(effective_categories[main_category], 'subcategories')  # FIX: Neue Debug-Info
+                            'category_in_enhanced': main_category in enhanced_categories,  # FIX: Verwende enhanced_categories
+                            'enhanced_has_subcategories': main_category in enhanced_categories and hasattr(enhanced_categories[main_category], 'subcategories'),  # FIX: Neue Debug-Info
+                            'focus_category_added': instance_info['target_category'] and instance_info['target_category'] not in effective_categories  # FIX: Neue Info
                         }
                         
                     else:
@@ -2487,7 +2495,7 @@ class IntegratedAnalysisManager:
                 except Exception as e:
                     print(f"    ⚠️ Kodierungsfehler {coder.coder_id}: {str(e)}")
                     return None
-            
+                
             # Erstelle Tasks für alle Kodierer × alle Instanzen
             coding_tasks = []
             for instance_info in coding_instances:
