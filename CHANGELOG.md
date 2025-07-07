@@ -2,6 +2,15 @@
 
 ## Versionen und Updates
 
+### Neu in 0.9.18 (2025-07-07)
+
+KATEGORIE-KONSISTENZ: Deduktiver Modus mit Hauptkategorie-Vorauswahl (1-3 wahrscheinlichste), 40-60% weniger Token, keine inkompatiblen Subkategorie-Zuordnungen
+SUBKATEGORIE-VALIDIERUNG: Strikte Konsistenzprüfung mit automatischer Entfernung fremder Subkategorien, zweistufige Validierung, detailliertes Tracking
+PERFORMANCE-OPTIMIERUNG: Fokussierte AI-Kodierung nur mit relevanten Kategorien, verbesserte Qualität durch kategorie-spezifischen Fokus, kompatibel mit allen Features
+PYMUPDF-FIX: fitz.open() durch fitz.Document() ersetzt, robuste Fehlerbehandlung für PDF-Laden/-Speichern
+CONFIDENCE-SCALES: Zentrale Klasse mit 5 spezialisierten Skalen (0.6+ definitiv, 0.8+ eindeutig), einheitliche textbelegte Konfidenz-Bewertungen in allen Prompts
+EXPORT-FIX: Begründungen bei Nichtkodierung werden nun korrekt exportiert
+
 ### Neu in 0.9.17 (2025-06-22)
 - Input dateien können jetzt als annotierte Version exportiert werden
 - PDF werden direkt annotiert, TXT und DOCX werden in PDF umgewandelt und annotiert. 
