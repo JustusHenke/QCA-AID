@@ -2287,21 +2287,29 @@ class IntegratedAnalysisManager:
             preferred_cats = preselection.get('preferred_categories', [])
             
             if preferred_cats:
-                # FIX: Verwende nur vorausgewählte Kategorien
+                # FIX: Verwende vollständige CategoryDefinition-Objekte aus categories
                 effective_categories = {
                     name: cat for name, cat in categories.items() 
-                    if name in preferred_cats
+                    if name in preferred_cats and isinstance(cat, CategoryDefinition)  # FIX: Validiere CategoryDefinition
                 }
-                print(f"    🎯 Segment {segment_id}: Fokus auf {len(effective_categories)} Kategorien: {', '.join(preferred_cats)}")
                 
-                # FIX: Debug-Ausgabe der Scores
-                relevance_scores = preselection.get('relevance_scores', {})
-                score_info = ", ".join([f"{cat}:{score:.2f}" for cat, score in relevance_scores.items() if cat in preferred_cats])
-                print(f"    📊 Relevanz-Scores: {score_info}")
+                if not effective_categories:
+                    print(f"    ⚠️ Keine gültigen CategoryDefinition-Objekte in preferred_cats - verwende alle Kategorien")
+                    effective_categories = categories
+                else:
+                    print(f"    🎯 Segment {segment_id}: Fokus auf {len(effective_categories)} Kategorien: {', '.join(preferred_cats)}")
+                    
+                    # FIX: Validiere, dass effective_categories vollständige Definitionen hat
+                    for name, cat in effective_categories.items():
+                        if not hasattr(cat, 'subcategories'):
+                            print(f"    ⚠️ KRITISCH: effective_categories['{name}'] fehlen Subkategorien - hole aus categories")
+                            if name in categories:
+                                effective_categories[name] = categories[name]
             else:
                 # FIX: Fallback auf alle Kategorien wenn keine Vorauswahl
                 effective_categories = categories
                 print(f"    📝 Segment {segment_id}: Standard-Kodierung mit allen {len(categories)} Kategorien")
+            
             
             is_coding_relevant = coding_relevance_results.get(segment_id, True)  # Default: True
 
@@ -2386,63 +2394,62 @@ class IntegratedAnalysisManager:
             
             # 🚀 PARALLEL: Alle Kodierer für alle Instanzen
             async def code_with_coder_and_instance(coder, instance_info):
-                """FIX: Kodiert mit einem Kodierer unter Verwendung der gefilterten Kategorien."""
+                """FIX: Kodiert mit einem Kodierer unter Verwendung der vollständigen CategoryDefinition-Objekte."""
                 try:
                     if instance_info['target_category']:
                         # Mehrfachkodierung mit Fokus
-                        # FIX: Verwende effective_categories statt categories
+                        # FIX: effective_categories enthält jetzt vollständige CategoryDefinition-Objekte
                         coding = await coder.code_chunk_with_focus(
-                            text, effective_categories,  # FIX: Gefilterte Kategorien
+                            text, effective_categories,  # FIX: Vollständige CategoryDefinition-Objekte
                             focus_category=instance_info['target_category'],
                             focus_context=instance_info['category_context']
                         )
                     else:
                         # Standard-Kodierung
-                        # FIX: Verwende effective_categories statt categories
-                        coding = await coder.code_chunk(text, effective_categories)  # FIX: Gefilterte Kategorien
+                        # FIX: effective_categories enthält jetzt vollständige CategoryDefinition-Objekte
+                        coding = await coder.code_chunk(text, effective_categories)  # FIX: Vollständige CategoryDefinition-Objekte
                     
                     if coding and isinstance(coding, CodingResult):
                         main_category = coding.category
                         original_subcats = list(coding.subcategories)
                         
-                        # FIX: Wähle die beste verfügbare Kategorie-Quelle für Validierung
+                        # FIX: Verwende effective_categories für Validierung (sie haben jetzt vollständige Definitionen)
                         validated_subcats = original_subcats  # Fallback
                         validation_source = "keine"
                         
-                        # 1. Priorität: effective_categories (gefilterte Kategorien für dieses Segment)
-                        if main_category in effective_categories:
-                            # Aber effective_categories hat keine Subkategorie-Definitionen!
-                            # Hole vollständige Definition aus verfügbaren Quellen
-                            
-                            # Versuche self.current_categories (IntegratedAnalysisManager)
-                            if hasattr(self, 'current_categories') and self.current_categories and main_category in self.current_categories:
-                                try:
-                                    validated_subcats = CategoryValidator.validate_subcategories_for_category(
-                                        original_subcats, main_category, self.current_categories, warn_only=False
-                                    )
-                                    validation_source = "self.current_categories"
-                                except Exception as e:
-                                    print(f"    ❌ Validierung mit self.current_categories fehlgeschlagen: {str(e)}")
-                            
-                            # Fallback: Versuche coder.current_categories
-                            elif hasattr(coder, 'current_categories') and coder.current_categories and main_category in coder.current_categories:
-                                try:
-                                    validated_subcats = CategoryValidator.validate_subcategories_for_category(
-                                        original_subcats, main_category, coder.current_categories, warn_only=False
-                                    )
-                                    validation_source = "coder.current_categories"
-                                except Exception as e:
-                                    print(f"    ❌ Validierung mit coder.current_categories fehlgeschlagen: {str(e)}")
-                        
-                        # 2. Falls Kategorie nicht in effective_categories: Möglicherweise Problem bei Filterung
+                        # FIX: Verwende effective_categories direkt (sie haben jetzt Subkategorie-Definitionen)
+                        if main_category in effective_categories and hasattr(effective_categories[main_category], 'subcategories'):
+                            try:
+                                validated_subcats = CategoryValidator.validate_subcategories_for_category(
+                                    original_subcats, main_category, effective_categories, warn_only=False
+                                )
+                                validation_source = "effective_categories"
+                            except Exception as e:
+                                print(f"    ❌ Validierung mit effective_categories fehlgeschlagen: {str(e)}")
+                                # FIX: Fallback zu self.current_categories
+                                if hasattr(self, 'current_categories') and main_category in self.current_categories:
+                                    try:
+                                        validated_subcats = CategoryValidator.validate_subcategories_for_category(
+                                            original_subcats, main_category, self.current_categories, warn_only=False
+                                        )
+                                        validation_source = "self.current_categories_fallback"
+                                    except Exception as e2:
+                                        print(f"    ❌ Auch Fallback-Validierung fehlgeschlagen: {str(e2)}")
                         else:
-                            print(f"    ⚠️ Kategorie '{main_category}' nicht in effective_categories - mögliches Filterungsproblem")
-                            print(f"    🎯 Effective Categories: {list(effective_categories.keys())}")
+                            # FIX: Erkenne das ursprüngliche Problem genauer
+                            if main_category not in effective_categories:
+                                print(f"    ⚠️ Kategorie '{main_category}' nicht in effective_categories - mögliches Filterungsproblem")
+                                print(f"    🎯 Effective Categories: {list(effective_categories.keys())}")
+                            elif not hasattr(effective_categories[main_category], 'subcategories'):
+                                print(f"    ⚠️ KRITISCH: Kein categories_dict verfügbar für Validierung!")
+                                print(f"    ⚠️ effective_categories['{main_category}'] hat keine Subkategorie-Definitionen!")
                         
                         # FIX: Debug-Ausgabe nur bei wichtigen Ereignissen
                         if len(original_subcats) != len(validated_subcats):
                             removed = set(original_subcats) - set(validated_subcats)
-                            print(f"    🔧 Subkategorien validiert mit {validation_source}, entfernt: {removed}")
+                            print(f"    ⚠️ Subkategorien bereinigt: {len(original_subcats)} → {len(validated_subcats)}")
+                            if removed:
+                                print(f"    🔧 Entfernt: {list(removed)} (Quelle: {validation_source})")
                         elif validation_source != "keine" and original_subcats:
                             print(f"    ✅ Alle {len(original_subcats)} Subkategorien gültig (Quelle: {validation_source})")
                         elif validation_source == "keine" and original_subcats:
@@ -2469,8 +2476,9 @@ class IntegratedAnalysisManager:
                             'preselection_reasoning': preselection.get('reasoning', ''),
                             'subcategories_validated': len(original_subcats) != len(validated_subcats),
                             'validation_source': validation_source,
-                            'validation_successful': validation_source not in ["keine"],
-                            'category_in_effective': main_category in effective_categories  # FIX: Debug-Info
+                            'validation_successful': validation_source != "keine",
+                            'category_in_effective': main_category in effective_categories,
+                            'effective_has_subcategories': main_category in effective_categories and hasattr(effective_categories[main_category], 'subcategories')  # FIX: Neue Debug-Info
                         }
                         
                     else:
