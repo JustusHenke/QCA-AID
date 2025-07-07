@@ -9,7 +9,194 @@ Author: Justus Henke
 """
 
 from typing import Dict, List
+from typing import Any
 import json
+
+
+from dataclasses import dataclass
+
+@dataclass
+class CategoryDefinition:
+    """Datenklasse für eine Kategorie im Kodiersystem"""
+    name: str
+    definition: str
+    examples: List[str]
+    rules: List[str]
+    subcategories: Dict[str, str]
+    added_date: str
+    modified_date: str
+
+class ConfidenceScales:
+    """
+    Zentrale Definitionen für alle Konfidenz-Skalen in QCA-AID Prompts
+    Sorgt für einheitliche und nachvollziehbare Score-Vergabe
+    """
+    
+    # Standard 0.0-1.0 Skala für allgemeine Verwendung
+    STANDARD_SCALE = {
+        "sehr_hoch": "0.9-1.0 = Sehr hohe Konfidenz (eindeutig, ohne Zweifel)",
+        "hoch": "0.7-0.9 = Hohe Konfidenz (klar erkennbar, minimale Unsicherheit)", 
+        "mittel": "0.5-0.7 = Mittlere Konfidenz (wahrscheinlich, aber mit Vorbehalten)",
+        "niedrig": "0.3-0.5 = Niedrige Konfidenz (unsicher, schwer einschätzbar)",
+        "sehr_niedrig": "0.0-0.3 = Sehr niedrige Konfidenz (sehr unsicher, eher nicht)"
+    }
+    
+    # Spezielle Skala für Kategorie-Relevanz (wie im Relevance-Prompt)
+    CATEGORY_RELEVANCE_SCALE = {
+        "definitiv": "0.6+ = Definitiv relevant für diese Kategorie",
+        "moeglich": "0.4-0.6 = Möglicherweise relevant", 
+        "unwahrscheinlich": "<0.4 = Wahrscheinlich nicht relevant"
+    }
+    
+    # Skala für Kodierungs-Konfidenz (präziser als Standard)
+    CODING_CONFIDENCE_SCALE = {
+        "eindeutig": "0.8-1.0 = Eindeutige Zuordnung (klare Textbelege, keine Zweifel)",
+        "klar": "0.6-0.8 = Klare Zuordnung (gute Textbelege, minimale Unsicherheit)",
+        "wahrscheinlich": "0.4-0.6 = Wahrscheinliche Zuordnung (schwächere Belege, moderate Unsicherheit)",
+        "unsicher": "0.2-0.4 = Unsichere Zuordnung (wenige Belege, hohe Unsicherheit)",
+        "sehr_unsicher": "0.0-0.2 = Sehr unsichere Zuordnung (kaum Belege, maximale Unsicherheit)"
+    }
+    
+    # Skala für Subkategorie-Konfidenz
+    SUBCATEGORY_CONFIDENCE_SCALE = {
+        "perfekt": "0.9-1.0 = Perfekte Passung (Subkategorie trifft exakt zu)",
+        "gut": "0.7-0.9 = Gute Passung (Subkategorie passt gut zum Text)",
+        "akzeptabel": "0.5-0.7 = Akzeptable Passung (Subkategorie ist angemessen)",
+        "schwach": "0.3-0.5 = Schwache Passung (Subkategorie nur teilweise zutreffend)",
+        "unpassend": "0.0-0.3 = Unpassende Subkategorie (Subkategorie trifft nicht zu)"
+    }
+    
+    # Skala für induktive Kategorien-Entwicklung
+    INDUCTIVE_CONFIDENCE_SCALE = {
+        "stark": "0.8-1.0 = Starke Kategorie (deutliches Muster, mehrere Belege)",
+        "solide": "0.6-0.8 = Solide Kategorie (erkennbares Muster, ausreichende Belege)",
+        "schwach": "0.4-0.6 = Schwache Kategorie (unsicheres Muster, wenige Belege)", 
+        "ungeeignet": "0.0-0.4 = Ungeeignete Kategorie (kein klares Muster)"
+    }
+    
+    @staticmethod
+    def get_scale_instructions(scale_type: str = "standard") -> str:
+        """
+        Gibt formatierte Skalen-Anweisungen für Prompts zurück
+        
+        Args:
+            scale_type: Typ der Skala ('standard', 'category_relevance', 'coding', 'subcategory', 'inductive')
+            
+        Returns:
+            str: Formatierte Skalen-Anweisungen
+        """
+        scales = {
+            "standard": ConfidenceScales.STANDARD_SCALE,
+            "category_relevance": ConfidenceScales.CATEGORY_RELEVANCE_SCALE, 
+            "coding": ConfidenceScales.CODING_CONFIDENCE_SCALE,
+            "subcategory": ConfidenceScales.SUBCATEGORY_CONFIDENCE_SCALE,
+            "inductive": ConfidenceScales.INDUCTIVE_CONFIDENCE_SCALE
+        }
+        
+        if scale_type not in scales:
+            scale_type = "standard"
+        
+        scale = scales[scale_type]
+        
+        lines = ["KONFIDENZ-SKALA:"]
+        for key, description in scale.items():
+            lines.append(f"- {description}")
+        
+        return "\n".join(lines)
+    
+    @staticmethod  
+    def get_confidence_guidelines(scale_type: str = "standard", 
+                                context: str = "allgemein") -> str:
+        """
+        Gibt kontextspezifische Konfidenz-Richtlinien zurück
+        
+        Args:
+            scale_type: Typ der Skala
+            context: Kontext der Anwendung (z.B. "kodierung", "relevanz", "kategorien")
+            
+        Returns:
+            str: Kontextspezifische Richtlinien
+        """
+        scale_instructions = ConfidenceScales.get_scale_instructions(scale_type)
+        
+        context_guidelines = {
+            "kodierung": [
+                "Begründe Konfidenz-Scores mit konkreten Textstellen",
+                "Hohe Scores nur bei eindeutigen sprachlichen Indikatoren",
+                "Bei Ambiguität: niedrigere Scores vergeben"
+            ],
+            "relevanz": [
+                "Sei konservativ aber nicht zu restriktiv", 
+                "Lieber mehrere Kategorien mit mittleren Scores als eine mit hohem Score",
+                "Bei Unsicherheit zwischen Kategorien: beide einschließen"
+            ],
+            "kategorien": [
+                "Neue Kategorien brauchen starke Belege für hohe Scores",
+                "Bestehende Kategorien: Scores basierend auf Passung",
+                "Subkategorien: Scores relativ zur Hauptkategorie"
+            ],
+            "allgemein": [
+                "Scores immer mit Begründung versehen",
+                "Konsistenz über alle Bewertungen hinweg beachten",
+                "Ehrlich bei Unsicherheit - niedrige Scores sind okay"
+            ]
+        }
+        
+        guidelines = context_guidelines.get(context, context_guidelines["allgemein"])
+        
+        result = [scale_instructions, "", "RICHTLINIEN FÜR SCORE-VERGABE:"]
+        for guideline in guidelines:
+            result.append(f"- {guideline}")
+        
+        return "\n".join(result)
+    
+    @staticmethod
+    def validate_confidence_score(score: float, scale_type: str = "standard") -> tuple:
+        """
+        Validiert einen Konfidenz-Score und gibt Feedback
+        
+        Args:
+            score: Zu validierender Score (0.0-1.0)
+            scale_type: Typ der verwendeten Skala
+            
+        Returns:
+            tuple: (is_valid: bool, feedback: str, category: str)
+        """
+        if not (0.0 <= score <= 1.0):
+            return False, f"Score {score} liegt außerhalb des gültigen Bereichs 0.0-1.0", "invalid"
+        
+        # Bestimme Kategorie basierend auf Score und Skala
+        if scale_type == "category_relevance":
+            if score >= 0.6:
+                return True, "Definitiv relevant", "definitiv"
+            elif score >= 0.4:
+                return True, "Möglicherweise relevant", "moeglich"
+            else:
+                return True, "Wahrscheinlich nicht relevant", "unwahrscheinlich"
+                
+        elif scale_type == "coding":
+            if score >= 0.8:
+                return True, "Eindeutige Zuordnung", "eindeutig"
+            elif score >= 0.6:
+                return True, "Klare Zuordnung", "klar"
+            elif score >= 0.4:
+                return True, "Wahrscheinliche Zuordnung", "wahrscheinlich"
+            elif score >= 0.2:
+                return True, "Unsichere Zuordnung", "unsicher"
+            else:
+                return True, "Sehr unsichere Zuordnung", "sehr_unsicher"
+                
+        else:  # standard scale
+            if score >= 0.9:
+                return True, "Sehr hohe Konfidenz", "sehr_hoch"
+            elif score >= 0.7:
+                return True, "Hohe Konfidenz", "hoch"
+            elif score >= 0.5:
+                return True, "Mittlere Konfidenz", "mittel"
+            elif score >= 0.3:
+                return True, "Niedrige Konfidenz", "niedrig"
+            else:
+                return True, "Sehr niedrige Konfidenz", "sehr_niedrig"
 
 class QCAPrompts:
     """Zentrale Klasse für alle QCA-AID Prompts"""
@@ -28,6 +215,13 @@ class QCAPrompts:
         """
         Prompt für deduktive Kodierung von Text-Chunks mit Subkategorie-Validierung.
         """
+        # FIX: Verwende spezialisierte Coding-Konfidenz-Skala
+        confidence_guidelines = ConfidenceScales.get_confidence_guidelines(
+            scale_type="coding", 
+            context="kodierung"
+        )
+        
+
         return f"""
             Analysiere folgenden Text im Kontext der Forschungsfrage:
             "{self.FORSCHUNGSFRAGE}"
@@ -40,6 +234,8 @@ class QCAPrompts:
 
             ## KODIERREGELN:
             {json.dumps(self.KODIERREGELN, indent=2, ensure_ascii=False)}
+
+            {confidence_guidelines}
 
             ## WICHTIG - KATEGORIEN- UND SUBKATEGORIEN-ZUORDNUNG:
             
@@ -93,10 +289,18 @@ class QCAPrompts:
     def get_relevance_check_prompt(self, segments_text: str, exclusion_rules: List[str]) -> str:
         """Prompt für Batch-Relevanzprüfung"""
         # Platzhalter - vollständiger Prompt für Relevanzprüfung mit Ausschlussregeln
+        # FIX: Verwende spezialisierte Relevanz-Konfidenz-Skala
+        confidence_guidelines = ConfidenceScales.get_confidence_guidelines(
+            scale_type="relevance", 
+            context="relevanz"
+        )
+        
         return f"""
             Analysiere die Relevanz der folgenden Textsegmente für die Forschungsfrage:
             "{self.FORSCHUNGSFRAGE}"
             
+            {confidence_guidelines}
+
             PRÜFUNGSREIHENFOLGE - Analysiere jedes Segment in dieser Reihenfolge:
 
             1. THEMATISCHE VORPRÜFUNG:
@@ -109,7 +313,7 @@ class QCAPrompts:
             - Falls JA: Weiter mit detaillierter Prüfung
 
             2. AUSSCHLUSSKRITERIEN:
-            {exclusion_rules}
+            {chr(10).join(f"- {rule}" for rule in exclusion_rules)}
 
             3. TEXTSORTENSPEZIFISCHE PRÜFUNG:
 
@@ -176,8 +380,100 @@ class QCAPrompts:
             - Sei streng bei der thematischen Vorprüfung
             """
 
+    # FIX: Neue Prompt-Methode für Kategorie-Vorauswahl hinzufügen
+    def get_relevance_with_category_preselection_prompt(self, segments_text: str, 
+                                                       categories: Dict[str, Any]) -> str:
+        """
+        Prompt für Relevanzprüfung mit Hauptkategorie-Vorauswahl
+        
+        Args:
+            segments_text: Formatierte Textsegmente für Batch-Verarbeitung
+            categories: Dictionary mit CategoryDefinition-Objekten
+            
+        Returns:
+            str: Formatierter Prompt für die AI
+        """
+        # FIX: Sichere Extraktion der Kategorie-Beschreibungen
+        category_descriptions = {}
+        for name, cat_def in categories.items():
+            # FIX: Prüfe ob cat_def ein CategoryDefinition-Objekt ist
+            if hasattr(cat_def, 'definition') and hasattr(cat_def, 'subcategories'):
+                category_descriptions[name] = {
+                    'definition': cat_def.definition,
+                    'subcategories': list(cat_def.subcategories.keys()) if cat_def.subcategories else []
+                }
+            else:
+                # FIX: Fallback für andere Datenstrukturen
+                category_descriptions[name] = {
+                    'definition': str(cat_def.get('definition', 'Keine Definition verfügbar')),
+                    'subcategories': []
+                }
+
+        # FIX: Verwende einheitliche Konfidenz-Skala
+        confidence_guidelines = ConfidenceScales.get_confidence_guidelines(
+            scale_type="category_relevance", 
+            context="relevanz"
+        )
+
+        return f"""
+        AUFGABE: Analysiere jedes Textsegment in zwei Stufen für die Forschungsfrage:
+        "{self.FORSCHUNGSFRAGE}"
+        
+        HAUPTKATEGORIEN:
+        {json.dumps(category_descriptions, indent=2, ensure_ascii=False)}
+        
+        TEXTSEGMENTE:
+        {segments_text}
+
+        {confidence_guidelines}
+        
+        ANALYSIERE JEDES SEGMENT:
+        
+        1. ALLGEMEINE RELEVANZ:
+        - Ist das Segment für die Forschungsfrage relevant? (ja/nein)
+        
+        2. KATEGORIE-PRÄFERENZ (nur falls relevant):
+        - Bewerte JEDE Hauptkategorie: Wie wahrscheinlich passt das Segment zu dieser Kategorie? (0.0-1.0)
+        - Identifiziere 1-3 wahrscheinlichste Kategorien (Score ≥ 0.6)
+        - Begründe kurz die Kategorie-Einschätzungen
+        
+        WICHTIG FÜR KATEGORIE-VORAUSWAHL:
+        - Sei konservativ aber nicht zu restriktiv
+        - Lieber 2-3 Kategorien vorschlagen als nur eine, wenn mehrere plausibel sind
+        - Score 0.6+ bedeutet "definitiv relevant für diese Kategorie"
+        - Score 0.4-0.6 bedeutet "möglicherweise relevant"  
+        - Score <0.4 bedeutet "wahrscheinlich nicht relevant"
+        - Bei Unsicherheit zwischen zwei Kategorien: beide einschließen
+        
+        QUALITÄTSKONTROLLE:
+        - Jedes relevante Segment MUSS mindestens eine Kategorie ≥ 0.6 haben
+        - Preferred_categories enthält nur Kategorien mit Score ≥ 0.6
+        - Reasoning muss konkrete Textbezüge enthalten
+        
+        Antworte ausschließlich mit JSON:
+        {{
+            "segment_results": [
+                {{
+                    "segment_number": 1,
+                    "is_relevant": true/false,
+                    "relevance_scores": {{"Kategorie1": 0.8, "Kategorie2": 0.3, ...}},
+                    "preferred_categories": ["Kategorie1", "Kategorie2"],
+                    "reasoning": "Konkrete Begründung mit Textbezug für Kategorie-Einschätzung"
+                }}
+            ]
+        }}
+        """
+
+    
+
     def get_multiple_category_relevance_prompt(self, segments_text: str, category_descriptions: List[Dict], multiple_threshold: float) -> str:
         """Prompt für Mehrfachkodierungs-Relevanzprüfung"""
+        # FIX: Verwende spezialisierte Relevanz-Konfidenz-Skala
+        confidence_guidelines = ConfidenceScales.get_confidence_guidelines(
+            scale_type="relevance", 
+            context="relevanz"
+        )
+        
         return f"""
             Analysiere die folgenden Textsegmente auf Mehrfachkodierung für verschiedene Hauptkategorien.
             
@@ -185,6 +481,8 @@ class QCAPrompts:
             
             HAUPTKATEGORIEN:
             {json.dumps(category_descriptions, indent=2, ensure_ascii=False)}
+
+            {confidence_guidelines}
             
             AUFGABE - MEHRFACHKODIERUNGS-ANALYSE:
             Prüfe für jedes Segment, ob es für MEHRERE Hauptkategorien gleichzeitig relevant ist.
@@ -227,10 +525,18 @@ class QCAPrompts:
 
     def get_focus_coding_prompt(self, chunk: str, categories_overview: List[Dict], focus_category: str, focus_context: Dict) -> str:
         """Prompt für fokussierte Kodierung mit strenger Subkategorie-Validierung"""
+        # FIX: Verwende spezialisierte Subkategorie-Konfidenz-Skala
+        confidence_guidelines = ConfidenceScales.get_confidence_guidelines(
+            scale_type="subcategory", 
+            context="subkategorie"
+        )
+        
         return f"""
             MEHRFACHKODIERUNGS-FOKUS auf: "{focus_category}"
             
             Forschungsfrage: "{self.FORSCHUNGSFRAGE}"
+
+            {confidence_guidelines}
             
             ## TEXT:
             {chunk}
@@ -291,6 +597,13 @@ class QCAPrompts:
     
     def get_progressive_context_prompt(self, chunk: str, categories_overview: List[Dict], current_summary: str, position_info: Dict, summary_update_prompt: str) -> str:
         """Prompt für progressive Kontext-Kodierung"""
+
+        # FIX: Verwende spezialisierte Coding-Konfidenz-Skala
+        confidence_guidelines = ConfidenceScales.get_confidence_guidelines(
+            scale_type="coding", 
+            context="kodierung"
+        )
+
         return f"""
             ## AUFGABE 1: KODIERUNG
             Analysiere folgenden Text im Kontext der Forschungsfrage:
@@ -309,6 +622,8 @@ class QCAPrompts:
 
             ### KODIERREGELN:
             {json.dumps(self.KODIERREGELN, indent=2, ensure_ascii=False)}
+
+            {confidence_guidelines}
 
             ### WICHTIG - PROGRESSIVE KONTEXTANALYSE UND GENAUE KATEGORIENZUORDNUNG: 
             
@@ -388,6 +703,13 @@ class QCAPrompts:
 
     def get_focus_context_coding_prompt(self, chunk: str, categories_overview: List[Dict], focus_category: str, focus_context: Dict, current_summary: str, position_info: Dict, summary_update_prompt: str, update_summary: bool = False) -> str:
         """Prompt für fokussierte Kodierung mit Kontext"""
+
+        # FIX: Verwende spezialisierte Coding-Konfidenz-Skala
+        confidence_guidelines = ConfidenceScales.get_confidence_guidelines(
+            scale_type="coding", 
+            context="kodierung"
+        )
+        
         return f"""
             ## AUFGABE 1: FOKUSSIERTE KODIERUNG MIT KONTEXT
             
@@ -415,6 +737,8 @@ class QCAPrompts:
 
             ### KODIERREGELN:
             {json.dumps(self.KODIERREGELN, indent=2, ensure_ascii=False)}
+
+            {confidence_guidelines}
 
             ### WICHTIG - FOKUSSIERTE MEHRFACHKODIERUNG MIT KONTEXT: 
             
@@ -495,6 +819,13 @@ class QCAPrompts:
 
     def get_grounded_analysis_prompt(self, segments: List[str], existing_subcodes: List[str], json_schema: str) -> str:
         """Prompt für Grounded Theory Analyse"""
+
+        # FIX: Verwende spezialisierte Coding-Konfidenz-Skala
+        confidence_guidelines = ConfidenceScales.get_confidence_guidelines(
+            scale_type="coding", 
+            context="kodierung"
+        )
+
         return f"""
             Analysiere folgende Textsegmente im Sinne der Grounded Theory.
             Identifiziere Subcodes und Keywords, ohne sie bereits Hauptkategorien zuzuordnen.
@@ -507,6 +838,8 @@ class QCAPrompts:
             
             TEXTSEGMENTE:
             {json.dumps(segments, indent=2, ensure_ascii=False)}
+
+            {confidence_guidelines}
             
             ANWEISUNGEN FÜR DEN GROUNDED THEORY MODUS:
             
@@ -559,6 +892,12 @@ class QCAPrompts:
         Returns:
             str: Formatierter Prompt für die Hauptkategorien-Generierung
         """
+        # FIX: Verwende spezialisierte Coding-Konfidenz-Skala
+        confidence_guidelines = ConfidenceScales.get_confidence_guidelines(
+            scale_type="coding", 
+            context="kodierung"
+        )
+        
         # Erstelle formatierten Subcode-Text
         subcodes_text = ""
         for i, subcode in enumerate(subcodes_data, 1):
@@ -579,6 +918,8 @@ class QCAPrompts:
         
         Du erhältst {len(subcodes_data)} Subcodes mit ihren Keywords, die während einer Grounded Theory Analyse gesammelt wurden. 
         Deine Aufgabe ist es, diese zu thematisch kohärenten Hauptkategorien zu gruppieren.
+
+        {confidence_guidelines}
         
         FORSCHUNGSFRAGE: {self.FORSCHUNGSFRAGE}
         
@@ -670,11 +1011,20 @@ class QCAPrompts:
         """
     
     def get_analyze_for_subcategories_prompt(self, segments_text: str, categories_context: List[Dict]) -> str:
+        
+        # FIX: Verwende spezialisierte Coding-Konfidenz-Skala
+        confidence_guidelines = ConfidenceScales.get_confidence_guidelines(
+            scale_type="coding", 
+            context="kodierung"
+        )
+        
         return f"""
         ABDUKTIVER MODUS: Entwickle NUR neue Subkategorien für bestehende Hauptkategorien.
 
         BESTEHENDE HAUPTKATEGORIEN:
         {json.dumps(categories_context, indent=2, ensure_ascii=False)}
+
+        {confidence_guidelines}
 
         STRIKTE REGELN FÜR ABDUKTIVEN MODUS:
         - KEINE neuen Hauptkategorien entwickeln
@@ -722,6 +1072,12 @@ class QCAPrompts:
         Returns:
             str: Formatierter Prompt für die Definitionsverbesserung
         """
+        # FIX: Verwende spezialisierte Coding-Konfidenz-Skala
+        confidence_guidelines = ConfidenceScales.get_confidence_guidelines(
+            scale_type="coding", 
+            context="kodierung"
+        )
+
         if 'definition1' in category_data and 'definition2' in category_data:
             # Zusammenführung von zwei Definitionen
             return f"""
@@ -744,7 +1100,9 @@ class QCAPrompts:
             Akkreditierungen. Im Gegensatz zum allgemeinen Qualitätsmanagement fokussieren sie 
             sich auf die konkrete Durchführung und Dokumentation von qualitätssichernden 
             Maßnahmen."
-            
+
+            {confidence_guidelines}
+
             Antworte nur mit der neuen Definition:
             """
         else:
@@ -763,12 +1121,20 @@ class QCAPrompts:
             - Die Abgrenzung zu anderen Kategorien ermöglicht
             - Konkrete Kodierhinweise enthält
             
+            {confidence_guidelines}
+
             Antworte nur mit der verbesserten Definition:
             """
     def _get_subcategory_generation_prompt(self, category: Dict) -> str:
         """
         Prompt zur Generierung fehlender Subkategorien.
         """
+        # FIX: Verwende spezialisierte Coding-Konfidenz-Skala
+        confidence_guidelines = ConfidenceScales.get_confidence_guidelines(
+            scale_type="coding", 
+            context="kodierung"
+        )
+
         return f"""Entwickle passende Subkategorien für die folgende Hauptkategorie.
 
         HAUPTKATEGORIE: {category['name']}
@@ -788,6 +1154,8 @@ class QCAPrompts:
         - "Externe Begutachtung": Qualitätsprüfung durch unabhängige Gutachter
         - "Akkreditierung": Formale Anerkennung durch Akkreditierungsagenturen
 
+        {confidence_guidelines}
+
         Antworte nur mit einem JSON-Array von Subkategorien:
         ["Subkategorie 1: Erläuterung", "Subkategorie 2: Erläuterung", ...]"""
     
@@ -797,6 +1165,12 @@ class QCAPrompts:
         Detaillierter Prompt für die Kategorienentwicklung mit Fokus auf 
         hierarchische Einordnung und Vermeidung zu spezifischer Hauptkategorien.
         """
+        # FIX: Verwende spezialisierte Coding-Konfidenz-Skala
+        confidence_guidelines = ConfidenceScales.get_confidence_guidelines(
+            scale_type="coding", 
+            context="kodierung"
+        )
+
         return f"""Analysiere das folgende Textsegment für die Entwicklung induktiver Kategorien.
         Forschungsfrage: "{self.FORSCHUNGSFRAGE}"
 
@@ -805,6 +1179,8 @@ class QCAPrompts:
         1. PRÜFE ZUERST EINORDNUNG IN BESTEHENDE HAUPTKATEGORIEN
         Aktuelle Hauptkategorien:
         {json.dumps(self.DEDUKTIVE_KATEGORIEN, indent=2, ensure_ascii=False)}
+
+        {confidence_guidelines}
 
         2. ENTSCHEIDUNGSREGELN FÜR KATEGORIENEBENE:
 
@@ -886,6 +1262,12 @@ class QCAPrompts:
         Returns:
             str: Formatierter Prompt für die Relevanzbeurteilung
         """
+        # FIX: Verwende spezialisierte Relevanz-Konfidenz-Skala
+        confidence_guidelines = ConfidenceScales.get_confidence_guidelines(
+            scale_type="relevance", 
+            context="relevanz"
+        )
+        
         return f"""
         Analysiere sorgfältig die Relevanz des folgenden Texts für die Forschungsfrage:
         "{self.FORSCHUNGSFRAGE}"
@@ -899,6 +1281,8 @@ class QCAPrompts:
         3. Substanz: Geht der Text über oberflächliche/beiläufige Erwähnungen hinaus?
         4. Kontext: Ist der Bezug zur Forschungsfrage eindeutig und nicht nur implizit?
         
+        {confidence_guidelines}
+
         Antworte NUR mit einem JSON-Objekt:
         {{
             "relevance_score": 0.0-1.0,

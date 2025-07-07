@@ -7,7 +7,15 @@ enhanced with AI capabilities through the OpenAI API.
 
 Version:
 --------
-0.9.17 (2025-06-22)
+0.9.18 (2025-07-06)
+
+New in 0.9.18   
+KATEGORIE-KONSISTENZ: Deduktiver Modus mit Hauptkategorie-Vorauswahl (1-3 wahrscheinlichste), 40-60% weniger Token, keine inkompatiblen Subkategorie-Zuordnungen
+SUBKATEGORIE-VALIDIERUNG: Strikte Konsistenzprüfung mit automatischer Entfernung fremder Subkategorien, zweistufige Validierung, detailliertes Tracking
+PERFORMANCE-OPTIMIERUNG: Fokussierte AI-Kodierung nur mit relevanten Kategorien, verbesserte Qualität durch kategorie-spezifischen Fokus, kompatibel mit allen Features
+PYMUPDF-FIX: fitz.open() durch fitz.Document() ersetzt, robuste Fehlerbehandlung für PDF-Laden/-Speichern
+CONFIDENCE-SCALES: Zentrale Klasse mit 5 spezialisierten Skalen (0.6+ definitiv, 0.8+ eindeutig), einheitliche textbelegte Konfidenz-Bewertungen in allen Prompts
+EXPORT-FIX: Begründungen bei Nichtkodierung werden nun korrekt exportiert
 
 0.9.17
 - Input dateien können jetzt als annotierte Version exportiert werden
@@ -207,7 +215,7 @@ try:
     pdf_annotation_available = True
 except ImportError:
     pdf_annotation_available = False
-from QCA_Prompts import QCAPrompts  # Prompt Bibliothek
+from QCA_Prompts import QCAPrompts, ConfidenceScales # Prompt Bibliothek
 
 # Instanziierung des globalen Token-Counters
 token_counter = TokenTracker()
@@ -502,7 +510,282 @@ class CategoryChange:
     affected_codings: List[str] = None
     justification: str = ""
 
-
+class CategoryValidator:
+    """
+    FIX: Verbesserte Utility-Klasse für alle Kategorie- und Subkategorie-Validierungen
+    Mit robuster Kategorie-Struktur-Erkennung
+    """
+    
+    @staticmethod
+    def validate_subcategories_for_category(subcategories: List[str], 
+                                           main_category: str, 
+                                           categories_dict: Dict[str, Any],
+                                           warn_only: bool = True) -> List[str]:
+        """
+        FIX: Robuste Subkategorien-Validierung mit verbesserter Fehlerbehandlung
+        
+        Args:
+            subcategories: Liste der zu validierenden Subkategorien
+            main_category: Name der Hauptkategorie
+            categories_dict: Dictionary mit Kategorie-Definitionen
+            warn_only: Wenn True, nur warnen statt entfernen
+            
+        Returns:
+            List[str]: Validierte Subkategorien-Liste
+        """
+        if not subcategories:
+            return []
+            
+        if not categories_dict:
+            print(f"⚠️ KRITISCH: Kein categories_dict verfügbar für Validierung!")
+            return [] if not warn_only else subcategories
+            
+        if main_category not in categories_dict:
+            if warn_only:
+                print(f"⚠️ WARNUNG: Hauptkategorie '{main_category}' nicht im Kategoriensystem gefunden")
+                print(f"   Verfügbare Kategorien: {list(categories_dict.keys())[:5]}...")
+                return subcategories
+            else:
+                print(f"🔧 FIX: Hauptkategorie '{main_category}' ungültig - alle Subkategorien entfernt")
+                return []
+        
+        # FIX: Verbesserte Extraktion der gültigen Subkategorien
+        main_cat_def = categories_dict[main_category]
+        valid_subcats = CategoryValidator._extract_valid_subcategories(main_cat_def)
+        
+        if not valid_subcats:
+            if warn_only:
+                print(f"⚠️ WARNUNG: Keine Subkategorien definiert für '{main_category}'")
+                return subcategories
+            else:
+                print(f"🔧 FIX: Keine gültigen Subkategorien für '{main_category}' - alle entfernt")
+                return []
+        
+        # FIX: Validiere jede Subkategorie einzeln
+        validated = []
+        invalid = []
+        
+        for subcat in subcategories:
+            if subcat in valid_subcats:
+                validated.append(subcat)
+            else:
+                invalid.append(subcat)
+        
+        # FIX: Detailliertes Logging
+        if invalid:
+            if warn_only:
+                print(f"⚠️ WARNUNG: {len(invalid)} ungültige Subkategorien für '{main_category}': {invalid}")
+                print(f"   Gültige Subkategorien: {sorted(list(valid_subcats))}")
+                return subcategories  # Behalte alle
+            else:
+                print(f"🔧 FIX: Entfernt {len(invalid)} ungültige Subkategorien für '{main_category}': {invalid}")
+                print(f"   Behalten: {validated}")
+                print(f"   Gültige Optionen: {sorted(list(valid_subcats))}")
+                return validated
+        
+        return subcategories
+    
+    @staticmethod
+    def _extract_valid_subcategories(category_def: Any) -> Set[str]:
+        """
+        FIX: Robuste Extraktion von Subkategorien aus verschiedenen Datenstrukturen
+        
+        Args:
+            category_def: Kategorie-Definition (kann verschiedene Typen sein)
+            
+        Returns:
+            Set[str]: Set der gültigen Subkategorien-Namen
+        """
+        valid_subcats = set()
+        
+        try:
+            # FIX: Versuche verschiedene mögliche Strukturen
+            
+            # 1. Object mit subcategories-Attribut (häufigster Fall)
+            if hasattr(category_def, 'subcategories'):
+                subcats = category_def.subcategories
+                
+                if isinstance(subcats, dict):
+                    # Dict mit Subkategorie-Name -> Definition
+                    valid_subcats.update(subcats.keys())
+                elif isinstance(subcats, (list, set, tuple)):
+                    # Liste/Set von Subkategorie-Namen
+                    valid_subcats.update(str(sub) for sub in subcats)
+                elif isinstance(subcats, str):
+                    # Einzelner String
+                    valid_subcats.add(subcats)
+                    
+            # 2. Dictionary-Struktur direkt
+            elif isinstance(category_def, dict):
+                if 'subcategories' in category_def:
+                    sub_def = category_def['subcategories']
+                    if isinstance(sub_def, dict):
+                        valid_subcats.update(sub_def.keys())
+                    elif isinstance(sub_def, (list, set)):
+                        valid_subcats.update(str(sub) for sub in sub_def)
+                        
+            # 3. Liste von Subkategorien direkt
+            elif isinstance(category_def, (list, set, tuple)):
+                valid_subcats.update(str(sub) for sub in category_def)
+                
+        except Exception as e:
+            print(f"⚠️ FEHLER bei Subkategorien-Extraktion: {str(e)}")
+            print(f"   Kategorie-Definition Typ: {type(category_def)}")
+            if hasattr(category_def, '__dict__'):
+                print(f"   Verfügbare Attribute: {list(category_def.__dict__.keys())}")
+        
+        return valid_subcats
+    
+    @staticmethod
+    def validate_coding_consistency(coding_result: Dict[str, Any], 
+                                  categories_dict: Dict[str, Any],
+                                  fix_inconsistencies: bool = True) -> Dict[str, Any]:
+        """
+        FIX: Verbesserte Konsistenz-Validierung für einzelne Kodierungen
+        """
+        if not coding_result:
+            return coding_result
+        
+        main_category = coding_result.get('category', '')
+        subcategories = coding_result.get('subcategories', [])
+        
+        # FIX: Hauptkategorie validieren
+        if main_category and main_category not in categories_dict:
+            print(f"⚠️ INKONSISTENZ: Hauptkategorie '{main_category}' existiert nicht im Kategoriensystem")
+            if fix_inconsistencies:
+                coding_result['category'] = 'Nicht kodiert'
+                coding_result['subcategories'] = []
+                coding_result['justification'] = f"[KORRIGIERT] Ungültige Kategorie '{main_category}' → 'Nicht kodiert'"
+                return coding_result
+        
+        # FIX: Subkategorien validieren - nur wenn Hauptkategorie gültig
+        if main_category and main_category in categories_dict and subcategories:
+            validated_subcats = CategoryValidator.validate_subcategories_for_category(
+                subcategories, main_category, categories_dict, warn_only=not fix_inconsistencies
+            )
+            
+            if fix_inconsistencies:
+                removed_subcats = set(subcategories) - set(validated_subcats)
+                if removed_subcats:
+                    coding_result['subcategories'] = validated_subcats
+                    original_justification = coding_result.get('justification', '')
+                    coding_result['justification'] = f"{original_justification} [FIX: Entfernt ungültige Subkategorien: {list(removed_subcats)}]"
+        
+        return coding_result
+    
+    @staticmethod
+    def validate_multiple_codings(codings: List[Dict[str, Any]], 
+                                categories_dict: Dict[str, Any]) -> List[Dict[str, Any]]:
+        """
+        Validiert eine Liste von Kodierungen (z.B. bei Mehrfachkodierung)
+        
+        Args:
+            codings: Liste von Kodierungsergebnissen
+            categories_dict: Verfügbares Kategoriensystem
+            
+        Returns:
+            List[Dict[str, Any]]: Liste validierter Kodierungen
+        """
+        validated_codings = []
+        
+        for coding in codings:
+            validated_coding = CategoryValidator.validate_coding_consistency(
+                coding, categories_dict, fix_inconsistencies=True
+            )
+            validated_codings.append(validated_coding)
+        
+        return validated_codings
+    
+    @staticmethod
+    def get_category_statistics(categories_dict: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Erstellt Statistiken über das Kategoriensystem
+        
+        Args:
+            categories_dict: Kategoriensystem-Dictionary
+            
+        Returns:
+            Dict[str, Any]: Statistiken über Kategorien und Subkategorien
+        """
+        stats = {
+            'total_main_categories': len(categories_dict),
+            'categories_with_subcategories': 0,
+            'total_subcategories': 0,
+            'subcategories_per_category': {},
+            'average_subcategories': 0.0,
+            'category_details': {}
+        }
+        
+        total_subcats = 0
+        
+        for cat_name, cat_def in categories_dict.items():
+            valid_subcats = CategoryValidator._extract_valid_subcategories(cat_def)
+            subcat_count = len(valid_subcats)
+            
+            if subcat_count > 0:
+                stats['categories_with_subcategories'] += 1
+                total_subcats += subcat_count
+            
+            stats['subcategories_per_category'][cat_name] = subcat_count
+            stats['category_details'][cat_name] = {
+                'subcategory_count': subcat_count,
+                'subcategories': sorted(list(valid_subcats))
+            }
+        
+        stats['total_subcategories'] = total_subcats
+        stats['average_subcategories'] = total_subcats / max(1, len(categories_dict))
+        
+        return stats
+    
+    @staticmethod
+    def find_category_conflicts(codings: List[Dict[str, Any]]) -> Dict[str, List[str]]:
+        """
+        Findet Konflikte zwischen verschiedenen Kodierungen
+        
+        Args:
+            codings: Liste von Kodierungsergebnissen für das gleiche Segment
+            
+        Returns:
+            Dict[str, List[str]]: Dictionary mit Konflikt-Typen und Details
+        """
+        conflicts = {
+            'main_category_conflicts': [],
+            'subcategory_conflicts': [],
+            'confidence_discrepancies': []
+        }
+        
+        if len(codings) <= 1:
+            return conflicts
+        
+        # Hauptkategorien-Konflikte
+        main_categories = [coding.get('category', '') for coding in codings]
+        if len(set(main_categories)) > 1:
+            conflicts['main_category_conflicts'] = list(set(main_categories))
+        
+        # Subkategorien-Konflikte (nur bei gleicher Hauptkategorie)
+        if len(set(main_categories)) == 1:
+            subcategory_sets = []
+            for coding in codings:
+                subcats = set(coding.get('subcategories', []))
+                subcategory_sets.append(subcats)
+            
+            if len(set(frozenset(s) for s in subcategory_sets)) > 1:
+                conflicts['subcategory_conflicts'] = [list(s) for s in subcategory_sets]
+        
+        # Konfidenz-Diskrepanzen
+        confidences = []
+        for coding in codings:
+            conf = coding.get('confidence', {})
+            if isinstance(conf, dict):
+                total_conf = conf.get('total', 0.0)
+            else:
+                total_conf = float(conf) if conf else 0.0
+            confidences.append(total_conf)
+        
+        if confidences and (max(confidences) - min(confidences)) > 0.3:
+            conflicts['confidence_discrepancies'] = confidences
+        
+        return conflicts
 
 # --- Klasse: MaterialLoader ---
 # Aufgabe: Laden und Vorbereiten des Analysematerials (Textdokumente, output)
@@ -1109,6 +1392,26 @@ class RelevanceChecker:
             deduktive_kategorien=DEDUKTIVE_KATEGORIEN
         )
 
+    # FIX: Hilfsmethode für Segment-Formatierung hinzufügen
+    def _format_segments_for_batch(self, segments: List[Tuple[str, str]]) -> str:
+        """
+        Formatiert Segmente für Batch-Verarbeitung in der Relevanzprüfung
+        
+        Args:
+            segments: Liste von (segment_id, text) Tupeln
+            
+        Returns:
+            str: Formatierte Segmente für den Prompt
+        """
+        formatted_segments = []
+        for i, (segment_id, text) in enumerate(segments, 1):
+            # Begrenze Textlänge für bessere Performance
+            truncated_text = text[:800] + "..." if len(text) > 800 else text
+            # Entferne problematische Zeichen
+            clean_text = truncated_text.replace('\n', ' ').replace('\r', ' ').strip()
+            formatted_segments.append(f"SEGMENT {i}:\n{clean_text}\n")
+        
+        return "\n".join(formatted_segments)
     
     async def check_multiple_category_relevance(self, segments: List[Tuple[str, str]], 
                                             categories: Dict[str, CategoryDefinition]) -> Dict[str, List[Dict]]:
@@ -1463,6 +1766,109 @@ class RelevanceChecker:
             # Fallback: Alle als relevant markieren bei Fehler
             return {sid: True for sid, _ in segments}
     
+
+    async def check_relevance_with_category_preselection(self, segments: List[Tuple[str, str]], 
+                                                        categories: Dict[str, CategoryDefinition] = None,
+                                                        mode: str = 'deductive') -> Dict[str, Dict]:
+        """
+        Erweiterte Relevanzprüfung mit Hauptkategorie-Vorauswahl (nur für deduktiven Modus)
+        
+        Returns:
+            Dict mit segment_id als Key und Dict mit 'is_relevant', 'preferred_categories', 'relevance_scores'
+        """
+        if mode != 'deductive' or not categories:
+            # Fallback auf Standard-Relevanzprüfung für andere Modi
+            standard_results = await self.check_relevance_batch(segments)
+            return {
+                sid: {'is_relevant': is_relevant, 'preferred_categories': [], 'relevance_scores': {}}
+                for sid, is_relevant in standard_results.items()
+            }
+        
+        print(f"🎯 Erweiterte Relevanzprüfung mit Kategorie-Vorauswahl für {len(segments)} Segmente...")
+        
+        # Cache-Key für erweiterte Relevanzprüfung
+        cache_key_base = "extended_relevance"
+        
+        results = {}
+        segments_to_process = []
+        
+        # Cache-Prüfung
+        for segment_id, text in segments:
+            cache_key = f"{cache_key_base}_{hash(text)}"
+            if cache_key in self.relevance_cache:
+                results[segment_id] = self.relevance_cache[cache_key]
+            else:
+                segments_to_process.append((segment_id, text))
+        
+        if not segments_to_process:
+            return results
+        
+        # Batch-Verarbeitung für nicht-gecachte Segmente
+        batch_text = self._format_segments_for_batch(segments_to_process)
+        
+        prompt = self.prompt_handler.get_relevance_with_category_preselection_prompt(
+            batch_text, categories
+        )
+        
+        try:
+            self.api_calls += 1
+            response = await self.llm_provider.create_completion(
+                model=self.model_name,
+                messages=[
+                    {"role": "system", "content": "Du bist ein Experte für qualitative Inhaltsanalyse. Du antwortest auf deutsch."},
+                    {"role": "user", "content": prompt}
+                ],
+                temperature=0.1,
+                response_format={"type": "json_object"}
+            )
+            
+            llm_response = LLMResponse(response)
+            batch_results = json.loads(llm_response.content)
+            
+            # Verarbeite Batch-Ergebnisse
+            segment_results = batch_results.get('segment_results', [])
+            
+            for i, (segment_id, text) in enumerate(segments_to_process):
+                if i < len(segment_results):
+                    segment_result = segment_results[i]
+                    
+                    result = {
+                        'is_relevant': segment_result.get('is_relevant', False),
+                        'preferred_categories': segment_result.get('preferred_categories', []),
+                        'relevance_scores': segment_result.get('relevance_scores', {}),
+                        'reasoning': segment_result.get('reasoning', '')
+                    }
+                    
+                    # Cache speichern
+                    cache_key = f"{cache_key_base}_{hash(text)}"
+                    self.relevance_cache[cache_key] = result
+                    
+                    results[segment_id] = result
+                else:
+                    # Fallback bei unvollständigen Ergebnissen
+                    results[segment_id] = {
+                        'is_relevant': False,
+                        'preferred_categories': [],
+                        'relevance_scores': {},
+                        'reasoning': 'Unvollständiges Batch-Ergebnis'
+                    }
+            
+            print(f"✅ Erweiterte Relevanzprüfung abgeschlossen: {len([r for r in results.values() if r['is_relevant']])} relevante Segmente")
+            
+        except Exception as e:
+            print(f"Fehler bei erweiterter Relevanzprüfung: {str(e)}")
+            # Fallback auf Standard-Relevanzprüfung
+            standard_results = await self.check_relevance_batch(segments_to_process)
+            for segment_id, is_relevant in standard_results.items():
+                results[segment_id] = {
+                    'is_relevant': is_relevant,
+                    'preferred_categories': [],
+                    'relevance_scores': {},
+                    'reasoning': 'Fallback nach Fehler'
+                }
+        
+        return results
+    
     def get_relevance_details(self, segment_id: str) -> Optional[Dict]:
         """Gibt detaillierte Relevanzinformationen für ein Segment zurück."""
         return self.relevance_details.get(segment_id)
@@ -1551,6 +1957,8 @@ class IntegratedAnalysisManager:
         self.escape_handler = EscapeHandler(self)
         self._should_abort = False
         self._escape_abort_requested = False
+
+        self.current_categories = {}  # FIX: Hinzufügen
 
         print(f"\n🔬 IntegratedAnalysisManager initialisiert:")
         print(f"   - Analysemodus: {config.get('ANALYSIS_MODE', 'inductive')}")
@@ -1815,13 +2223,36 @@ class IntegratedAnalysisManager:
             print(f"Fehler bei abduktiver Analyse: {str(e)}")
             return current_categories
 
-    async def _code_batch_deductively(self, batch: List[Tuple[str, str]], categories: Dict[str, CategoryDefinition]) -> List[Dict]:
+    async def _code_batch_deductively(self, 
+                                     batch: List[Tuple[str, str]], 
+                                     categories: Dict[str, CategoryDefinition],
+                                     category_preselections: Dict[str, Dict] = None) -> List[Dict]:
         """
         Kodiert einen Batch parallel ohne progressive Kontext-Funktionalität.
+        FIX: Erweitert um Kategorie-Vorauswahl für deduktiven Modus
         BUGFIX: Verwendet separate, lockere Relevanzprüfung für Kodierung.
         """
         print(f"\n🚀 PARALLEL-KODIERUNG: {len(batch)} Segmente gleichzeitig")
         start_time = time.time()
+        
+        # FIX: Standardwert für category_preselections
+        if category_preselections is None:
+            category_preselections = {}
+        
+        # FIX: Zeige Kategorie-Vorauswahl-Informationen
+        if category_preselections:
+            preselected_count = len([s for s in batch if s[0] in category_preselections])
+            print(f"🎯 {preselected_count} Segmente haben Kategorie-Präferenzen")
+            
+            # Statistik der Kategorie-Präferenzen
+            all_preferred = []
+            for prefs in category_preselections.values():
+                all_preferred.extend(prefs.get('preferred_categories', []))
+            
+            if all_preferred:
+                from collections import Counter
+                pref_stats = Counter(all_preferred)
+                print(f"🎯 Häufigste Präferenzen: {dict(pref_stats.most_common(3))}")
         
         print(f"\n🔍 Prüfe Kodierungs-Relevanz...")
         coding_relevance_results = await self.relevance_checker.check_relevance_batch(batch)
@@ -1832,7 +2263,6 @@ class IntegratedAnalysisManager:
         print(f"   - Segmente geprüft: {len(coding_relevance_results)}")
         print(f"   - Als kodierungsrelevant eingestuft: {relevant_count}")
         print(f"   - Als nicht kodierungsrelevant eingestuft: {len(coding_relevance_results) - relevant_count}")
-        
         
         # 2. PARALLEL: Mehrfachkodierungs-Prüfung (wenn aktiviert)
         multiple_coding_results = {}
@@ -1850,7 +2280,28 @@ class IntegratedAnalysisManager:
         
         # 3. PARALLEL: Kodierung aller Segmente
         async def code_single_segment_all_coders(segment_id: str, text: str) -> List[Dict]:
-            """Kodiert ein einzelnes Segment mit allen Kodierern und Instanzen parallel."""
+            """FIX: Kodiert ein einzelnes Segment mit gefilterten Kategorien basierend auf Vorauswahl."""
+            
+            # FIX: Bestimme effektive Kategorien für dieses Segment
+            preselection = category_preselections.get(segment_id, {})
+            preferred_cats = preselection.get('preferred_categories', [])
+            
+            if preferred_cats:
+                # FIX: Verwende nur vorausgewählte Kategorien
+                effective_categories = {
+                    name: cat for name, cat in categories.items() 
+                    if name in preferred_cats
+                }
+                print(f"    🎯 Segment {segment_id}: Fokus auf {len(effective_categories)} Kategorien: {', '.join(preferred_cats)}")
+                
+                # FIX: Debug-Ausgabe der Scores
+                relevance_scores = preselection.get('relevance_scores', {})
+                score_info = ", ".join([f"{cat}:{score:.2f}" for cat, score in relevance_scores.items() if cat in preferred_cats])
+                print(f"    📊 Relevanz-Scores: {score_info}")
+            else:
+                # FIX: Fallback auf alle Kategorien wenn keine Vorauswahl
+                effective_categories = categories
+                print(f"    📝 Segment {segment_id}: Standard-Kodierung mit allen {len(categories)} Kategorien")
             
             is_coding_relevant = coding_relevance_results.get(segment_id, True)  # Default: True
 
@@ -1888,7 +2339,6 @@ class IntegratedAnalysisManager:
                     justification = "Segment zu kurz für sinnvolle Kodierung"
                 elif is_metadata:
                     justification = "Segment als Metadaten (z.B. Seitenzahl, Inhaltsverzeichnis) erkannt"
-                # FIX: Ende
                 
                 not_coded_results = []
                 for coder in self.deductive_coders:
@@ -1898,12 +2348,16 @@ class IntegratedAnalysisManager:
                         'category': "Nicht kodiert",
                         'subcategories': [],
                         'confidence': {'total': 1.0, 'category': 1.0, 'subcategories': 1.0},
-                        'justification': justification,  # FIX: Verwende spezifische Begründung
+                        'justification': justification,
                         'text': text,
                         'multiple_coding_instance': 1,
                         'total_coding_instances': 1,
                         'target_category': '',
-                        'category_focus_used': False
+                        'category_focus_used': False,
+                        # FIX: Zusätzliche Kategorie-Vorauswahl-Info
+                        'category_preselection_used': bool(preferred_cats),
+                        'preferred_categories': preferred_cats,
+                        'preselection_reasoning': preselection.get('reasoning', '')
                     }
                     not_coded_results.append(result)
                 return not_coded_results
@@ -1932,25 +2386,73 @@ class IntegratedAnalysisManager:
             
             # 🚀 PARALLEL: Alle Kodierer für alle Instanzen
             async def code_with_coder_and_instance(coder, instance_info):
-                """Kodiert mit einem Kodierer für eine Instanz."""
+                """FIX: Kodiert mit einem Kodierer unter Verwendung der gefilterten Kategorien."""
                 try:
                     if instance_info['target_category']:
                         # Mehrfachkodierung mit Fokus
+                        # FIX: Verwende effective_categories statt categories
                         coding = await coder.code_chunk_with_focus(
-                            text, categories, 
+                            text, effective_categories,  # FIX: Gefilterte Kategorien
                             focus_category=instance_info['target_category'],
                             focus_context=instance_info['category_context']
                         )
                     else:
                         # Standard-Kodierung
-                        coding = await coder.code_chunk(text, categories)
+                        # FIX: Verwende effective_categories statt categories
+                        coding = await coder.code_chunk(text, effective_categories)  # FIX: Gefilterte Kategorien
                     
                     if coding and isinstance(coding, CodingResult):
+                        main_category = coding.category
+                        original_subcats = list(coding.subcategories)
+                        
+                        # FIX: Wähle die beste verfügbare Kategorie-Quelle für Validierung
+                        validated_subcats = original_subcats  # Fallback
+                        validation_source = "keine"
+                        
+                        # 1. Priorität: effective_categories (gefilterte Kategorien für dieses Segment)
+                        if main_category in effective_categories:
+                            # Aber effective_categories hat keine Subkategorie-Definitionen!
+                            # Hole vollständige Definition aus verfügbaren Quellen
+                            
+                            # Versuche self.current_categories (IntegratedAnalysisManager)
+                            if hasattr(self, 'current_categories') and self.current_categories and main_category in self.current_categories:
+                                try:
+                                    validated_subcats = CategoryValidator.validate_subcategories_for_category(
+                                        original_subcats, main_category, self.current_categories, warn_only=False
+                                    )
+                                    validation_source = "self.current_categories"
+                                except Exception as e:
+                                    print(f"    ❌ Validierung mit self.current_categories fehlgeschlagen: {str(e)}")
+                            
+                            # Fallback: Versuche coder.current_categories
+                            elif hasattr(coder, 'current_categories') and coder.current_categories and main_category in coder.current_categories:
+                                try:
+                                    validated_subcats = CategoryValidator.validate_subcategories_for_category(
+                                        original_subcats, main_category, coder.current_categories, warn_only=False
+                                    )
+                                    validation_source = "coder.current_categories"
+                                except Exception as e:
+                                    print(f"    ❌ Validierung mit coder.current_categories fehlgeschlagen: {str(e)}")
+                        
+                        # 2. Falls Kategorie nicht in effective_categories: Möglicherweise Problem bei Filterung
+                        else:
+                            print(f"    ⚠️ Kategorie '{main_category}' nicht in effective_categories - mögliches Filterungsproblem")
+                            print(f"    🎯 Effective Categories: {list(effective_categories.keys())}")
+                        
+                        # FIX: Debug-Ausgabe nur bei wichtigen Ereignissen
+                        if len(original_subcats) != len(validated_subcats):
+                            removed = set(original_subcats) - set(validated_subcats)
+                            print(f"    🔧 Subkategorien validiert mit {validation_source}, entfernt: {removed}")
+                        elif validation_source != "keine" and original_subcats:
+                            print(f"    ✅ Alle {len(original_subcats)} Subkategorien gültig (Quelle: {validation_source})")
+                        elif validation_source == "keine" and original_subcats:
+                            print(f"    ⚠️ Keine Subkategorien-Validierung möglich für '{main_category}' (Quelle: {validation_source})")
+                        
                         return {
                             'segment_id': segment_id,
                             'coder_id': coder.coder_id,
                             'category': coding.category,
-                            'subcategories': list(coding.subcategories),
+                            'subcategories': validated_subcats,  # FIX: Immer validierte oder ursprüngliche Subkategorien
                             'confidence': coding.confidence,
                             'justification': coding.justification,
                             'text': text,
@@ -1959,8 +2461,18 @@ class IntegratedAnalysisManager:
                             'multiple_coding_instance': instance_info['instance'],
                             'total_coding_instances': instance_info['total_instances'],
                             'target_category': instance_info['target_category'],
-                            'category_focus_used': bool(instance_info['target_category'])
+                            'category_focus_used': bool(instance_info['target_category']),
+                            # FIX: Verbesserte Debug-Informationen
+                            'category_preselection_used': bool(preferred_cats),
+                            'preferred_categories': preferred_cats,
+                            'effective_categories_count': len(effective_categories),
+                            'preselection_reasoning': preselection.get('reasoning', ''),
+                            'subcategories_validated': len(original_subcats) != len(validated_subcats),
+                            'validation_source': validation_source,
+                            'validation_successful': validation_source not in ["keine"],
+                            'category_in_effective': main_category in effective_categories  # FIX: Debug-Info
                         }
+                        
                     else:
                         return None
                         
@@ -2001,6 +2513,8 @@ class IntegratedAnalysisManager:
         batch_results = []
         successful_segments = 0
         error_count = 0
+        preselection_used_count = 0
+        validation_performed_count = 0
         
         for segment_result in all_segment_results:
             if isinstance(segment_result, Exception):
@@ -2011,6 +2525,13 @@ class IntegratedAnalysisManager:
             if segment_result:  # Liste von Kodierungen für dieses Segment
                 batch_results.extend(segment_result)
                 successful_segments += 1
+                
+                # FIX: Sammle Statistiken über Kategorie-Vorauswahl-Nutzung
+                for coding in segment_result:
+                    if coding.get('category_preselection_used', False):
+                        preselection_used_count += 1
+                    if coding.get('subcategories_validated', False):
+                        validation_performed_count += 1
         
         # Markiere verarbeitete Segmente
         for segment_id, text in batch:
@@ -2026,11 +2547,15 @@ class IntegratedAnalysisManager:
             print(f"   🚀 Geschwindigkeit: {len(batch)} Segmente in <0.01s (sehr schnell)")
         print(f"   ✓ Erfolgreiche Segmente: {successful_segments}/{len(batch)}")
         print(f"   📊 Gesamte Kodierungen: {len(batch_results)}")
+        # FIX: Zusätzliche Statistiken für Kategorie-Vorauswahl
+        if category_preselections:
+            print(f"   🎯 Kategorie-Vorauswahl genutzt: {preselection_used_count} Kodierungen")
+            print(f"   🔧 Subkategorie-Validierung durchgeführt: {validation_performed_count} Kodierungen")
         if error_count > 0:
             print(f"   ⚠️ Fehler: {error_count}")
         
         return batch_results
-
+    
     async def _code_with_category_focus(self, coder, text, categories, instance_info):
         """Kodiert mit optionalem Fokus auf bestimmte Kategorie"""
         
@@ -2045,11 +2570,23 @@ class IntegratedAnalysisManager:
             # Standard-Kodierung
             return await coder.code_chunk(text, categories)
 
-    async def _code_batch_with_context(self, batch: List[Tuple[str, str]], categories: Dict[str, CategoryDefinition]) -> List[Dict]:
+    async def _code_batch_with_context(self, batch: List[Tuple[str, str]], 
+                                     categories: Dict[str, CategoryDefinition],
+                                     category_preselections: Dict[str, Dict] = None) -> List[Dict]:
         """
         Kodiert einen Batch sequentiell mit progressivem Dokumentkontext und Mehrfachkodierung.
+        FIX: Erweitert um category_preselections Parameter für gefilterte Kategorien
         """
+        # FIX: Standardwert für category_preselections
+        if category_preselections is None:
+            category_preselections = {}
+        
         batch_results = []
+        
+        # Debug-Info für Kategorie-Präferenzen
+        if category_preselections:
+            preselected_count = len([s for s in batch if s[0] in category_preselections])
+            print(f"🎯 Kontext-Kodierung: {preselected_count} Segmente haben Kategorie-Präferenzen")
         
         # Prüfe Mehrfachkodierungs-Möglichkeiten für den ganzen Batch
         multiple_coding_results = {}
@@ -2089,7 +2626,22 @@ class IntegratedAnalysisManager:
                 'segment_info': segment_info
             }
             
-            print(f"\n🔍 Verarbeite Segment {segment_id} mit Kontext")
+            # FIX: Bestimme gefilterte Kategorien für dieses Segment
+            preselection = category_preselections.get(segment_id, {})
+            preferred_cats = preselection.get('preferred_categories', [])
+            
+            if preferred_cats:
+                # FIX: Gefilterte Kategorien für Kodierung verwenden
+                filtered_categories = {
+                    name: cat for name, cat in categories.items() 
+                    if name in preferred_cats
+                }
+                print(f"\n🔍 Verarbeite Segment {segment_id} mit Kontext (🎯 Fokus auf {len(filtered_categories)} Kategorien: {', '.join(preferred_cats)})")
+                effective_categories = filtered_categories
+            else:
+                # FIX: Fallback auf alle Kategorien
+                print(f"\n🔍 Verarbeite Segment {segment_id} mit Kontext")
+                effective_categories = categories
             
             # Prüfe Relevanz
             relevance_result = await self.relevance_checker.check_relevance_batch([(segment_id, text)])
@@ -2122,7 +2674,11 @@ class IntegratedAnalysisManager:
                         'multiple_coding_instance': 1,
                         'total_coding_instances': 1,
                         'target_category': '',
-                        'category_focus_used': False
+                        'category_focus_used': False,
+                        # FIX: Neue Felder für Kategorie-Präferenzen
+                        'category_preselection_used': bool(preferred_cats),
+                        'preselected_categories': preferred_cats,
+                        'category_filtering_applied': bool(preferred_cats)
                     }
                     batch_results.append(result)
                 continue
@@ -2162,9 +2718,9 @@ class IntegratedAnalysisManager:
                         should_update_summary = (coder_index == 0 and instance_info['instance'] == 1)
                         
                         if instance_info['target_category']:
-                            # Mehrfachkodierung mit Fokus und Kontext
+                            # FIX: Mehrfachkodierung mit Fokus und Kontext (mit gefilterten Kategorien)
                             combined_result = await coder.code_chunk_with_focus_and_context(
-                                text, categories, 
+                                text, effective_categories,  # FIX: Verwende gefilterte Kategorien
                                 focus_category=instance_info['target_category'],
                                 focus_context=instance_info['category_context'],
                                 current_summary=updated_summary if should_update_summary else current_summary,
@@ -2172,10 +2728,10 @@ class IntegratedAnalysisManager:
                                 update_summary=should_update_summary
                             )
                         else:
-                            # Standard Kontext-Kodierung
+                            # FIX: Standard Kontext-Kodierung (mit gefilterten Kategorien)
                             combined_result = await coder.code_chunk_with_progressive_context(
                                 text, 
-                                categories, 
+                                effective_categories,  # FIX: Verwende gefilterte Kategorien
                                 updated_summary if should_update_summary else current_summary,
                                 segment_info
                             )
@@ -2190,7 +2746,7 @@ class IntegratedAnalysisManager:
                                 self.document_summaries[doc_name] = updated_summary
                                 print(f"🔄 Summary aktualisiert: {len(updated_summary.split())} Wörter")
                             
-                            # Erstelle Kodierungseintrag
+                            # FIX: Erstelle erweiterten Kodierungseintrag mit Kategorie-Präferenzen
                             coding_entry = {
                                 'segment_id': segment_id,
                                 'coder_id': coder.coder_id,
@@ -2206,15 +2762,39 @@ class IntegratedAnalysisManager:
                                 'multiple_coding_instance': instance_info['instance'],
                                 'total_coding_instances': instance_info['total_instances'],
                                 'target_category': instance_info['target_category'],
-                                'category_focus_used': bool(instance_info['target_category'])
+                                'category_focus_used': bool(instance_info['target_category']),
+                                # FIX: Neue Felder für Kategorie-Präferenzen
+                                'category_preselection_used': bool(preferred_cats),
+                                'preselected_categories': preferred_cats,
+                                'category_filtering_applied': bool(preferred_cats),
+                                'relevance_scores': preselection.get('relevance_scores', {}),
+                                'preselection_reasoning': preselection.get('reasoning', '')
                             }
+                            
+                            # FIX: Validiere Subkategorien gegen die gewählte Hauptkategorie
+                            main_category = coding_entry['category']
+                            original_subcats = coding_entry['subcategories']
+                            if main_category and main_category != 'Nicht kodiert':
+
+                                validated_subcats = CategoryValidator.validate_subcategories_for_category(
+                                    original_subcats, main_category, self.current_categories, warn_only=False
+                                )
+                                if len(validated_subcats) != len(original_subcats):
+                                    print(f"    ⚠️ Subkategorien bereinigt: {len(original_subcats)} → {len(validated_subcats)}")
+                                coding_entry['subcategories'] = validated_subcats
                             
                             batch_results.append(coding_entry)
                             
                             if instance_info['total_instances'] > 1:
-                                print(f"        ✓ {coder.coder_id}: {coding_entry['category']}")
+                                category_display = coding_entry['category']
+                                if preferred_cats and category_display in preferred_cats:
+                                    category_display += " 🎯"
+                                print(f"        ✓ {coder.coder_id}: {category_display}")
                             else:
-                                print(f"  ✓ Kodierer {coder.coder_id}: {coding_entry['category']}")
+                                category_display = coding_entry['category']
+                                if preferred_cats and category_display in preferred_cats:
+                                    category_display += " 🎯"
+                                print(f"  ✓ Kodierer {coder.coder_id}: {category_display}")
                         else:
                             print(f"  ⚠ Keine Kodierung von {coder.coder_id} erhalten")
                             
@@ -2223,7 +2803,7 @@ class IntegratedAnalysisManager:
                         continue
         
         return batch_results
-
+    
     def _extract_doc_and_chunk_id(self, segment_id: str) -> Tuple[str, str]:
         """Extrahiert Dokumentname und Chunk-ID aus segment_id."""
         parts = segment_id.split('_chunk_')
@@ -2506,16 +3086,45 @@ class IntegratedAnalysisManager:
             
             try:
                 # 1. ALLGEMEINE RELEVANZPRÜFUNG
-                print(f"\n🔍 Schritt 1: Allgemeine Relevanzprüfung für Forschungsfrage...")
-                general_relevance_results = await self.relevance_checker.check_relevance_batch(batch)
-                
-                # Filtere allgemein relevante Segmente
-                generally_relevant_batch = [
-                    (segment_id, text) for segment_id, text in batch 
-                    if general_relevance_results.get(segment_id, False)
-                ]
-                
-                print(f"📊 Allgemeine Relevanz: {len(generally_relevant_batch)} von {len(batch)} Segmenten relevant für Forschungsfrage")
+                print(f"\n🔍 Schritt 1: Erweiterte Relevanzprüfung für Forschungsfrage...")
+                if analysis_mode == 'deductive':
+                    # FIX: Erweiterte Relevanzprüfung für deduktiven Modus
+                    extended_relevance_results = await self.relevance_checker.check_relevance_with_category_preselection(
+                        batch, current_categories, analysis_mode
+                    )
+                    
+                    # Filtere relevante Segmente und sammle Kategorie-Präferenzen
+                    generally_relevant_batch = []
+                    category_preselections = {}  # FIX: Neue Variable für Kategorie-Präferenzen
+                    
+                    for segment_id, text in batch:
+                        result = extended_relevance_results.get(segment_id, {})
+                        if result.get('is_relevant', False):
+                            generally_relevant_batch.append((segment_id, text))
+                            # FIX: Speichere Kategorie-Präferenzen für späteren Gebrauch
+                            category_preselections[segment_id] = {
+                                'preferred_categories': result.get('preferred_categories', []),
+                                'relevance_scores': result.get('relevance_scores', {}),
+                                'reasoning': result.get('reasoning', '')
+                            }
+                    
+                    print(f"📊 Erweiterte Relevanz: {len(generally_relevant_batch)} von {len(batch)} Segmenten relevant")
+                    if category_preselections:
+                        preselection_stats = {}
+                        for prefs in category_preselections.values():
+                            for cat in prefs['preferred_categories']:
+                                preselection_stats[cat] = preselection_stats.get(cat, 0) + 1
+                        print(f"🎯 Kategorie-Präferenzen: {preselection_stats}")
+                        
+                else:
+                    # FIX: Standard-Relevanzprüfung für andere Modi (unverändert)
+                    general_relevance_results = await self.relevance_checker.check_relevance_batch(batch)
+                    generally_relevant_batch = [
+                        (segment_id, text) for segment_id, text in batch 
+                        if general_relevance_results.get(segment_id, False)
+                    ]
+                    category_preselections = {}  # FIX: Leer für andere Modi
+                    print(f"📊 Allgemeine Relevanz: {len(generally_relevant_batch)} von {len(batch)} Segmente relevant")
                 
                 # Markiere alle Segmente als verarbeitet
                 self.processed_segments.update(sid for sid, _ in batch)
@@ -2542,6 +3151,9 @@ class IntegratedAnalysisManager:
                                 new_categories
                             )
                             
+                            # FIX: Aktualisiere Instanz-Attribut für Validierung
+                            self.current_categories = current_categories
+
                             added_count = len(current_categories) - before_count
                             # FIX: Zähle auch die neuen Subkategorien
                             after_subcategories = sum(len(cat.subcategories) for cat in current_categories.values())
@@ -2596,9 +3208,17 @@ class IntegratedAnalysisManager:
                 
                 # Führe Kodierung durch
                 if use_context:
-                    batch_results = await self._code_batch_with_context(batch, coding_categories)
+                    batch_results = await self._code_batch_with_context(
+                        batch, 
+                        coding_categories,
+                        category_preselections=category_preselections  # FIX: Neue Parameter
+                    )
                 else:
-                    batch_results = await self._code_batch_deductively(batch, coding_categories)
+                    batch_results = await self._code_batch_deductively(
+                        batch, 
+                        coding_categories,
+                        category_preselections=category_preselections  # FIX: Neue Parameter
+                    )
             
                 self.coding_results.extend(batch_results)
                 
@@ -3645,7 +4265,26 @@ class DeductiveCoder:
         self.temperature = float(temperature)
         self.coder_id = coder_id
         self.skip_inductive = skip_inductive
-        self.current_categories = {}
+
+        # self.load_theoretical_categories = DeductiveCategoryBuilder.load_theoretical_categories()
+        category_builder = DeductiveCategoryBuilder()
+        initial_categories = category_builder.load_theoretical_categories()
+
+        # FIX: Initialisiere current_categories modus-abhängig
+        analysis_mode = CONFIG.get('ANALYSIS_MODE', 'deductive')
+        
+        if analysis_mode == 'grounded':
+            # Im grounded mode starten wir mit leeren Kategorien
+            self.current_categories = {}
+            print(f"📚 Kodierer {coder_id}: Grounded Mode - startet ohne deduktive Kategorien")
+        else:
+            # Alle anderen Modi laden deduktive Kategorien
+            try:
+                self.current_categories = initial_categories
+                print(f"📚 Kodierer {coder_id}: {len(self.current_categories)} deduktive Kategorien geladen ({analysis_mode} mode)")
+            except Exception as e:
+                print(f"⚠️ Fehler beim Laden der Kategorien für Kodierer {coder_id}: {str(e)}")
+                self.current_categories = {}
            
         # Hole Provider aus CONFIG
         provider_name = CONFIG.get('MODEL_PROVIDER', 'openai').lower()  # Fallback zu OpenAI
@@ -3822,22 +4461,21 @@ class DeductiveCoder:
             else:
                 return None
             
-    async def code_chunk(self, chunk: str, categories: Optional[Dict[str, CategoryDefinition]] = None, is_last_segment: bool = False) -> Optional[CodingResult]:
+    async def code_chunk(self, chunk: str, categories: Optional[Dict[str, CategoryDefinition]] = None, 
+                        is_last_segment: bool = False, preferred_cats: Optional[List[str]] = None) -> Optional[CodingResult]:  # FIX: Neuer Parameter hinzugefügt
         """
         Kodiert einen Text-Chunk basierend auf dem aktuellen Kategoriensystem.
         
         Args:
             chunk: Zu kodierender Text
-            categories: Optional übergebenes Kategoriensystem (wird nur verwendet wenn kein aktuelles System existiert)
-            is_last_segment: Gibt an, ob dies das letzte zu kodierende Segment ist
+            categories: Kategoriensystem (optional, verwendet current_categories als Fallback)
+            is_last_segment: Ob dies das letzte Segment ist
+            preferred_cats: Liste bevorzugter Kategorien für gefilterte Kodierung  # FIX: Neue Funktionalität
             
         Returns:
-            Optional[CodingResult]: Kodierungsergebnis oder None bei Fehler
+            Optional[CodingResult]: Kodierungsergebnis oder None bei Fehlern
         """
         try:
-            # Speichere Information, ob letztes Segment
-            self.is_last_segment = is_last_segment
-
             # Verwende das interne Kategoriensystem wenn vorhanden, sonst das übergebene
             current_categories = self.current_categories or categories
             
@@ -3845,11 +4483,29 @@ class DeductiveCoder:
                 print(f"Fehler: Kein Kategoriensystem für Kodierer {self.coder_id} verfügbar")
                 return None
 
-            print(f"\nDeduktiver Kodierer 🧐 **{self.coder_id}** verarbeitet Chunk...")
-            
-            # Erstelle formatierte Kategorienübersicht mit Definitionen und Beispielen
+            # FIX: Kategorien-Filterung basierend auf preferred_cats
+            if preferred_cats:
+                # Filtere Kategorien basierend auf Vorauswahl
+                filtered_categories = {
+                    name: cat for name, cat in current_categories.items() 
+                    if name in preferred_cats
+                }
+                
+                if filtered_categories:
+                    print(f"    🎯 Gefilterte Kodierung für {self.coder_id}: {len(filtered_categories)}/{len(current_categories)} Kategorien")
+                    print(f"    📋 Fokus auf: {', '.join(preferred_cats)}")
+                    effective_categories = filtered_categories
+                else:
+                    print(f"    ⚠️ Keine der bevorzugten Kategorien {preferred_cats} gefunden - nutze alle Kategorien")
+                    effective_categories = current_categories
+            else:
+                # Standard-Verhalten: alle Kategorien verwenden
+                effective_categories = current_categories
+            # FIX: Ende der neuen Filterlogik
+
+            # Erstelle formatierte Kategorienübersicht
             categories_overview = []
-            for name, cat in current_categories.items():  # Verwende current_categories statt categories
+            for name, cat in effective_categories.items():  # FIX: Nutze gefilterte Kategorien
                 category_info = {
                     'name': name,
                     'definition': cat.definition,
@@ -3858,18 +4514,18 @@ class DeductiveCoder:
                     'subcategories': {}
                 }
                 
-                # Füge Subkategorien mit Definitionen hinzu
+                # Füge Subkategorien hinzu
                 for sub_name, sub_def in cat.subcategories.items():
                     category_info['subcategories'][sub_name] = sub_def
                     
                 categories_overview.append(category_info)
-            
+
+            # Erstelle Prompt
             prompt = self.prompt_handler.get_deductive_coding_prompt(
                 chunk=chunk,
                 categories_overview=categories_overview
             )
-
-
+            
             try:
                 token_counter.start_request()
 
@@ -3883,76 +4539,53 @@ class DeductiveCoder:
                     response_format={"type": "json_object"}
                 )
                 
-                # Verarbeite Response mit Wrapper
+                # Verarbeite Response
                 llm_response = LLMResponse(response)
                 result = json.loads(llm_response.content)
-
                 
                 token_counter.track_response(response, self.model_name)
                 
                 if result and isinstance(result, dict):
-                    if result.get('category'):
-
-                        # Verarbeite Paraphrase
-                        paraphrase = result.get('paraphrase', '')
-                        if paraphrase:
-                            print(f"\n🗒️  Paraphrase: {paraphrase}")
-
-
-                        print(f"\n  ✓ Kodierung von {self.coder_id}: 🏷️  {result.get('category', '')}")
-                        print(f"  ✓ Subkategorien von {self.coder_id}: 🏷️  {', '.join(result.get('subcategories', []))}")
-                        print(f"  ✓ Keywords von {self.coder_id}: 🏷️  {result.get('keywords', '')}")
-
-                        # Debug-Ausgaben
-                        print("\n👨‍⚖️  Kodierungsbegründung:")
-                        
-                        # Verarbeite Begründung
-                        justification = result.get('justification', '')
-                        if isinstance(justification, dict):
-                            # Formatiere Dictionary-Begründung
-                            for key, value in justification.items():
-                                print(f"  {key}: {value}")
-                        elif justification:
-                            print(f"  {justification}")
-                                               
-                                               
-                        # Zeige Definition-Matches wenn vorhanden
-                        definition_matches = result.get('definition_matches', [])
-                        if isinstance(definition_matches, list) and definition_matches:
-                            print("\n  Passende Definitionsaspekte:")
-                            for match in definition_matches:
-                                print(f"  - {match}")
-                                
-                        # Zeige Konfidenzdetails
-                        confidence = result.get('confidence', {})
-                        if isinstance(confidence, dict) and confidence:
-                            print("\n  Konfidenzwerte:")
-                            for key, value in confidence.items():
-                                if isinstance(value, (int, float)):
-                                    print(f"  - {key}: {value:.2f}")
+                    # FIX: Strikte Subkategorie-Validierung anwenden
+                    main_category = result.get('category', '')
+                    original_subcats = result.get('subcategories', [])
                     
-                    return CodingResult(
-                        category=result.get('category', ''),
-                        subcategories=tuple(result.get('subcategories', [])),
-                        justification=result.get('justification', ''),
-                        confidence=result.get('confidence', {'total': 0.0, 'category': 0.0, 'subcategories': 0.0}),
-                        text_references=tuple([chunk[:100]]),
-                        uncertainties=None,
-                        paraphrase=result.get('paraphrase', ''),
-                        keywords=result.get('keywords', '')
+                    validated_subcats = CategoryValidator.validate_subcategories_for_category(
+                        original_subcats, main_category, self.current_categories, warn_only=False
                     )
+                    result['subcategories'] = validated_subcats
+                    # FIX: Ende der Subkategorie-Validierung
+                    
+                    coding_result = CodingResult(
+                        category=result.get('category', 'Nicht kodiert'),
+                        subcategories=set(validated_subcats),  # FIX: Nutze validierte Subkategorien
+                        confidence=result.get('confidence', {}),
+                        justification=result.get('justification', ''),
+                        paraphrase=result.get('paraphrase', ''),
+                        keywords=result.get('keywords', ''),
+                        text_references=result.get('text_references', []),
+                        uncertainties=result.get('uncertainties'),
+                        manual_coding=False,
+                        coder_id=self.coder_id
+                    )
+                    
+                    return coding_result
                 else:
-                    print("  ✗ Keine passende Kategorie gefunden")
+                    print(f"Ungültige API-Antwort von {self.coder_id}")
                     return None
-                
+                    
+            except json.JSONDecodeError as e:
+                print(f"JSON-Fehler bei {self.coder_id}: {str(e)}")
+                print(f"Rohe Antwort: {llm_response.content[:200]}...")
+                return None
             except Exception as e:
-                print(f"Fehler bei API Call: {str(e)}")
-                return None          
-
+                print(f"API-Fehler bei {self.coder_id}: {str(e)}")
+                return None
+                
         except Exception as e:
-            print(f"Fehler bei der Kodierung durch {self.coder_id}: {str(e)}")
+            print(f"Allgemeiner Fehler bei der Kodierung durch {self.coder_id}: {str(e)}")
             return None
-
+    
     async def code_chunk_with_progressive_context(self, 
                                           chunk: str, 
                                           categories: Dict[str, CategoryDefinition],
@@ -8365,23 +8998,30 @@ class ResultsExporter:
 
     def _get_consensus_coding(self, segment_codes: List[Dict]) -> Dict:
         """
-        KORRIGIERT: Besseres Debugging für Mehrfachkodierung mit präziser Subkategorien-Zuordnung
+        FIX: Einheitliche Consensus-Bildung mit robuster Subkategorien-Validierung
+        Für IntegratedAnalysisManager Klasse
         """
         if not segment_codes:
             return {}
 
-        # Prüfe ob es echte Mehrfachkodierung gibt (verschiedene Hauptkategorien)
-        categories = [coding['category'] for coding in segment_codes]
+        # FIX: Debug-Info über Eingabe-Kodierungen
+        categories = [coding.get('category', 'UNKNOWN') for coding in segment_codes]
         unique_categories = list(set(categories))
         
-        # print(f"DEBUG _get_consensus_coding: {len(segment_codes)} Kodierungen, Kategorien: {unique_categories}")
+        print(f"🔍 DEBUG Consensus: {len(segment_codes)} Kodierungen, Kategorien: {unique_categories}")
+        
+        # FIX: Detaillierte Analyse der Subkategorien VOR Consensus
+        for i, coding in enumerate(segment_codes):
+            cat = coding.get('category', 'UNKNOWN')
+            subcats = coding.get('subcategories', [])
+            print(f"   Kodierung {i+1}: {cat} → {subcats}")
         
         # Wenn alle dieselbe Hauptkategorie haben, normale Konsensbildung
         if len(unique_categories) == 1:
             return self._get_single_consensus_coding(segment_codes)
         
         # Mehrfachkodierung: Erstelle präzises Kategorie-Subkategorie-Mapping
-        # print(f"DEBUG: Mehrfachkodierung erkannt mit Kategorien: {unique_categories}")
+        print(f"🔀 Mehrfachkodierung erkannt mit Kategorien: {unique_categories}")
         
         best_coding = None
         highest_confidence = 0
@@ -8390,60 +9030,76 @@ class ResultsExporter:
             category = coding.get('category', '')
             subcats = coding.get('subcategories', [])
             confidence = self._extract_confidence_value(coding)
+            
+            print(f"   Prüfe Kodierung: {category} (Subkat: {len(subcats)}, Konfidenz: {confidence:.2f})")
                                    
             # Globale beste Kodierung
             if confidence > highest_confidence:
                 highest_confidence = confidence
                 best_coding = coding
 
-        # Konvertiere Sets zu Listen für JSON-Serialisierung
-
-        
         if best_coding:
             consensus_coding = best_coding.copy()
             
-            # KORRIGIERTE Subkategorien-Behandlung
+            # FIX: Konsistente Subkategorien-Behandlung mit detailliertem Logging
             main_category = consensus_coding.get('category', '')
             original_subcats = best_coding.get('subcategories', [])
             
-            # Validiere Subkategorien gegen Hauptkategorie
-            validated_subcats = self._validate_subcategories_for_category(
-                original_subcats, main_category
-            )
+            print(f"🎯 Beste Kodierung gewählt: {main_category}")
+            print(f"   Original Subkategorien: {original_subcats}")
             
-            consensus_coding['subcategories'] = validated_subcats
+            # FIX: Verwende IMMER die robuste CategoryValidator-Methode
+            try:
+                validated_subcats = CategoryValidator.validate_subcategories_for_category(
+                    original_subcats, main_category, self.current_categories, warn_only=False
+                )
+                
+                print(f"   Nach Validierung: {validated_subcats}")
+                
+                # FIX: Dokumentiere Validierungsaktionen
+                removed_subcats = set(original_subcats) - set(validated_subcats)
+                if removed_subcats:
+                    print(f"   🔧 ENTFERNT: {removed_subcats}")
+                    # FIX: Füge Validierungs-Info zur Begründung hinzu
+                    original_justification = consensus_coding.get('justification', '')
+                    consensus_coding['justification'] = f"{original_justification} [FIX: Subkategorien-Validierung entfernte: {list(removed_subcats)}]"
+                
+                consensus_coding['subcategories'] = validated_subcats
+                
+            except Exception as e:
+                print(f"⚠️ FEHLER bei Subkategorien-Validierung: {str(e)}")
+                print(f"   Fallback: Verwende ursprüngliche Subkategorien ohne Validierung")
+                consensus_coding['subcategories'] = original_subcats
+            
+            # FIX: Füge Validierungs-Metadaten hinzu
+            consensus_coding['validation_applied'] = True
+            consensus_coding['original_subcategory_count'] = len(original_subcats)
+            consensus_coding['validated_subcategory_count'] = len(consensus_coding['subcategories'])
             
             return consensus_coding
         
         # Fallback: Erste Kodierung verwenden
-        return segment_codes[0] if segment_codes else {}
-
-    def _validate_subcategories_for_category(self, subcategories: List[str], main_category: str, warn_only: bool = True) -> List[str]:
-        """
-        Validiert Subkategorien gegen eine Hauptkategorie
+        print("⚠️ FALLBACK: Verwende erste verfügbare Kodierung")
+        fallback_coding = segment_codes[0] if segment_codes else {}
         
-        Args:
-            subcategories: Liste der Subkategorien
-            main_category: Hauptkategorie
-            warn_only: Wenn True, nur warnen statt entfernen
-        """
-        if not hasattr(self, 'current_categories') or main_category not in self.current_categories:
-            return subcategories  # Keine Validierung möglich
+        # FIX: Auch Fallback-Kodierung validieren
+        if fallback_coding:
+            try:
+                main_cat = fallback_coding.get('category', '')
+                orig_subcats = fallback_coding.get('subcategories', [])
+                
+                validated_subcats = CategoryValidator.validate_subcategories_for_category(
+                    orig_subcats, main_cat, self.current_categories, warn_only=False
+                )
+                
+                fallback_coding['subcategories'] = validated_subcats
+                fallback_coding['validation_applied'] = True
+                fallback_coding['is_fallback_coding'] = True
+                
+            except Exception as e:
+                print(f"⚠️ Fallback-Validierung fehlgeschlagen: {str(e)}")
         
-        valid_subcats = set(self.current_categories[main_category].subcategories.keys())
-        validated = [sub for sub in subcategories if sub in valid_subcats]
-        invalid = [sub for sub in subcategories if sub not in valid_subcats]
-        
-        if invalid:
-            if warn_only:
-                print(f"WARNUNG: Subkategorien '{invalid}' gehören nicht zu '{main_category}'")
-                print(f"  Gültige Subkategorien: {list(valid_subcats)}")
-                return subcategories  # Behalte alle, nur warnen
-            else:
-                print(f"ENTFERNT: {len(invalid)} ungültige Subkategorien für '{main_category}': {invalid}")
-                return validated
-        
-        return subcategories
+        return fallback_coding
 
     def _get_majority_coding(self, segment_codes: List[Dict]) -> Optional[Dict]:
         """
@@ -8519,7 +9175,9 @@ class ResultsExporter:
         majority_coding = base_coding.copy()
         main_category = majority_coding.get('category', '')
         original_subcats = base_coding.get('subcategories', [])
-        validated_subcats = self._validate_subcategories_for_category(original_subcats, main_category)
+        validated_subcats = CategoryValidator.validate_subcategories_for_category(
+                original_subcats, main_category, self.current_categories, warn_only=False
+            )
         majority_coding['subcategories'] = validated_subcats
         
         # Kombiniere Begründungen (bleibt gleich)
@@ -8676,7 +9334,28 @@ class ResultsExporter:
         consensus_coding = base_coding.copy()
         main_category = consensus_coding.get('category', '')
         original_subcats = base_coding.get('subcategories', [])
-        validated_subcats = self._validate_subcategories_for_category(original_subcats, main_category)
+        # FIX: Prüfe ob wir Zugriff auf das vollständige Kategoriensystem haben
+        categories_for_validation = getattr(self, 'current_categories', {})
+        
+        if categories_for_validation and main_category in categories_for_validation:
+            validated_subcats = CategoryValidator.validate_subcategories_for_category(
+                original_subcats, main_category, categories_for_validation, warn_only=False
+            )
+            
+            # FIX: Debug-Ausgabe der Validierung
+            if len(original_subcats) != len(validated_subcats):
+                removed_subcats = set(original_subcats) - set(validated_subcats)
+                print(f"🔧 FIX: Consensus-Validierung entfernte {len(removed_subcats)} Subkategorien: {removed_subcats}")
+                
+                # FIX: Dokumentiere Änderung in Begründung
+                original_justification = consensus_coding.get('justification', '')
+                consensus_coding['justification'] = f"{original_justification} [FIX: Consensus-Validierung entfernte ungültige Subkategorien: {list(removed_subcats)}]"
+                
+        else:
+            # FIX: Fallback ohne Validierung
+            print(f"⚠️ WARNUNG: Keine Kategorie-Validierung möglich für '{main_category}' - verwende ursprüngliche Subkategorien")
+            validated_subcats = original_subcats
+        
         consensus_coding['subcategories'] = validated_subcats
         
         # Kombiniere nur Begründungen der matching codings
@@ -8950,7 +9629,9 @@ class ResultsExporter:
                     # selected_coding['subcategories'] = selected_coding.get('subcategories', [])  # DIREKT
                     main_category = selected_coding.get('category', '')
                     original_subcats = selected_coding.get('subcategories', [])
-                    validated_subcats = self._validate_subcategories_for_category(original_subcats, main_category)
+                    validated_subcats = CategoryValidator.validate_subcategories_for_category(
+                        original_subcats, main_category, self.current_categories, warn_only=False
+                    )
                     selected_coding['subcategories'] = validated_subcats
     
         else:
@@ -9330,11 +10011,16 @@ class ResultsExporter:
                 attribut1 = tokens[0] if len(tokens) >= 1 else ""
                 attribut2 = tokens[1] if len(tokens) >= 2 else ""
                 attribut3 = tokens[2] if len(tokens) >= 3 else ""
-            
-            # FIX: Erstelle eindeutigen Präfix für Chunk-Nr wie in _prepare_coding_for_export
+
+            # FIX: Erstelle eindeutigen Präfix für Chunk-Nr mit bis zu 6 Buchstaben pro Attribut
             chunk_prefix = ""
             if attribut1 and attribut2:
-                chunk_prefix = (attribut1[:2] + attribut2[:2] + attribut3[:2]).upper()
+                # FIX: Extrahiere bis zu 6 Buchstaben pro Attribut (oder alle verfügbaren)
+                import re
+                attr1_letters = re.sub(r'[^a-zA-Z]', '', attribut1)[:6]
+                attr2_letters = re.sub(r'[^a-zA-Z]', '', attribut2)[:6] 
+                attr3_letters = re.sub(r'[^a-zA-Z]', '', attribut3)[:6]
+                chunk_prefix = (attr1_letters + "_" + attr2_letters + "_"   + attr3_letters).upper()
             else:
                 chunk_prefix = doc_name[:5].upper()
             
@@ -9425,53 +10111,118 @@ class ResultsExporter:
                 formatted_keywords = [kw.strip() for kw in formatted_keywords if kw.strip()]
             keywords_text = ', '.join(formatted_keywords)
             
-            # FIX: Justification verarbeiten wie in _prepare_coding_for_export
-            justification = coding.get('justification', '')
-
-
-            if display_category == "Nicht kodiert":
-                # Debug: Zeige verfügbare Begründungsfelder
-                segment_id = coding.get('segment_id', 'unknown')
-                print(f"🔍 DEBUG 'Nicht kodiert' Segment {segment_id}:")
-                print(f"   - justification: '{justification}'")
-                print(f"   - reasoning: '{coding.get('reasoning', 'NICHT VORHANDEN')}'")
-                print(f"   - original_justification: '{coding.get('original_justification', 'NICHT VORHANDEN')}'")
-                
-                # Falls justification leer oder generisch ist, suche nach besseren Alternativen
-                if not justification or justification.strip() == "" or justification == "Keine Begründung verfügbar":
-                    # Versuche alternative Begründungsfelder
-                    if 'reasoning' in coding and coding['reasoning'] and coding['reasoning'] != 'NICHT VORHANDEN':
-                        justification = coding['reasoning']
-                    elif 'original_justification' in coding and coding['original_justification'] and coding['original_justification'] != 'NICHT VORHANDEN':
-                        justification = coding['original_justification']
-                    else:
-                        # Fallback-Begründungen basierend auf Textanalyse
-                        text_content = text.lower()
-                        if len(text_content.strip()) < 20:
-                            justification = "Segment zu kurz für sinnvolle Kodierung"
-                        elif any(pattern in text_content for pattern in ['seite ', 'page ', 'copyright', '©', 'inhaltsverzeichnis']):
-                            justification = "Segment als Metadaten (z.B. Seitenzahlen, Copyright) erkannt"
-                        else:
-                            justification = "Nicht relevant für die Forschungsfrage"
+            # FIX: VERBESSERTE BEGRÜNDUNGSVERARBEITUNG - KERNFIX
+            justification = ""
+            
+            # Prioritätssystem für Begründungen:
+            # 1. Normale justification (höchste Priorität)
+            if coding.get('justification') and coding.get('justification').strip():
+                justification = coding.get('justification')
+            # 2. reasoning Feld (oft von RelevanceChecker)
+            elif coding.get('reasoning') and coding.get('reasoning').strip() and coding.get('reasoning') != 'NICHT VORHANDEN':
+                justification = coding.get('reasoning')
+            # 3. original_justification (Backup)
+            elif coding.get('original_justification') and coding.get('original_justification').strip() and coding.get('original_justification') != 'NICHT VORHANDEN':
+                justification = coding.get('original_justification')
+            # 4. Fallback für "Nicht kodiert" basierend auf Analyse
             else:
-                # Für normale kodierte Segmente: bestehende Logik
-                # Entferne Review-Prefixes
-                if justification.startswith('[Konsens'):
-                    parts = justification.split('] ', 1)
-                    if len(parts) > 1:
-                        remaining_text = parts[1]
-                        if ' | ' in remaining_text:
-                            split_parts = remaining_text.split(' | ')
-                            if len(split_parts) > 1 and split_parts[0].strip() == split_parts[1].strip():
-                                justification = split_parts[0].strip()
-                            else:
-                                justification = split_parts[0].strip()
+                if category in ["Nicht kodiert", ""] or display_category == "Nicht kodiert":
+                    # FIX: Hole Details vom RelevanceChecker falls verfügbar
+                    segment_id = coding.get('segment_id', '')
+                    if hasattr(self, 'relevance_checker') and segment_id:
+                        relevance_details = self.relevance_checker.get_relevance_details(segment_id)
+                        if relevance_details:
+                            if relevance_details.get('reasoning') and relevance_details['reasoning'] != 'Keine Begründung verfügbar':
+                                justification = relevance_details['reasoning']
+                            elif relevance_details.get('justification') and relevance_details['justification'] != 'Keine Begründung verfügbar':
+                                justification = relevance_details['justification']
+                    
+                    # FIX: Intelligente Fallback-Begründungen basierend auf Textanalyse
+                    if not justification:
+                        text_content = text.lower() if text else ""
+                        text_length = len(text_content.strip())
+                        
+                        if text_length < 20:
+                            justification = "Segment zu kurz für sinnvolle Kodierung"
+                        elif any(pattern in text_content for pattern in ['seite ', 'page ', 'copyright', '©', 'inhaltsverzeichnis', 'table of contents']):
+                            justification = "Segment als Metadaten (z.B. Seitenzahl, Copyright) identifiziert"
+                        elif any(pattern in text_content for pattern in ['abstract', 'zusammenfassung', 'einleitung']):
+                            justification = "Segment außerhalb des Analysebereichs der Forschungsfrage"
+                        elif text_length < 100:
+                            justification = "Segment enthält zu wenig Substanz für thematische Kodierung"
                         else:
-                            justification = remaining_text.strip()
-                elif justification.startswith(('[Mehrheit', '[Manuelle Priorisierung', '[Konfidenzbasierte Auswahl')):
-                    parts = justification.split('] ', 1)
-                    if len(parts) > 1:
-                        justification = parts[1].strip()
+                            justification = "Segment nicht relevant für die definierten Analysekategorien"
+                
+                # FIX: Fallback für andere Kategorien ohne Begründung
+                elif not justification:
+                    justification = "Kodierung ohne spezifische Begründung dokumentiert"
+            
+            # FIX: Debug-Output für Problemdiagnose
+            if display_category == "Nicht kodiert":
+                segment_id = coding.get('segment_id', 'unknown')
+                print(f"🔧 FIX DEBUG Segment {segment_id}:")
+                print(f"   - Finale justification: '{justification}'")
+                print(f"   - Original justification: '{coding.get('justification', 'LEER')}'")
+                print(f"   - Reasoning: '{coding.get('reasoning', 'LEER')}'")
+                print(f"   - Original_justification: '{coding.get('original_justification', 'LEER')}'")
+                # FIX: ZUSÄTZLICHER CHECK - Direkt vom RelevanceChecker holen
+                if hasattr(self, 'relevance_checker') and self.relevance_checker:
+                    print(f"   - RelevanceChecker verfügbar: JA")
+                    try:
+                        relevance_details = self.relevance_checker.get_relevance_details(segment_id)
+                        print(f"   - RelevanceChecker Details: {relevance_details}")
+                        
+                        # FIX: Verwende RelevanceChecker-Daten wenn vorhanden
+                        if relevance_details and justification == "Keine Begründung verfügbar":
+                            if relevance_details.get('reasoning') and relevance_details['reasoning'] != 'Keine Begründung verfügbar':
+                                justification = relevance_details['reasoning']
+                                print(f"   - ✅ Begründung aus RelevanceChecker geholt: '{justification}'")
+                            elif relevance_details.get('justification') and relevance_details['justification'] != 'Keine Begründung verfügbar':
+                                justification = relevance_details['justification'] 
+                                print(f"   - ✅ Justification aus RelevanceChecker geholt: '{justification}'")
+                    except Exception as e:
+                        print(f"   - ❌ Fehler beim RelevanceChecker-Zugriff: {e}")
+                else:
+                    print(f"   - RelevanceChecker verfügbar: NEIN")
+                    # FIX: Fallback auf analysis_manager falls self.relevance_checker nicht da ist
+                    if hasattr(self, 'analysis_manager') and self.analysis_manager and hasattr(self.analysis_manager, 'relevance_checker'):
+                        print(f"   - Analysis Manager RelevanceChecker verfügbar: JA")
+                        try:
+                            relevance_details = self.analysis_manager.relevance_checker.get_relevance_details(segment_id)
+                            print(f"   - Analysis Manager RelevanceChecker Details: {relevance_details}")
+                            
+                            # FIX: Verwende analysis_manager RelevanceChecker-Daten
+                            if relevance_details and justification == "Keine Begründung verfügbar":
+                                if relevance_details.get('reasoning') and relevance_details['reasoning'] != 'Keine Begründung verfügbar':
+                                    justification = relevance_details['reasoning']
+                                    print(f"   - ✅ Begründung aus Analysis Manager RelevanceChecker geholt: '{justification}'")
+                                elif relevance_details.get('justification') and relevance_details['justification'] != 'Keine Begründung verfügbar':
+                                    justification = relevance_details['justification']
+                                    print(f"   - ✅ Justification aus Analysis Manager RelevanceChecker geholt: '{justification}'")
+                        except Exception as e:
+                            print(f"   - ❌ Fehler beim Analysis Manager RelevanceChecker-Zugriff: {e}")
+                    else:
+                        print(f"   - Analysis Manager RelevanceChecker verfügbar: NEIN")
+                
+                # FIX: Wenn immer noch keine Begründung, verwende intelligente Fallbacks
+                if not justification or justification == "Keine Begründung verfügbar":
+                    text_content = text.lower() if text else ""
+                    text_length = len(text_content.strip())
+                    
+                    if text_length < 20:
+                        justification = "Segment zu kurz für sinnvolle Kodierung"
+                        print(f"   - ✅ Fallback: Zu kurz")
+                    elif any(pattern in text_content for pattern in ['seite ', 'page ', 'copyright', '©', 'inhaltsverzeichnis']):
+                        justification = "Segment als Metadaten identifiziert"
+                        print(f"   - ✅ Fallback: Metadaten")
+                    elif text_length < 100:
+                        justification = "Segment enthält zu wenig Substanz für Kodierung"
+                        print(f"   - ✅ Fallback: Zu wenig Substanz")
+                    else:
+                        justification = "Segment nicht relevant für Analysekategorien"
+                        print(f"   - ✅ Fallback: Nicht relevant")
+                
+                print(f"   - 🎯 FINAL justification: '{justification}'")
             
             # FIX: Konfidenz korrekt extrahieren
             confidence = coding.get('confidence', {})

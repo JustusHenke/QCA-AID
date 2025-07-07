@@ -4227,3 +4227,362 @@ class DocumentToPDFConverter:
         
         print(f"\n✅ Erweiterte PDF-Annotation abgeschlossen: {len(annotated_files)} Dateien erstellt")
         return annotated_files
+    
+class DocumentToPDFConverter:
+    """
+    FIX: Konvertiert TXT und DOCX Dateien zu PDF für einheitliche Annotation
+    """
+    
+    def __init__(self, output_dir: str):
+        self.output_dir = output_dir
+        self.temp_pdf_dir = os.path.join(output_dir, "temp_pdfs")
+        os.makedirs(self.temp_pdf_dir, exist_ok=True)
+        
+        # FIX: Prüfe verfügbare Bibliotheken
+        self.reportlab_available = self._check_reportlab()
+        self.python_docx_available = self._check_python_docx()
+    
+    def _check_reportlab(self) -> bool:
+        """Prüft ob ReportLab verfügbar ist"""
+        try:
+            import reportlab
+            return True
+        except ImportError:
+            return False
+    
+    def _check_python_docx(self) -> bool:
+        """Prüft ob python-docx verfügbar ist"""
+        try:
+            import docx
+            return True
+        except ImportError:
+            return False
+    
+    def convert_txt_to_pdf(self, txt_path: str, output_path: str = None) -> str:
+        """
+        FIX: Konvertiert TXT-Datei zu PDF
+        
+        Args:
+            txt_path: Pfad zur TXT-Datei
+            output_path: Ausgabe-Pfad (optional)
+            
+        Returns:
+            str: Pfad zur erstellten PDF
+        """
+        if not self.reportlab_available:
+            print("   ❌ ReportLab nicht verfügbar für TXT→PDF Konvertierung")
+            print("   💡 Installieren Sie mit: pip install reportlab")
+            return None
+        
+        from reportlab.lib.pagesizes import A4
+        from reportlab.lib.pagesizes import letter
+        from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
+        from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+        from reportlab.lib.units import inch
+        from reportlab.lib.enums import TA_LEFT
+        
+        if not output_path:
+            base_name = os.path.splitext(os.path.basename(txt_path))[0]
+            output_path = os.path.join(self.temp_pdf_dir, f"{base_name}.pdf")
+        
+        print(f"   📄 Konvertiere TXT zu PDF: {os.path.basename(txt_path)}")
+        
+        try:
+            # FIX: Lese TXT-Datei
+            with open(txt_path, 'r', encoding='utf-8') as f:
+                text_content = f.read()
+            
+            # FIX: Erstelle PDF
+            doc = SimpleDocTemplate(output_path, pagesize=A4,
+                                  rightMargin=72, leftMargin=72,
+                                  topMargin=72, bottomMargin=18)
+            
+            # FIX: Styles definieren
+            styles = getSampleStyleSheet()
+            normal_style = ParagraphStyle(
+                'CustomNormal',
+                parent=styles['Normal'],
+                fontSize=10,
+                leading=12,
+                alignment=TA_LEFT,
+                spaceAfter=6,
+            )
+            
+            # FIX: Text in Paragraphen aufteilen
+            story = []
+            paragraphs = text_content.split('\n\n')  # Doppelte Zeilenumbrüche als Absätze
+            
+            for para_text in paragraphs:
+                if para_text.strip():
+                    # FIX: Bereinige Text für ReportLab
+                    clean_text = para_text.replace('\n', ' ').strip()
+                    # Escape spezielle Zeichen
+                    clean_text = clean_text.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+                    
+                    para = Paragraph(clean_text, normal_style)
+                    story.append(para)
+                    story.append(Spacer(1, 6))
+            
+            # FIX: PDF erstellen
+            doc.build(story)
+            
+            print(f"   ✅ TXT→PDF erfolgreich: {os.path.basename(output_path)}")
+            return output_path
+            
+        except Exception as e:
+            print(f"   ❌ Fehler bei TXT→PDF Konvertierung: {e}")
+            return None
+    
+    def convert_docx_to_pdf(self, docx_path: str, output_path: str = None) -> str:
+        """
+        FIX: Konvertiert DOCX-Datei zu PDF
+        
+        Args:
+            docx_path: Pfad zur DOCX-Datei
+            output_path: Ausgabe-Pfad (optional)
+            
+        Returns:
+            str: Pfad zur erstellten PDF
+        """
+        if not self.reportlab_available or not self.python_docx_available:
+            print("   ❌ Benötigte Bibliotheken nicht verfügbar für DOCX→PDF")
+            print("   💡 Installieren Sie mit: pip install reportlab python-docx")
+            return None
+        
+        from reportlab.lib.pagesizes import A4
+        from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
+        from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+        from reportlab.lib.enums import TA_LEFT, TA_CENTER
+        from docx import Document
+        
+        if not output_path:
+            base_name = os.path.splitext(os.path.basename(docx_path))[0]
+            output_path = os.path.join(self.temp_pdf_dir, f"{base_name}.pdf")
+        
+        print(f"   📄 Konvertiere DOCX zu PDF: {os.path.basename(docx_path)}")
+        
+        try:
+            # FIX: Lese DOCX-Datei
+            doc_docx = Document(docx_path)
+            
+            # FIX: Erstelle PDF
+            doc_pdf = SimpleDocTemplate(output_path, pagesize=A4,
+                                      rightMargin=72, leftMargin=72,
+                                      topMargin=72, bottomMargin=18)
+            
+            # FIX: Styles definieren
+            styles = getSampleStyleSheet()
+            normal_style = ParagraphStyle(
+                'CustomNormal',
+                parent=styles['Normal'],
+                fontSize=10,
+                leading=12,
+                alignment=TA_LEFT,
+                spaceAfter=6,
+            )
+            
+            heading_style = ParagraphStyle(
+                'CustomHeading',
+                parent=styles['Heading1'],
+                fontSize=14,
+                leading=16,
+                alignment=TA_LEFT,
+                spaceAfter=12,
+                spaceBefore=12,
+            )
+            
+            # FIX: DOCX-Inhalte extrahieren
+            story = []
+            
+            for paragraph in doc_docx.paragraphs:
+                text = paragraph.text.strip()
+                if not text:
+                    continue
+                
+                # FIX: Bereinige Text
+                clean_text = text.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+                
+                # FIX: Einfache Stil-Erkennung (könnte erweitert werden)
+                if len(text) < 100 and (text.isupper() or text.startswith('#')):
+                    # Vermutlich Überschrift
+                    para = Paragraph(clean_text, heading_style)
+                else:
+                    # Normaler Text
+                    para = Paragraph(clean_text, normal_style)
+                
+                story.append(para)
+                story.append(Spacer(1, 6))
+            
+            # FIX: PDF erstellen
+            doc_pdf.build(story)
+            
+            print(f"   ✅ DOCX→PDF erfolgreich: {os.path.basename(output_path)}")
+            return output_path
+            
+        except Exception as e:
+            print(f"   ❌ Fehler bei DOCX→PDF Konvertierung: {e}")
+            return None
+    
+    def convert_document_to_pdf(self, file_path: str) -> str:
+        """
+        FIX: Universelle Konvertierung basierend auf Dateierweiterung
+        
+        Args:
+            file_path: Pfad zur Eingabedatei
+            
+        Returns:
+            str: Pfad zur PDF (Original-PDF oder konvertierte PDF)
+        """
+        file_ext = os.path.splitext(file_path)[1].lower()
+        
+        if file_ext == '.pdf':
+            # FIX: Bereits PDF - einfach zurückgeben
+            return file_path
+        elif file_ext == '.txt':
+            return self.convert_txt_to_pdf(file_path)
+        elif file_ext in ['.docx', '.doc']:
+            return self.convert_docx_to_pdf(file_path)
+        else:
+            print(f"   ⚠️ Nicht unterstütztes Format: {file_ext}")
+            return None
+    
+    def cleanup_temp_pdfs(self):
+        """
+        FIX: Bereinigt temporäre PDF-Dateien
+        """
+        try:
+            import shutil
+            if os.path.exists(self.temp_pdf_dir):
+                shutil.rmtree(self.temp_pdf_dir)
+                print(f"   🧹 Temporäre PDFs bereinigt")
+        except Exception as e:
+            print(f"   ⚠️ Fehler bei Bereinigung: {e}")
+
+
+# FIX: Erweiterte export_annotated_pdfs Methode in ResultsExporter Klasse
+
+    def export_annotated_pdfs_all_formats(self, 
+                                         codings: List[Dict], 
+                                         chunks: Dict[str, List[str]], 
+                                         data_dir: str) -> List[str]:
+        """
+        FIX: Erweiterte PDF-Annotation für alle Dateiformate (TXT, DOCX, PDF)
+        
+        Args:
+            codings: Liste der finalen Kodierungen
+            chunks: Dictionary mit chunk_id -> text mapping
+            data_dir: Input-Verzeichnis mit Original-Dateien
+            
+        Returns:
+            List[str]: Liste der Pfade zu erstellten annotierten PDFs
+        """
+        print(f"\n🎨 Beginne erweiterte PDF-Annotations-Export für alle Formate...")
+        
+        try:
+            # FIX: Importiere PDF-Annotator
+            from QCA_Utils import PDFAnnotator, DocumentToPDFConverter
+        except ImportError:
+            print("   ❌ PyMuPDF nicht verfügbar - PDF-Annotation übersprungen")
+            return []
+        
+        # FIX: Initialisiere Konverter und Annotator
+        pdf_converter = DocumentToPDFConverter(self.output_dir)
+        pdf_annotator = PDFAnnotator(self)
+        
+        # FIX: Finde alle unterstützten Dateien
+        supported_extensions = ['.pdf', '.txt', '.docx', '.doc']
+        input_files = []
+        
+        try:
+            for file in os.listdir(data_dir):
+                file_path = os.path.join(data_dir, file)
+                file_ext = os.path.splitext(file)[1].lower()
+                
+                if os.path.isfile(file_path) and file_ext in supported_extensions:
+                    input_files.append((file, file_path, file_ext))
+                    
+        except Exception as e:
+            print(f"   ❌ Fehler beim Durchsuchen des Verzeichnisses: {e}")
+            return []
+        
+        if not input_files:
+            print("   ℹ️ Keine unterstützten Dateien im Input-Verzeichnis gefunden")
+            return []
+        
+        print(f"   📁 {len(input_files)} Dateien gefunden:")
+        for filename, _, ext in input_files:
+            print(f"      • {filename} ({ext})")
+        
+        annotated_files = []
+        
+        # FIX: Verarbeite jede Datei
+        for filename, file_path, file_ext in input_files:
+            print(f"\n   📄 Verarbeite: {filename}")
+            
+            # FIX: Filtere Review-Kodierungen für diese Datei
+            file_stem = os.path.splitext(filename)[0]
+            file_codings = []
+            
+            for coding in codings:
+                is_review_coding = (
+                    coding.get('consensus_info') is not None or
+                    coding.get('review_decision') is not None or
+                    coding.get('selection_type') in ['consensus', 'majority', 'manual_priority'] or
+                    len([c for c in codings if c.get('segment_id') == coding.get('segment_id')]) == 1
+                )
+                
+                matches_file = (
+                    file_stem in coding.get('document', '') or 
+                    file_stem in coding.get('segment_id', '')
+                )
+                
+                if is_review_coding and matches_file:
+                    file_codings.append(coding)
+            
+            if not file_codings:
+                print(f"      ⚠️ Keine Review-Kodierungen für {filename} gefunden")
+                continue
+            
+            print(f"      📋 {len(file_codings)} Review-Kodierungen gefunden")
+            
+            # FIX: Konvertiere zu PDF falls nötig
+            if file_ext == '.pdf':
+                pdf_path = file_path
+                print(f"      ✅ Bereits PDF")
+            else:
+                print(f"      🔄 Konvertiere {file_ext.upper()} zu PDF...")
+                pdf_path = pdf_converter.convert_document_to_pdf(file_path)
+                
+                if not pdf_path:
+                    print(f"      ❌ Konvertierung fehlgeschlagen")
+                    continue
+                
+                print(f"      ✅ PDF erstellt: {os.path.basename(pdf_path)}")
+            
+            # FIX: Annotiere PDF
+            try:
+                output_filename = f"{file_stem}_QCA_annotiert.pdf"
+                output_file = os.path.join(self.output_dir, output_filename)
+                
+                result_path = pdf_annotator.annotate_pdf_with_codings(
+                    pdf_path,
+                    file_codings,
+                    chunks,
+                    output_file
+                )
+                
+                if result_path:
+                    annotated_files.append(result_path)
+                    print(f"      ✅ Annotiert: {os.path.basename(result_path)}")
+                else:
+                    print(f"      ❌ Annotation fehlgeschlagen")
+                
+            except Exception as e:
+                print(f"      ❌ Fehler bei Annotation: {e}")
+                continue
+        
+        # FIX: Bereinige temporäre Dateien
+        pdf_converter.cleanup_temp_pdfs()
+        
+        print(f"\n✅ Erweiterte PDF-Annotation abgeschlossen: {len(annotated_files)} Dateien erstellt")
+        return annotated_files
