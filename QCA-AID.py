@@ -16,6 +16,7 @@ PERFORMANCE-OPTIMIERUNG: Fokussierte AI-Kodierung nur mit relevanten Kategorien,
 PYMUPDF-FIX: fitz.open() durch fitz.Document() ersetzt, robuste Fehlerbehandlung für PDF-Laden/-Speichern
 CONFIDENCE-SCALES: Zentrale Klasse mit 5 spezialisierten Skalen (0.6+ definitiv, 0.8+ eindeutig), einheitliche textbelegte Konfidenz-Bewertungen in allen Prompts
 EXPORT-FIX: Begründungen bei Nichtkodierung werden nun korrekt exportiert
+CONFIG-Sheet: die Konfiguration des Tools im Codebook wird nun auch exportiert
 
 0.9.17
 - Input dateien können jetzt als annotierte Version exportiert werden
@@ -9862,7 +9863,7 @@ class ResultsExporter:
                             revision_manager: 'CategoryRevisionManager',
                             export_mode: str = "consensus",
                             original_categories: Dict[str, CategoryDefinition] = None,
-                            original_codings: List[Dict] = None,  # FIX: Bereits vorhanden
+                            original_codings: List[Dict] = None,  
                             inductive_coder: 'InductiveCoder' = None,
                             document_summaries: Dict[str, str] = None) -> None:
         """
@@ -9881,7 +9882,8 @@ class ResultsExporter:
         """
         try:
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            filename = f"QCA-AID_Analysis_{export_mode}_{timestamp}.xlsx"
+            analysis_mode = CONFIG.get('ANALYSIS_MODE', 'deductive')
+            filename = f"QCA-AID_Analysis_{analysis_mode}_{timestamp}.xlsx"
             filepath = os.path.join(self.output_dir, filename)
             
             with pd.ExcelWriter(filepath, engine='openpyxl') as writer:
@@ -9930,6 +9932,10 @@ class ResultsExporter:
                     revision_manager._export_revision_history(writer, revision_manager.changes)
                 else:
                     print("ℹ️ Keine Revisionshistorie verfügbar")
+                
+                # 8. KONFIGURATION-SHEET 
+                print("⚙️ Exportiere Konfiguration...")
+                self._export_configuration_sheet(writer)
             
             print(f"✅ Export erfolgreich: {filename}")
             return filename
@@ -10436,33 +10442,6 @@ class ResultsExporter:
         else:
             return 'Induktiv'
     
-    def _create_excel_table_with_filters(self, worksheet, df, table_name):
-        """
-        Erstellt Excel-Tabelle mit Filterfunktionen
-        FIX: Radikale Vereinfachung - verwende nur AutoFilter statt Excel-Table-Objekte
-        """
-        try:
-            # FIX: Bestimme Dimensionen anhand der tatsächlichen Worksheet-Inhalte
-            actual_max_row = worksheet.max_row
-            actual_max_col = worksheet.max_column
-            
-            print(f"Worksheet-Dimensionen: {actual_max_row} Zeilen, {actual_max_col} Spalten")
-            
-            # Prüfe ob überhaupt Daten vorhanden sind
-            if actual_max_row < 2 or actual_max_col < 1:
-                print("⚠️ Worksheet enthält keine ausreichenden Daten für Filtererstellung.")
-                return
-            
-            # FIX: Verwende nur AutoFilter - viel stabiler als Excel-Table-Objekte
-            filter_range = f"A1:{get_column_letter(actual_max_col)}{actual_max_row}"
-            worksheet.auto_filter.ref = filter_range
-            
-            print(f"✅ AutoFilter erstellt für Bereich: {filter_range}")
-            # FIX: Ende
-            
-        except Exception as e:
-            print(f"⚠️ Fehler bei AutoFilter-Erstellung: {str(e)}")
-
     def _format_worksheet(self, worksheet, as_table: bool = False) -> None:
         """
         Formatiert das Detail-Worksheet mit flexibler Farbkodierung und adaptiven Spaltenbreiten
@@ -10847,283 +10826,6 @@ class ResultsExporter:
         else:
             # Fallback für ungültige Segment-IDs
             return segment_id, "unknown"
-
-    def _export_detailed_intercoder_analysis(self, writer, codings: List[Dict], reliability: float):
-        """
-        PUNKT 6: Detaillierte Intercoder-Analyse mit Subkategorien-Unstimmigkeiten
-        """
-        try:
-            print("👥 Erstelle detaillierte Intercoder-Analyse...")
-            
-            # Gruppiere Kodierungen nach ursprünglicher Segment-ID
-            from collections import defaultdict
-            
-            original_segments = defaultdict(list)
-            for coding in codings:
-                # Extrahiere ursprüngliche Segment-ID
-                consensus_info = coding.get('consensus_info', {})
-                original_id = consensus_info.get('original_segment_id', coding.get('segment_id', ''))
-                if original_id:
-                    original_segments[original_id].append(coding)
-            
-            # Analysiere Unstimmigkeiten
-            disagreement_data = []
-            
-            for original_id, segment_codings in original_segments.items():
-                if len(segment_codings) < 2:
-                    continue  # Keine Unstimmigkeit möglich bei nur einem Kodierer
-                
-                # Analysiere Hauptkategorien-Unstimmigkeiten
-                main_categories = [c.get('category', '') for c in segment_codings]
-                unique_main_cats = set(main_categories)
-                
-                # Analysiere Subkategorien-Unstimmigkeiten
-                for main_cat in unique_main_cats:
-                    if main_cat in ['Nicht kodiert', 'Kein Kodierkonsens', '']:
-                        continue
-                    
-                    # Finde alle Kodierungen für diese Hauptkategorie
-                    cat_codings = [c for c in segment_codings if c.get('category') == main_cat]
-                    
-                    if len(cat_codings) < 2:
-                        continue
-                    
-                    # Subkategorien-Analyse
-                    subcat_sets = []
-                    coder_info = []
-                    
-                    for coding in cat_codings:
-                        subcats = set(coding.get('subcategories', []))
-                        subcat_sets.append(subcats)
-                        coder_info.append({
-                            'coder': coding.get('coder_id', 'Unbekannt'),
-                            'subcats': list(subcats),
-                            'confidence': self._extract_confidence_from_coding(coding)
-                        })
-                    
-                    # Prüfe auf Subkategorien-Unstimmigkeiten
-                    all_subcats_identical = all(s == subcat_sets[0] for s in subcat_sets)
-                    
-                    if not all_subcats_identical or len(unique_main_cats) > 1:
-                        # Unstimmigkeit gefunden
-                        disagreement_data.append({
-                            'Segment_ID': original_id,
-                            'Hauptkategorie': main_cat,
-                            'Anzahl_Kodierer': len(cat_codings),
-                            'Hauptkat_Konsens': 'Ja' if len(unique_main_cats) == 1 else 'Nein',
-                            'Subkat_Konsens': 'Ja' if all_subcats_identical else 'Nein',
-                            'Kodierer_1': coder_info[0]['coder'] if len(coder_info) > 0 else '',
-                            'Subkats_1': ', '.join(coder_info[0]['subcats']) if len(coder_info) > 0 else '',
-                            'Konfidenz_1': f"{coder_info[0]['confidence']:.2f}" if len(coder_info) > 0 else '',
-                            'Kodierer_2': coder_info[1]['coder'] if len(coder_info) > 1 else '',
-                            'Subkats_2': ', '.join(coder_info[1]['subcats']) if len(coder_info) > 1 else '',
-                            'Konfidenz_2': f"{coder_info[1]['confidence']:.2f}" if len(coder_info) > 1 else '',
-                            'Kodierer_3': coder_info[2]['coder'] if len(coder_info) > 2 else '',
-                            'Subkats_3': ', '.join(coder_info[2]['subcats']) if len(coder_info) > 2 else '',
-                            'Konfidenz_3': f"{coder_info[2]['confidence']:.2f}" if len(coder_info) > 2 else '',
-                            'Unstimmigkeits_Typ': self._classify_disagreement_type(unique_main_cats, all_subcats_identical)
-                        })
-            
-            # Exportiere Unstimmigkeits-Analyse
-            if disagreement_data:
-                df_disagreements = pd.DataFrame(disagreement_data)
-                df_disagreements.to_excel(writer, sheet_name='Intercoder_Unstimmigkeiten', index=False)
-                
-                # Formatierung anwenden
-                worksheet = writer.sheets['Intercoder_Unstimmigkeiten']
-                self._format_intercoder_sheet(worksheet, df_disagreements)
-                
-                print(f"✅ {len(disagreement_data)} Intercoder-Unstimmigkeiten analysiert")
-            else:
-                # Leeres Sheet mit Info erstellen
-                empty_data = [{'Info': 'Keine Intercoder-Unstimmigkeiten gefunden'}]
-                df_empty = pd.DataFrame(empty_data)
-                df_empty.to_excel(writer, sheet_name='Intercoder_Unstimmigkeiten', index=False)
-                print("ℹ️ Keine Intercoder-Unstimmigkeiten gefunden")
-            
-            # Zusätzlich: Übersichts-Statistiken
-            self._create_intercoder_summary(writer, original_segments, reliability)
-            
-        except Exception as e:
-            print(f"❌ Fehler bei Intercoder-Analyse: {str(e)}")
-            import traceback
-            traceback.print_exc()
-    
-    def _classify_disagreement_type(self, unique_main_cats, all_subcats_identical):
-        """
-        Klassifiziert den Typ der Unstimmigkeit
-        """
-        if len(unique_main_cats) > 1:
-            return 'Hauptkategorie-Konflikt'
-        elif not all_subcats_identical:
-            return 'Subkategorie-Konflikt'
-        else:
-            return 'Andere Unstimmigkeit'
-    
-    def _create_empty_intercoder_sheet(self, writer):
-        """
-        FIX: Erstellt Info-Sheet wenn keine Reliabilitätsdaten verfügbar
-        Für ResultsExporter Klasse
-        """
-        worksheet = writer.book.create_sheet("IntercoderBericht")
-        
-        worksheet.cell(row=1, column=1, value="Intercoder-Reliabilitäts-Bericht").font = Font(bold=True, size=14)
-        worksheet.cell(row=3, column=1, value="⚠️ Keine ursprünglichen Kodierungen für Reliabilitätsberechnung verfügbar")
-        worksheet.cell(row=4, column=1, value="Reliabilität muss vor dem Review-Prozess berechnet werden")
-        
-        worksheet.column_dimensions['A'].width = 60
-
-    def _format_intercoder_sheet(self, worksheet, df):
-        """
-        PUNKT 7: Formatierung des Intercoder-Sheets
-        """
-        # Header formatieren
-        for cell in worksheet[1]:
-            cell.font = Font(bold=True, color='FFFFFF')
-            cell.fill = PatternFill(start_color='366092', end_color='366092', fill_type='solid')
-            cell.alignment = Alignment(horizontal='center')
-        
-        # Rahmen für alle Zellen
-        thin_border = Border(
-            left=Side(style='thin'),
-            right=Side(style='thin'),
-            top=Side(style='thin'),
-            bottom=Side(style='thin')
-        )
-        
-        for row in worksheet.iter_rows(min_row=1, max_row=len(df)+1, min_col=1, max_col=len(df.columns)):
-            for cell in row:
-                cell.border = thin_border
-        
-        # Spaltenbreiten anpassen
-        column_widths = {
-            'A': 15,  # Segment_ID
-            'B': 20,  # Hauptkategorie
-            'C': 12,  # Anzahl_Kodierer
-            'D': 15,  # Hauptkat_Konsens
-            'E': 15,  # Subkat_Konsens
-            'F': 12,  # Kodierer_1
-            'G': 25,  # Subkats_1
-            'H': 10,  # Konfidenz_1
-            # ... weitere Spalten
-        }
-        
-        for col, width in column_widths.items():
-            worksheet.column_dimensions[col].width = width
-    
-    
-    def _export_intercoder_bericht(self, writer, original_codings: List[Dict], reliability: float):
-        """
-        FIX: Intercoder-Bericht mit bereits berechneter Reliabilität
-        Für ResultsExporter Klasse
-        """
-        try:
-            print("📊 Erstelle IntercoderBericht mit ursprünglichen Daten...")
-            
-            worksheet = writer.book.create_sheet("IntercoderBericht")
-            current_row = 1
-            
-            # Titel
-            title_cell = worksheet.cell(row=current_row, column=1, value="Intercoder-Reliabilitäts-Bericht")
-            title_cell.font = Font(bold=True, size=14)
-            current_row += 2
-            
-            # FIX: Verwende bereits berechnete Reliabilität (aus main())
-            print(f"📊 Verwende bereits berechnete Reliabilität: {reliability:.3f}")
-            
-            # FIX: Berechne zusätzliche Statistiken nur für Display
-            reliability_calc = ReliabilityCalculator()
-            
-            # FIX: Berechne vollständigen Bericht für detaillierte Anzeige
-            comprehensive_report = reliability_calc.calculate_comprehensive_reliability(original_codings)
-            
-            statistics = reliability_calc._calculate_basic_statistics(original_codings)
-            agreement_analysis = reliability_calc._calculate_detailed_agreement_analysis(original_codings)
-            
-            # 1. Reliabilitäts-Übersicht
-            worksheet.cell(row=current_row, column=1, value="1. Reliabilitäts-Übersicht")
-            worksheet.cell(row=current_row, column=1).font = Font(bold=True)
-            current_row += 1
-            
-            # FIX: Overall Alpha fett gedruckt und prominent
-            worksheet.cell(row=current_row, column=1, value="Overall Alpha (Jaccard-basiert):")
-            alpha_cell = worksheet.cell(row=current_row, column=2, value=f"{comprehensive_report['overall_alpha']:.3f}")
-            alpha_cell.font = Font(bold=True, size=12)
-            current_row += 1
-            
-            # FIX: Bewertung hinzufügen
-            worksheet.cell(row=current_row, column=1, value="Bewertung:")
-            overall_alpha = comprehensive_report['overall_alpha']
-            rating = "Exzellent" if overall_alpha > 0.8 else "Akzeptabel" if overall_alpha > 0.667 else "Unzureichend"
-            rating_cell = worksheet.cell(row=current_row, column=2, value=rating)
-            rating_cell.font = Font(bold=True)
-            
-            # FIX: Farbkodierung für die Bewertung
-            if overall_alpha > 0.8:
-                rating_cell.fill = PatternFill(start_color='90EE90', end_color='90EE90', fill_type='solid')
-            elif overall_alpha > 0.667:
-                rating_cell.fill = PatternFill(start_color='FFFF90', end_color='FFFF90', fill_type='solid')
-            else:
-                rating_cell.fill = PatternFill(start_color='FFB6C1', end_color='FFB6C1', fill_type='solid')
-            current_row += 2
-            
-            # FIX: Zusätzliche Alpha-Werte aus dem comprehensive report
-            worksheet.cell(row=current_row, column=1, value="Hauptkategorien Alpha (Jaccard):")
-            worksheet.cell(row=current_row, column=2, value=f"{comprehensive_report['main_categories_alpha']:.3f}")
-            current_row += 1
-            
-            worksheet.cell(row=current_row, column=1, value="Subkategorien Alpha (Jaccard):")
-            worksheet.cell(row=current_row, column=2, value=f"{comprehensive_report['subcategories_alpha']:.3f}")
-            current_row += 1
-            
-            worksheet.cell(row=current_row, column=1, value="Vergleichbare Segmente:")
-            worksheet.cell(row=current_row, column=2, value=comprehensive_report['statistics']['vergleichbare_segmente'])
-            current_row += 1
-            
-            worksheet.cell(row=current_row, column=1, value="Anzahl Kodierer:")
-            worksheet.cell(row=current_row, column=2, value=comprehensive_report['statistics']['anzahl_kodierer'])
-            current_row += 2
-            
-            # FIX: Methodik-Informationen hinzufügen
-            worksheet.cell(row=current_row, column=1, value="2. Methodik")
-            worksheet.cell(row=current_row, column=1).font = Font(bold=True)
-            current_row += 1
-            
-            worksheet.cell(row=current_row, column=1, value="Alle Alpha-Werte verwenden:")
-            worksheet.cell(row=current_row, column=2, value="Jaccard-Ähnlichkeit")
-            current_row += 1
-            
-            worksheet.cell(row=current_row, column=1, value="Berechnung:")
-            worksheet.cell(row=current_row, column=2, value="Set-basierte Berechnung")
-            current_row += 1
-            
-            worksheet.cell(row=current_row, column=1, value="Konsistenz:")
-            worksheet.cell(row=current_row, column=2, value="Overall zwischen Haupt- und Sub-Alpha")
-            current_row += 2
-            
-            # Spaltenbreiten anpassen
-            worksheet.column_dimensions['A'].width = 35
-            worksheet.column_dimensions['B'].width = 20
-            
-            print("✅ IntercoderBericht mit ursprünglichen Daten erstellt")
-            
-        except Exception as e:
-            print(f"❌ Fehler beim IntercoderBericht: {str(e)}")
-            import traceback
-            traceback.print_exc()
-
-    def _create_empty_intercoder_sheet(self, writer):
-        """
-        FIX: Erstellt Info-Sheet wenn keine Reliabilitätsdaten verfügbar
-        Für ResultsExporter Klasse
-        """
-        worksheet = writer.book.create_sheet("IntercoderBericht")
-        
-        worksheet.cell(row=1, column=1, value="Intercoder-Reliabilitäts-Bericht").font = Font(bold=True, size=14)
-        worksheet.cell(row=3, column=1, value="⚠️ Keine ursprünglichen Kodierungen für Reliabilitätsberechnung verfügbar")
-        worksheet.cell(row=4, column=1, value="Reliabilität muss vor dem Review-Prozess berechnet werden")
-        
-        worksheet.column_dimensions['A'].width = 60
 
     def _get_base_segment_id(self, coding: Dict) -> str:
         """
@@ -11799,6 +11501,271 @@ class ResultsExporter:
             import traceback
             traceback.print_exc()
 
+    
+    def _export_detailed_intercoder_analysis(self, writer, codings: List[Dict], reliability: float):
+        """
+        PUNKT 6: Detaillierte Intercoder-Analyse mit Subkategorien-Unstimmigkeiten
+        """
+        try:
+            print("👥 Erstelle detaillierte Intercoder-Analyse...")
+            
+            # Gruppiere Kodierungen nach ursprünglicher Segment-ID
+            from collections import defaultdict
+            
+            original_segments = defaultdict(list)
+            for coding in codings:
+                # Extrahiere ursprüngliche Segment-ID
+                consensus_info = coding.get('consensus_info', {})
+                original_id = consensus_info.get('original_segment_id', coding.get('segment_id', ''))
+                if original_id:
+                    original_segments[original_id].append(coding)
+            
+            # Analysiere Unstimmigkeiten
+            disagreement_data = []
+            
+            for original_id, segment_codings in original_segments.items():
+                if len(segment_codings) < 2:
+                    continue  # Keine Unstimmigkeit möglich bei nur einem Kodierer
+                
+                # Analysiere Hauptkategorien-Unstimmigkeiten
+                main_categories = [c.get('category', '') for c in segment_codings]
+                unique_main_cats = set(main_categories)
+                
+                # Analysiere Subkategorien-Unstimmigkeiten
+                for main_cat in unique_main_cats:
+                    if main_cat in ['Nicht kodiert', 'Kein Kodierkonsens', '']:
+                        continue
+                    
+                    # Finde alle Kodierungen für diese Hauptkategorie
+                    cat_codings = [c for c in segment_codings if c.get('category') == main_cat]
+                    
+                    if len(cat_codings) < 2:
+                        continue
+                    
+                    # Subkategorien-Analyse
+                    subcat_sets = []
+                    coder_info = []
+                    
+                    for coding in cat_codings:
+                        subcats = set(coding.get('subcategories', []))
+                        subcat_sets.append(subcats)
+                        coder_info.append({
+                            'coder': coding.get('coder_id', 'Unbekannt'),
+                            'subcats': list(subcats),
+                            'confidence': self._extract_confidence_from_coding(coding)
+                        })
+                    
+                    # Prüfe auf Subkategorien-Unstimmigkeiten
+                    all_subcats_identical = all(s == subcat_sets[0] for s in subcat_sets)
+                    
+                    if not all_subcats_identical or len(unique_main_cats) > 1:
+                        # Unstimmigkeit gefunden
+                        disagreement_data.append({
+                            'Segment_ID': original_id,
+                            'Hauptkategorie': main_cat,
+                            'Anzahl_Kodierer': len(cat_codings),
+                            'Hauptkat_Konsens': 'Ja' if len(unique_main_cats) == 1 else 'Nein',
+                            'Subkat_Konsens': 'Ja' if all_subcats_identical else 'Nein',
+                            'Kodierer_1': coder_info[0]['coder'] if len(coder_info) > 0 else '',
+                            'Subkats_1': ', '.join(coder_info[0]['subcats']) if len(coder_info) > 0 else '',
+                            'Konfidenz_1': f"{coder_info[0]['confidence']:.2f}" if len(coder_info) > 0 else '',
+                            'Kodierer_2': coder_info[1]['coder'] if len(coder_info) > 1 else '',
+                            'Subkats_2': ', '.join(coder_info[1]['subcats']) if len(coder_info) > 1 else '',
+                            'Konfidenz_2': f"{coder_info[1]['confidence']:.2f}" if len(coder_info) > 1 else '',
+                            'Kodierer_3': coder_info[2]['coder'] if len(coder_info) > 2 else '',
+                            'Subkats_3': ', '.join(coder_info[2]['subcats']) if len(coder_info) > 2 else '',
+                            'Konfidenz_3': f"{coder_info[2]['confidence']:.2f}" if len(coder_info) > 2 else '',
+                            'Unstimmigkeits_Typ': self._classify_disagreement_type(unique_main_cats, all_subcats_identical)
+                        })
+            
+            # Exportiere Unstimmigkeits-Analyse
+            if disagreement_data:
+                df_disagreements = pd.DataFrame(disagreement_data)
+                df_disagreements.to_excel(writer, sheet_name='Intercoder_Unstimmigkeiten', index=False)
+                
+                # Formatierung anwenden
+                worksheet = writer.sheets['Intercoder_Unstimmigkeiten']
+                self._format_intercoder_sheet(worksheet, df_disagreements)
+                
+                print(f"✅ {len(disagreement_data)} Intercoder-Unstimmigkeiten analysiert")
+            else:
+                # Leeres Sheet mit Info erstellen
+                empty_data = [{'Info': 'Keine Intercoder-Unstimmigkeiten gefunden'}]
+                df_empty = pd.DataFrame(empty_data)
+                df_empty.to_excel(writer, sheet_name='Intercoder_Unstimmigkeiten', index=False)
+                print("ℹ️ Keine Intercoder-Unstimmigkeiten gefunden")
+            
+            # Zusätzlich: Übersichts-Statistiken
+            self._create_intercoder_summary(writer, original_segments, reliability)
+            
+        except Exception as e:
+            print(f"❌ Fehler bei Intercoder-Analyse: {str(e)}")
+            import traceback
+            traceback.print_exc()
+    
+    def _classify_disagreement_type(self, unique_main_cats, all_subcats_identical):
+        """
+        Klassifiziert den Typ der Unstimmigkeit
+        """
+        if len(unique_main_cats) > 1:
+            return 'Hauptkategorie-Konflikt'
+        elif not all_subcats_identical:
+            return 'Subkategorie-Konflikt'
+        else:
+            return 'Andere Unstimmigkeit'
+    
+    def _format_intercoder_sheet(self, worksheet, df):
+        """
+        PUNKT 7: Formatierung des Intercoder-Sheets
+        """
+        # Header formatieren
+        for cell in worksheet[1]:
+            cell.font = Font(bold=True, color='FFFFFF')
+            cell.fill = PatternFill(start_color='366092', end_color='366092', fill_type='solid')
+            cell.alignment = Alignment(horizontal='center')
+        
+        # Rahmen für alle Zellen
+        thin_border = Border(
+            left=Side(style='thin'),
+            right=Side(style='thin'),
+            top=Side(style='thin'),
+            bottom=Side(style='thin')
+        )
+        
+        for row in worksheet.iter_rows(min_row=1, max_row=len(df)+1, min_col=1, max_col=len(df.columns)):
+            for cell in row:
+                cell.border = thin_border
+        
+        # Spaltenbreiten anpassen
+        column_widths = {
+            'A': 15,  # Segment_ID
+            'B': 20,  # Hauptkategorie
+            'C': 12,  # Anzahl_Kodierer
+            'D': 15,  # Hauptkat_Konsens
+            'E': 15,  # Subkat_Konsens
+            'F': 12,  # Kodierer_1
+            'G': 25,  # Subkats_1
+            'H': 10,  # Konfidenz_1
+            # ... weitere Spalten
+        }
+        
+        for col, width in column_widths.items():
+            worksheet.column_dimensions[col].width = width
+    
+    def _export_intercoder_bericht(self, writer, original_codings: List[Dict], reliability: float):
+        """
+        FIX: Intercoder-Bericht mit bereits berechneter Reliabilität
+        Für ResultsExporter Klasse
+        """
+        try:
+            print("📊 Erstelle IntercoderBericht mit ursprünglichen Daten...")
+            
+            worksheet = writer.book.create_sheet("IntercoderBericht")
+            current_row = 1
+            
+            # Titel
+            title_cell = worksheet.cell(row=current_row, column=1, value="Intercoder-Reliabilitäts-Bericht")
+            title_cell.font = Font(bold=True, size=14)
+            current_row += 2
+            
+            # FIX: Verwende bereits berechnete Reliabilität (aus main())
+            print(f"📊 Verwende bereits berechnete Reliabilität: {reliability:.3f}")
+            
+            # FIX: Berechne zusätzliche Statistiken nur für Display
+            reliability_calc = ReliabilityCalculator()
+            
+            # FIX: Berechne vollständigen Bericht für detaillierte Anzeige
+            comprehensive_report = reliability_calc.calculate_comprehensive_reliability(original_codings)
+            
+            statistics = reliability_calc._calculate_basic_statistics(original_codings)
+            agreement_analysis = reliability_calc._calculate_detailed_agreement_analysis(original_codings)
+            
+            # 1. Reliabilitäts-Übersicht
+            worksheet.cell(row=current_row, column=1, value="1. Reliabilitäts-Übersicht")
+            worksheet.cell(row=current_row, column=1).font = Font(bold=True)
+            current_row += 1
+            
+            # FIX: Overall Alpha fett gedruckt und prominent
+            worksheet.cell(row=current_row, column=1, value="Overall Alpha (Jaccard-basiert):")
+            alpha_cell = worksheet.cell(row=current_row, column=2, value=f"{comprehensive_report['overall_alpha']:.3f}")
+            alpha_cell.font = Font(bold=True, size=12)
+            current_row += 1
+            
+            # FIX: Bewertung hinzufügen
+            worksheet.cell(row=current_row, column=1, value="Bewertung:")
+            overall_alpha = comprehensive_report['overall_alpha']
+            rating = "Exzellent" if overall_alpha > 0.8 else "Akzeptabel" if overall_alpha > 0.667 else "Unzureichend"
+            rating_cell = worksheet.cell(row=current_row, column=2, value=rating)
+            rating_cell.font = Font(bold=True)
+            
+            # FIX: Farbkodierung für die Bewertung
+            if overall_alpha > 0.8:
+                rating_cell.fill = PatternFill(start_color='90EE90', end_color='90EE90', fill_type='solid')
+            elif overall_alpha > 0.667:
+                rating_cell.fill = PatternFill(start_color='FFFF90', end_color='FFFF90', fill_type='solid')
+            else:
+                rating_cell.fill = PatternFill(start_color='FFB6C1', end_color='FFB6C1', fill_type='solid')
+            current_row += 2
+            
+            # FIX: Zusätzliche Alpha-Werte aus dem comprehensive report
+            worksheet.cell(row=current_row, column=1, value="Hauptkategorien Alpha (Jaccard):")
+            worksheet.cell(row=current_row, column=2, value=f"{comprehensive_report['main_categories_alpha']:.3f}")
+            current_row += 1
+            
+            worksheet.cell(row=current_row, column=1, value="Subkategorien Alpha (Jaccard):")
+            worksheet.cell(row=current_row, column=2, value=f"{comprehensive_report['subcategories_alpha']:.3f}")
+            current_row += 1
+            
+            worksheet.cell(row=current_row, column=1, value="Vergleichbare Segmente:")
+            worksheet.cell(row=current_row, column=2, value=comprehensive_report['statistics']['vergleichbare_segmente'])
+            current_row += 1
+            
+            worksheet.cell(row=current_row, column=1, value="Anzahl Kodierer:")
+            worksheet.cell(row=current_row, column=2, value=comprehensive_report['statistics']['anzahl_kodierer'])
+            current_row += 2
+            
+            # FIX: Methodik-Informationen hinzufügen
+            worksheet.cell(row=current_row, column=1, value="2. Methodik")
+            worksheet.cell(row=current_row, column=1).font = Font(bold=True)
+            current_row += 1
+            
+            worksheet.cell(row=current_row, column=1, value="Alle Alpha-Werte verwenden:")
+            worksheet.cell(row=current_row, column=2, value="Jaccard-Ähnlichkeit")
+            current_row += 1
+            
+            worksheet.cell(row=current_row, column=1, value="Berechnung:")
+            worksheet.cell(row=current_row, column=2, value="Set-basierte Berechnung")
+            current_row += 1
+            
+            worksheet.cell(row=current_row, column=1, value="Konsistenz:")
+            worksheet.cell(row=current_row, column=2, value="Overall zwischen Haupt- und Sub-Alpha")
+            current_row += 2
+            
+            # Spaltenbreiten anpassen
+            worksheet.column_dimensions['A'].width = 35
+            worksheet.column_dimensions['B'].width = 20
+            
+            print("✅ IntercoderBericht mit ursprünglichen Daten erstellt")
+            
+        except Exception as e:
+            print(f"❌ Fehler beim IntercoderBericht: {str(e)}")
+            import traceback
+            traceback.print_exc()
+
+    def _create_empty_intercoder_sheet(self, writer):
+        """
+        FIX: Erstellt Info-Sheet wenn keine Reliabilitätsdaten verfügbar
+        Für ResultsExporter Klasse
+        """
+        worksheet = writer.book.create_sheet("IntercoderBericht")
+        
+        worksheet.cell(row=1, column=1, value="Intercoder-Reliabilitäts-Bericht").font = Font(bold=True, size=14)
+        worksheet.cell(row=3, column=1, value="⚠️ Keine ursprünglichen Kodierungen für Reliabilitätsberechnung verfügbar")
+        worksheet.cell(row=4, column=1, value="Reliabilität muss vor dem Review-Prozess berechnet werden")
+        
+        worksheet.column_dimensions['A'].width = 60
+
+
     def _create_intercoder_summary(self, writer, original_segments, reliability):
         """
         FIX: Erstellt erweiterte Intercoder-Übersicht mit detaillierten Alpha-Informationen
@@ -12314,7 +12281,78 @@ class ResultsExporter:
         
         print(f"\n✅ Erweiterte PDF-Annotation abgeschlossen: {len(annotated_files)} Dateien erstellt")
         return annotated_files
-    
+
+    def _export_configuration_sheet(self, writer):
+        """
+        FIX: Neue Methode für Config-Sheet Export
+        Für ResultsExporter Klasse
+        """
+        try:
+            from openpyxl.styles import Font, PatternFill
+            
+            if 'Konfiguration' not in writer.sheets:
+                writer.book.create_sheet('Konfiguration')
+                
+            worksheet = writer.sheets['Konfiguration']
+            current_row = 1
+            
+            # Titel
+            worksheet.cell(row=current_row, column=1, value="QCA-AID Konfiguration")
+            worksheet.cell(row=current_row, column=1).font = Font(bold=True, size=14)
+            current_row += 2
+            
+            # Header für die Konfigurationstabelle
+            worksheet.cell(row=current_row, column=1, value="Parameter")
+            worksheet.cell(row=current_row, column=2, value="Wert")
+            worksheet.cell(row=current_row, column=1).font = Font(bold=True)
+            worksheet.cell(row=current_row, column=2).font = Font(bold=True)
+            worksheet.cell(row=current_row, column=1).fill = PatternFill(start_color='D3D3D3', end_color='D3D3D3', fill_type='solid')
+            worksheet.cell(row=current_row, column=2).fill = PatternFill(start_color='D3D3D3', end_color='D3D3D3', fill_type='solid')
+            current_row += 1
+            
+            # FIX: Alle gewünschten Konfigurationsparameter exportieren
+            config_params = [
+                ('MODEL_PROVIDER', CONFIG.get('MODEL_PROVIDER', 'OpenAI')),
+                ('MODEL_NAME', CONFIG.get('MODEL_NAME', 'gpt-4o-mini')),
+                ('CHUNK_SIZE', CONFIG.get('CHUNK_SIZE', 2000)),
+                ('CHUNK_OVERLAP', CONFIG.get('CHUNK_OVERLAP', 200)),
+                ('BATCH_SIZE', CONFIG.get('BATCH_SIZE', 5)),
+                ('CODE_WITH_CONTEXT', CONFIG.get('CODE_WITH_CONTEXT', True)),
+                ('MULTIPLE_CODINGS', CONFIG.get('MULTIPLE_CODINGS', True)),
+                ('MULTIPLE_CODING_THRESHOLD', CONFIG.get('MULTIPLE_CODING_THRESHOLD', 0.6)),
+                ('ANALYSIS_MODE', CONFIG.get('ANALYSIS_MODE', 'deductive')),
+                ('REVIEW_MODE', CONFIG.get('REVIEW_MODE', 'consensus')),
+                ('ATTRIBUTE_LABELS - Attribut1', CONFIG.get('ATTRIBUTE_LABELS', {}).get('attribut1', 'Attribut1')),
+                ('ATTRIBUTE_LABELS - Attribut2', CONFIG.get('ATTRIBUTE_LABELS', {}).get('attribut2', 'Attribut2')),
+                ('ATTRIBUTE_LABELS - Attribut3', CONFIG.get('ATTRIBUTE_LABELS', {}).get('attribut3', 'Attribut3')),
+            ]
+            
+            # FIX: CODER_SETTINGS erweitert exportieren
+            coder_settings = CONFIG.get('CODER_SETTINGS', [])
+            for i, coder_config in enumerate(coder_settings, 1):
+                config_params.append((f'CODER_SETTINGS - Kodierer {i} - ID', coder_config.get('coder_id', f'Kodierer_{i}')))
+                config_params.append((f'CODER_SETTINGS - Kodierer {i} - Temperature', coder_config.get('temperature', 0.3)))
+                config_params.append((f'CODER_SETTINGS - Kodierer {i} - System Prompt', coder_config.get('system_prompt', 'Standard')))
+                config_params.append((f'CODER_SETTINGS - Kodierer {i} - Provider', coder_config.get('provider', CONFIG.get('MODEL_PROVIDER', 'OpenAI'))))
+            
+            # Konfigurationswerte in das Sheet schreiben
+            for param_name, param_value in config_params:
+                worksheet.cell(row=current_row, column=1, value=param_name)
+                worksheet.cell(row=current_row, column=2, value=str(param_value))
+                current_row += 1
+            
+            # Spaltenbreiten anpassen
+            worksheet.column_dimensions['A'].width = 35
+            worksheet.column_dimensions['B'].width = 25
+            
+            print("⚙️ Konfiguration erfolgreich exportiert")
+            
+        except Exception as e:
+            print(f"Fehler beim Export der Konfiguration: {str(e)}")
+            import traceback
+            traceback.print_exc()
+            
+                
 # --- Klasse: CategoryRevisionManager ---
 # Aufgabe: Verwaltung der iterativen Kategorienrevision
 class CategoryRevisionManager:
