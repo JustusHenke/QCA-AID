@@ -5045,11 +5045,78 @@ class DeductiveCoder:
             position_info = f"Segment: {segment_info.get('position', '')}"
             doc_name = segment_info.get('doc_name', 'Unbekanntes Dokument')
             
-            # Summary-Update-Anweisungen (gleiche Logik wie in code_chunk_with_progressive_context)
+            # FIX: Summary-Update-Anweisungen mit dreistufigem Reifungsmodell (gleiche Logik wie in code_chunk_with_progressive_context)
             summary_update_prompt = ""
             if update_summary:
+                # Berechne die relative Position im Dokument (für das Reifungsmodell)
+                chunk_id = 0
+                total_chunks = 1
+                if 'position' in segment_info:
+                    try:
+                        # Extrahiere Chunk-Nummer aus "Chunk X"
+                        chunk_id = int(segment_info['position'].split()[-1])
+                        
+                        # Schätze Gesamtanzahl der Chunks (basierend auf bisherigen Chunks)
+                        # Alternative: Tatsächliche Anzahl übergeben, falls verfügbar
+                        total_chunks = max(chunk_id * 1.5, 20)  # Schätzung
+                        
+                        document_progress = chunk_id / total_chunks
+                        print(f"        Dokumentfortschritt: ca. {document_progress:.1%}")
+                    except (ValueError, IndexError):
+                        document_progress = 0.5  # Fallback
+                else:
+                    document_progress = 0.5  # Fallback
+                    
+                # Bestimme die aktuelle Reifephase basierend auf dem Fortschritt
+                if document_progress < 0.3:
+                    reifephase = "PHASE 1 (Sammlung)"
+                    max_aenderung = "50%"
+                elif document_progress < 0.7:
+                    reifephase = "PHASE 2 (Konsolidierung)"
+                    max_aenderung = "30%"
+                else:
+                    reifephase = "PHASE 3 (Präzisierung)"
+                    max_aenderung = "10%"
+                    
+                print(f"        Summary-Reifephase: {reifephase}, max. Änderung: {max_aenderung}")
+                
+                # Angepasster Prompt basierend auf dem dreistufigen Reifungsmodell
                 summary_update_prompt = f"""
-                ## AUFGABE 2: SUMMARY-UPDATE
+                ## AUFGABE 2: SUMMARY-UPDATE ({reifephase}, {int(document_progress*100)}%)
+
+                """
+
+                # Robustere Phasen-spezifische Anweisungen
+                if document_progress < 0.3:
+                    summary_update_prompt += """
+                SAMMLUNG (0-30%) - STRUKTURIERTER AUFBAU:
+                - SCHLÜSSELINFORMATIONEN: Beginne mit einer LISTE wichtigster Konzepte im Telegrammstil
+                - FORMAT: "Thema1: Kernaussage; Thema2: Kernaussage" 
+                - SPEICHERSTRUKTUR: Speichere alle Informationen in KATEGORIEN (z.B. Akteure, Prozesse, Faktoren)
+                - KEINE EINLEITUNGEN oder narrative Elemente, NUR Fakten und Verbindungen
+                - BEHALTE IMMER: Bereits dokumentierte Schlüsselkonzepte müssen bestehen bleiben
+                """
+                elif document_progress < 0.7:
+                    summary_update_prompt += """
+                KONSOLIDIERUNG (30-70%) - HIERARCHISCHE ORGANISATION:
+                - SCHLÜSSELINFORMATIONEN BEWAHREN: Alle bisherigen Hauptkategorien beibehalten
+                - NEUE STRUKTUR: Als hierarchische Liste mit Kategorien und Unterpunkten organisieren
+                - KOMPRIMIEREN: Details aus gleichen Themenbereichen zusammenführen
+                - PRIORITÄTSFORMAT: "Kategorie: Hauptpunkt1; Hauptpunkt2 → Detail"
+                - STATT LÖSCHEN: Verwandte Inhalte zusammenfassen, aber KEINE Kategorien eliminieren
+                """
+                else:
+                    summary_update_prompt += """
+                PRÄZISIERUNG (70-100%) - VERDICHTUNG MIT THESAURUS:
+                - THESAURUS-METHODE: Jede Kategorie braucht genau 1-2 Sätze im Telegrammstil
+                - HAUPTKONZEPTE STABIL HALTEN: Alle identifizierten Kategorien müssen enthalten bleiben
+                - ABSTRAHIEREN: Einzelinformationen innerhalb einer Kategorie verdichten
+                - STABILITÄTSPRINZIP: Einmal erkannte wichtige Zusammenhänge dürfen nicht verloren gehen
+                - PRIORITÄTSORDNUNG: Wichtigste Informationen IMMER am Anfang jeder Kategorie
+                """
+
+                # Allgemeine Kriterien für Stabilität und Komprimierung
+                summary_update_prompt += """
 
                 INFORMATIONSERHALTUNGS-SYSTEM:
                 - MAXIMUM 80 WÖRTER - Komprimiere alte statt neue Informationen zu verwerfen
@@ -5110,6 +5177,20 @@ class DeductiveCoder:
                         words = updated_summary.split()
                         updated_summary = ' '.join(words[:70])
                         print(f"        ⚠️ Summary wurde gekürzt: {len(words)} → 70 Wörter")
+                    
+                    # FIX: Analyse der Veränderungen (gleich wie in code_chunk_with_progressive_context)
+                    if current_summary:
+                        # Berechne Prozent der Änderung
+                        old_words = set(current_summary.lower().split())
+                        new_words = set(updated_summary.lower().split())
+                        
+                        if old_words:
+                            # Jaccard-Distanz als Maß für Veränderung
+                            unchanged = len(old_words.intersection(new_words))
+                            total = len(old_words.union(new_words))
+                            change_percent = (1 - (unchanged / total)) * 100
+                            
+                            print(f"        Summary Änderung: {change_percent:.1f}% (Ziel: max. {max_aenderung})")
                 else:
                     updated_summary = current_summary
                 
@@ -5132,7 +5213,8 @@ class DeductiveCoder:
                         print(f"        ⚠️ Fokus-Abweichung: {deviation_reason}")
 
                     if update_summary:
-                        print(f"        📝 Summary aktualisiert ({len(updated_summary.split())} Wörter)")
+                        print(f"        📝 Summary für {doc_name} aktualisiert ({len(updated_summary.split())} Wörter):")
+                        print(f"        {updated_summary[:100]}..." if len(updated_summary) > 100 else f"        📄 {updated_summary}")
                     
                     # Kombiniertes Ergebnis zurückgeben
                     return {
@@ -5151,7 +5233,7 @@ class DeductiveCoder:
             print("Details:")
             import traceback
             traceback.print_exc()
-            return None 
+            return None
         
     async def _check_relevance(self, chunk: str) -> bool:
         """
