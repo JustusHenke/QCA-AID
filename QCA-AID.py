@@ -2607,6 +2607,18 @@ class IntegratedAnalysisManager:
             preselected_count = len([s for s in batch if s[0] in category_preselections])
             print(f"🎯 Kontext-Kodierung: {preselected_count} Segmente haben Kategorie-Präferenzen")
         
+            # FIX: Erweiterte Statistik zur Kategorie-Vorauswahl wie im ohne-Kontext-Modus
+            all_preferred = []
+            for prefs in category_preselections.values():
+                all_preferred.extend(prefs.get('preferred_categories', []))
+            
+            if all_preferred:
+                from collections import Counter
+                pref_stats = Counter(all_preferred)
+                print(f"🎯 Häufigste Präferenzen: {dict(pref_stats.most_common(3))}")
+        else:
+            print("🎯 Kontext-Kodierung: Keine Kategorie-Präferenzen übertragen")
+
         # Prüfe Mehrfachkodierungs-Möglichkeiten für den ganzen Batch
         multiple_coding_results = {}
         if CONFIG.get('MULTIPLE_CODINGS', True):
@@ -2735,11 +2747,22 @@ class IntegratedAnalysisManager:
                     try:
                         # Bestimme ob Summary aktualisiert werden soll (nur beim ersten Kodierer der ersten Instanz)
                         should_update_summary = (coder_index == 0 and instance_info['instance'] == 1)
+
+                        # FIX: Enhanced Categories Logic - füge Fokuskategorie zu effective_categories hinzu
+                        enhanced_categories = effective_categories.copy()
+                        target_cat = instance_info['target_category']
+                        if target_cat:
+                            if target_cat and target_cat not in enhanced_categories:
+                                if target_cat in categories:  
+                                    enhanced_categories[target_cat] = categories[target_cat]  
+                                    print(f"    🎯 Fokuskategorie '{target_cat}' zu verfügbaren Kategorien hinzugefügt")
+                                else:
+                                    print(f"    ⚠️ Fokuskategorie '{target_cat}' nicht in Kategorien vorhanden")
                         
                         if instance_info['target_category']:
                             # FIX: Mehrfachkodierung mit Fokus und Kontext (mit gefilterten Kategorien)
                             combined_result = await coder.code_chunk_with_focus_and_context(
-                                text, effective_categories,  
+                                text, enhanced_categories,  
                                 focus_category=instance_info['target_category'],
                                 focus_context=instance_info['category_context'],
                                 current_summary=updated_summary if should_update_summary else current_summary,
@@ -2750,7 +2773,7 @@ class IntegratedAnalysisManager:
                             # FIX: Standard Kontext-Kodierung (mit gefilterten Kategorien)
                             combined_result = await coder.code_chunk_with_progressive_context(
                                 text, 
-                                categories,  
+                                enhanced_categories,  
                                 updated_summary if should_update_summary else current_summary,
                                 segment_info
                             )
@@ -2794,13 +2817,26 @@ class IntegratedAnalysisManager:
                             main_category = coding_entry['category']
                             original_subcats = coding_entry['subcategories']
                             if main_category and main_category != 'Nicht kodiert':
-
-                                validated_subcats = CategoryValidator.validate_subcategories_for_category(
-                                    original_subcats, main_category, self.current_categories, warn_only=False
-                                )
-                                if len(validated_subcats) != len(original_subcats):
-                                    print(f"    ⚠️ Subkategorien bereinigt: {len(original_subcats)} → {len(validated_subcats)}")
-                                coding_entry['subcategories'] = validated_subcats
+                                # FIX: Verwende enhanced_categories für Validierung (schon vorhanden)
+                                categories_dict_for_validation = enhanced_categories
+                                
+                                if not categories_dict_for_validation:
+                                    print(f"⚠️ KRITISCH: Kein categories_dict verfügbar für Validierung!")
+                                    # Fallback: verwende original categories
+                                    categories_dict_for_validation = categories
+                                
+                                try:
+                                    validated_subcats = CategoryValidator.validate_subcategories_for_category(
+                                        original_subcats, main_category, categories_dict_for_validation, warn_only=False
+                                    )
+                                    if len(validated_subcats) != len(original_subcats):
+                                        print(f"    ⚠️ Subkategorien bereinigt: {len(original_subcats)} → {len(validated_subcats)}")
+                                    coding_entry['subcategories'] = validated_subcats
+                                except Exception as e:
+                                    print(f"    ❌ Subkategorien-Validierung fehlgeschlagen: {str(e)}")
+                                    print(f"    📊 Debug: main_category='{main_category}', enhanced_categories_keys={list(enhanced_categories.keys())[:5]}")
+                                    # Behalte ursprüngliche Subkategorien bei Validierungsfehlern
+                            
                             
                             batch_results.append(coding_entry)
                             
@@ -4496,7 +4532,7 @@ class DeductiveCoder:
         """
         try:
             # Verwende das interne Kategoriensystem wenn vorhanden, sonst das übergebene
-            current_categories = self.current_categories or categories
+            current_categories = categories
             
             if not current_categories:
                 print(f"Fehler: Kein Kategoriensystem für Kodierer {self.coder_id} verfügbar")
@@ -4622,8 +4658,8 @@ class DeductiveCoder:
             Dict: Enthält sowohl Kodierungsergebnis als auch aktualisiertes Summary
         """
         try:
-            # Verwende das interne Kategoriensystem wenn vorhanden, sonst das übergebene
-            current_categories = self.current_categories or categories
+            
+            current_categories = categories
             
             if not current_categories:
                 print(f"Fehler: Kein Kategoriensystem für Kodierer {self.coder_id} verfügbar")
@@ -4998,6 +5034,13 @@ class DeductiveCoder:
                     
                 categories_overview.append(category_info)
 
+            # FIX: DEBUG - Prüfe ob gefilterte Kategorien wirklich im Prompt landen
+            # print(f"    🔍 DEBUG: Categories Overview für Prompt:")
+            # for cat_info in categories_overview:
+            #     cat_name = cat_info['name']
+            #     subcats = list(cat_info['subcategories'].keys())
+            #     print(f"      - {cat_name}: {subcats}")
+
             # Position im Dokument und Fortschritt berechnen
             position_info = f"Segment: {segment_info.get('position', '')}"
             doc_name = segment_info.get('doc_name', 'Unbekanntes Dokument')
@@ -5109,6 +5152,7 @@ class DeductiveCoder:
             import traceback
             traceback.print_exc()
             return None 
+        
     async def _check_relevance(self, chunk: str) -> bool:
         """
         Prüft die Relevanz eines Chunks für die Forschungsfrage.
