@@ -982,6 +982,7 @@ class ConfigLoader:
             'CONFIG': {}
         }
         
+    # ConfigLoader Klasse
     def load_codebook(self):
         print(f"Versuche Konfiguration zu laden von: {self.excel_path}")
         if not os.path.exists(self.excel_path):
@@ -989,16 +990,20 @@ class ConfigLoader:
             return False
 
         try:
-            # Öffne die Excel-Datei mit ausführlicher Fehlerbehandlung
+            # FIX: Erweiterte Optionen für das Öffnen der Excel-Datei, auch wenn sie bereits geöffnet ist
             print("\nÖffne Excel-Datei...")
-            wb = load_workbook(self.excel_path, read_only=True, data_only=True)
+            wb = load_workbook(
+                self.excel_path, 
+                read_only=True, 
+                data_only=True,
+                keep_vba=False  # FIX: Verhindert Probleme mit VBA-Code
+            )
             print(f"Excel-Datei erfolgreich geladen. Verfügbare Sheets: {wb.sheetnames}")
             
             # Prüfe DEDUKTIVE_KATEGORIEN Sheet
             if 'DEDUKTIVE_KATEGORIEN' in wb.sheetnames:
                 print("\nLese DEDUKTIVE_KATEGORIEN Sheet...")
                 sheet = wb['DEDUKTIVE_KATEGORIEN']
-            
             
             # Lade die verschiedenen Komponenten
             self._load_research_question(wb)
@@ -1027,13 +1032,47 @@ class ConfigLoader:
                 print("\nKeine Kategorien geladen!")
                 return False
 
+        except PermissionError:
+            # FIX: Spezifische Behandlung für geöffnete Dateien
+            print("\n⚠️ Datei ist bereits geöffnet (z.B. in Excel).")
+            print("Versuche alternative Lademethode...")
+            try:
+                # FIX: Versuche mit keep_links=False für bessere Kompatibilität
+                wb = load_workbook(
+                    self.excel_path, 
+                    read_only=True, 
+                    data_only=True,
+                    keep_vba=False,
+                    keep_links=False  # FIX: Entfernt externe Links die Probleme verursachen können
+                )
+                
+                # Lade die verschiedenen Komponenten
+                self._load_research_question(wb)
+                self._load_coding_rules(wb)
+                self._load_config(wb)
+                kategorien = self._load_deduktive_kategorien(wb)
+                
+                if kategorien:
+                    self.config['DEDUKTIVE_KATEGORIEN'] = kategorien
+                    print("\n✓ Konfiguration trotz geöffneter Datei erfolgreich geladen!")
+                    return True
+                else:
+                    print("\n✗ Keine Kategorien geladen, auch bei alternativer Methode")
+                    return False
+                    
+            except Exception as alt_e:
+                print(f"\n✗ Auch alternative Lademethode fehlgeschlagen: {str(alt_e)}")
+                print("\nLösung: Schließen Sie die Excel-Datei und versuchen Sie erneut,")
+                print("oder deaktivieren Sie das automatische Speichern in OneDrive.")
+                return False
+
         except Exception as e:
             print(f"Fehler beim Lesen der Excel-Datei: {str(e)}")
             print("Details:")
             import traceback
             traceback.print_exc()
             return False
-
+        
     def _load_research_question(self, wb):
         if 'FORSCHUNGSFRAGE' in wb.sheetnames:
             sheet = wb['FORSCHUNGSFRAGE']
@@ -2660,6 +2699,569 @@ class ManualReviewGUI:
         elif isinstance(confidence, (int, float)):
             return float(confidence)
         return 0.0
+
+
+class ManualReviewComponent:
+    """
+    Komponente für die manuelle Überprüfung und Entscheidung bei Kodierungsunstimmigkeiten.
+    Zeigt dem Benutzer Textstellen mit abweichenden Kodierungen und lässt ihn die finale Entscheidung treffen.
+    """
+    
+    def __init__(self, output_dir: str):
+        """
+        Initialisiert die Manual Review Komponente.
+        
+        Args:
+            output_dir (str): Verzeichnis für Export-Dokumente
+        """
+        self.output_dir = output_dir
+        self.root = None
+        self.review_results = []
+        self.current_segment = None
+        self.current_codings = None
+        self.current_index = 0
+        self.total_segments = 0
+        self._is_processing = False
+        
+        # Import tkinter innerhalb der Methode, um Abhängigkeiten zu reduzieren
+        self.tk = None
+        self.ttk = None
+        
+    async def review_discrepancies(self, segment_codings: dict) -> list:
+        """
+        Führt einen manuellen Review-Prozess für Segmente mit abweichenden Kodierungen durch.
+        
+        Args:
+            segment_codings: Dictionary mit Segment-ID als Schlüssel und Liste von Kodierungen als Werte
+            
+        Returns:
+            list: Liste der finalen Kodierungsentscheidungen
+        """
+        try:
+            # Importiere tkinter bei Bedarf
+            import tkinter as tk
+            from tkinter import ttk
+            self.tk = tk
+            self.ttk = ttk
+            
+            print("\n=== Manuelle Überprüfung von Kodierungsunstimmigkeiten ===")
+            
+            # Identifiziere Segmente mit abweichenden Kodierungen
+            discrepant_segments = self._identify_discrepancies(segment_codings)
+            
+            if not discrepant_segments:
+                print("Keine Unstimmigkeiten gefunden. Manueller Review nicht erforderlich.")
+                return []
+                
+            self.total_segments = len(discrepant_segments)
+            print(f"\nGefunden: {self.total_segments} Segmente mit Kodierungsabweichungen")
+            
+            # Starte das Tkinter-Fenster für den manuellen Review
+            import asyncio
+            loop = asyncio.get_event_loop()
+            await loop.run_in_executor(None, self._run_review_gui, discrepant_segments)
+            
+            print(f"\nManueller Review abgeschlossen: {len(self.review_results)} Entscheidungen getroffen")
+            
+            return self.review_results
+            
+        except Exception as e:
+            print(f"Fehler beim manuellen Review: {str(e)}")
+            import traceback
+            traceback.print_exc()
+            if self.root:
+                try:
+                    self.root.quit()
+                    self.root.destroy()
+                except:
+                    pass
+            return []
+    
+    def _identify_discrepancies(self, segment_codings: dict) -> list:
+        """
+        Identifiziert Segmente, bei denen verschiedene Kodierer zu unterschiedlichen Ergebnissen kommen.
+        
+        Args:
+            segment_codings: Dictionary mit Segment-ID als Schlüssel und Liste von Kodierungen als Werte
+            
+        Returns:
+            list: Liste von Tuples (segment_id, text, codings) mit Unstimmigkeiten
+        """
+        discrepancies = []
+        
+        for segment_id, codings in segment_codings.items():
+            # Ignoriere Segmente mit nur einer Kodierung
+            if len(codings) <= 1:
+                continue
+                
+            # Prüfe auf Unstimmigkeiten in Hauptkategorien
+            categories = set(coding.get('category', '') for coding in codings)
+            
+            # Prüfe auf menschliche Kodierer
+            has_human_coder = any('human' in coding.get('coder_id', '') for coding in codings)
+            
+            # Wenn mehr als eine Kategorie ODER ein menschlicher Kodierer beteiligt
+            if len(categories) > 1 or has_human_coder:
+                # Hole den Text des Segments
+                text = codings[0].get('text', '')
+                if not text:
+                    # Alternative Textquelle, falls 'text' nicht direkt verfügbar
+                    text = codings[0].get('text_references', [''])[0] if codings[0].get('text_references') else ''
+                
+                discrepancies.append((segment_id, text, codings))
+                
+        print(f"Unstimmigkeiten identifiziert: {len(discrepancies)}/{len(segment_codings)} Segmente")
+        return discrepancies
+    
+    async def review_discrepancies_direct(self, segment_codings: dict, skip_discrepancy_check: bool = False) -> list:
+        """
+        FIX: Neue Methode für ManualReviewComponent, die optional die Unstimmigkeits-Prüfung überspringt
+        
+        Args:
+            segment_codings: Dictionary mit Segment-ID als Schlüssel und Liste von Kodierungen als Werte
+            skip_discrepancy_check: Wenn True, behandle alle übergebenen Segmente als unstimmig
+            
+        Returns:
+            list: Liste der finalen Kodierungsentscheidungen
+        """
+        try:
+            # Importiere tkinter bei Bedarf
+            import tkinter as tk
+            from tkinter import ttk
+            self.tk = tk
+            self.ttk = ttk
+            
+            print("\n=== Manuelle Überprüfung von Kodierungsunstimmigkeiten ===")
+            
+            if skip_discrepancy_check:
+                # FIX: Überspringe eigene Unstimmigkeits-Prüfung und verwende alle übergebenen Segmente
+                print(f"🎯 Verwende alle {len(segment_codings)} übergebenen Segmente für Review (Prüfung übersprungen)")
+                
+                discrepant_segments = []
+                for segment_id, codings in segment_codings.items():
+                    if len(codings) > 1:  # Nur Segmente mit mehreren Kodierungen
+                        # Hole den Text des Segments
+                        text = codings[0].get('text', '')
+                        if not text:
+                            text = codings[0].get('text_references', [''])[0] if codings[0].get('text_references') else ''
+                        
+                        discrepant_segments.append((segment_id, text, codings))
+                        
+                print(f"📋 Direkte Übernahme: {len(discrepant_segments)} Segmente für Review")
+            else:
+                # Normale Unstimmigkeits-Identifikation
+                discrepant_segments = self._identify_discrepancies(segment_codings)
+            
+            if not discrepant_segments:
+                print("Keine Unstimmigkeiten gefunden. Manueller Review nicht erforderlich.")
+                return []
+                
+            self.total_segments = len(discrepant_segments)
+            print(f"\nGefunden: {self.total_segments} Segmente mit Kodierungsabweichungen")
+            
+            # Setze Review-Status zurück
+            self.review_results = []
+            
+            # Starte das Tkinter-Fenster für den manuellen Review
+            import asyncio
+            loop = asyncio.get_event_loop()
+            await loop.run_in_executor(None, self._run_review_gui, discrepant_segments)
+            
+            print(f"\nManueller Review abgeschlossen: {len(self.review_results)} Entscheidungen getroffen")
+            
+            return self.review_results
+            
+        except Exception as e:
+            print(f"Fehler beim manuellen Review: {str(e)}")
+            import traceback
+            traceback.print_exc()
+            if self.root:
+                try:
+                    self.root.quit()
+                    self.root.destroy()
+                except:
+                    pass
+            return []
+        
+    def _run_review_gui(self, discrepant_segments: list):
+        """
+        Führt die grafische Benutzeroberfläche für den manuellen Review aus.
+        
+        Args:
+            discrepant_segments: Liste von Segmenten mit Unstimmigkeiten
+        """
+        if self.root is not None:
+            try:
+                self.root.quit()
+                self.root.destroy()
+            except:
+                pass
+                
+        self.root = self.tk.Tk()
+        self.root.title("QCA-AID Manueller Review")
+        self.root.geometry("1000x700")
+        
+        # Protokoll für das Schließen des Fensters
+        self.root.protocol("WM_DELETE_WINDOW", self._on_closing)
+        
+        # Hauptframe
+        main_frame = self.ttk.Frame(self.root)
+        main_frame.pack(padx=10, pady=10, fill=self.tk.BOTH, expand=True)
+        
+        # Fortschrittsanzeige
+        progress_frame = self.ttk.Frame(main_frame)
+        progress_frame.pack(padx=5, pady=5, fill=self.tk.X)
+        
+        self.ttk.Label(progress_frame, text="Fortschritt:").pack(side=self.tk.LEFT, padx=5)
+        progress_var = self.tk.StringVar()
+        progress_var.set(f"Segment 1/{self.total_segments}")
+        progress_label = self.ttk.Label(progress_frame, textvariable=progress_var)
+        progress_label.pack(side=self.tk.LEFT, padx=5)
+        
+        # Text-Frame
+        text_frame = self.ttk.LabelFrame(main_frame, text="Textsegment")
+        text_frame.pack(padx=5, pady=5, fill=self.tk.BOTH, expand=True)
+        
+        text_widget = self.tk.Text(text_frame, height=10, wrap=self.tk.WORD)
+        text_widget.pack(padx=5, pady=5, fill=self.tk.BOTH, expand=True)
+        text_widget.config(state=self.tk.DISABLED)
+        
+        # Kodierungen-Frame
+        codings_frame = self.ttk.LabelFrame(main_frame, text="Konkurrierende Kodierungen")
+        codings_frame.pack(padx=5, pady=5, fill=self.tk.BOTH, expand=True)
+        
+        codings_canvas = self.tk.Canvas(codings_frame)
+        scrollbar = self.ttk.Scrollbar(codings_frame, orient=self.tk.VERTICAL, command=codings_canvas.yview)
+        
+        codings_scrollable = self.ttk.Frame(codings_canvas)
+        codings_scrollable.bind(
+            "<Configure>",
+            lambda e: codings_canvas.configure(
+                scrollregion=codings_canvas.bbox("all")
+            )
+        )
+        
+        codings_canvas.create_window((0, 0), window=codings_scrollable, anchor="nw")
+        codings_canvas.configure(yscrollcommand=scrollbar.set)
+        
+        codings_canvas.pack(side=self.tk.LEFT, fill=self.tk.BOTH, expand=True)
+        scrollbar.pack(side=self.tk.RIGHT, fill=self.tk.Y)
+        
+        # Button-Frame
+        button_frame = self.ttk.Frame(main_frame)
+        button_frame.pack(padx=5, pady=10, fill=self.tk.X)
+        
+        self.ttk.Button(
+            button_frame, 
+            text="Vorheriges", 
+            command=lambda: self._navigate(-1, text_widget, codings_scrollable, discrepant_segments, progress_var)
+        ).pack(side=self.tk.LEFT, padx=5)
+        
+        self.ttk.Button(
+            button_frame, 
+            text="Nächstes", 
+            command=lambda: self._navigate(1, text_widget, codings_scrollable, discrepant_segments, progress_var)
+        ).pack(side=self.tk.LEFT, padx=5)
+        
+        self.ttk.Button(
+            button_frame, 
+            text="Abbrechen", 
+            command=self._on_closing
+        ).pack(side=self.tk.RIGHT, padx=5)
+        
+        # Begründung eingeben
+        justification_frame = self.ttk.LabelFrame(main_frame, text="Begründung für Ihre Entscheidung")
+        justification_frame.pack(padx=5, pady=5, fill=self.tk.X)
+        
+        justification_text = self.tk.Text(justification_frame, height=3, wrap=self.tk.WORD)
+        justification_text.pack(padx=5, pady=5, fill=self.tk.X)
+        
+        # Initialisiere mit dem ersten Segment
+        if discrepant_segments:
+            self.current_index = 0
+            self._update_display(text_widget, codings_scrollable, discrepant_segments, justification_text, progress_var)
+        
+        # Starte MainLoop
+        self.root.mainloop()
+    
+    def _update_display(self, text_widget, codings_frame, discrepant_segments, justification_text, progress_var):
+        """
+        Aktualisiert die Anzeige für das aktuelle Segment.
+        """
+        # Aktualisiere Fortschrittsanzeige
+        progress_var.set(f"Segment {self.current_index + 1}/{self.total_segments}")
+        
+        # Hole aktuelles Segment und Kodierungen
+        segment_id, text, codings = discrepant_segments[self.current_index]
+        self.current_segment = segment_id
+        self.current_codings = codings
+        
+        # Setze Text
+        text_widget.config(state=self.tk.NORMAL)
+        text_widget.delete(1.0, self.tk.END)
+        text_widget.insert(self.tk.END, text)
+        text_widget.config(state=self.tk.DISABLED)
+        
+        # Begründungsfeld leeren
+        justification_text.delete(1.0, self.tk.END)
+        
+        # Lösche alte Kodierungsoptionen
+        for widget in codings_frame.winfo_children():
+            widget.destroy()
+            
+        # Anzeige-Variable für die ausgewählte Kodierung
+        selection_var = self.tk.StringVar()
+        
+        # Erstelle Radiobuttons für jede Kodierung
+        for i, coding in enumerate(codings):
+            coder_id = coding.get('coder_id', 'Unbekannt')
+            category = coding.get('category', 'Keine Kategorie')
+            subcategories = coding.get('subcategories', [])
+            if isinstance(subcategories, tuple):
+                subcategories = list(subcategories)
+            confidence = 0.0
+            
+            # Extrahiere Konfidenzwert
+            if isinstance(coding.get('confidence'), dict):
+                confidence = coding['confidence'].get('total', 0.0)
+            elif isinstance(coding.get('confidence'), (int, float)):
+                confidence = float(coding['confidence'])
+                
+            # Formatiere die Subkategorien
+            subcats_text = ', '.join(subcategories) if subcategories else 'Keine'
+            
+            # Erstelle Label-Text
+            is_human = 'human' in coder_id
+            coder_prefix = "[Mensch]" if is_human else "[Auto]"
+            radio_text = f"{coder_prefix} {coder_id}: {category} ({confidence:.2f})\nSubkategorien: {subcats_text}"
+            
+            # Radiobutton mit Rahmen für bessere Sichtbarkeit
+            coding_frame = self.ttk.Frame(codings_frame, relief=self.tk.GROOVE, borderwidth=2)
+            coding_frame.pack(padx=5, pady=5, fill=self.tk.X)
+            
+            radio = self.ttk.Radiobutton(
+                coding_frame,
+                text=radio_text,
+                variable=selection_var,
+                value=str(i),
+                command=lambda idx=i, j_text=justification_text: self._select_coding(idx, j_text)
+            )
+            radio.pack(padx=5, pady=5, anchor=self.tk.W)
+            
+            # Begründung anzeigen wenn vorhanden
+            justification = coding.get('justification', '')
+            if justification:
+                just_label = self.ttk.Label(
+                    coding_frame, 
+                    text=f"Begründung: {justification[:150]}..." if len(justification) > 150 else f"Begründung: {justification}",
+                    wraplength=500
+                )
+                just_label.pack(padx=5, pady=5, anchor=self.tk.W)
+        
+        # Eigene Kodierung als Option
+        custom_frame = self.ttk.Frame(codings_frame, relief=self.tk.GROOVE, borderwidth=2)
+        custom_frame.pack(padx=5, pady=5, fill=self.tk.X)
+        
+        custom_radio = self.ttk.Radiobutton(
+            custom_frame,
+            text="Eigene Entscheidung eingeben",
+            variable=selection_var,
+            value="custom",
+            command=lambda: self._create_custom_coding(justification_text)
+        )
+        custom_radio.pack(padx=5, pady=5, anchor=self.tk.W)
+        
+        # Standardmäßig menschliche Kodierung auswählen, falls vorhanden
+        for i, coding in enumerate(codings):
+            if 'human' in coding.get('coder_id', ''):
+                selection_var.set(str(i))
+                self._select_coding(i, justification_text)
+                break
+    
+    def _select_coding(self, coding_index, justification_text):
+        """
+        Ausgewählte Kodierung für das aktuelle Segment speichern.
+        """
+        self.selected_coding_index = coding_index
+        
+        # Hole die ausgewählte Kodierung
+        selected_coding = self.current_codings[coding_index]
+        
+        # Fülle Begründung mit Vorschlag
+        existing_just = selected_coding.get('justification', '')
+        if existing_just:
+            justification_text.delete(1.0, self.tk.END)
+            justification_text.insert(self.tk.END, f"Übernommen von {selected_coding.get('coder_id', 'Kodierer')}: {existing_just}")
+    
+    def _create_custom_coding(self, justification_text):
+        """
+        Erstellt ein benutzerdefiniertes Kodierungsfenster.
+        """
+        custom_window = self.tk.Toplevel(self.root)
+        custom_window.title("Eigene Kodierung")
+        custom_window.geometry("600x500")
+        
+        input_frame = self.ttk.Frame(custom_window)
+        input_frame.pack(padx=10, pady=10, fill=self.tk.BOTH, expand=True)
+        
+        # Hauptkategorie
+        self.ttk.Label(input_frame, text="Hauptkategorie:").grid(row=0, column=0, padx=5, pady=5, sticky=self.tk.W)
+        category_entry = self.ttk.Entry(input_frame, width=30)
+        category_entry.grid(row=0, column=1, padx=5, pady=5, sticky=self.tk.W+self.tk.E)
+        
+        # Subkategorien
+        self.ttk.Label(input_frame, text="Subkategorien (mit Komma getrennt):").grid(row=1, column=0, padx=5, pady=5, sticky=self.tk.W)
+        subcats_entry = self.ttk.Entry(input_frame, width=30)
+        subcats_entry.grid(row=1, column=1, padx=5, pady=5, sticky=self.tk.W+self.tk.E)
+        
+        # Begründung
+        self.ttk.Label(input_frame, text="Begründung:").grid(row=2, column=0, padx=5, pady=5, sticky=self.tk.W)
+        just_text = self.tk.Text(input_frame, height=5, width=30)
+        just_text.grid(row=2, column=1, padx=5, pady=5, sticky=self.tk.W+self.tk.E)
+        
+        # Buttons
+        button_frame = self.ttk.Frame(input_frame)
+        button_frame.grid(row=3, column=0, columnspan=2, pady=10)
+        
+        self.ttk.Button(
+            button_frame, 
+            text="Übernehmen",
+            command=lambda: self._apply_custom_coding(
+                category_entry.get(),
+                subcats_entry.get(),
+                just_text.get(1.0, self.tk.END),
+                justification_text,
+                custom_window
+            )
+        ).pack(side=self.tk.LEFT, padx=5)
+        
+        self.ttk.Button(
+            button_frame,
+            text="Abbrechen",
+            command=custom_window.destroy
+        ).pack(side=self.tk.LEFT, padx=5)
+    
+    def _apply_custom_coding(self, category, subcategories, justification, main_just_text, window):
+        """
+        Übernimmt die benutzerdefinierte Kodierung.
+        """
+        # Erstelle eine benutzerdefinierte Kodierung
+        self.custom_coding = {
+            'category': category,
+            'subcategories': [s.strip() for s in subcategories.split(',') if s.strip()],
+            'justification': justification.strip(),
+            'coder_id': 'human_review',
+            'confidence': {'total': 1.0, 'category': 1.0, 'subcategories': 1.0}
+        }
+        
+        # Aktualisiere das Begründungsfeld im Hauptfenster
+        main_just_text.delete(1.0, self.tk.END)
+        main_just_text.insert(self.tk.END, f"Eigene Entscheidung: {justification.strip()}")
+        
+        # Schließe das Fenster
+        window.destroy()
+    
+    def _navigate(self, direction, text_widget, codings_frame, discrepant_segments, progress_var):
+        """
+        Navigation zwischen den Segmenten und Speicherung der Entscheidung.
+        """
+        if self.current_segment is None or self.current_codings is None:
+            return
+            
+        # Speichere aktuelle Entscheidung
+        self._save_current_decision(text_widget)
+        
+        # Berechne neuen Index
+        new_index = self.current_index + direction
+        
+        # Prüfe Grenzen
+        if 0 <= new_index < len(discrepant_segments):
+            self.current_index = new_index
+            self._update_display(text_widget, codings_frame, discrepant_segments, text_widget, progress_var)
+        elif new_index >= len(discrepant_segments):
+            # Wenn wir am Ende angelangt sind, frage nach Abschluss
+            if self.tk.messagebox.askyesno(
+                "Review abschließen", 
+                "Das war das letzte Segment. Möchten Sie den Review abschließen?"
+            ):
+                self.root.quit()
+    
+    def _save_current_decision(self, justification_text):
+        """
+        Speichert die aktuelle Entscheidung.
+        """
+        try:
+            if hasattr(self, 'selected_coding_index'):
+                # Normale Kodierungsentscheidung
+                selected_coding = self.current_codings[self.selected_coding_index].copy()
+                
+                # Hole Begründung aus Textfeld
+                justification = justification_text.get(1.0, self.tk.END).strip()
+                
+                # Aktualisiere die Kodierung
+                selected_coding['segment_id'] = self.current_segment
+                selected_coding['review_justification'] = justification
+                selected_coding['manual_review'] = True
+                selected_coding['review_date'] = datetime.now().isoformat()
+                
+                self.review_results.append(selected_coding)
+                print(f"Entscheidung für Segment {self.current_segment} gespeichert: {selected_coding['category']}")
+                
+            elif hasattr(self, 'custom_coding'):
+                # Benutzerdefinierte Kodierung
+                custom = self.custom_coding.copy()
+                custom['segment_id'] = self.current_segment
+                custom['manual_review'] = True
+                custom['review_date'] = datetime.now().isoformat()
+                
+                self.review_results.append(custom)
+                print(f"Eigene Entscheidung für Segment {self.current_segment} gespeichert: {custom['category']}")
+        
+        except Exception as e:
+            print(f"Fehler beim Speichern der Entscheidung: {str(e)}")
+            import traceback
+            traceback.print_exc()
+    
+    def _on_closing(self):
+        """Sicheres Schließen des Fensters mit vollständiger Ressourcenfreigabe"""
+        try:
+            if hasattr(self, 'root') and self.root:
+                if self.tk.messagebox.askokcancel(
+                    "Review beenden", 
+                    "Möchten Sie den Review-Prozess wirklich beenden?\nGetroffene Entscheidungen werden gespeichert."
+                ):
+                    # Speichere aktuelle Entscheidung falls vorhanden
+                    if self.current_segment is not None:
+                        justification_text = None
+                        for widget in self.root.winfo_children():
+                            if isinstance(widget, self.tk.Text):
+                                justification_text = widget
+                                break
+                        
+                        if justification_text:
+                            self._save_current_decision(justification_text)
+                    
+                    # Alle Tkinter-Variablen explizit löschen
+                    for attr_name in dir(self):
+                        attr = getattr(self, attr_name)
+                        # Prüfen, ob es sich um eine Tkinter-Variable handelt
+                        if hasattr(attr, '_tk'):
+                            delattr(self, attr_name)
+                    
+                    # Fenster schließen
+                    self.root.quit()
+                    self.root.destroy()
+                    self.root = None  # Wichtig: Referenz entfernen
+        except:
+            # Stelle sicher, dass Fenster auch bei Fehlern geschlossen wird
+            if hasattr(self, 'root') and self.root:
+                try:
+                    self.root.quit()
+                    self.root.destroy()
+                    self.root = None
+                except:
+                    pass
+
 
 def validate_category_specific_segments(category_segments: List[Dict]) -> bool:
     """

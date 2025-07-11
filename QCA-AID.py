@@ -9,6 +9,10 @@ Version:
 --------
 0.9.18 (2025-07-06)
 
+0.9.18.1 Hotfixes
+- fixes broken manual review mode due to missing method after earlier refactoring 
+- fixes a bug that prevents skipping PDF annotation
+
 New in 0.9.18   
 KATEGORIE-KONSISTENZ: Deduktiver Modus mit Hauptkategorie-Vorauswahl (1-3 wahrscheinlichste), 40-60% weniger Token, keine inkompatiblen Subkategorie-Zuordnungen
 SUBKATEGORIE-VALIDIERUNG: Strikte Konsistenzprüfung mit automatischer Entfernung fremder Subkategorien, zweistufige Validierung, detailliertes Tracking
@@ -209,7 +213,7 @@ from QCA_Utils import (
     EscapeHandler, add_escape_handler_to_manager,
     MultiSelectListbox, ManualMultipleCodingDialog, create_multiple_coding_results, show_multiple_coding_info, 
     setup_manual_coding_window_enhanced, validate_multiple_selection,
-    DocumentReader, ManualReviewGUI, validate_category_specific_segments, analyze_multiple_coding_impact, export_multiple_coding_report
+    DocumentReader, ManualReviewGUI, ManualReviewComponent, validate_category_specific_segments, analyze_multiple_coding_impact, export_multiple_coding_report
 )
 try:
     from QCA_Utils import PDFAnnotator, DocumentToPDFConverter
@@ -8102,7 +8106,8 @@ class ReviewManager:
     
     def _manual_review_process(self, category_segments: List[Dict]) -> List[Dict]:
         """
-        KORRIGIERT: Manuelles Review mit separaten Entscheidungen pro Kategorie
+        FIX: Korrigierter manueller Review-Prozess ohne Event Loop Konflikt
+        Für ReviewManager Klasse - verwendet bestehende Methoden
         """
         print("👤 Führe manuelles Review durch...")
         
@@ -8110,28 +8115,78 @@ class ReviewManager:
         segments_needing_review = []
         for segment in category_segments:
             if len(segment['codings']) > 1:
-                # Prüfe auf echte Unstimmigkeiten innerhalb dieser Kategorie
+                # FIX: Verwende bestehende Methode zur Unstimmigkeits-Prüfung
                 if self._has_category_disagreement(segment):
                     segments_needing_review.append(segment)
         
         if not segments_needing_review:
-            print("ℹ️ Keine Unstimmigkeiten gefunden - kein manuelles Review erforderlich")
-            # Alle Segmente haben Konsens - verarbeite normal
+            print("✅ Kein manueller Review erforderlich - alle Segmente haben eindeutige Kodierungen")
             return self._consensus_review_process(category_segments)
         
         print(f"🎯 {len(segments_needing_review)} kategorie-spezifische Segmente benötigen Review:")
         for segment in segments_needing_review:
-            original_id = segment['original_segment_id']
-            category = segment['target_category']
-            instance_info = segment['instance_info']
-            
-            if segment['is_multiple_coding']:
-                print(f"  📋 {segment['segment_id']}: {category} (Teil {instance_info['instance_number']}/{instance_info['total_instances']} von {original_id})")
-            else:
-                print(f"  📋 {segment['segment_id']}: {category}")
+            category = segment.get('category', 'Unbekannt')
+            segment_id = segment['segment_id']
+            print(f"  📋 {segment_id}: {category} (Teil {segment_id.split('-')[-1]} von {segment_id.rsplit('-', 1)[0]})")
         
-        # Führe GUI-basiertes Review durch
-        review_decisions = self._perform_gui_review(segments_needing_review)
+        # FIX: Verwende asyncio.create_task() statt loop.run_until_complete()
+        print("🎮 Starte GUI-basiertes manuelles Review...")
+
+        try:
+            # Konvertiere segments_needing_review zu dem Format, das ManualReviewComponent erwartet
+            segment_codings = {}
+            for segment in segments_needing_review:
+                segment_id = segment['segment_id']
+                segment_codings[segment_id] = segment['codings']
+            
+            # Importiere und verwende ManualReviewComponent für echtes GUI
+            from QCA_Utils import ManualReviewGUI, ManualReviewComponent
+            import asyncio
+            
+            # Erstelle ManualReviewComponent
+            manual_review_component = ManualReviewComponent(self.output_dir)
+            
+            # FIX: Verwende asyncio.create_task() für bereits laufende Event Loop
+            import concurrent.futures
+            
+            # Führe GUI-Review in separatem Thread aus
+            def run_gui_review():
+                try:
+                    # Erstelle neue Event Loop für diesen Thread
+                    new_loop = asyncio.new_event_loop()
+                    asyncio.set_event_loop(new_loop)
+                    
+                    try:
+                        # FIX: Verwende neue Methode, die Unstimmigkeits-Prüfung überspringt
+                        review_decisions = new_loop.run_until_complete(
+                            manual_review_component.review_discrepancies_direct(segment_codings, skip_discrepancy_check=True)
+                        )
+                        return review_decisions
+                    finally:
+                        new_loop.close()
+                        
+                except Exception as e:
+                    print(f"❌ Fehler im GUI-Thread: {e}")
+                    return None
+            
+            # Führe GUI-Review in separatem Thread aus
+            with concurrent.futures.ThreadPoolExecutor() as executor:
+                future = executor.submit(run_gui_review)
+                review_decisions = future.result(timeout=300)  # 5 Minuten Timeout
+            
+            if review_decisions is None:
+                raise Exception("GUI-Review fehlgeschlagen")
+                
+            print(f"✅ GUI-Review abgeschlossen: {len(review_decisions)} Entscheidungen getroffen")
+            
+        except Exception as e:
+            print(f"❌ Fehler beim GUI-Review: {e}")
+            print("📝 Verwende automatischen Consensus als Fallback")
+            import traceback
+            traceback.print_exc()
+            
+            # FIX: Fallback ohne problematische Coroutine-Aufrufe
+            return self._consensus_review_process(category_segments)
         
         # Kombiniere Review-Entscheidungen mit Segmenten ohne Review
         reviewed_codings = []
@@ -8148,7 +8203,112 @@ class ReviewManager:
                     final_coding['segment_id'] = segment['segment_id']
                     reviewed_codings.append(final_coding)
                 else:
-                    # Automatischer Consensus für Segmente ohne Review
+                    # FIX: Verwende bestehende Consensus-Methode für Fallback
+                    consensus_coding = self._get_consensus_for_category_segment(segment)
+                    if consensus_coding:
+                        reviewed_codings.append(consensus_coding)
+        
+        return reviewed_codings
+    def _manual_review_process(self, category_segments: List[Dict]) -> List[Dict]:
+        """
+        FIX: Korrigierter manueller Review-Prozess ohne Event Loop Konflikt
+        Für ReviewManager Klasse - verwendet bestehende Methoden
+        """
+        print("👤 Führe manuelles Review durch...")
+        
+        # Identifiziere Segmente, die Review benötigen
+        segments_needing_review = []
+        for segment in category_segments:
+            if len(segment['codings']) > 1:
+                # FIX: Verwende bestehende Methode zur Unstimmigkeits-Prüfung
+                if self._has_category_disagreement(segment):
+                    segments_needing_review.append(segment)
+        
+        if not segments_needing_review:
+            print("✅ Kein manueller Review erforderlich - alle Segmente haben eindeutige Kodierungen")
+            return self._consensus_review_process(category_segments)
+        
+        print(f"🎯 {len(segments_needing_review)} kategorie-spezifische Segmente benötigen Review:")
+        for segment in segments_needing_review:
+            category = segment.get('category', 'Unbekannt')
+            segment_id = segment['segment_id']
+            print(f"  📋 {segment_id}: {category} (Teil {segment_id.split('-')[-1]} von {segment_id.rsplit('-', 1)[0]})")
+        
+        # FIX: Verwende asyncio.create_task() statt loop.run_until_complete()
+        print("🎮 Starte GUI-basiertes manuelles Review...")
+
+        try:
+            # Konvertiere segments_needing_review zu dem Format, das ManualReviewComponent erwartet
+            segment_codings = {}
+            for segment in segments_needing_review:
+                segment_id = segment['segment_id']
+                segment_codings[segment_id] = segment['codings']
+            
+            # Importiere und verwende ManualReviewComponent für echtes GUI
+            from QCA_Utils import ManualReviewGUI, ManualReviewComponent
+            import asyncio
+            
+            # Erstelle ManualReviewComponent
+            manual_review_component = ManualReviewComponent(self.output_dir)
+            
+            # FIX: Verwende asyncio.create_task() für bereits laufende Event Loop
+            import concurrent.futures
+            
+            # Führe GUI-Review in separatem Thread aus
+            def run_gui_review():
+                try:
+                    # Erstelle neue Event Loop für diesen Thread
+                    new_loop = asyncio.new_event_loop()
+                    asyncio.set_event_loop(new_loop)
+                    
+                    try:
+                        # FIX: Verwende neue Methode, die Unstimmigkeits-Prüfung überspringt
+                        review_decisions = new_loop.run_until_complete(
+                            manual_review_component.review_discrepancies_direct(segment_codings, skip_discrepancy_check=True)
+                        )
+                        return review_decisions
+                    finally:
+                        new_loop.close()
+                        
+                except Exception as e:
+                    print(f"❌ Fehler im GUI-Thread: {e}")
+                    return None
+            
+            # Führe GUI-Review in separatem Thread aus
+            with concurrent.futures.ThreadPoolExecutor() as executor:
+                future = executor.submit(run_gui_review)
+                review_decisions = future.result(timeout=300)  # 5 Minuten Timeout
+            
+            if review_decisions is None:
+                raise Exception("GUI-Review fehlgeschlagen")
+                
+            print(f"✅ GUI-Review abgeschlossen: {len(review_decisions)} Entscheidungen getroffen")
+            
+        except Exception as e:
+            print(f"❌ Fehler beim GUI-Review: {e}")
+            print("📝 Verwende automatischen Consensus als Fallback")
+            import traceback
+            traceback.print_exc()
+            
+            # FIX: Fallback ohne problematische Coroutine-Aufrufe
+            return self._consensus_review_process(category_segments)
+        
+        # Kombiniere Review-Entscheidungen mit Segmenten ohne Review
+        reviewed_codings = []
+        reviewed_segment_ids = set(decision['segment_id'] for decision in review_decisions)
+        
+        # Füge Review-Entscheidungen hinzu
+        reviewed_codings.extend(review_decisions)
+        
+        # Füge Segmente ohne Review hinzu
+        for segment in category_segments:
+            if segment['segment_id'] not in reviewed_segment_ids:
+                if len(segment['codings']) == 1:
+                    final_coding = segment['codings'][0].copy()
+                    final_coding['segment_id'] = segment['segment_id']
+                    reviewed_codings.append(final_coding)
+                else:
+                    # FIX: Verwende bestehende Consensus-Methode für Fallback
                     consensus_coding = self._get_consensus_for_category_segment(segment)
                     if consensus_coding:
                         reviewed_codings.append(consensus_coding)
@@ -10401,6 +10561,11 @@ class ResultsExporter:
             if 'attribut3' in self.attribute_labels and self.attribute_labels['attribut3']:
                 row_data[self.attribute_labels['attribut3']] = _sanitize_text_for_excel(attribut3)
             
+            if coding.get('manual_review', False):
+                review_typ = 'manual'
+            else:
+                review_typ = consensus_info.get('selection_type', 'single')
+            
             # FIX: Alle weiteren Spalten hinzufügen
             additional_fields = {
                 'Chunk_Nr': unique_chunk_id,
@@ -10417,9 +10582,8 @@ class ResultsExporter:
                 'Mehrfachkodierung': mehrfachkodierung_status,  # FIX: Korrekte Mehrfachkodierung-Logik
                 'Instanz_Nr': instance_info.get('instance_number', 1) if is_multiple else 1,  # FIX: Hinzugefügt
                 'Gesamt_Instanzen': instance_info.get('total_instances', 1) if is_multiple else 1,  # FIX: Hinzugefügt
-                'Review_Typ': consensus_info.get('selection_type', 'single'),  # FIX: Hinzugefügt
-                'Kodierer': coding.get('coder_id', 'Unbekannt'),  # FIX: Hinzugefügt
-                
+                'Review_Typ': review_typ,
+                'Kodierer': coding.get('coder_id', 'Unbekannt'),  # FIX: Hinzugefügt               
                 'Fokus_Kategorie': _sanitize_text_for_excel(coding.get('target_category', '')),
                 'Fokus_verwendet': 'Ja' if coding.get('category_focus_used', False) else 'Nein',
                 'Original_Chunk_ID': f"{chunk_prefix}-{chunk_id}"
@@ -11373,11 +11537,11 @@ class ResultsExporter:
                 print("ℹ️ Keine Document-Summaries verfügbar")
                 return
             
-            # Erstelle Daten
             summary_data = []
             for doc_name, summary in document_summaries.items():
-                # PUNKT 1: Entferne Zeilenumbrüche
-                clean_summary = self.summary
+                # FIX: Verwende 'summary' statt 'self.summary'
+                clean_summary = summary.replace('\n', ' ').replace('\r', ' ').strip()
+                
                 
                 summary_data.append({
                     'Dokument': doc_name,
@@ -13111,10 +13275,16 @@ async def main() -> None:
             
             # Bestimme Review-Modus
             review_mode = CONFIG.get('REVIEW_MODE', 'consensus')
+
             if manual_coders:
                 print(f"🎯 Manuelle Kodierung erkannt von {len(manual_coders)} Kodierern")
-                print("   Automatisches manuelles Review wird gestartet...")
-                review_mode = 'manual'
+                if review_mode == 'manual':
+                    print("   Manueller Review-Modus aus CONFIG aktiviert")
+                else:
+                    print(f"   CONFIG-Einstellung '{review_mode}' wird verwendet (nicht automatisch auf 'manual' geändert)")
+            else:
+                if review_mode == 'manual':
+                    print("   Manueller Review-Modus aus CONFIG aktiviert (auch ohne manuelle Kodierer)")
             
             print(f"📋 Review-Modus: {review_mode}")
             print(f"📊 Eingabe: {len(all_codings)} ursprüngliche Kodierungen")
@@ -13137,7 +13307,7 @@ async def main() -> None:
                 print(f"❌ Fehler beim Review-Prozess: {str(e)}")
                 print("📝 Verwende ursprüngliche Kodierungen ohne Review")
                 # all_codings bleibt unverändert
-                export_mode = 'no_review'
+                export_mode = review_mode
                 import traceback
                 traceback.print_exc()
             
@@ -13179,15 +13349,20 @@ async def main() -> None:
                 # Exportiere Ergebnisse mit Document-Summaries, wenn vorhanden
                 summary_arg = analysis_manager.document_summaries if CONFIG.get('CODE_WITH_CONTEXT', True) else None
 
-                # Bestimme den Export-Modus basierend auf REVIEW_MODE
-                export_mode = CONFIG.get('REVIEW_MODE', 'consensus')
+                # FIX: VERWENDE den bereits bestimmten export_mode, lade NICHT nochmal aus CONFIG
+                # ENTFERNT: export_mode = CONFIG.get('REVIEW_MODE', 'consensus') 
+
 
                 # Validiere und mappe den Export-Modus
                 if export_mode == 'auto':
                     export_mode = 'consensus'  # 'auto' ist ein Alias für 'consensus'
-                elif export_mode not in ['consensus', 'majority', 'manual_priority']:
-                    print(f"Warnung: Unbekannter REVIEW_MODE '{export_mode}', verwende 'consensus'")
+                elif export_mode not in ['consensus', 'majority', 'manual_priority', 'manual']:
+                    print(f"Warnung: Unbekannter export_mode '{export_mode}', verwende 'consensus'")
                     export_mode = 'consensus'
+                
+                # FIX: Mappe 'manual' auf 'manual_priority' für Export
+                if export_mode == 'manual':
+                    export_mode = 'manual_priority'
 
                 print(f"Export wird mit Modus '{export_mode}' durchgeführt")
 
@@ -13211,9 +13386,15 @@ async def main() -> None:
                         print(f"\n📄 {doc_name}:")
                         print(f"  {summary}")
 
-                if CONFIG.get('EXPORT_ANNOTATED_PDFS', True) and pdf_annotation_available:
+                if not CONFIG.get('EXPORT_ANNOTATED_PDFS', True):
+                    print("\n   ℹ️ PDF-Annotation deaktiviert (EXPORT_ANNOTATED_PDFS=False)")
+                elif not pdf_annotation_available:
+                    print("\n   ℹ️ PDF-Annotation nicht verfügbar (PyMuPDF/ReportLab fehlt)")
+                    print("   💡 Installieren Sie mit: pip install PyMuPDF reportlab")
+                else:
+                    # PDF-Annotation ist aktiviert und verfügbar
                     try:
-                        print("\n11. Exportiere annotierte PDFs für alle Dateiformate...")
+                        print("\n🎨 Exportiere annotierte PDFs für alle Dateiformate...")
                         
                         # FIX: Verwende erweiterte Methode für alle Formate
                         annotated_pdfs = exporter.export_annotated_pdfs_all_formats(
@@ -13232,15 +13413,8 @@ async def main() -> None:
                     except Exception as e:
                         print(f"   ❌ Fehler bei erweiterter PDF-Annotation: {e}")
                         print("   💡 PDF-Annotation übersprungen, normaler Export fortgesetzt")
-                
-                elif not pdf_annotation_available:
-                    print("\n   ℹ️ PDF-Annotation nicht verfügbar (PyMuPDF/ReportLab fehlt)")
-                    print("   💡 Installieren Sie mit: pip install PyMuPDF reportlab")
-                
-                elif not CONFIG.get('EXPORT_ANNOTATED_PDFS', True):
-                    print("\n   ℹ️ PDF-Annotation deaktiviert (EXPORT_ANNOTATED_PDFS=False)")
 
-                print("Export erfolgreich abgeschlossen")  # FIX: Diese Zeile bleibt bestehen
+                print("Export erfolgreich abgeschlossen")
 
             else:
                 print("Keine Kodierungen zum Exportieren vorhanden")
@@ -13345,3 +13519,4 @@ if __name__ == "__main__":
     except Exception as e:
         print(f"Fehler im Hauptprogramm: {str(e)}")
         raise
+
