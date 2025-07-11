@@ -1978,12 +1978,19 @@ if TYPE_CHECKING:
     from typing import TYPE_CHECKING
     # Hier würde normalerweise der Import stehen, aber wir verwenden Any
 
+
 class EscapeHandler:
     """
-    Handler für Escape-Taste um Kodierung sicher zu unterbrechen und Zwischenergebnisse zu speichern.
+    FIX: Verbesserte ESC-Handler Klasse für QCA-AID
+    Behandelt ESC-Taste Abbrüche mit korrekter Thread-Verwaltung
     """
     
     def __init__(self, analysis_manager: Any):  # Verwende Any statt 'IntegratedAnalysisManager'
+        # FIX: Imports für die gesamte Klasse
+        import threading
+        import sys
+        import time
+        
         self.analysis_manager = analysis_manager
         self.escape_pressed = False
         self.user_wants_to_abort = False
@@ -2002,10 +2009,11 @@ class EscapeHandler:
             return False
         
     def start_monitoring(self):
-        """Startet die Überwachung der Escape-Taste"""
+        """Startet die Überwachung der Escape-Taste - FIX: Bessere Thread-Verwaltung"""
         if not self._keyboard_available:
             return
             
+        # FIX: Nur starten wenn nicht bereits aktiv
         if self.monitoring:
             return
             
@@ -2015,36 +2023,60 @@ class EscapeHandler:
         
         print("\n💡 Tipp: Drücken Sie ESC um die Kodierung sicher zu unterbrechen und Zwischenergebnisse zu speichern")
         
-        # Starte Keyboard-Monitoring in separatem Thread
+        # FIX: Bereinige alten Thread falls vorhanden
+        if self.keyboard_thread and self.keyboard_thread.is_alive():
+            self.monitoring = False  # Signalisiere altem Thread zu beenden
+            # Kurz warten ohne join() vom gleichen Thread
+            import time
+            time.sleep(0.2)
+            self.monitoring = True  # Wieder aktivieren für neuen Thread
+        
+        # Starte neuen Keyboard-Monitoring Thread
+        import threading
         self.keyboard_thread = threading.Thread(target=self._monitor_escape, daemon=True)
         self.keyboard_thread.start()
     
     def stop_monitoring(self):
-        """Stoppt die Überwachung der Escape-Taste"""
+        """Stoppt die Überwachung der Escape-Taste - FIX: Thread-Join Problem behoben"""
+        import threading
+        
         self.monitoring = False
-        if self.keyboard_thread and self.keyboard_thread.is_alive():
+        # FIX: Prüfe ob wir im gleichen Thread sind um join() zu vermeiden
+        if (self.keyboard_thread and 
+            self.keyboard_thread.is_alive() and 
+            self.keyboard_thread != threading.current_thread()):
             # Warte kurz auf das Ende des Threads
             self.keyboard_thread.join(timeout=1.0)
+        # FIX: Bei gleichem Thread nur Flag setzen und Thread beendet sich selbst
+        elif self.keyboard_thread == threading.current_thread():
+            # Monitoring wurde bereits auf False gesetzt, Thread beendet sich
+            pass
     
     def _monitor_escape(self):
-        """Überwacht die Escape-Taste in separatem Thread"""
+        """Überwacht die Escape-Taste in separatem Thread - FIX: Verbesserte Behandlung"""
         if not self._keyboard_available:
             return
             
         try:
             import keyboard
+            import time
+            
             while self.monitoring:
                 if keyboard.is_pressed('esc'):
                     if not self.escape_pressed:  # Verhindere mehrfache Verarbeitung
                         self.escape_pressed = True
+                        # FIX: Stoppe Monitoring sofort um Interferenzen zu vermeiden
+                        self.monitoring = False
                         self._handle_escape()
                     break
                 time.sleep(0.1)  # Kleine Pause um CPU zu schonen
         except Exception as e:
             print(f"Fehler bei Escape-Überwachung: {str(e)}")
+            # FIX: Bei Fehlern Monitoring sauber beenden
+            self.monitoring = False
     
     def _handle_escape(self):
-        """Behandelt das Drücken der Escape-Taste - VERBESSERT"""
+        """Behandelt das Drücken der Escape-Taste - FIX: Thread-sicherer Monitoring-Stop"""
         try:
             print("\n\n" + "="*60)
             print("🛑 ESCAPE-TASTE GEDRÜCKT - KODIERUNG UNTERBRECHEN?")
@@ -2071,6 +2103,9 @@ class EscapeHandler:
             print("ESC       = Sofort beenden ohne Export")
             print("="*60)
             
+            # FIX: Sanftes Stoppen des Monitorings (ohne join vom gleichen Thread)
+            self.monitoring = False  # Signalisiert dem Thread sich zu beenden
+            
             # Warte auf Benutzereingabe mit Timeout
             choice = self._get_user_choice_with_timeout(timeout=30)
             
@@ -2093,133 +2128,177 @@ class EscapeHandler:
             else:  # Timeout oder ungültige Eingabe
                 print("\n⏰ Keine gültige Eingabe - Kodierung wird fortgesetzt...")
                 self.escape_pressed = False
-                self.start_monitoring()
+                self.start_monitoring()  # FIX: Überwachung wieder starten
                 
         except Exception as e:
             print(f"Fehler bei Escape-Behandlung: {str(e)}")
             print("Kodierung wird fortgesetzt...")
             self.escape_pressed = False
-            self.start_monitoring()
+            # FIX: Nur bei kritischen Fehlern Monitoring neustarten
+            if not self.monitoring:
+                self.start_monitoring()
     
     def _get_user_choice_with_timeout(self, timeout: int = 30) -> str:
-        """Holt Benutzereingabe mit Timeout - KORRIGIERT"""
+        """Holt Benutzereingabe mit Timeout - FIX: Verbesserte Eingabebehandlung"""
         print(f"\nIhre Wahl (Timeout in {timeout} Sekunden): ", end="", flush=True)
+        
+        # FIX: Imports direkt am Anfang der Methode
+        import sys
+        import time
         
         try:
             if sys.platform == "win32":
-                # Windows-spezifische Implementierung mit verbesserter Eingabe-Behandlung
+                # FIX: Windows-spezifische Implementierung mit korrekter Escape-Behandlung
+                import msvcrt
+                
+                start_time = time.time()
+                input_chars = []
+                
+                while time.time() - start_time < timeout:
+                    if msvcrt.kbhit():
+                        char = msvcrt.getch()
+                        
+                        # FIX: ESC-Taste erkennen (ASCII 27)
+                        if char == b'\x1b':  # ESC-Taste
+                            print("\nESC")
+                            return 'abort_immediately'
+                        
+                        # FIX: Enter-Taste erkennen (ASCII 13 oder 10)
+                        elif char in [b'\r', b'\n']:
+                            print()  # Neue Zeile
+                            user_input = ''.join(input_chars).strip().lower()
+                            if user_input in ['j', 'n']:
+                                return user_input
+                            else:
+                                print("Ungültige Eingabe. Bitte 'j', 'n' oder ESC drücken.")
+                                return ''  # Leere Eingabe für Timeout-Behandlung
+                        
+                        # FIX: Backspace behandeln (ASCII 8)
+                        elif char == b'\x08':  # Backspace
+                            if input_chars:
+                                input_chars.pop()
+                                print('\b \b', end='', flush=True)  # Zeichen löschen
+                        
+                        # FIX: Nur gültige Zeichen hinzufügen
+                        else:
+                            try:
+                                decoded_char = char.decode('utf-8')
+                                if decoded_char.isprintable():
+                                    input_chars.append(decoded_char)
+                                    print(decoded_char, end='', flush=True)
+                            except UnicodeDecodeError:
+                                continue  # Ignoriere ungültige Zeichen
+                    
+                    # FIX: Kurze Pause um CPU zu entlasten
+                    time.sleep(0.05)
+                
+                # FIX: Timeout erreicht
+                print("\n⏰ Timeout erreicht")
+                return ''
+                
+            else:
+                # FIX: Unix/Linux-Implementierung mit verbesserter Escape-Behandlung
+                import select
+                import termios
+                import tty
+                
+                # FIX: Terminal-Einstellungen sichern
+                old_settings = termios.tcgetattr(sys.stdin)
+                
                 try:
-                    import msvcrt
+                    tty.setraw(sys.stdin.fileno())
+                    
                     start_time = time.time()
                     input_chars = []
                     
                     while time.time() - start_time < timeout:
-                        if msvcrt.kbhit():
-                            char = msvcrt.getch()
+                        # FIX: Non-blocking Input mit select
+                        if select.select([sys.stdin], [], [], 0.1)[0]:
+                            char = sys.stdin.read(1)
                             
-                            # Handle verschiedene Eingabetypen
-                            if char == b'\x1b':  # ESC
-                                print("ESC (Sofortiger Abbruch)")
+                            # FIX: ESC-Taste erkennen
+                            if ord(char) == 27:  # ESC
+                                print("\nESC")
                                 return 'abort_immediately'
-                            elif char == b'\r':  # Enter
-                                user_input = ''.join(input_chars).lower().strip()
-                                print()  # Neue Zeile nach Enter
+                            
+                            # FIX: Enter-Taste erkennen
+                            elif ord(char) in [10, 13]:  # Enter/Return
+                                print()  # Neue Zeile
+                                user_input = ''.join(input_chars).strip().lower()
                                 if user_input in ['j', 'n']:
                                     return user_input
                                 else:
-                                    print("Ungültige Eingabe. Bitte 'j' oder 'n' eingeben: ", end="", flush=True)
-                                    input_chars = []
-                                    continue
-                            elif char == b'\x08':  # Backspace
+                                    print("Ungültige Eingabe. Bitte 'j', 'n' oder ESC drücken.")
+                                    return ''
+                            
+                            # FIX: Backspace behandeln
+                            elif ord(char) in [8, 127]:  # Backspace/Delete
                                 if input_chars:
                                     input_chars.pop()
-                                    print('\b \b', end="", flush=True)  # Löscht Zeichen visuell
+                                    print('\b \b', end='', flush=True)
+                            
+                            # FIX: Normale Zeichen hinzufügen
                             else:
-                                try:
-                                    decoded_char = char.decode('utf-8')
-                                    if decoded_char.isprintable():
-                                        input_chars.append(decoded_char)
-                                        print(decoded_char, end="", flush=True)
-                                except UnicodeDecodeError:
-                                    pass  # Ignoriere nicht-dekodierbare Zeichen
-                        
-                        time.sleep(0.05)  # Kürzere Pause für responsivere Eingabe
-                    
-                    print()  # Neue Zeile nach Timeout
-                    return ''  # Timeout erreicht
-                    
-                except ImportError:
-                    print("\nmsvcrt nicht verfügbar, verwende Fallback...")
-                    return self._get_input_fallback(timeout)
-                    
-            else:
-                # Unix/Linux-spezifische Implementierung
-                return self._get_input_unix_with_timeout(timeout)
+                                if char.isprintable():
+                                    input_chars.append(char)
+                                    print(char, end='', flush=True)
                 
+                finally:
+                    # FIX: Terminal-Einstellungen wiederherstellen
+                    termios.tcsetattr(sys.stdin, termios.TCSADRAIN, old_settings)
+                
+                # FIX: Timeout erreicht
+                print("\n⏰ Timeout erreicht")
+                return ''
+        
         except Exception as e:
-            print(f"\nFehler bei Eingabe-Behandlung: {str(e)}")
-            return self._get_input_fallback(timeout)
-
-    def _get_input_unix_with_timeout(self, timeout: int) -> str:
-        """Unix/Linux-spezifische Eingabe mit Timeout"""
-        try:
-            import select
-            ready, _, _ = select.select([sys.stdin], [], [], timeout)
-            if ready:
-                choice = sys.stdin.readline().strip().lower()
-                if choice in ['j', 'n']:
-                    return choice
-                elif choice == 'esc' or choice == '\x1b':
-                    return 'abort_immediately'
-                else:
-                    print("Ungültige Eingabe.")
-                    return ''
-            else:
-                print()  # Neue Zeile nach Timeout
-                return ''  # Timeout
-        except Exception as e:
-            print(f"Fehler bei Unix-Eingabe: {str(e)}")
-            return self._get_input_fallback(timeout)
-
-    def _get_input_fallback(self, timeout: int) -> str:
-        """Verbesserte Fallback Input-Methode"""
-        try:
-            print(f"\n(Einfache Eingabe-Methode - kein Timeout verfügbar)")
-            print("Geben Sie 'j' für Beenden oder 'n' für Fortsetzen ein:")
+            print(f"\nFehler bei Benutzereingabe: {str(e)}")
+            print("Verwende Fallback-Eingabe...")
             
-            while True:
-                try:
-                    choice = input("Ihre Wahl [j/n]: ").strip().lower()
-                    if choice in ['j', 'n']:
-                        return choice
-                    elif choice in ['esc', 'escape', 'abbruch']:
-                        return 'abort_immediately'
-                    else:
-                        print("Ungültige Eingabe. Bitte 'j' oder 'n' eingeben.")
-                except KeyboardInterrupt:
-                    print("\nCtrl+C erkannt - sofortiger Abbruch")
-                    return 'abort_immediately'
-                except EOFError:
-                    print("\nEingabe-Ende erkannt - Kodierung wird fortgesetzt")
-                    return 'n'
+            # FIX: Fallback auf normale input() mit Timeout-Simulation
+            try:
+                import signal
+                
+                def timeout_handler(signum, frame):
+                    raise TimeoutError("Eingabe-Timeout")
+                
+                # FIX: Nur unter Unix verfügbar
+                if hasattr(signal, 'SIGALRM'):
+                    signal.signal(signal.SIGALRM, timeout_handler)
+                    signal.alarm(timeout)
                     
-        except Exception as e:
-            print(f"Fehler bei Fallback-Eingabe: {str(e)}")
-            return 'n'  # Standard: Fortsetzen
+                    try:
+                        user_input = input().strip().lower()
+                        signal.alarm(0)  # Timer stoppen
+                        
+                        if user_input == 'j':
+                            return 'j'
+                        elif user_input == 'n':
+                            return 'n'
+                        else:
+                            return ''
+                    except TimeoutError:
+                        print("\n⏰ Timeout erreicht")
+                        return ''
+                else:
+                    # FIX: Einfacher Fallback ohne Timeout (Windows ohne msvcrt)
+                    try:
+                        user_input = input().strip().lower()
+                        if user_input in ['j', 'n']:
+                            return user_input
+                        else:
+                            return ''
+                    except (EOFError, KeyboardInterrupt):
+                        return 'abort_immediately'
+                        
+            except Exception as fallback_error:
+                print(f"Auch Fallback fehlgeschlagen: {str(fallback_error)}")
+                return ''
     
-    def _get_current_status(self) -> dict:
-        """Holt den aktuellen Status der Analyse"""
+    def _get_current_status(self):
+        """Ermittelt aktuellen Status der Analyse - FIX: Sichere Attribut-Zugriffe"""
         try:
-            # Versuche get_progress_report zu verwenden
-            if hasattr(self.analysis_manager, 'get_progress_report'):
-                progress_report = self.analysis_manager.get_progress_report()
-                return progress_report.get('progress', {
-                    'processed_segments': 0,
-                    'total_codings': 0,
-                    'elapsed_time': 0
-                })
-            
-            # Fallback: Direkte Attribut-Zugriffe
+            # FIX: Sichere Attribut-Zugriffe
             processed_segments = 0
             total_codings = 0
             elapsed_time = 0
@@ -2251,8 +2330,8 @@ class EscapeHandler:
             }
     
     def _trigger_safe_abort(self):
-        """Löst einen sicheren Abbruch aus"""
-        # Setze Flag für die Hauptschleife
+        """Löst einen sicheren Abbruch aus - FIX: Mehrere Abort-Flags setzen"""
+        # FIX: Setze verschiedene Flags für unterschiedliche Implementierungen
         if hasattr(self.analysis_manager, '_should_abort'):
             self.analysis_manager._should_abort = True
         
@@ -3778,7 +3857,7 @@ class PDFAnnotator:
     für kodierte Textabschnitte und vollständigen Annotationen mit Metadaten.
     """
     
-    def __init__(self, results_exporter: 'ResultsExporter'):
+    def __init__(self, results_exporter: Any ):
         self.results_exporter = results_exporter
         self.category_colors = {}
         self.fuzzy_match_threshold = 0.85  # Ähnlichkeitsschwelle für Text-Matching

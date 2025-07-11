@@ -12,6 +12,7 @@ Version:
 0.9.18.1 Hotfixes
 - fixes broken manual review mode due to missing method after earlier refactoring 
 - fixes a bug that prevents skipping PDF annotation
+- fixes a but where ESC-button would not properly close and save intermediate coding
 
 New in 0.9.18   
 KATEGORIE-KONSISTENZ: Deduktiver Modus mit Hauptkategorie-Vorauswahl (1-3 wahrscheinlichste), 40-60% weniger Token, keine inkompatiblen Subkategorie-Zuordnungen
@@ -3126,7 +3127,6 @@ class IntegratedAnalysisManager:
             if self.check_escape_abort():
                 print("\n🛑 Abbruch durch Benutzer erkannt...")
                 await self._export_intermediate_results(chunks, current_categories, deductive_categories, initial_categories)
-                # KORRIGIERT: Gebe immer ein Tupel zurück
                 return current_categories, self.coding_results
             
             batch = await self._get_next_batch(all_segments, batch_size)
@@ -3146,6 +3146,13 @@ class IntegratedAnalysisManager:
             try:
                 # 1. ALLGEMEINE RELEVANZPRÜFUNG
                 print(f"\n🔍 Schritt 1: Erweiterte Relevanzprüfung für Forschungsfrage...")
+
+                # FIX: Escape-Prüfung vor Relevanzprüfung
+                if self.check_escape_abort():
+                    print("\n🛑 Abbruch vor Relevanzprüfung erkannt...")
+                    await self._export_intermediate_results(chunks, current_categories, deductive_categories, initial_categories)
+                    return current_categories, self.coding_results
+                
                 if analysis_mode == 'deductive':
                     # FIX: Erweiterte Relevanzprüfung für deduktiven Modus
                     extended_relevance_results = await self.relevance_checker.check_relevance_with_category_preselection(
@@ -3187,10 +3194,22 @@ class IntegratedAnalysisManager:
                 
                 # Markiere alle Segmente als verarbeitet
                 self.processed_segments.update(sid for sid, _ in batch)
+
+                # FIX: Escape-Prüfung nach Relevanzprüfung
+                if self.check_escape_abort():
+                    print("\n🛑 Abbruch nach Relevanzprüfung erkannt...")
+                    await self._export_intermediate_results(chunks, current_categories, deductive_categories, initial_categories)
+                    return current_categories, self.coding_results
                 
                 # 2. INDUKTIVE KATEGORIENENTWICKLUNG
                 if not skip_inductive and generally_relevant_batch:
                     print(f"\n🔍 Nächster Schritt: Induktive Kategorienentwicklung...")
+                    
+                    # FIX: Escape-Prüfung vor Kodierung
+                    if self.check_escape_abort():
+                        print("\n🛑 Abbruch vor Kodierung erkannt...")
+                        await self._export_intermediate_results(chunks, current_categories, deductive_categories, initial_categories)
+                        return current_categories, self.coding_results
                     
                     if analysis_mode in ['inductive', 'abductive']:
                         # Standard induktive Kategorienentwicklung
@@ -3240,9 +3259,21 @@ class IntegratedAnalysisManager:
                                 saturation_controller.reset_stability_counter()
                         else:
                             saturation_controller.increment_stability_counter()
-                
+
+                    # FIX: Escape-Prüfung nach Kodierung
+                    if self.check_escape_abort():
+                        print("\n🛑 Abbruch nach Kodierung erkannt...")
+                        await self._export_intermediate_results(chunks, current_categories, deductive_categories, initial_categories)
+                        return current_categories, self.coding_results
+                    
                 # 3. DEDUKTIVE KODIERUNG
                 print(f"\n🏷️ Nächster Schritt: Deduktive Kodierung aller {len(batch)} Segmente...")
+
+                # FIX: Escape-Prüfung vor Kodierung
+                if self.check_escape_abort():
+                    print("\n🛑 Abbruch vor Kodierung erkannt...")
+                    await self._export_intermediate_results(chunks, current_categories, deductive_categories, initial_categories)
+                    return current_categories, self.coding_results
                 
                 # Bestimme Kodiersystem je nach Modus
                 if analysis_mode == 'inductive':
@@ -3320,6 +3351,13 @@ class IntegratedAnalysisManager:
         final_categories = await self._finalize_by_mode(
             analysis_mode, current_categories, deductive_categories, initial_categories
         )
+
+        # FIX: Escape-Prüfung
+        if self.check_escape_abort():
+            print("\n🛑 Abbruch nach Kodierungsverarbeitung erkannt...")
+            await self._export_intermediate_results(chunks, current_categories, deductive_categories, initial_categories)
+            return current_categories, self.coding_results
+        
         
         # Zeige finale Statistiken
         self._show_final_development_stats(final_categories, initial_categories, batch_count)
@@ -4880,7 +4918,7 @@ class DeductiveCoder:
                 print(f"Fehler: Kein Kategoriensystem für Kodierer {self.coder_id} verfügbar")
                 return None
 
-            print(f"    🎯 Fokuskodierung für Kategorie: {focus_category} (Relevanz: {focus_context.get('relevance_score', 0):.2f})")
+            # print(f"    🎯 Fokuskodierung für Kategorie: {focus_category} (Relevanz: {focus_context.get('relevance_score', 0):.2f})")
 
             # Erstelle formatierte Kategorienübersicht mit Fokus-Hervorhebung
             categories_overview = []
