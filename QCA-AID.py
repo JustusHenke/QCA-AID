@@ -7,7 +7,10 @@ enhanced with AI capabilities through the OpenAI API.
 
 Version:
 --------
-0.9.18 (2025-07-06)
+0.9.18.2 (2025-07-15)
+
+0.9.18.2 
+- save complete console output to log-file in output
 
 0.9.18.1 Hotfixes
 - fixes broken manual review mode due to missing method after earlier refactoring 
@@ -23,57 +26,7 @@ CONFIDENCE-SCALES: Zentrale Klasse mit 5 spezialisierten Skalen (0.6+ definitiv,
 EXPORT-FIX: Begründungen bei Nichtkodierung werden nun korrekt exportiert
 CONFIG-Sheet: die Konfiguration des Tools im Codebook wird nun auch exportiert
 
-0.9.17
-- Input dateien können jetzt als annotierte Version exportiert werden
-- PDF werden direkt annotiert, TXT und DOCX werden in PDF umgewandelt und annotiert. 
-- kann über 'EXPORT_ANNOTATED_PDFS': True (default) bzw. mit False deaktiviert werden.
 
-0.9.16.3 Bugfixes
-- fix final stats in console regarding multiple codings
-- include justifications for non-relevant segments in output column
-
-0.9.16.2 Bugfixes
-- Verbessungen bzw. Fixes Kodierungsergebnisse Sheet (Tabellenfunktion)
-- Entferne deduktive Kategorien bei Grounded Mode für die Kodierung
-- Neuer Token-Counter auf Basis tatsächlicher Tokens beim API Provider und berechnung der Kosten
-
-0.9.16.1 Bugfixes
-- Überarbeitete Intercoder Berechnung um der Mehrfachkodierung gerecht zu werden, nach Krippendorf 2011 mittels Sets.
-- Aufbau und Layout des Exports überarbeitet.
-
-New in 0.9.16
-- ERWEITERTE MANUELLE KODIERUNG: Mehrfachkodierung-Support für manuelles Kodieren
-  • Benutzer können nun mehrere Kategorien gleichzeitig auswählen (Strg+Klick, Shift+Klick)
-  • Intelligente Validierung verhindert inkonsistente Mehrfachauswahlen
-  • Automatische Erstellung separater Kodierungsinstanzen bei verschiedenen Hauptkategorien
-  • Verbesserte GUI mit Auswahlinfo und Mehrfachkodierungs-Dialog
-  • Konsistente Integration mit dem bestehenden Mehrfachkodierungs-System
-
-Previous Features (0.9.15):
-- COMPLETE RESTRUCTURING OF INDUCTIVE MODE: Vollständige Neustrukturierung des induktiven Modus
-  • Vereinfachte und robustere Kategorienentwicklung mit verbesserter Konsistenz
-  • Optimierte Sättigungsprüfung und stabilere Kategorienvalidierung
-  • Reduzierte Komplexität bei gleichzeitig erhöhter Methodentreue
-- IMPROVED ABDUCTIVE MODE: Verbesserungen beim abduktiven Modus
-  • Präzisere Subkategorien-Entwicklung zu bestehenden Hauptkategorien
-  • Bessere Integration neuer Subkategorien in das bestehende System
-- GRACEFUL ANALYSIS INTERRUPTION: Analyse kann mit ESC-Taste abgebrochen werden
-  • Zwischenergebnisse werden automatisch gespeichert bei Benutzerabbruch
-  • Wiederaufnahme der Analyse ab dem letzten Checkpoint möglich
-  • Vollständige Datenintegrität auch bei vorzeitigem Abbruch
-- MASSIVE PERFORMANCE BOOST: 4x Beschleunigung durch Parallelisierung
-  • Parallele Verarbeitung aller Segmente eines Batches gleichzeitig
-  • Optimierte API-Calls durch intelligente Bündelung
-  • Dramatisch reduzierte Analysezeiten bei großen Datenmengen
-- Enhanced error handling and stability improvements
-- Improved progress monitoring and user feedback
-- Optimized memory usage for large document sets
-
-Previous Features (0.9.14):
-- Mehrfachkodierung von Textsegmenten für mehrere Hauptkategorien
-- Fokussierte Kodierung mit kategorie-spezifischer Relevanzprüfung
-- Erweiterte Export-Funktionen mit Mehrfachkodierungs-Details
-- Konfigurierbare Deaktivierung der Mehrfachkodierung
 
 Description:
 -----------
@@ -214,7 +167,8 @@ from QCA_Utils import (
     EscapeHandler, add_escape_handler_to_manager,
     MultiSelectListbox, ManualMultipleCodingDialog, create_multiple_coding_results, show_multiple_coding_info, 
     setup_manual_coding_window_enhanced, validate_multiple_selection,
-    DocumentReader, ManualReviewGUI, ManualReviewComponent, validate_category_specific_segments, analyze_multiple_coding_impact, export_multiple_coding_report
+    DocumentReader, ManualReviewGUI, ManualReviewComponent, validate_category_specific_segments, analyze_multiple_coding_impact, export_multiple_coding_report,
+    ConsoleLogger, TeeWriter
 )
 try:
     from QCA_Utils import PDFAnnotator, DocumentToPDFConverter
@@ -12906,6 +12860,10 @@ async def perform_manual_coding(chunks, categories, manual_coders):
 # Aufgabe: Zusammenführung aller Komponenten, Steuerung des gesamten Analyseprozesses
 async def main() -> None:
     try:
+        # FIX: Console Logging initialisieren
+        console_logger = ConsoleLogger(CONFIG['OUTPUT_DIR'])
+        console_logger.start_logging()
+
         print("=== Qualitative Inhaltsanalyse nach Mayring ===")
 
         # 1. Konfiguration laden
@@ -13238,7 +13196,10 @@ async def main() -> None:
                 
                 # Setze Export-Modus
                 export_mode = review_mode
-                
+
+                if 'console_logger' in locals():
+                    console_logger.stop_logging()    
+
             except Exception as e:
                 print(f"❌ Fehler beim Review-Prozess: {str(e)}")
                 print("📝 Verwende ursprüngliche Kodierungen ohne Review")
@@ -13246,6 +13207,8 @@ async def main() -> None:
                 export_mode = review_mode
                 import traceback
                 traceback.print_exc()
+                if 'console_logger' in locals():
+                    console_logger.stop_logging() 
             
 
             # 10. Speichere induktiv erweitertes Codebook
@@ -13395,21 +13358,35 @@ async def main() -> None:
             print(f"- API-Calls gespart: {relevance_stats['total_segments'] - relevance_stats['api_calls']}")
             print(f"- Cache-Nutzung: {relevance_stats['cache_size']} Einträge")
 
+            if 'console_logger' in locals():
+                console_logger.stop_logging() 
+
         except asyncio.CancelledError:
             print("\nAnalyse wurde abgebrochen.")
+            if 'console_logger' in locals():
+                console_logger.stop_logging() 
         finally:
             # Stelle sicher, dass die Fortschrittsüberwachung beendet wird
             if not progress_task.done():
                 progress_task.cancel()
                 try:
                     await progress_task
+                    if 'console_logger' in locals():
+                        console_logger.stop_logging() 
                 except asyncio.CancelledError:
                     pass
+                    if 'console_logger' in locals():
+                        console_logger.stop_logging() 
+
+        if 'console_logger' in locals():
+            console_logger.stop_logging() 
 
     except Exception as e:
         import traceback
         print(f"Fehler in der Hauptausführung: {str(e)}")
         traceback.print_exc()
+        if 'console_logger' in locals():
+            console_logger.stop_logging() 
 
         try:
             if 'analysis_manager' in locals() and hasattr(analysis_manager, 'coding_results'):
@@ -13420,8 +13397,13 @@ async def main() -> None:
                     deductive_categories=initial_categories if 'initial_categories' in locals() else {},
                     initial_categories=initial_categories if 'initial_categories' in locals() else {}
                 )
+            if 'console_logger' in locals():
+                console_logger.stop_logging() 
+
         except Exception as export_error:
             print(f"Fehler beim Export der Zwischenergebnisse: {str(export_error)}")
+            if 'console_logger' in locals():
+                console_logger.stop_logging() 
 
 
 async def monitor_progress(analysis_manager: IntegratedAnalysisManager):
