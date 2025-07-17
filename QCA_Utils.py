@@ -2295,6 +2295,7 @@ class EscapeHandler:
                 print(f"Auch Fallback fehlgeschlagen: {str(fallback_error)}")
                 return ''
     
+    
     def _get_current_status(self):
         """Ermittelt aktuellen Status der Analyse - FIX: Sichere Attribut-Zugriffe"""
         try:

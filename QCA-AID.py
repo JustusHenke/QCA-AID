@@ -11,6 +11,7 @@ Version:
 
 0.9.18.2 
 - save complete console output to log-file in output
+- fixes issues with intermediate export after aborting coding process
 
 0.9.18.1 Hotfixes
 - fixes broken manual review mode due to missing method after earlier refactoring 
@@ -3743,7 +3744,8 @@ class IntegratedAnalysisManager:
                     revision_manager=revision_manager,
                     export_mode="consensus",
                     original_categories=initial_categories,
-                    document_summaries=getattr(self, 'document_summaries', None)
+                    document_summaries=getattr(self, 'document_summaries', None),
+                    is_intermediate_export=True  # FIX: Kennzeichnung als Zwischenexport
                 )
                 
                 print("✅ Zwischenergebnisse erfolgreich exportiert!")
@@ -10041,7 +10043,8 @@ class ResultsExporter:
                             original_categories: Dict[str, CategoryDefinition] = None,
                             original_codings: List[Dict] = None,  
                             inductive_coder: 'InductiveCoder' = None,
-                            document_summaries: Dict[str, str] = None) -> None:
+                            document_summaries: Dict[str, str] = None,
+                            is_intermediate_export: bool = False) -> None: 
         """
         FIX: Exportiert mit korrekten ursprünglichen Kodierungen für Reliabilität
         Für ResultsExporter Klasse
@@ -10059,7 +10062,14 @@ class ResultsExporter:
         try:
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             analysis_mode = CONFIG.get('ANALYSIS_MODE', 'deductive')
-            filename = f"QCA-AID_Analysis_{analysis_mode}_{timestamp}.xlsx"
+            # FIX: Unterschiedliche Dateinamen für normale und Zwischenexporte
+            if is_intermediate_export:
+                filename = f"QCA-AID_Analysis_INTERMEDIATE_{analysis_mode}_{timestamp}.xlsx"
+                print(f"📊 Exportiere Zwischenergebnisse bei Abbruch...")
+            else:
+                filename = f"QCA-AID_Analysis_{analysis_mode}_{timestamp}.xlsx"
+                print(f"📊 Exportiere finale Ergebnisse mit {export_mode}-Modus...")
+            
             filepath = os.path.join(self.output_dir, filename)
             
             with pd.ExcelWriter(filepath, engine='openpyxl') as writer:
@@ -10102,7 +10112,7 @@ class ResultsExporter:
                 review_stats = self._calculate_review_statistics(codings, export_mode, original_codings)
                 self._export_review_statistics(writer, review_stats, export_mode)
                 
-                # 7. FIX: REVISIONSHISTORIE (falls verfügbar)
+                # 7. REVISIONSHISTORIE (falls verfügbar)
                 if revision_manager and hasattr(revision_manager, 'changes'):
                     print("📜 Exportiere Revisionshistorie...")
                     revision_manager._export_revision_history(writer, revision_manager.changes)
@@ -10111,9 +10121,19 @@ class ResultsExporter:
                 
                 # 8. KONFIGURATION-SHEET 
                 print("⚙️ Exportiere Konfiguration...")
-                self._export_configuration_sheet(writer)
+                self._export_configuration(writer, export_mode)
+                
+                if is_intermediate_export:
+                    print(f"✅ Zwischenergebnisse erfolgreich exportiert!")
+                else:
+                    print(f"✅ Export erfolgreich: {filename}")
+                
+            # FIX: Nur bei normalem Export Dateiinfo anzeigen
+            if not is_intermediate_export:
+                print(f"📂 Dateien im Ordner: {self.output_dir}")
+                print(f"📄 Export-Datei: {filename}")
             
-            print(f"✅ Export erfolgreich: {filename}")
+            # FIX: Return filename am Ende hinzugefügt
             return filename
             
         except Exception as e:
@@ -10353,14 +10373,14 @@ class ResultsExporter:
             # FIX: Debug-Output für Problemdiagnose
             if display_category == "Nicht kodiert":
                 segment_id = coding.get('segment_id', 'unknown')
-                print(f"🔧 FIX DEBUG Segment {segment_id}:")
-                print(f"   - Finale justification: '{justification}'")
-                print(f"   - Original justification: '{coding.get('justification', 'LEER')}'")
-                print(f"   - Reasoning: '{coding.get('reasoning', 'LEER')}'")
-                print(f"   - Original_justification: '{coding.get('original_justification', 'LEER')}'")
+                # print(f"🔧 FIX DEBUG Segment {segment_id}:")
+                # print(f"   - Finale justification: '{justification}'")
+                # print(f"   - Original justification: '{coding.get('justification', 'LEER')}'")
+                # print(f"   - Reasoning: '{coding.get('reasoning', 'LEER')}'")
+                # print(f"   - Original_justification: '{coding.get('original_justification', 'LEER')}'")
                 # FIX: ZUSÄTZLICHER CHECK - Direkt vom RelevanceChecker holen
                 if hasattr(self, 'relevance_checker') and self.relevance_checker:
-                    print(f"   - RelevanceChecker verfügbar: JA")
+                    # print(f"   - RelevanceChecker verfügbar: JA")
                     try:
                         relevance_details = self.relevance_checker.get_relevance_details(segment_id)
                         print(f"   - RelevanceChecker Details: {relevance_details}")
@@ -10369,28 +10389,28 @@ class ResultsExporter:
                         if relevance_details and justification == "Keine Begründung verfügbar":
                             if relevance_details.get('reasoning') and relevance_details['reasoning'] != 'Keine Begründung verfügbar':
                                 justification = relevance_details['reasoning']
-                                print(f"   - ✅ Begründung aus RelevanceChecker geholt: '{justification}'")
+                                # print(f"   - ✅ Begründung aus RelevanceChecker geholt: '{justification}'")
                             elif relevance_details.get('justification') and relevance_details['justification'] != 'Keine Begründung verfügbar':
                                 justification = relevance_details['justification'] 
-                                print(f"   - ✅ Justification aus RelevanceChecker geholt: '{justification}'")
+                                # print(f"   - ✅ Justification aus RelevanceChecker geholt: '{justification}'")
                     except Exception as e:
                         print(f"   - ❌ Fehler beim RelevanceChecker-Zugriff: {e}")
                 else:
                     print(f"   - RelevanceChecker verfügbar: NEIN")
                     # FIX: Fallback auf analysis_manager falls self.relevance_checker nicht da ist
                     if hasattr(self, 'analysis_manager') and self.analysis_manager and hasattr(self.analysis_manager, 'relevance_checker'):
-                        print(f"   - Analysis Manager RelevanceChecker verfügbar: JA")
+                        # print(f"   - Analysis Manager RelevanceChecker verfügbar: JA")
                         try:
                             relevance_details = self.analysis_manager.relevance_checker.get_relevance_details(segment_id)
-                            print(f"   - Analysis Manager RelevanceChecker Details: {relevance_details}")
+                            # print(f"   - Analysis Manager RelevanceChecker Details: {relevance_details}")
                             
                             # FIX: Verwende analysis_manager RelevanceChecker-Daten
                             if relevance_details and justification == "Keine Begründung verfügbar":
                                 if relevance_details.get('reasoning') and relevance_details['reasoning'] != 'Keine Begründung verfügbar':
                                     justification = relevance_details['reasoning']
-                                    print(f"   - ✅ Begründung aus Analysis Manager RelevanceChecker geholt: '{justification}'")
+                                    # print(f"   - ✅ Begründung aus Analysis Manager RelevanceChecker geholt: '{justification}'")
                                 elif relevance_details.get('justification') and relevance_details['justification'] != 'Keine Begründung verfügbar':
-                                    justification = relevance_details['justification']
+                                    # justification = relevance_details['justification']
                                     print(f"   - ✅ Justification aus Analysis Manager RelevanceChecker geholt: '{justification}'")
                         except Exception as e:
                             print(f"   - ❌ Fehler beim Analysis Manager RelevanceChecker-Zugriff: {e}")
@@ -10404,18 +10424,18 @@ class ResultsExporter:
                     
                     if text_length < 20:
                         justification = "Segment zu kurz für sinnvolle Kodierung"
-                        print(f"   - ✅ Fallback: Zu kurz")
+                        # print(f"   - ✅ Fallback: Zu kurz")
                     elif any(pattern in text_content for pattern in ['seite ', 'page ', 'copyright', '©', 'inhaltsverzeichnis']):
                         justification = "Segment als Metadaten identifiziert"
-                        print(f"   - ✅ Fallback: Metadaten")
+                        # print(f"   - ✅ Fallback: Metadaten")
                     elif text_length < 100:
                         justification = "Segment enthält zu wenig Substanz für Kodierung"
-                        print(f"   - ✅ Fallback: Zu wenig Substanz")
+                        # print(f"   - ✅ Fallback: Zu wenig Substanz")
                     else:
                         justification = "Segment nicht relevant für Analysekategorien"
-                        print(f"   - ✅ Fallback: Nicht relevant")
+                        # print(f"   - ✅ Fallback: Nicht relevant")
                 
-                print(f"   - 🎯 FINAL justification: '{justification}'")
+                #  print(f"   - 🎯 FINAL justification: '{justification}'")
             
             # FIX: Konfidenz korrekt extrahieren
             confidence = coding.get('confidence', {})
@@ -12461,11 +12481,16 @@ class ResultsExporter:
         
         print(f"\n✅ Erweiterte PDF-Annotation abgeschlossen: {len(annotated_files)} Dateien erstellt")
         return annotated_files
-
-    def _export_configuration_sheet(self, writer):
+    
+    def _export_configuration(self, writer, export_mode: str):
         """
-        FIX: Neue Methode für Config-Sheet Export
+        # FIX: Fehlende Methode _export_configuration hinzugefügt
+        Exportiert die Konfiguration in ein separates Excel-Sheet.
         Für ResultsExporter Klasse
+        
+        Args:
+            writer: Excel Writer Objekt
+            export_mode: Verwendeter Export-Modus
         """
         try:
             from openpyxl.styles import Font, PatternFill
@@ -12490,48 +12515,37 @@ class ResultsExporter:
             worksheet.cell(row=current_row, column=2).fill = PatternFill(start_color='D3D3D3', end_color='D3D3D3', fill_type='solid')
             current_row += 1
             
-            # FIX: Alle gewünschten Konfigurationsparameter exportieren
+            # FIX: Alle wichtigen Konfigurationsparameter exportieren
             config_params = [
                 ('MODEL_PROVIDER', CONFIG.get('MODEL_PROVIDER', 'OpenAI')),
                 ('MODEL_NAME', CONFIG.get('MODEL_NAME', 'gpt-4o-mini')),
                 ('CHUNK_SIZE', CONFIG.get('CHUNK_SIZE', 2000)),
                 ('CHUNK_OVERLAP', CONFIG.get('CHUNK_OVERLAP', 200)),
                 ('BATCH_SIZE', CONFIG.get('BATCH_SIZE', 5)),
-                ('CODE_WITH_CONTEXT', CONFIG.get('CODE_WITH_CONTEXT', True)),
-                ('MULTIPLE_CODINGS', CONFIG.get('MULTIPLE_CODINGS', True)),
-                ('MULTIPLE_CODING_THRESHOLD', CONFIG.get('MULTIPLE_CODING_THRESHOLD', 0.6)),
+                ('CODE_WITH_CONTEXT', CONFIG.get('CODE_WITH_CONTEXT', False)),
                 ('ANALYSIS_MODE', CONFIG.get('ANALYSIS_MODE', 'deductive')),
-                ('REVIEW_MODE', CONFIG.get('REVIEW_MODE', 'consensus')),
-                ('ATTRIBUTE_LABELS - Attribut1', CONFIG.get('ATTRIBUTE_LABELS', {}).get('attribut1', 'Attribut1')),
-                ('ATTRIBUTE_LABELS - Attribut2', CONFIG.get('ATTRIBUTE_LABELS', {}).get('attribut2', 'Attribut2')),
-                ('ATTRIBUTE_LABELS - Attribut3', CONFIG.get('ATTRIBUTE_LABELS', {}).get('attribut3', 'Attribut3')),
+                ('REVIEW_MODE', export_mode),
+                ('EXPORT_ANNOTATED_PDFS', CONFIG.get('EXPORT_ANNOTATED_PDFS', True)),
+                ('ATTRIBUT1_LABEL', CONFIG.get('ATTRIBUTE_LABELS', {}).get('attribut1', 'Attribut1')),
+                ('ATTRIBUT2_LABEL', CONFIG.get('ATTRIBUTE_LABELS', {}).get('attribut2', 'Attribut2')),
+                ('TIMESTAMP', datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
             ]
             
-            # FIX: CODER_SETTINGS erweitert exportieren
-            coder_settings = CONFIG.get('CODER_SETTINGS', [])
-            for i, coder_config in enumerate(coder_settings, 1):
-                config_params.append((f'CODER_SETTINGS - Kodierer {i} - ID', coder_config.get('coder_id', f'Kodierer_{i}')))
-                config_params.append((f'CODER_SETTINGS - Kodierer {i} - Temperature', coder_config.get('temperature', 0.3)))
-                config_params.append((f'CODER_SETTINGS - Kodierer {i} - System Prompt', coder_config.get('system_prompt', 'Standard')))
-                config_params.append((f'CODER_SETTINGS - Kodierer {i} - Provider', coder_config.get('provider', CONFIG.get('MODEL_PROVIDER', 'OpenAI'))))
-            
-            # Konfigurationswerte in das Sheet schreiben
             for param_name, param_value in config_params:
                 worksheet.cell(row=current_row, column=1, value=param_name)
                 worksheet.cell(row=current_row, column=2, value=str(param_value))
                 current_row += 1
             
             # Spaltenbreiten anpassen
-            worksheet.column_dimensions['A'].width = 35
-            worksheet.column_dimensions['B'].width = 25
+            worksheet.column_dimensions['A'].width = 25
+            worksheet.column_dimensions['B'].width = 40
             
             print("⚙️ Konfiguration erfolgreich exportiert")
             
         except Exception as e:
-            print(f"Fehler beim Export der Konfiguration: {str(e)}")
+            print(f"❌ Fehler beim Export der Konfiguration: {str(e)}")
             import traceback
             traceback.print_exc()
-            
                 
 # --- Klasse: CategoryRevisionManager ---
 # Aufgabe: Verwaltung der iterativen Kategorienrevision
@@ -13275,7 +13289,8 @@ async def main() -> None:
                     original_categories=initial_categories,
                     inductive_coder=reliability_calculator,  
                     document_summaries=summary_arg,
-                    original_codings=original_codings_for_reliability
+                    original_codings=original_codings_for_reliability,
+                    is_intermediate_export=False
                 )
 
                 # Ausgabe der finalen Summaries, wenn vorhanden
@@ -13333,13 +13348,18 @@ async def main() -> None:
                 
                 if codings_for_stats:
                     multiple_coding_stats = _calculate_multiple_coding_stats(codings_for_stats)
+                    
+                    # FIX: ZeroDivisionError bei Division durch Null verhindern
+                    auto_coder_ids = set(c.get('coder_id', '') for c in codings_for_stats if c.get('coder_id', '').startswith('auto'))
+                    num_auto_coders = len(auto_coder_ids) if auto_coder_ids else 1  # FIX: Mindestens 1 für Division
+                    
                     print(f"""
                     Mehrfachkodierungs-Statistiken:
                     - Segmente mit Mehrfachkodierung: {multiple_coding_stats['segments_with_multiple']}
                     - Durchschnittliche Kodierungen pro Segment: {multiple_coding_stats['avg_codings_per_segment']:.2f}
                     - Häufigste Kategorie-Kombinationen: {', '.join(multiple_coding_stats['top_combinations'][:3]) if multiple_coding_stats['top_combinations'] else 'Keine'}
                     - Fokus-Adherence Rate: {multiple_coding_stats['focus_adherence_rate']:.1%}
-                    - Mehrfachkodierungs-Faktor: {multiple_coding_stats['avg_codings_per_segment'] / len(set(c.get('coder_id', '') for c in codings_for_stats if c.get('coder_id', '').startswith('auto'))):.2f}x""")
+                    - Mehrfachkodierungs-Faktor: {multiple_coding_stats['avg_codings_per_segment'] / num_auto_coders:.2f}x""")  # FIX: Verwende num_auto_coders statt direkter Division
                 else:
                     print("\n                    Mehrfachkodierungs-Statistiken: Keine Kodierungen für Analyse verfügbar")
             else:

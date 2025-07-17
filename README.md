@@ -65,6 +65,8 @@ Prüfen Sie regelmäßig, ob eine neue Version hier bereitgestellt ist und verfo
 Beachten Sie auch, dass KI-Ergebnisse nicht perfekt sind und die Ergebnisse von der Qualität der Eingabedaten (Forschungsfrage, Codesystem, Text-Material) abhängen.
 Sie verwenden das Skript auf eigene Verantwortung, ohne jegliche Gewährleistung.  
 
+__TIPP: Achten Sie darauf, Ihre Kategorien im Codebook sehr präzise zu formulieren, da die Kodierung sehr sensibel darauf reagiert. Unscharfe Definitionen und Kriterien führen mitunter zu übermäßig freizügiger Kodierung. Textnahe Codes sind meist besser als welche mit hohem Abstraktionsgrad (die benötigen mehr definitorische Erläuterung).__
+
 --> Feedback ist willkommen! <--
 Kontakt: justus.henke@hof.uni-halle.de
 
