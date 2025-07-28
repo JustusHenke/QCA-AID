@@ -205,6 +205,8 @@ class QCAPrompts:
         self.FORSCHUNGSFRAGE = forschungsfrage
         self.KODIERREGELN = kodierregeln
         self.DEDUKTIVE_KATEGORIEN = deduktive_kategorien
+        # FIX: Alias für bessere Kompatibilität hinzufügen
+        self.deduktive_kategorien = deduktive_kategorien
 
         # print(f"QCAPrompts initialisiert:")
         # print(f"- Forschungsfrage: {len(self.FORSCHUNGSFRAGE)} Zeichen")

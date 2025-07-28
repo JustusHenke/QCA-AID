@@ -12,6 +12,7 @@ Version:
 0.9.18.2 
 - save complete console output to log-file in output
 - fixes issues with intermediate export after aborting coding process
+- fixes issues with abductive mode not receiving orig categories
 
 0.9.18.1 Hotfixes
 - fixes broken manual review mode due to missing method after earlier refactoring 
@@ -1855,6 +1856,9 @@ class IntegratedAnalysisManager:
         self.config = config
         self.history = DevelopmentHistory(config['OUTPUT_DIR'])
 
+        # FIX: model_name Attribut hinzufügen für RelevanceChecker
+        self.model_name = config['MODEL_NAME']
+
         # Batch Size aus Config
         self.batch_size = config.get('BATCH_SIZE', 5) 
 
@@ -1868,7 +1872,7 @@ class IntegratedAnalysisManager:
         
         # Zentrale Relevanzprüfung
         self.relevance_checker = RelevanceChecker(
-            model_name=config['MODEL_NAME'],
+            model_name=self.model_name,
             batch_size=self.batch_size
         )
         
@@ -4443,16 +4447,25 @@ class DeductiveCoder:
             # FIX: Verwende gefilterte Kategorien statt alle
             self.current_categories = categories_to_use
             
-            # FIX: Aktualisiere auch den Prompt-Handler mit den richtigen Kategorien
+            # FIX: Aktualisiere den Prompt-Handler korrekt
             if analysis_mode == 'grounded':
-                # FIX: Im grounded mode deduktive Kategorien leer lassen
-                self.prompt_handler.deduktive_kategorien({})
+                # FIX: Im grounded mode neue QCAPrompts ohne deduktive Kategorien erstellen
+                self.prompt_handler = QCAPrompts(
+                    forschungsfrage=self.prompt_handler.FORSCHUNGSFRAGE,
+                    kodierregeln=self.prompt_handler.KODIERREGELN,
+                    deduktive_kategorien={}  # FIX: Leeres Dict für grounded mode
+                )
             else:
-                # Andere Modi behalten deduktive Kategorien
-                self.prompt_handler.deduktive_kategorien(DEDUKTIVE_KATEGORIEN)
+                # FIX: Für andere Modi QCAPrompts mit aktualisierten Kategorien erstellen
+                self.prompt_handler = QCAPrompts(
+                    forschungsfrage=self.prompt_handler.FORSCHUNGSFRAGE,
+                    kodierregeln=self.prompt_handler.KODIERREGELN,
+                    deduktive_kategorien=categories_dict  # FIX: Verwende aktualisierte Kategorien
+                )
 
             # Test-Anfrage um sicherzustellen, dass das System bereit ist
-            response = await self.llm_provider.chat(
+            response = await self.llm_provider.create_completion(
+                model=self.model_name,  # FIX: Verwende self.model_name
                 messages=[
                     {"role": "system", "content": "Du bist ein QCA-Kodierer. Antworte auf deutsch."},
                     {"role": "user", "content": prompt}
@@ -4460,16 +4473,18 @@ class DeductiveCoder:
                 temperature=0.3
             )
             
-            if "verstanden" in response.content.lower():
+            # FIX: Korrekte Antwort-Verarbeitung
+            llm_response = LLMResponse(response)
+            if "verstanden" in llm_response.content.lower():
                 return True
             else:
-                print(f"⚠️ Unerwartete Antwort von Kodierer {self.coder_id}: {response.content}")
+                print(f"⚠️ Unerwartete Antwort von Kodierer {self.coder_id}: {llm_response.content}")
                 return True  # Fahre trotzdem fort
                 
         except Exception as e:
             print(f"❌ Fehler beim Update von Kodierer {self.coder_id}: {str(e)}")
             return False
-
+        
     async def code_chunk_with_context_switch(self, 
                                          chunk: str, 
                                          categories: Dict[str, CategoryDefinition],
