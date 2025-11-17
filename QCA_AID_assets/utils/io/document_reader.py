@@ -10,6 +10,8 @@ from pathlib import Path
 from typing import Optional, Dict, List, Tuple
 import re
 
+from ..export.helpers import sanitize_text_for_excel
+
 
 try:
     from docx import Document as DocxDocument
@@ -44,7 +46,7 @@ class DocumentReader:
 
     def clean_problematic_characters(self, text: str) -> str:
         """Verwendet die bereits vorhandene Funktion"""
-        return _sanitize_text_for_excel(text)
+        return sanitize_text_for_excel(text)
 
     async def read_documents(self) -> Dict[str, str]:
         documents = {}

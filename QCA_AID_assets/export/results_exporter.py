@@ -22,8 +22,10 @@ from ..core.config import CONFIG
 from ..core.data_models import CategoryDefinition, CodingResult, CategoryChange
 from ..analysis.inductive_coding import InductiveCoder
 from ..quality.reliability import ReliabilityCalculator
+from ..utils.export.helpers import (
+    sanitize_text_for_excel, generate_pastel_colors, format_confidence
+)
 from ..QCA_Utils import (
-    _sanitize_text_for_excel, _generate_pastel_colors, _format_confidence,
     _calculate_multiple_coding_stats, export_multiple_coding_report
 )
 
@@ -53,9 +55,9 @@ class ResultsExporter:
         os.makedirs(output_dir, exist_ok=True)
 
         # Importierte Funktionen als Instanzmethoden verfÜgbar machen
-        self._sanitize_text_for_excel = _sanitize_text_for_excel
-        self._generate_pastel_colors = _generate_pastel_colors
-        self._format_confidence = _format_confidence
+        sanitize_text_for_excel = _sanitize_text_for_excel
+        generate_pastel_colors = _generate_pastel_colors
+        format_confidence = _format_confidence
 
     def _get_consensus_coding(self, segment_codes: List[Dict]) -> Dict:
         """
@@ -888,7 +890,7 @@ class ResultsExporter:
                               if cat != 'Nicht kodiert'])
             
             # Generiere Pastellfarben
-            colors = self._generate_pastel_colors(len(categories))
+            colors = generate_pastel_colors(len(categories))
             
             # Erstelle Mapping in alphabetischer Reihenfolge
             self.category_colors = {
@@ -1995,7 +1997,7 @@ class ResultsExporter:
             
             # Hole eindeutige Hauptkategorien, inkl. "Nicht kodiert"
             main_categories = df_all['Hauptkategorie'].unique()
-            category_colors = {cat: color for cat, color in zip(main_categories, self._generate_pastel_colors(len(main_categories)))}
+            category_colors = {cat: color for cat, color in zip(main_categories, generate_pastel_colors(len(main_categories)))}
 
             if 'HÄufigkeitsanalysen' not in writer.sheets:
                 writer.book.create_sheet('HÄufigkeitsanalysen')

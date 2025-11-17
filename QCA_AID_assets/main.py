@@ -24,11 +24,11 @@ from .export.results_exporter import ResultsExporter
 # Config and utilities from modular packages
 from .utils.config.loader import ConfigLoader
 from .utils.io.document_reader import DocumentReader
+from .utils.system import patch_tkinter_for_threaded_exit, get_input_with_timeout
 
 # Utilities still in old QCA_Utils (to be refactored)
 from .QCA_Utils import (
-    _patch_tkinter_for_threaded_exit,
-    ConsoleLogger, TeeWriter, get_input_with_timeout,
+    ConsoleLogger, TeeWriter,
     _calculate_multiple_coding_stats
 )
 
@@ -755,7 +755,7 @@ async def monitor_progress(analysis_manager: IntegratedAnalysisManager):
     except asyncio.CancelledError:
         print("\nFortschrittsÜberwachung beendet.")
 
-_patch_tkinter_for_threaded_exit()
+patch_tkinter_for_threaded_exit()
 
 if __name__ == "__main__":
     try:
