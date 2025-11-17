@@ -11,8 +11,14 @@ Features:
 - Error tracking and reporting
 
 Exports:
-- TokenTracker: Main tracking class
-- TokenCounter: Legacy support
+  - TokenTracker: Main tracking class with cost calculation
+  - TokenCounter: Legacy support for simple token counting
 """
 
-# Imports will be added during Phase 4 migration
+from .token_tracker import TokenTracker
+from .token_counter import TokenCounter
+
+__all__ = [
+    'TokenTracker',
+    'TokenCounter',
+]
