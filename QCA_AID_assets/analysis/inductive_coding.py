@@ -5,6 +5,9 @@ Ergänzung deduktiver Kategorien durch induktive Kategorien mittels LLM.
 """
 
 import json
+from ..utils.tracking.token_tracker import TokenTracker
+from ..utils.llm.response import LLMResponse
+from ..utils.llm.factory import LLMProviderFactory
 import asyncio
 from typing import Dict, Optional, List, Set, Tuple, Any
 from collections import defaultdict
@@ -12,7 +15,6 @@ from collections import defaultdict
 from ..core.config import CONFIG, FORSCHUNGSFRAGE, KODIERREGELN, DEDUKTIVE_KATEGORIEN
 from ..core.data_models import CategoryDefinition, CodingResult
 from ..management import DevelopmentHistory
-from ..QCA_Utils import LLMProviderFactory, LLMResponse, TokenTracker
 from ..QCA_Prompts import QCAPrompts, ConfidenceScales
 
 # Globaler Token-Counter

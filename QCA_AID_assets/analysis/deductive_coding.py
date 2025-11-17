@@ -5,13 +5,15 @@ Automatisches deduktives Codieren von Text-Chunks anhand des Kodierleitfadens.
 """
 
 import json
+from ..utils.tracking.token_tracker import TokenTracker
+from ..utils.llm.response import LLMResponse
+from ..utils.llm.factory import LLMProviderFactory
 from datetime import datetime
 from typing import Dict, Optional, List, Tuple, Any
 
 from ..core.config import CONFIG, FORSCHUNGSFRAGE, KODIERREGELN, DEDUKTIVE_KATEGORIEN
 from ..core.data_models import CategoryDefinition, CodingResult
 from ..core.validators import CategoryValidator
-from ..QCA_Utils import LLMProviderFactory, LLMResponse, TokenTracker
 from ..QCA_Prompts import QCAPrompts
 
 # Globaler Token-Counter

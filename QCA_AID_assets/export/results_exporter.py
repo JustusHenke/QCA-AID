@@ -26,11 +26,12 @@ from ..utils.export.helpers import (
     sanitize_text_for_excel, generate_pastel_colors, format_confidence
 )
 from ..QCA_Utils import (
-    calculate_multiple_coding_stats, export_multiple_coding_report
+    export_multiple_coding_report
 )
 
 try:
-    from ..QCA_Utils import PDFAnnotator, DocumentToPDFConverter
+    from ..utils.export.pdf_annotator import PDFAnnotator
+    from ..QCA_Utils import DocumentToPDFConverter  # Legacy - not yet refactored
     pdf_annotation_available = True
 except ImportError:
     pdf_annotation_available = False
@@ -53,11 +54,6 @@ class ResultsExporter:
         self.current_categories = {}  # Wird von main() gesetzt
 
         os.makedirs(output_dir, exist_ok=True)
-
-        # Importierte Funktionen als Instanzmethoden verfÜgbar machen
-        sanitize_text_for_excel = _sanitize_text_for_excel
-        generate_pastel_colors = _generate_pastel_colors
-        format_confidence = _format_confidence
 
     def _get_consensus_coding(self, segment_codes: List[Dict]) -> Dict:
         """

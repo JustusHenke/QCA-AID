@@ -231,7 +231,7 @@ class ReviewManager:
                 segment_codings[segment_id] = segment['codings']
             
             # Importiere und verwende ManualReviewComponent fuer echtes GUI
-            from ..QCA_Utils import ManualReviewGUI, ManualReviewComponent
+            from ..utils.export.review import ManualReviewGUI, ManualReviewComponent
             import asyncio
             
             # Erstelle ManualReviewComponent

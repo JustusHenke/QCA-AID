@@ -92,8 +92,8 @@ class OpenAIProvider(LLMProvider):
             Exception: If all retry attempts fail
         """
         try:
-            # Import token_counter for capability caching
-            from ...QCA_Utils import token_counter
+            # Import token_counter from deductive_coding (global instance)
+            from ...analysis.deductive_coding import token_counter
             
             # Erstelle Parameter-Dict
             params = {
@@ -173,7 +173,7 @@ class OpenAIProvider(LLMProvider):
         except Exception as e:
             print(f"❌ [ERROR] Unerwarteter Fehler in create_completion: {str(e)[:200]}")
             try:
-                from ...QCA_Utils import token_counter
+                from ...analysis.deductive_coding import token_counter
                 token_counter.track_error(self.model_name)
             except:
                 pass

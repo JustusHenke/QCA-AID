@@ -11,13 +11,15 @@ from tkinter import ttk, messagebox
 from typing import Dict, Optional, List, Union, Any
 
 from ..core.data_models import CategoryDefinition, CodingResult
+from ..utils.dialog.widgets import MultiSelectListbox
+from ..utils.dialog.multiple_coding import ManualMultipleCodingDialog
+
+# Still in QCA_Utils (not yet refactored)
 from ..QCA_Utils import (
     setup_manual_coding_window_enhanced, 
     validate_multiple_selection,
     create_multiple_coding_results,
     show_multiple_coding_info,
-    MultiSelectListbox,
-    ManualMultipleCodingDialog
 )
 
 class ManualCoder:

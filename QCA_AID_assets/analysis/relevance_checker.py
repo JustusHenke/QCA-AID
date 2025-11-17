@@ -5,13 +5,15 @@ Zentrale Klasse für Relevanzprüfungen mit Caching und Batch-Verarbeitung.
 """
 
 import json
+from ..utils.tracking.token_tracker import TokenTracker
+from ..utils.llm.response import LLMResponse
+from ..utils.llm.factory import LLMProviderFactory
 import time
 import asyncio
 from typing import List, Tuple, Dict, Optional, Any
 
 from ..core.config import CONFIG, FORSCHUNGSFRAGE, KODIERREGELN, DEDUKTIVE_KATEGORIEN
 from ..core.data_models import CategoryDefinition
-from ..QCA_Utils import LLMProviderFactory, LLMResponse, TokenTracker
 from ..QCA_Prompts import QCAPrompts
 
 # Globaler Token-Counter (wird von außen übergeben)
