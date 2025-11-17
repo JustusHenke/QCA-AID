@@ -12,8 +12,14 @@ Features:
 All components are 100% Tkinter-based with no external dependencies.
 
 Exports:
-- MultiSelectListbox: Custom multi-select widget
-- ManualMultipleCodingDialog: Coding confirmation dialog
+  - MultiSelectListbox: Custom multi-select widget
+  - ManualMultipleCodingDialog: Coding confirmation dialog
 """
 
-# Imports will be added during Phase 5 migration
+from .widgets import MultiSelectListbox
+from .multiple_coding import ManualMultipleCodingDialog
+
+__all__ = [
+    'MultiSelectListbox',
+    'ManualMultipleCodingDialog',
+]
