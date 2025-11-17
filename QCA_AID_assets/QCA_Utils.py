@@ -5789,7 +5789,12 @@ class TeeWriter:
         """Schreibt Daten in beide Streams"""
         try:
             # FIX: In originale Console schreiben
-            self.stream1.write(data)
+            # Behebt Windows-Unicode-Probleme durch Fallback zu ASCII-Ersatz
+            try:
+                self.stream1.write(data)
+            except UnicodeEncodeError:
+                # Bei Unicode-Fehlern: zu ASCII mit Ersatzzeichen
+                self.stream1.write(data.encode('ascii', errors='replace').decode('ascii'))
             self.stream1.flush()
             
             # FIX: In Log-Datei schreiben (mit Zeitstempel für Fehler)
@@ -5810,7 +5815,10 @@ class TeeWriter:
                 
         except Exception as e:
             # FIX: Fallback auf originale Console bei Log-Fehlern
-            self.stream1.write(f"[LOG ERROR: {e}] {data}")
+            try:
+                self.stream1.write(f"[LOG ERROR: {str(e)[:50]}]\n")
+            except:
+                pass
             self.stream1.flush()
     
     def flush(self):
