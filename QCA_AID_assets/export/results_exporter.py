@@ -1329,14 +1329,14 @@ class ResultsExporter:
             
             # FIX: Zeile erstellen mit ALLEN Spalten aus _prepare_coding_for_export
             row_data = {
-                'Dokument': _sanitize_text_for_excel(doc_name),  # FIX: Korrekte ParameterÜbergabe
-                self.attribute_labels.get('attribut1', 'Attribut1'): _sanitize_text_for_excel(attribut1),
-                self.attribute_labels.get('attribut2', 'Attribut2'): _sanitize_text_for_excel(attribut2),
+                'Dokument': sanitize_text_for_excel(doc_name),  # FIX: Korrekte ParameterÜbergabe
+                self.attribute_labels.get('attribut1', 'Attribut1'): sanitize_text_for_excel(attribut1),
+                self.attribute_labels.get('attribut2', 'Attribut2'): sanitize_text_for_excel(attribut2),
             }
             
             # FIX: FÜge attribut3 hinzu, wenn es definiert ist
             if 'attribut3' in self.attribute_labels and self.attribute_labels['attribut3']:
-                row_data[self.attribute_labels['attribut3']] = _sanitize_text_for_excel(attribut3)
+                row_data[self.attribute_labels['attribut3']] = sanitize_text_for_excel(attribut3)
             
             if coding.get('manual_review', False):
                 review_typ = 'manual'
@@ -1346,14 +1346,14 @@ class ResultsExporter:
             # FIX: Alle weiteren Spalten hinzufÜgen
             additional_fields = {
                 'Chunk_Nr': unique_chunk_id,
-                'Text': _sanitize_text_for_excel(text),  # FIX: Korrekte Funktionsaufrufe
-                'Paraphrase': _sanitize_text_for_excel(paraphrase),
+                'Text': sanitize_text_for_excel(text),  # FIX: Korrekte Funktionsaufrufe
+                'Paraphrase': sanitize_text_for_excel(paraphrase),
                 'Kodiert': is_coded,  # FIX: Verwende korrekten is_coded Wert
-                'Hauptkategorie': _sanitize_text_for_excel(display_category),  # FIX: Korrigiere Leerzeichen-Fehlern
+                'Hauptkategorie': sanitize_text_for_excel(display_category),  # FIX: Korrigiere Leerzeichen-Fehlern
                 'Kategorietyp': category_type,  # FIX: Verwende korrekten category_type
-                'Subkategorien': _sanitize_text_for_excel(subcats_text),
-                'SchlÜsselwÖrter': _sanitize_text_for_excel(keywords_text),
-                'BegrÜndung': _sanitize_text_for_excel(justification),
+                'Subkategorien': sanitize_text_for_excel(subcats_text),
+                'SchlÜsselwÖrter': sanitize_text_for_excel(keywords_text),
+                'BegrÜndung': sanitize_text_for_excel(justification),
                 'Konfidenz': f"{confidence_value:.2f}",  # FIX: Korrekte Konfidenz-Formatierung
                 'Original_Chunk_Nr': original_chunk_id,  # FIX: HinzugefÜgt
                 'Mehrfachkodierung': mehrfachkodierung_status,  # FIX: Korrekte Mehrfachkodierung-Logik
@@ -1361,7 +1361,7 @@ class ResultsExporter:
                 'Gesamt_Instanzen': instance_info.get('total_instances', 1) if is_multiple else 1,  # FIX: HinzugefÜgt
                 'Review_Typ': review_typ,
                 'Kodierer': coding.get('coder_id', 'Unbekannt'),  # FIX: HinzugefÜgt               
-                'Fokus_Kategorie': _sanitize_text_for_excel(coding.get('target_category', '')),
+                'Fokus_Kategorie': sanitize_text_for_excel(coding.get('target_category', '')),
                 'Fokus_verwendet': 'Ja' if coding.get('category_focus_used', False) else 'Nein',
                 'Original_Chunk_ID': f"{chunk_prefix}-{chunk_id}"
             }
@@ -1370,10 +1370,10 @@ class ResultsExporter:
             
             # FIX: Kontext-bezogene Felder hinzufÜgen, wenn vorhanden
             if 'context_summary' in coding and coding['context_summary']:
-                row_data['Progressive_Context'] = _sanitize_text_for_excel(coding.get('context_summary', ''))
+                row_data['Progressive_Context'] = sanitize_text_for_excel(coding.get('context_summary', ''))
             
             if 'context_influence' in coding and coding['context_influence']:
-                row_data['Context_Influence'] = _sanitize_text_for_excel(coding.get('context_influence', ''))
+                row_data['Context_Influence'] = sanitize_text_for_excel(coding.get('context_influence', ''))
             
             data.append(row_data)
         
