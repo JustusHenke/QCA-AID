@@ -1,0 +1,285 @@
+=== QCA-AID Console Log gestartet: 2025-11-17 19:09:03 ===
+Log-Datei: C:\Users\justu\OneDrive\Projekte\Forschung\R-Projects\QCA-AID\output\console_log_20251117_190903.txt
+============================================================
+=== Qualitative Inhaltsanalyse nach Mayring ===
+Versuche Konfiguration zu laden von: C:\Users\justu\OneDrive\Projekte\Forschung\R-Projects\QCA-AID\QCA-AID-Codebook.xlsx
+
+Öffne Excel-Datei...
+Excel-Datei erfolgreich geladen. Verfügbare Sheets: ['FORSCHUNGSFRAGE', 'DEDUKTIVE_KATEGORIEN', 'KODIERREGELN', 'CONFIG']
+
+Lese DEDUKTIVE_KATEGORIEN Sheet...
+
+Kodierregeln geladen:
+- Allgemeine Regeln: 5
+- Formatregeln: 3
+- Ausschlussregeln: 3
+EXPORT_ANNOTATED_PDFS aus Codebook geladen: True (ursprünglich: 'true')
+ANALYSIS_MODE aus Codebook geladen: abductive
+REVIEW_MODE aus Codebook geladen: consensus
+Drittes Attribut-Label geladen: nan
+Standard-Ausgabeverzeichnis gesichert: C:\Users\justu\OneDrive\Projekte\Forschung\R-Projects\QCA-AID\output
+Verzeichnis gesichert: C:\Users\justu\OneDrive\Projekte\Forschung\R-Projects\QCA-AID\input
+Verzeichnis gesichert: C:\Users\justu\OneDrive\Projekte\Forschung\R-Projects\QCA-AID\output
+Übernehme CHUNK_SIZE aus Codebook: 1000
+Übernehme CHUNK_OVERLAP aus Codebook: 40
+Übernehme CODE_WITH_CONTEXT aus Codebook: False
+Übernehme MULTIPLE_CODINGS aus Codebook: True
+Übernehme MULTIPLE_CODING_THRESHOLD aus Codebook: 0.85
+Finale BATCH_SIZE: 5
+
+Starte Laden der deduktiven Kategorien...
+
+Lade deduktive Kategorien...
+Erfolgreich 8 Kategorien geladen
+
+Kategorien erfolgreich in Config gespeichert
+
+Konfiguration erfolgreich geladen
+No existing revision history found - starting fresh
+
+2. Lese Dokumente ein...
+
+DocumentReader initialisiert:
+Verzeichnis: C:\Users\justu\OneDrive\Projekte\Forschung\R-Projects\QCA-AID\input
+Unterstützte Formate: .txt, .docx, .pdf
+
+Dateianalyse:
+
+Gefundene Dateien:
+[ERROR] .input-dir
+[OK] dummy_solar_media.txt
+[OK] text_demo_wiss.pdf
+[OK] trial_case_iv_2.pdf
+
+Verarbeite Dateien:
+
+Lese: dummy_solar_media.txt
+[OK] Erfolgreich eingelesen: 441 Zeichen
+
+Lese: text_demo_wiss.pdf
+
+Lese PDF: text_demo_wiss.pdf
+  Gefundene Seiten: 1
+  Seite 1/1: 4126 Zeichen extrahiert
+
+Ergebnis:
+  [OK] 1 Textabschnitte extrahiert
+  [OK] Gesamtlänge: 4126 Zeichen
+[OK] Erfolgreich eingelesen: 4126 Zeichen
+
+Lese: trial_case_iv_2.pdf
+
+Lese PDF: trial_case_iv_2.pdf
+  Gefundene Seiten: 1
+  Seite 1/1: 4320 Zeichen extrahiert
+
+Ergebnis:
+  [OK] 1 Textabschnitte extrahiert
+  [OK] Gesamtlänge: 4320 Zeichen
+[OK] Erfolgreich eingelesen: 4320 Zeichen
+
+Verarbeitungsstatistik:
+- Dateien im Verzeichnis: 4
+- Unterstützte Dateien: 3
+- Erfolgreich eingelesen: 3
+
+3. Induktive Kodierung konfigurieren...
+
+Gespeichertes induktives Codebook gefunden.
+Automatische FortfÜhrung in 10 Sekunden...
+
+MÖchten Sie das gespeicherte erweiterte Kodesystem laden? (j/N) (10s): 
+MÖchten Sie das gespeicherte erweiterte Kodesystem laden? (j/N) (9s): 
+MÖchten Sie das gespeicherte erweiterte Kodesystem laden? (j/N) (8s): 
+MÖchten Sie das gespeicherte erweiterte Kodesystem laden? (j/N) (7s): 
+MÖchten Sie das gespeicherte erweiterte Kodesystem laden? (j/N) (6s): 
+MÖchten Sie das gespeicherte erweiterte Kodesystem laden? (j/N) (5s): 
+MÖchten Sie das gespeicherte erweiterte Kodesystem laden? (j/N) (4s): 
+
+Aktueller Analysemodus aus Codebook: {default_mode}
+Sie haben 10 Sekunden Zeit fuer die Eingabe.
+Optionen:
+1 = inductive (volle induktive Analyse)
+2 = abductive (nur Subkategorien entwickeln)
+3 = deductive (nur deduktiv)
+4 = grounded (Subkategorien sammeln, spaeter Hauptkategorien generieren)
+
+Welchen Analysemodus moechten Sie verwenden? [1/2/3/4] (Standard: abductive) (10s): 
+Welchen Analysemodus moechten Sie verwenden? [1/2/3/4] (Standard: abductive) (9s): 
+Welchen Analysemodus moechten Sie verwenden? [1/2/3/4] (Standard: abductive) (8s): 
+
+Analysemodus: deductive (Skip induktiv)
+
+4. Konfiguriere Kodierer...
+🧾 Kodierer auto_1: 8 deduktive Kategorien geladen (deductive mode)
+Initialisiere LLM Provider: openai
+OpenAI Client erfolgreich initialisiert
+[WARN] Fehler beim Testen von Model-Capabilities für gpt-5-nano: asyncio.run() cannot be called from a running event loop
+[19:09:12] C:\Users\justu\OneDrive\Projekte\Forschung\R-Projects\QCA-AID\QCA_AID_assets\QCA_Utils.py:1583: RuntimeWarning: coroutine 'OpenAIProvider._test_temperature_support' was never awaited
+  token_counter.model_capabilities[model] = True
+RuntimeWarning: Enable tracemalloc to get the object allocation traceback
+🤖 LLM Provider 'openai' fuer Kodierer auto_1 initialisiert
+🧾 Kodierer auto_2: 8 deduktive Kategorien geladen (deductive mode)
+Initialisiere LLM Provider: openai
+OpenAI Client erfolgreich initialisiert
+[WARN] Fehler beim Testen von Model-Capabilities für gpt-5-nano: asyncio.run() cannot be called from a running event loop
+🤖 LLM Provider 'openai' fuer Kodierer auto_2 initialisiert
+
+Konfiguriere manuelle Kodierung...
+Sie haben 10 Sekunden Zeit fuer die Eingabe.
+Druecken Sie 'j' fuer manuelle Kodierung oder 'n' zum Überspringen.
+
+MÖchten Sie manuell kodieren? (j/N) (10s): 
+MÖchten Sie manuell kodieren? (j/N) (9s): 
+MÖchten Sie manuell kodieren? (j/N) (8s): 
+MÖchten Sie manuell kodieren? (j/N) (7s): 
+MÖchten Sie manuell kodieren? (j/N) (6s): 
+MÖchten Sie manuell kodieren? (j/N) (5s): 
+MÖchten Sie manuell kodieren? (j/N) (4s): 
+MÖchten Sie manuell kodieren? (j/N) (3s): 
+MÖchten Sie manuell kodieren? (j/N) (2s): 
+MÖchten Sie manuell kodieren? (j/N) (1s): 
+
+Keine Eingabe innerhalb von 10 Sekunden - verwende 'n'
+
+[INFO] Keine manuelle Kodierung - nur automatische Kodierung wird durchgefÜhrt
+
+5. Bereite Material vor...
+
+Chunking Ergebnis:
+- Anzahl Chunks: 1
+- Durchschnittliche Chunk-Länge: 441 Zeichen
+- dummy_solar_media.txt: 1 Chunks erstellt
+
+Chunking Ergebnis:
+- Anzahl Chunks: 5
+- Durchschnittliche Chunk-Länge: 831 Zeichen
+- text_demo_wiss.pdf: 5 Chunks erstellt
+
+Chunking Ergebnis:
+- Anzahl Chunks: 5
+- Durchschnittliche Chunk-Länge: 867 Zeichen
+- trial_case_iv_2.pdf: 5 Chunks erstellt
+
+7. Starte integrierte Analyse...
+
+Kodierungsmodus: Mit progressivem Kontext
+Initialisiere LLM Provider: openai
+OpenAI Client erfolgreich initialisiert
+[WARN] Fehler beim Testen von Model-Capabilities für gpt-5-nano: asyncio.run() cannot be called from a running event loop
+
+RelevanceChecker initialisiert:
+- 0 Ausschlussregeln geladen
+
+RelevanceChecker initialisiert:
+- 0 Ausschlussregeln geladen
+- Mehrfachkodierung: Aktiviert
+- Mehrfachkodierung-Schwellenwert: 0.85
+Initialisiere LLM Provider: openai
+OpenAI Client erfolgreich initialisiert
+[WARN] Fehler beim Testen von Model-Capabilities für gpt-5-nano: asyncio.run() cannot be called from a running event loop
+
+ðŸ”¬ Induktive Kodierung initialisiert:
+- Min. Batches vor SÄttigung: 5
+- Min. Materialabdeckung: 80%
+- StabilitÄtsschwelle: 3 Batches
+🧾 Kodierer auto_1: 8 deduktive Kategorien geladen (deductive mode)
+Initialisiere LLM Provider: openai
+OpenAI Client erfolgreich initialisiert
+[WARN] Fehler beim Testen von Model-Capabilities für gpt-5-nano: asyncio.run() cannot be called from a running event loop
+🤖 LLM Provider 'openai' fuer Kodierer auto_1 initialisiert
+🧾 Kodierer auto_2: 8 deduktive Kategorien geladen (deductive mode)
+Initialisiere LLM Provider: openai
+OpenAI Client erfolgreich initialisiert
+[WARN] Fehler beim Testen von Model-Capabilities für gpt-5-nano: asyncio.run() cannot be called from a running event loop
+🤖 LLM Provider 'openai' fuer Kodierer auto_2 initialisiert
+
+Kontextuelle Kodierung: Aktiviert
+
+ðŸ”¬ IntegratedAnalysisManager initialisiert:
+   - Analysemodus: deductive
+[OK] Session-Statistiken zurueckgesetzt
+
+[TIP] Tipp: Druecken Sie ESC um die Kodierung sicher zu unterbrechen und Zwischenergebnisse zu speichern
+
+Analyse gestartet um 19:09:24
+Verarbeite 11 Segmente mit Batch-GrÖẞe 5...
+Verarbeite 11 Segmente mit Batch-GrÖẞe 5...
+
+============================================================
+🧾 BATCH 1: 5 Segmente
+ℹ️ Material verarbeitet: 0.0%
+============================================================
+
+🕵️ Schritt 1: Erweiterte RelevanzprÜfung fuer Forschungsfrage...
+[REVIEW] Erweiterte Relevanzpruefung mit Kategorie-Vorauswahl fuer 5 Segmente...
+
+--- Analysefortschritt ---
+Verarbeitet: 0 Segmente
+Geschwindigkeit: 0.0 Segmente/Stunde
+------------------------
+[INFO] Model gpt-5-nano unterstützt temperature nicht. Retry ohne temperature...
+
+
+============================================================
+🛑 ESCAPE-TASTE GEDRÜCKT - KODIERUNG UNTERBRECHEN?
+============================================================
+
+Aktueller Status:
+- Verarbeitete Segmente: 0
+- Erstellte Kodierungen: 0
+- Verstrichene Zeit: 4.3 Sekunden
+
+⚠️  Noch keine Kodierungen vorhanden
+   Ein Export würde leere Ergebnisse erzeugen.
+
+============================================================
+OPTIONEN:
+j + ENTER = Kodierung beenden und Zwischenergebnisse exportieren
+n + ENTER = Kodierung fortsetzen
+ESC       = Sofort beenden ohne Export
+============================================================
+
+Ihre Wahl (Timeout in 30 Sekunden): 
+ESC
+
+🛑 Sofortiger Abbruch ohne Export...
+[ABORT] Abbruch-Signal gesendet...
+
+--- Analysefortschritt ---
+Verarbeitet: 0 Segmente
+Geschwindigkeit: 0.0 Segmente/Stunde
+------------------------
+[OK] Erweiterte Relevanzpruefung abgeschlossen: 5 relevante Segmente
+🧾 Erweiterte Relevanz: 5 von 5 Segmenten relevant
+🎯 Kategorie-PrÄferenzen: {'Akteure': 5, 'Kontextfaktoren': 4, 'Strategien': 3, 'Prozesse': 3, 'Legitimation': 2}
+
+🏁 Abbruch nach RelevanzprÜfung erkannt...
+
+🧾 Exportiere Zwischenergebnisse...
+
+Codebook gespeichert unter: C:\Users\justu\OneDrive\Projekte\Forschung\R-Projects\QCA-AID\output\codebook_intermediate_20251117_191023.json
+- Deduktive Kategorien: 8
+- Induktive Kategorien: 0
+- Grounded Kategorien: 0
+🔀 Zwischenkategorien gespeichert: 8 Kategorien
+❌  Keine Kodierungen zum Exportieren vorhanden
+
+FortschrittsÜberwachung beendet.
+
+Gesamtzahl Kodierungen: 0
+
+Keine Kodierungen fuer ReliabilitÄtsberechnung
+
+9. FÜhre kategorie-zentrierten Review-Prozess durch...
+🔀‹ Review-Modus: consensus
+📈 Eingabe: 0 ursprÜngliche Kodierungen
+
+=== REVIEW-PROZESS (CONSENSUS) ===
+ℹ️ Erstelle kategorie-spezifische Segmente...
+[OK] 0 kategorie-spezifische Segmente erstellt
+🕵️ FÜhre Consensus-Review durch...
+Review abgeschlossen: 0 finale Kodierungen
+[OK] Review abgeschlossen: 0 finale Kodierungen
+============================================================
+=== QCA-AID Console Log beendet: 2025-11-17 19:10:23 ===

@@ -11,8 +11,14 @@ Features:
 - Intermediate result export on abort
 
 Exports:
-- DocumentReader: Multi-format document parser
-- EscapeHandler: Signal handling for graceful shutdown
+  - DocumentReader: Multi-format document parser
+  - EscapeHandler: Signal handling for graceful shutdown
 """
 
-# Imports will be added during Phase 7 migration
+from .document_reader import DocumentReader
+from .escape_handler import EscapeHandler
+
+__all__ = [
+    'DocumentReader',
+    'EscapeHandler',
+]

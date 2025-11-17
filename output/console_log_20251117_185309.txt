@@ -1,0 +1,660 @@
+=== QCA-AID Console Log gestartet: 2025-11-17 18:53:09 ===
+Log-Datei: C:\Users\justu\OneDrive\Projekte\Forschung\R-Projects\QCA-AID\output\console_log_20251117_185309.txt
+============================================================
+=== Qualitative Inhaltsanalyse nach Mayring ===
+Versuche Konfiguration zu laden von: C:\Users\justu\OneDrive\Projekte\Forschung\R-Projects\QCA-AID\QCA-AID-Codebook.xlsx
+
+Öffne Excel-Datei...
+Excel-Datei erfolgreich geladen. Verfügbare Sheets: ['FORSCHUNGSFRAGE', 'DEDUKTIVE_KATEGORIEN', 'KODIERREGELN', 'CONFIG']
+
+Lese DEDUKTIVE_KATEGORIEN Sheet...
+
+Kodierregeln geladen:
+- Allgemeine Regeln: 5
+- Formatregeln: 3
+- Ausschlussregeln: 3
+EXPORT_ANNOTATED_PDFS aus Codebook geladen: True (ursprünglich: 'true')
+ANALYSIS_MODE aus Codebook geladen: abductive
+REVIEW_MODE aus Codebook geladen: consensus
+Drittes Attribut-Label geladen: nan
+Standard-Ausgabeverzeichnis gesichert: C:\Users\justu\OneDrive\Projekte\Forschung\R-Projects\QCA-AID\output
+Verzeichnis gesichert: C:\Users\justu\OneDrive\Projekte\Forschung\R-Projects\QCA-AID\input
+Verzeichnis gesichert: C:\Users\justu\OneDrive\Projekte\Forschung\R-Projects\QCA-AID\output
+Übernehme CHUNK_SIZE aus Codebook: 1000
+Übernehme CHUNK_OVERLAP aus Codebook: 40
+Übernehme CODE_WITH_CONTEXT aus Codebook: False
+Übernehme MULTIPLE_CODINGS aus Codebook: True
+Übernehme MULTIPLE_CODING_THRESHOLD aus Codebook: 0.85
+Finale BATCH_SIZE: 5
+
+Starte Laden der deduktiven Kategorien...
+
+Lade deduktive Kategorien...
+Erfolgreich 8 Kategorien geladen
+
+Kategorien erfolgreich in Config gespeichert
+
+Konfiguration erfolgreich geladen
+No existing revision history found - starting fresh
+
+2. Lese Dokumente ein...
+
+DocumentReader initialisiert:
+Verzeichnis: C:\Users\justu\OneDrive\Projekte\Forschung\R-Projects\QCA-AID\input
+Unterstützte Formate: .docx, .txt, .pdf
+
+Dateianalyse:
+
+Gefundene Dateien:
+[ERROR] .input-dir
+[OK] dummy_solar_media.txt
+[OK] text_demo_wiss.pdf
+[OK] trial_case_iv_2.pdf
+
+Verarbeite Dateien:
+
+Lese: dummy_solar_media.txt
+[OK] Erfolgreich eingelesen: 441 Zeichen
+
+Lese: text_demo_wiss.pdf
+
+Lese PDF: text_demo_wiss.pdf
+  Gefundene Seiten: 1
+  Seite 1/1: 4126 Zeichen extrahiert
+
+Ergebnis:
+  [OK] 1 Textabschnitte extrahiert
+  [OK] Gesamtlänge: 4126 Zeichen
+[OK] Erfolgreich eingelesen: 4126 Zeichen
+
+Lese: trial_case_iv_2.pdf
+
+Lese PDF: trial_case_iv_2.pdf
+  Gefundene Seiten: 1
+  Seite 1/1: 4320 Zeichen extrahiert
+
+Ergebnis:
+  [OK] 1 Textabschnitte extrahiert
+  [OK] Gesamtlänge: 4320 Zeichen
+[OK] Erfolgreich eingelesen: 4320 Zeichen
+
+Verarbeitungsstatistik:
+- Dateien im Verzeichnis: 4
+- Unterstützte Dateien: 3
+- Erfolgreich eingelesen: 3
+
+3. Induktive Kodierung konfigurieren...
+
+Gespeichertes induktives Codebook gefunden.
+Automatische FortfÜhrung in 10 Sekunden...
+
+
+MÖchten Sie das gespeicherte erweiterte Kodesystem laden? (j/N) (10s): 
+
+MÖchten Sie das gespeicherte erweiterte Kodesystem laden? (j/N) (9s): 
+
+MÖchten Sie das gespeicherte erweiterte Kodesystem laden? (j/N) (8s): 
+
+Aktueller Analysemodus aus Codebook: {default_mode}
+Sie haben 10 Sekunden Zeit fuer die Eingabe.
+Optionen:
+1 = inductive (volle induktive Analyse)
+2 = abductive (nur Subkategorien entwickeln)
+3 = deductive (nur deduktiv)
+4 = grounded (Subkategorien sammeln, spaeter Hauptkategorien generieren)
+
+
+Welchen Analysemodus moechten Sie verwenden? [1/2/3/4] (Standard: abductive) (10s): 
+
+Welchen Analysemodus moechten Sie verwenden? [1/2/3/4] (Standard: abductive) (9s): 
+
+Welchen Analysemodus moechten Sie verwenden? [1/2/3/4] (Standard: abductive) (8s): 
+
+Analysemodus: deductive (Skip induktiv)
+
+4. Konfiguriere Kodierer...
+🧾 Kodierer auto_1: 8 deduktive Kategorien geladen (deductive mode)
+Initialisiere LLM Provider: openai
+OpenAI Client erfolgreich initialisiert
+🤖 LLM Provider 'openai' fuer Kodierer auto_1 initialisiert
+🧾 Kodierer auto_2: 8 deduktive Kategorien geladen (deductive mode)
+Initialisiere LLM Provider: openai
+OpenAI Client erfolgreich initialisiert
+🤖 LLM Provider 'openai' fuer Kodierer auto_2 initialisiert
+
+Konfiguriere manuelle Kodierung...
+Sie haben 10 Sekunden Zeit fuer die Eingabe.
+Druecken Sie 'j' fuer manuelle Kodierung oder 'n' zum Überspringen.
+
+
+MÖchten Sie manuell kodieren? (j/N) (10s): 
+
+MÖchten Sie manuell kodieren? (j/N) (9s): 
+
+MÖchten Sie manuell kodieren? (j/N) (8s): 
+
+[INFO] Keine manuelle Kodierung - nur automatische Kodierung wird durchgefÜhrt
+
+5. Bereite Material vor...
+
+Chunking Ergebnis:
+- Anzahl Chunks: 1
+- Durchschnittliche Chunk-Länge: 441 Zeichen
+- dummy_solar_media.txt: 1 Chunks erstellt
+
+Chunking Ergebnis:
+- Anzahl Chunks: 5
+- Durchschnittliche Chunk-Länge: 831 Zeichen
+- text_demo_wiss.pdf: 5 Chunks erstellt
+
+Chunking Ergebnis:
+- Anzahl Chunks: 5
+- Durchschnittliche Chunk-Länge: 867 Zeichen
+- trial_case_iv_2.pdf: 5 Chunks erstellt
+
+7. Starte integrierte Analyse...
+
+Kodierungsmodus: Mit progressivem Kontext
+Initialisiere LLM Provider: openai
+OpenAI Client erfolgreich initialisiert
+
+RelevanceChecker initialisiert:
+- 0 Ausschlussregeln geladen
+
+RelevanceChecker initialisiert:
+- 0 Ausschlussregeln geladen
+- Mehrfachkodierung: Aktiviert
+- Mehrfachkodierung-Schwellenwert: 0.85
+Initialisiere LLM Provider: openai
+OpenAI Client erfolgreich initialisiert
+
+ðŸ”¬ Induktive Kodierung initialisiert:
+- Min. Batches vor SÄttigung: 5
+- Min. Materialabdeckung: 80%
+- StabilitÄtsschwelle: 3 Batches
+🧾 Kodierer auto_1: 8 deduktive Kategorien geladen (deductive mode)
+Initialisiere LLM Provider: openai
+OpenAI Client erfolgreich initialisiert
+🤖 LLM Provider 'openai' fuer Kodierer auto_1 initialisiert
+🧾 Kodierer auto_2: 8 deduktive Kategorien geladen (deductive mode)
+Initialisiere LLM Provider: openai
+OpenAI Client erfolgreich initialisiert
+🤖 LLM Provider 'openai' fuer Kodierer auto_2 initialisiert
+
+Kontextuelle Kodierung: Aktiviert
+
+ðŸ”¬ IntegratedAnalysisManager initialisiert:
+   - Analysemodus: deductive
+[OK] Session-Statistiken zurueckgesetzt
+
+[TIP] Tipp: Druecken Sie ESC um die Kodierung sicher zu unterbrechen und Zwischenergebnisse zu speichern
+
+Analyse gestartet um 18:53:18
+Verarbeite 11 Segmente mit Batch-GrÖẞe 5...
+Verarbeite 11 Segmente mit Batch-GrÖẞe 5...
+
+============================================================
+🧾 BATCH 1: 5 Segmente
+ℹ️ Material verarbeitet: 0.0%
+============================================================
+
+🕵️ Schritt 1: Erweiterte RelevanzprÜfung fuer Forschungsfrage...
+[REVIEW] Erweiterte Relevanzpruefung mit Kategorie-Vorauswahl fuer 5 Segmente...
+
+--- Analysefortschritt ---
+Verarbeitet: 0 Segmente
+Geschwindigkeit: 0.0 Segmente/Stunde
+------------------------
+Fehler bei erweiterter Relevanzprüfung: Error code: 400 - {'error': {'message': "Unsupported value: 'temperature' does not support 0.1 with this model. Only the default (1) value is supported.", 'type': 'invalid_request_error', 'param': 'temperature', 'code': 'unsupported_value'}}
+[SEARCH] Relevanzpruefung: 5 neue Segmente
+   📦 Verwende normale Batch-Methode für 5 Segmente
+Fehler bei paralleler Relevanzprüfung: Error code: 400 - {'error': {'message': "Unsupported value: 'temperature' does not support 0.3 with this model. Only the default (1) value is supported.", 'type': 'invalid_request_error', 'param': 'temperature', 'code': 'unsupported_value'}}
+[18:53:19] Traceback (most recent call last):
+[18:53:19]   File "C:\Users\justu\OneDrive\Projekte\Forschung\R-Projects\QCA-AID\QCA_AID_assets\analysis\relevance_checker.py", line 273, in check_relevance_batch
+    response = await self.llm_provider.create_completion(
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[18:53:19]   File "C:\Users\justu\OneDrive\Projekte\Forschung\R-Projects\QCA-AID\QCA_AID_assets\QCA_Utils.py", line 1608, in create_completion
+    response = await self.client.chat.completions.create(**params)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[18:53:19]   File "C:\Users\justu\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.11_qbz5n2kfra8p0\LocalCache\local-packages\Python311\site-packages\openai\resources\chat\completions\completions.py", line 2028, in create
+    return await self._post(
+           ^^^^^^^^^^^^^^^^^
+[18:53:19]   File "C:\Users\justu\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.11_qbz5n2kfra8p0\LocalCache\local-packages\Python311\site-packages\openai\_base_client.py", line 1742, in post
+    return await self.request(cast_to, opts, stream=stream, stream_cls=stream_cls)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[18:53:19]   File "C:\Users\justu\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.11_qbz5n2kfra8p0\LocalCache\local-packages\Python311\site-packages\openai\_base_client.py", line 1549, in request
+    raise self._make_status_error_from_response(err.response) from None
+[18:53:19] openai.BadRequestError: Error code: 400 - {'error': {'message': "Unsupported value: 'temperature' does not support 0.3 with this model. Only the default (1) value is supported.", 'type': 'invalid_request_error', 'param': 'temperature', 'code': 'unsupported_value'}}
+🧾 Erweiterte Relevanz: 5 von 5 Segmenten relevant
+🎯 Kategorie-PrÄferenzen: {}
+
+📝 NÄchster Schritt: Deduktive Kodierung aller 5 Segmente...
+🎯 Kontext-Kodierung: 5 Segmente haben Kategorie-PrÄferenzen
+[SEARCH] Relevanzpruefung: 5 neue Segmente
+   📦 Verwende normale Batch-Methode für 5 Segmente
+Fehler bei paralleler Relevanzprüfung: Error code: 400 - {'error': {'message': "Unsupported value: 'temperature' does not support 0.3 with this model. Only the default (1) value is supported.", 'type': 'invalid_request_error', 'param': 'temperature', 'code': 'unsupported_value'}}
+[18:53:19] Traceback (most recent call last):
+[18:53:19]   File "C:\Users\justu\OneDrive\Projekte\Forschung\R-Projects\QCA-AID\QCA_AID_assets\analysis\relevance_checker.py", line 273, in check_relevance_batch
+    response = await self.llm_provider.create_completion(
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[18:53:19]   File "C:\Users\justu\OneDrive\Projekte\Forschung\R-Projects\QCA-AID\QCA_AID_assets\QCA_Utils.py", line 1608, in create_completion
+    response = await self.client.chat.completions.create(**params)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[18:53:19]   File "C:\Users\justu\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.11_qbz5n2kfra8p0\LocalCache\local-packages\Python311\site-packages\openai\resources\chat\completions\completions.py", line 2028, in create
+    return await self._post(
+           ^^^^^^^^^^^^^^^^^
+[18:53:19]   File "C:\Users\justu\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.11_qbz5n2kfra8p0\LocalCache\local-packages\Python311\site-packages\openai\_base_client.py", line 1742, in post
+    return await self.request(cast_to, opts, stream=stream, stream_cls=stream_cls)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[18:53:19]   File "C:\Users\justu\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.11_qbz5n2kfra8p0\LocalCache\local-packages\Python311\site-packages\openai\_base_client.py", line 1549, in request
+    raise self._make_status_error_from_response(err.response) from None
+[18:53:19] openai.BadRequestError: Error code: 400 - {'error': {'message': "Unsupported value: 'temperature' does not support 0.3 with this model. Only the default (1) value is supported.", 'type': 'invalid_request_error', 'param': 'temperature', 'code': 'unsupported_value'}}
+  ℹ️ PrÜfe 5 relevante Segmente auf Mehrfachkodierung...
+[LAUNCH] Parallele Mehrfachkodierungs-Pruefung: 5 Segmente
+Fehler bei paralleler Mehrfachkodierungs-Prüfung: 'set' object is not subscriptable
+[18:53:19] Traceback (most recent call last):
+[18:53:19]   File "C:\Users\justu\OneDrive\Projekte\Forschung\R-Projects\QCA-AID\QCA_AID_assets\analysis\relevance_checker.py", line 121, in check_multiple_category_relevance
+    'examples': cat_def.examples[:2] if cat_def.examples else []
+                ~~~~~~~~~~~~~~~~^^^^
+[18:53:19] TypeError: 'set' object is not subscriptable
+
+🕵️ Verarbeite Segment dummy_solar_media.txt_chunk_0 mit Kontext
+[SEARCH] Relevanzpruefung: 1 neue Segmente
+   📦 Verwende normale Batch-Methode für 1 Segmente
+Fehler bei paralleler Relevanzprüfung: Error code: 400 - {'error': {'message': "Unsupported value: 'temperature' does not support 0.3 with this model. Only the default (1) value is supported.", 'type': 'invalid_request_error', 'param': 'temperature', 'code': 'unsupported_value'}}
+[18:53:19] Traceback (most recent call last):
+[18:53:19]   File "C:\Users\justu\OneDrive\Projekte\Forschung\R-Projects\QCA-AID\QCA_AID_assets\analysis\relevance_checker.py", line 273, in check_relevance_batch
+    response = await self.llm_provider.create_completion(
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[18:53:19]   File "C:\Users\justu\OneDrive\Projekte\Forschung\R-Projects\QCA-AID\QCA_AID_assets\QCA_Utils.py", line 1608, in create_completion
+    response = await self.client.chat.completions.create(**params)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[18:53:19]   File "C:\Users\justu\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.11_qbz5n2kfra8p0\LocalCache\local-packages\Python311\site-packages\openai\resources\chat\completions\completions.py", line 2028, in create
+    return await self._post(
+           ^^^^^^^^^^^^^^^^^
+[18:53:19]   File "C:\Users\justu\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.11_qbz5n2kfra8p0\LocalCache\local-packages\Python311\site-packages\openai\_base_client.py", line 1742, in post
+    return await self.request(cast_to, opts, stream=stream, stream_cls=stream_cls)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[18:53:19]   File "C:\Users\justu\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.11_qbz5n2kfra8p0\LocalCache\local-packages\Python311\site-packages\openai\_base_client.py", line 1549, in request
+    raise self._make_status_error_from_response(err.response) from None
+[18:53:19] openai.BadRequestError: Error code: 400 - {'error': {'message': "Unsupported value: 'temperature' does not support 0.3 with this model. Only the default (1) value is supported.", 'type': 'invalid_request_error', 'param': 'temperature', 'code': 'unsupported_value'}}
+
+Deduktiver Kodierer 🤖 **auto_1** verarbeitet Chunk mit progressivem Kontext...
+Dokumentfortschritt: ca. 0.0%
+Summary-Reifephase: PHASE 1 (Sammlung), max. Änderung: 50%
+Fehler bei der Kodierung durch auto_1: Error code: 400 - {'error': {'message': "Unsupported value: 'temperature' does not support 0.3 with this model. Only the default (1) value is supported.", 'type': 'invalid_request_error', 'param': 'temperature', 'code': 'unsupported_value'}}
+Details:
+[18:53:19] Traceback (most recent call last):
+[18:53:19]   File "C:\Users\justu\OneDrive\Projekte\Forschung\R-Projects\QCA-AID\QCA_AID_assets\analysis\deductive_coding.py", line 568, in code_chunk_with_progressive_context
+    response = await self.llm_provider.create_completion(
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[18:53:19]   File "C:\Users\justu\OneDrive\Projekte\Forschung\R-Projects\QCA-AID\QCA_AID_assets\QCA_Utils.py", line 1608, in create_completion
+    response = await self.client.chat.completions.create(**params)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[18:53:19]   File "C:\Users\justu\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.11_qbz5n2kfra8p0\LocalCache\local-packages\Python311\site-packages\openai\resources\chat\completions\completions.py", line 2028, in create
+    return await self._post(
+           ^^^^^^^^^^^^^^^^^
+[18:53:19]   File "C:\Users\justu\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.11_qbz5n2kfra8p0\LocalCache\local-packages\Python311\site-packages\openai\_base_client.py", line 1742, in post
+    return await self.request(cast_to, opts, stream=stream, stream_cls=stream_cls)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[18:53:19]   File "C:\Users\justu\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.11_qbz5n2kfra8p0\LocalCache\local-packages\Python311\site-packages\openai\_base_client.py", line 1549, in request
+    raise self._make_status_error_from_response(err.response) from None
+[18:53:19] openai.BadRequestError: Error code: 400 - {'error': {'message': "Unsupported value: 'temperature' does not support 0.3 with this model. Only the default (1) value is supported.", 'type': 'invalid_request_error', 'param': 'temperature', 'code': 'unsupported_value'}}
+  âš  Keine Kodierung von auto_1 erhalten
+
+Deduktiver Kodierer 🤖 **auto_2** verarbeitet Chunk mit progressivem Kontext...
+Dokumentfortschritt: ca. 0.0%
+Summary-Reifephase: PHASE 1 (Sammlung), max. Änderung: 50%
+Fehler bei der Kodierung durch auto_2: Error code: 400 - {'error': {'message': "Unsupported value: 'temperature' does not support 0.5 with this model. Only the default (1) value is supported.", 'type': 'invalid_request_error', 'param': 'temperature', 'code': 'unsupported_value'}}
+Details:
+[18:53:20] Traceback (most recent call last):
+[18:53:20]   File "C:\Users\justu\OneDrive\Projekte\Forschung\R-Projects\QCA-AID\QCA_AID_assets\analysis\deductive_coding.py", line 568, in code_chunk_with_progressive_context
+    response = await self.llm_provider.create_completion(
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[18:53:20]   File "C:\Users\justu\OneDrive\Projekte\Forschung\R-Projects\QCA-AID\QCA_AID_assets\QCA_Utils.py", line 1608, in create_completion
+    response = await self.client.chat.completions.create(**params)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[18:53:20]   File "C:\Users\justu\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.11_qbz5n2kfra8p0\LocalCache\local-packages\Python311\site-packages\openai\resources\chat\completions\completions.py", line 2028, in create
+    return await self._post(
+           ^^^^^^^^^^^^^^^^^
+[18:53:20]   File "C:\Users\justu\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.11_qbz5n2kfra8p0\LocalCache\local-packages\Python311\site-packages\openai\_base_client.py", line 1742, in post
+    return await self.request(cast_to, opts, stream=stream, stream_cls=stream_cls)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[18:53:20]   File "C:\Users\justu\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.11_qbz5n2kfra8p0\LocalCache\local-packages\Python311\site-packages\openai\_base_client.py", line 1549, in request
+    raise self._make_status_error_from_response(err.response) from None
+[18:53:20] openai.BadRequestError: Error code: 400 - {'error': {'message': "Unsupported value: 'temperature' does not support 0.5 with this model. Only the default (1) value is supported.", 'type': 'invalid_request_error', 'param': 'temperature', 'code': 'unsupported_value'}}
+  âš  Keine Kodierung von auto_2 erhalten
+
+🕵️ Verarbeite Segment text_demo_wiss.pdf_chunk_0 mit Kontext
+[SEARCH] Relevanzpruefung: 1 neue Segmente
+   📦 Verwende normale Batch-Methode für 1 Segmente
+Fehler bei paralleler Relevanzprüfung: Error code: 400 - {'error': {'message': "Unsupported value: 'temperature' does not support 0.3 with this model. Only the default (1) value is supported.", 'type': 'invalid_request_error', 'param': 'temperature', 'code': 'unsupported_value'}}
+[18:53:20] Traceback (most recent call last):
+[18:53:20]   File "C:\Users\justu\OneDrive\Projekte\Forschung\R-Projects\QCA-AID\QCA_AID_assets\analysis\relevance_checker.py", line 273, in check_relevance_batch
+    response = await self.llm_provider.create_completion(
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[18:53:20]   File "C:\Users\justu\OneDrive\Projekte\Forschung\R-Projects\QCA-AID\QCA_AID_assets\QCA_Utils.py", line 1608, in create_completion
+    response = await self.client.chat.completions.create(**params)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[18:53:20]   File "C:\Users\justu\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.11_qbz5n2kfra8p0\LocalCache\local-packages\Python311\site-packages\openai\resources\chat\completions\completions.py", line 2028, in create
+    return await self._post(
+           ^^^^^^^^^^^^^^^^^
+[18:53:20]   File "C:\Users\justu\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.11_qbz5n2kfra8p0\LocalCache\local-packages\Python311\site-packages\openai\_base_client.py", line 1742, in post
+    return await self.request(cast_to, opts, stream=stream, stream_cls=stream_cls)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[18:53:20]   File "C:\Users\justu\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.11_qbz5n2kfra8p0\LocalCache\local-packages\Python311\site-packages\openai\_base_client.py", line 1549, in request
+    raise self._make_status_error_from_response(err.response) from None
+[18:53:20] openai.BadRequestError: Error code: 400 - {'error': {'message': "Unsupported value: 'temperature' does not support 0.3 with this model. Only the default (1) value is supported.", 'type': 'invalid_request_error', 'param': 'temperature', 'code': 'unsupported_value'}}
+
+Deduktiver Kodierer 🤖 **auto_1** verarbeitet Chunk mit progressivem Kontext...
+Dokumentfortschritt: ca. 0.0%
+Summary-Reifephase: PHASE 1 (Sammlung), max. Änderung: 50%
+Fehler bei der Kodierung durch auto_1: Error code: 400 - {'error': {'message': "Unsupported value: 'temperature' does not support 0.3 with this model. Only the default (1) value is supported.", 'type': 'invalid_request_error', 'param': 'temperature', 'code': 'unsupported_value'}}
+Details:
+[18:53:20] Traceback (most recent call last):
+[18:53:20]   File "C:\Users\justu\OneDrive\Projekte\Forschung\R-Projects\QCA-AID\QCA_AID_assets\analysis\deductive_coding.py", line 568, in code_chunk_with_progressive_context
+    response = await self.llm_provider.create_completion(
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[18:53:20]   File "C:\Users\justu\OneDrive\Projekte\Forschung\R-Projects\QCA-AID\QCA_AID_assets\QCA_Utils.py", line 1608, in create_completion
+    response = await self.client.chat.completions.create(**params)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[18:53:20]   File "C:\Users\justu\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.11_qbz5n2kfra8p0\LocalCache\local-packages\Python311\site-packages\openai\resources\chat\completions\completions.py", line 2028, in create
+    return await self._post(
+           ^^^^^^^^^^^^^^^^^
+[18:53:20]   File "C:\Users\justu\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.11_qbz5n2kfra8p0\LocalCache\local-packages\Python311\site-packages\openai\_base_client.py", line 1742, in post
+    return await self.request(cast_to, opts, stream=stream, stream_cls=stream_cls)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[18:53:20]   File "C:\Users\justu\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.11_qbz5n2kfra8p0\LocalCache\local-packages\Python311\site-packages\openai\_base_client.py", line 1549, in request
+    raise self._make_status_error_from_response(err.response) from None
+[18:53:20] openai.BadRequestError: Error code: 400 - {'error': {'message': "Unsupported value: 'temperature' does not support 0.3 with this model. Only the default (1) value is supported.", 'type': 'invalid_request_error', 'param': 'temperature', 'code': 'unsupported_value'}}
+  âš  Keine Kodierung von auto_1 erhalten
+
+Deduktiver Kodierer 🤖 **auto_2** verarbeitet Chunk mit progressivem Kontext...
+Dokumentfortschritt: ca. 0.0%
+Summary-Reifephase: PHASE 1 (Sammlung), max. Änderung: 50%
+Fehler bei der Kodierung durch auto_2: Error code: 400 - {'error': {'message': "Unsupported value: 'temperature' does not support 0.5 with this model. Only the default (1) value is supported.", 'type': 'invalid_request_error', 'param': 'temperature', 'code': 'unsupported_value'}}
+Details:
+[18:53:20] Traceback (most recent call last):
+[18:53:20]   File "C:\Users\justu\OneDrive\Projekte\Forschung\R-Projects\QCA-AID\QCA_AID_assets\analysis\deductive_coding.py", line 568, in code_chunk_with_progressive_context
+    response = await self.llm_provider.create_completion(
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[18:53:20]   File "C:\Users\justu\OneDrive\Projekte\Forschung\R-Projects\QCA-AID\QCA_AID_assets\QCA_Utils.py", line 1608, in create_completion
+    response = await self.client.chat.completions.create(**params)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[18:53:20]   File "C:\Users\justu\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.11_qbz5n2kfra8p0\LocalCache\local-packages\Python311\site-packages\openai\resources\chat\completions\completions.py", line 2028, in create
+    return await self._post(
+           ^^^^^^^^^^^^^^^^^
+[18:53:20]   File "C:\Users\justu\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.11_qbz5n2kfra8p0\LocalCache\local-packages\Python311\site-packages\openai\_base_client.py", line 1742, in post
+    return await self.request(cast_to, opts, stream=stream, stream_cls=stream_cls)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[18:53:20]   File "C:\Users\justu\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.11_qbz5n2kfra8p0\LocalCache\local-packages\Python311\site-packages\openai\_base_client.py", line 1549, in request
+    raise self._make_status_error_from_response(err.response) from None
+[18:53:20] openai.BadRequestError: Error code: 400 - {'error': {'message': "Unsupported value: 'temperature' does not support 0.5 with this model. Only the default (1) value is supported.", 'type': 'invalid_request_error', 'param': 'temperature', 'code': 'unsupported_value'}}
+  âš  Keine Kodierung von auto_2 erhalten
+
+🕵️ Verarbeite Segment text_demo_wiss.pdf_chunk_1 mit Kontext
+[SEARCH] Relevanzpruefung: 1 neue Segmente
+   📦 Verwende normale Batch-Methode für 1 Segmente
+Fehler bei paralleler Relevanzprüfung: Error code: 400 - {'error': {'message': "Unsupported value: 'temperature' does not support 0.3 with this model. Only the default (1) value is supported.", 'type': 'invalid_request_error', 'param': 'temperature', 'code': 'unsupported_value'}}
+[18:53:21] Traceback (most recent call last):
+[18:53:21]   File "C:\Users\justu\OneDrive\Projekte\Forschung\R-Projects\QCA-AID\QCA_AID_assets\analysis\relevance_checker.py", line 273, in check_relevance_batch
+    response = await self.llm_provider.create_completion(
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[18:53:21]   File "C:\Users\justu\OneDrive\Projekte\Forschung\R-Projects\QCA-AID\QCA_AID_assets\QCA_Utils.py", line 1608, in create_completion
+    response = await self.client.chat.completions.create(**params)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[18:53:21]   File "C:\Users\justu\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.11_qbz5n2kfra8p0\LocalCache\local-packages\Python311\site-packages\openai\resources\chat\completions\completions.py", line 2028, in create
+    return await self._post(
+           ^^^^^^^^^^^^^^^^^
+[18:53:21]   File "C:\Users\justu\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.11_qbz5n2kfra8p0\LocalCache\local-packages\Python311\site-packages\openai\_base_client.py", line 1742, in post
+    return await self.request(cast_to, opts, stream=stream, stream_cls=stream_cls)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[18:53:21]   File "C:\Users\justu\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.11_qbz5n2kfra8p0\LocalCache\local-packages\Python311\site-packages\openai\_base_client.py", line 1549, in request
+    raise self._make_status_error_from_response(err.response) from None
+[18:53:21] openai.BadRequestError: Error code: 400 - {'error': {'message': "Unsupported value: 'temperature' does not support 0.3 with this model. Only the default (1) value is supported.", 'type': 'invalid_request_error', 'param': 'temperature', 'code': 'unsupported_value'}}
+
+Deduktiver Kodierer 🤖 **auto_1** verarbeitet Chunk mit progressivem Kontext...
+Dokumentfortschritt: ca. 5.0%
+Summary-Reifephase: PHASE 1 (Sammlung), max. Änderung: 50%
+Fehler bei der Kodierung durch auto_1: Error code: 400 - {'error': {'message': "Unsupported value: 'temperature' does not support 0.3 with this model. Only the default (1) value is supported.", 'type': 'invalid_request_error', 'param': 'temperature', 'code': 'unsupported_value'}}
+Details:
+[18:53:21] Traceback (most recent call last):
+[18:53:21]   File "C:\Users\justu\OneDrive\Projekte\Forschung\R-Projects\QCA-AID\QCA_AID_assets\analysis\deductive_coding.py", line 568, in code_chunk_with_progressive_context
+    response = await self.llm_provider.create_completion(
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[18:53:21]   File "C:\Users\justu\OneDrive\Projekte\Forschung\R-Projects\QCA-AID\QCA_AID_assets\QCA_Utils.py", line 1608, in create_completion
+    response = await self.client.chat.completions.create(**params)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[18:53:21]   File "C:\Users\justu\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.11_qbz5n2kfra8p0\LocalCache\local-packages\Python311\site-packages\openai\resources\chat\completions\completions.py", line 2028, in create
+    return await self._post(
+           ^^^^^^^^^^^^^^^^^
+[18:53:21]   File "C:\Users\justu\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.11_qbz5n2kfra8p0\LocalCache\local-packages\Python311\site-packages\openai\_base_client.py", line 1742, in post
+    return await self.request(cast_to, opts, stream=stream, stream_cls=stream_cls)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[18:53:21]   File "C:\Users\justu\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.11_qbz5n2kfra8p0\LocalCache\local-packages\Python311\site-packages\openai\_base_client.py", line 1549, in request
+    raise self._make_status_error_from_response(err.response) from None
+[18:53:21] openai.BadRequestError: Error code: 400 - {'error': {'message': "Unsupported value: 'temperature' does not support 0.3 with this model. Only the default (1) value is supported.", 'type': 'invalid_request_error', 'param': 'temperature', 'code': 'unsupported_value'}}
+  âš  Keine Kodierung von auto_1 erhalten
+
+Deduktiver Kodierer 🤖 **auto_2** verarbeitet Chunk mit progressivem Kontext...
+Dokumentfortschritt: ca. 5.0%
+Summary-Reifephase: PHASE 1 (Sammlung), max. Änderung: 50%
+Fehler bei der Kodierung durch auto_2: Error code: 400 - {'error': {'message': "Unsupported value: 'temperature' does not support 0.5 with this model. Only the default (1) value is supported.", 'type': 'invalid_request_error', 'param': 'temperature', 'code': 'unsupported_value'}}
+Details:
+[18:53:21] Traceback (most recent call last):
+[18:53:21]   File "C:\Users\justu\OneDrive\Projekte\Forschung\R-Projects\QCA-AID\QCA_AID_assets\analysis\deductive_coding.py", line 568, in code_chunk_with_progressive_context
+    response = await self.llm_provider.create_completion(
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[18:53:21]   File "C:\Users\justu\OneDrive\Projekte\Forschung\R-Projects\QCA-AID\QCA_AID_assets\QCA_Utils.py", line 1608, in create_completion
+    response = await self.client.chat.completions.create(**params)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[18:53:21]   File "C:\Users\justu\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.11_qbz5n2kfra8p0\LocalCache\local-packages\Python311\site-packages\openai\resources\chat\completions\completions.py", line 2028, in create
+    return await self._post(
+           ^^^^^^^^^^^^^^^^^
+[18:53:21]   File "C:\Users\justu\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.11_qbz5n2kfra8p0\LocalCache\local-packages\Python311\site-packages\openai\_base_client.py", line 1742, in post
+    return await self.request(cast_to, opts, stream=stream, stream_cls=stream_cls)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[18:53:21]   File "C:\Users\justu\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.11_qbz5n2kfra8p0\LocalCache\local-packages\Python311\site-packages\openai\_base_client.py", line 1549, in request
+    raise self._make_status_error_from_response(err.response) from None
+[18:53:21] openai.BadRequestError: Error code: 400 - {'error': {'message': "Unsupported value: 'temperature' does not support 0.5 with this model. Only the default (1) value is supported.", 'type': 'invalid_request_error', 'param': 'temperature', 'code': 'unsupported_value'}}
+  âš  Keine Kodierung von auto_2 erhalten
+
+🕵️ Verarbeite Segment text_demo_wiss.pdf_chunk_2 mit Kontext
+[SEARCH] Relevanzpruefung: 1 neue Segmente
+   📦 Verwende normale Batch-Methode für 1 Segmente
+Fehler bei paralleler Relevanzprüfung: Error code: 400 - {'error': {'message': "Unsupported value: 'temperature' does not support 0.3 with this model. Only the default (1) value is supported.", 'type': 'invalid_request_error', 'param': 'temperature', 'code': 'unsupported_value'}}
+[18:53:21] Traceback (most recent call last):
+[18:53:21]   File "C:\Users\justu\OneDrive\Projekte\Forschung\R-Projects\QCA-AID\QCA_AID_assets\analysis\relevance_checker.py", line 273, in check_relevance_batch
+    response = await self.llm_provider.create_completion(
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[18:53:21]   File "C:\Users\justu\OneDrive\Projekte\Forschung\R-Projects\QCA-AID\QCA_AID_assets\QCA_Utils.py", line 1608, in create_completion
+    response = await self.client.chat.completions.create(**params)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[18:53:21]   File "C:\Users\justu\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.11_qbz5n2kfra8p0\LocalCache\local-packages\Python311\site-packages\openai\resources\chat\completions\completions.py", line 2028, in create
+    return await self._post(
+           ^^^^^^^^^^^^^^^^^
+[18:53:21]   File "C:\Users\justu\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.11_qbz5n2kfra8p0\LocalCache\local-packages\Python311\site-packages\openai\_base_client.py", line 1742, in post
+    return await self.request(cast_to, opts, stream=stream, stream_cls=stream_cls)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[18:53:21]   File "C:\Users\justu\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.11_qbz5n2kfra8p0\LocalCache\local-packages\Python311\site-packages\openai\_base_client.py", line 1549, in request
+    raise self._make_status_error_from_response(err.response) from None
+[18:53:21] openai.BadRequestError: Error code: 400 - {'error': {'message': "Unsupported value: 'temperature' does not support 0.3 with this model. Only the default (1) value is supported.", 'type': 'invalid_request_error', 'param': 'temperature', 'code': 'unsupported_value'}}
+
+Deduktiver Kodierer 🤖 **auto_1** verarbeitet Chunk mit progressivem Kontext...
+Dokumentfortschritt: ca. 10.0%
+Summary-Reifephase: PHASE 1 (Sammlung), max. Änderung: 50%
+
+
+============================================================
+🛑 ESCAPE-TASTE GEDRÜCKT - KODIERUNG UNTERBRECHEN?
+============================================================
+
+Aktueller Status:
+- Verarbeitete Segmente: 5
+- Erstellte Kodierungen: 0
+- Verstrichene Zeit: 3.5 Sekunden
+
+⚠️  Noch keine Kodierungen vorhanden
+   Ein Export würde leere Ergebnisse erzeugen.
+
+============================================================
+OPTIONEN:
+j + ENTER = Kodierung beenden und Zwischenergebnisse exportieren
+n + ENTER = Kodierung fortsetzen
+ESC       = Sofort beenden ohne Export
+============================================================
+
+Ihre Wahl (Timeout in 30 Sekunden): 
+ESC
+
+🛑 Sofortiger Abbruch ohne Export...
+[ABORT] Abbruch-Signal gesendet...
+Fehler bei der Kodierung durch auto_1: Error code: 400 - {'error': {'message': "Unsupported value: 'temperature' does not support 0.3 with this model. Only the default (1) value is supported.", 'type': 'invalid_request_error', 'param': 'temperature', 'code': 'unsupported_value'}}
+Details:
+[18:53:21] Traceback (most recent call last):
+[18:53:21]   File "C:\Users\justu\OneDrive\Projekte\Forschung\R-Projects\QCA-AID\QCA_AID_assets\analysis\deductive_coding.py", line 568, in code_chunk_with_progressive_context
+    response = await self.llm_provider.create_completion(
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[18:53:21]   File "C:\Users\justu\OneDrive\Projekte\Forschung\R-Projects\QCA-AID\QCA_AID_assets\QCA_Utils.py", line 1608, in create_completion
+    response = await self.client.chat.completions.create(**params)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[18:53:21]   File "C:\Users\justu\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.11_qbz5n2kfra8p0\LocalCache\local-packages\Python311\site-packages\openai\resources\chat\completions\completions.py", line 2028, in create
+    return await self._post(
+           ^^^^^^^^^^^^^^^^^
+[18:53:21]   File "C:\Users\justu\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.11_qbz5n2kfra8p0\LocalCache\local-packages\Python311\site-packages\openai\_base_client.py", line 1742, in post
+    return await self.request(cast_to, opts, stream=stream, stream_cls=stream_cls)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[18:53:21]   File "C:\Users\justu\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.11_qbz5n2kfra8p0\LocalCache\local-packages\Python311\site-packages\openai\_base_client.py", line 1549, in request
+    raise self._make_status_error_from_response(err.response) from None
+[18:53:21] openai.BadRequestError: Error code: 400 - {'error': {'message': "Unsupported value: 'temperature' does not support 0.3 with this model. Only the default (1) value is supported.", 'type': 'invalid_request_error', 'param': 'temperature', 'code': 'unsupported_value'}}
+  âš  Keine Kodierung von auto_1 erhalten
+
+Deduktiver Kodierer 🤖 **auto_2** verarbeitet Chunk mit progressivem Kontext...
+Dokumentfortschritt: ca. 10.0%
+Summary-Reifephase: PHASE 1 (Sammlung), max. Änderung: 50%
+Fehler bei der Kodierung durch auto_2: Error code: 400 - {'error': {'message': "Unsupported value: 'temperature' does not support 0.5 with this model. Only the default (1) value is supported.", 'type': 'invalid_request_error', 'param': 'temperature', 'code': 'unsupported_value'}}
+Details:
+[18:53:22] Traceback (most recent call last):
+[18:53:22]   File "C:\Users\justu\OneDrive\Projekte\Forschung\R-Projects\QCA-AID\QCA_AID_assets\analysis\deductive_coding.py", line 568, in code_chunk_with_progressive_context
+    response = await self.llm_provider.create_completion(
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[18:53:22]   File "C:\Users\justu\OneDrive\Projekte\Forschung\R-Projects\QCA-AID\QCA_AID_assets\QCA_Utils.py", line 1608, in create_completion
+    response = await self.client.chat.completions.create(**params)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[18:53:22]   File "C:\Users\justu\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.11_qbz5n2kfra8p0\LocalCache\local-packages\Python311\site-packages\openai\resources\chat\completions\completions.py", line 2028, in create
+    return await self._post(
+           ^^^^^^^^^^^^^^^^^
+[18:53:22]   File "C:\Users\justu\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.11_qbz5n2kfra8p0\LocalCache\local-packages\Python311\site-packages\openai\_base_client.py", line 1742, in post
+    return await self.request(cast_to, opts, stream=stream, stream_cls=stream_cls)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[18:53:22]   File "C:\Users\justu\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.11_qbz5n2kfra8p0\LocalCache\local-packages\Python311\site-packages\openai\_base_client.py", line 1549, in request
+    raise self._make_status_error_from_response(err.response) from None
+[18:53:22] openai.BadRequestError: Error code: 400 - {'error': {'message': "Unsupported value: 'temperature' does not support 0.5 with this model. Only the default (1) value is supported.", 'type': 'invalid_request_error', 'param': 'temperature', 'code': 'unsupported_value'}}
+  âš  Keine Kodierung von auto_2 erhalten
+
+🕵️ Verarbeite Segment text_demo_wiss.pdf_chunk_3 mit Kontext
+[SEARCH] Relevanzpruefung: 1 neue Segmente
+   📦 Verwende normale Batch-Methode für 1 Segmente
+Fehler bei paralleler Relevanzprüfung: Error code: 400 - {'error': {'message': "Unsupported value: 'temperature' does not support 0.3 with this model. Only the default (1) value is supported.", 'type': 'invalid_request_error', 'param': 'temperature', 'code': 'unsupported_value'}}
+[18:53:22] Traceback (most recent call last):
+[18:53:22]   File "C:\Users\justu\OneDrive\Projekte\Forschung\R-Projects\QCA-AID\QCA_AID_assets\analysis\relevance_checker.py", line 273, in check_relevance_batch
+    response = await self.llm_provider.create_completion(
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[18:53:22]   File "C:\Users\justu\OneDrive\Projekte\Forschung\R-Projects\QCA-AID\QCA_AID_assets\QCA_Utils.py", line 1608, in create_completion
+    response = await self.client.chat.completions.create(**params)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[18:53:22]   File "C:\Users\justu\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.11_qbz5n2kfra8p0\LocalCache\local-packages\Python311\site-packages\openai\resources\chat\completions\completions.py", line 2028, in create
+    return await self._post(
+           ^^^^^^^^^^^^^^^^^
+[18:53:22]   File "C:\Users\justu\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.11_qbz5n2kfra8p0\LocalCache\local-packages\Python311\site-packages\openai\_base_client.py", line 1742, in post
+    return await self.request(cast_to, opts, stream=stream, stream_cls=stream_cls)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[18:53:22]   File "C:\Users\justu\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.11_qbz5n2kfra8p0\LocalCache\local-packages\Python311\site-packages\openai\_base_client.py", line 1549, in request
+    raise self._make_status_error_from_response(err.response) from None
+[18:53:22] openai.BadRequestError: Error code: 400 - {'error': {'message': "Unsupported value: 'temperature' does not support 0.3 with this model. Only the default (1) value is supported.", 'type': 'invalid_request_error', 'param': 'temperature', 'code': 'unsupported_value'}}
+
+Deduktiver Kodierer 🤖 **auto_1** verarbeitet Chunk mit progressivem Kontext...
+Dokumentfortschritt: ca. 15.0%
+Summary-Reifephase: PHASE 1 (Sammlung), max. Änderung: 50%
+Fehler bei der Kodierung durch auto_1: Error code: 400 - {'error': {'message': "Unsupported value: 'temperature' does not support 0.3 with this model. Only the default (1) value is supported.", 'type': 'invalid_request_error', 'param': 'temperature', 'code': 'unsupported_value'}}
+Details:
+[18:53:22] Traceback (most recent call last):
+[18:53:22]   File "C:\Users\justu\OneDrive\Projekte\Forschung\R-Projects\QCA-AID\QCA_AID_assets\analysis\deductive_coding.py", line 568, in code_chunk_with_progressive_context
+    response = await self.llm_provider.create_completion(
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[18:53:22]   File "C:\Users\justu\OneDrive\Projekte\Forschung\R-Projects\QCA-AID\QCA_AID_assets\QCA_Utils.py", line 1608, in create_completion
+    response = await self.client.chat.completions.create(**params)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[18:53:22]   File "C:\Users\justu\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.11_qbz5n2kfra8p0\LocalCache\local-packages\Python311\site-packages\openai\resources\chat\completions\completions.py", line 2028, in create
+    return await self._post(
+           ^^^^^^^^^^^^^^^^^
+[18:53:22]   File "C:\Users\justu\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.11_qbz5n2kfra8p0\LocalCache\local-packages\Python311\site-packages\openai\_base_client.py", line 1742, in post
+    return await self.request(cast_to, opts, stream=stream, stream_cls=stream_cls)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[18:53:22]   File "C:\Users\justu\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.11_qbz5n2kfra8p0\LocalCache\local-packages\Python311\site-packages\openai\_base_client.py", line 1549, in request
+    raise self._make_status_error_from_response(err.response) from None
+[18:53:22] openai.BadRequestError: Error code: 400 - {'error': {'message': "Unsupported value: 'temperature' does not support 0.3 with this model. Only the default (1) value is supported.", 'type': 'invalid_request_error', 'param': 'temperature', 'code': 'unsupported_value'}}
+  âš  Keine Kodierung von auto_1 erhalten
+
+Deduktiver Kodierer 🤖 **auto_2** verarbeitet Chunk mit progressivem Kontext...
+Dokumentfortschritt: ca. 15.0%
+Summary-Reifephase: PHASE 1 (Sammlung), max. Änderung: 50%
+Fehler bei der Kodierung durch auto_2: Error code: 400 - {'error': {'message': "Unsupported value: 'temperature' does not support 0.5 with this model. Only the default (1) value is supported.", 'type': 'invalid_request_error', 'param': 'temperature', 'code': 'unsupported_value'}}
+Details:
+[18:53:23] Traceback (most recent call last):
+[18:53:23]   File "C:\Users\justu\OneDrive\Projekte\Forschung\R-Projects\QCA-AID\QCA_AID_assets\analysis\deductive_coding.py", line 568, in code_chunk_with_progressive_context
+    response = await self.llm_provider.create_completion(
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[18:53:23]   File "C:\Users\justu\OneDrive\Projekte\Forschung\R-Projects\QCA-AID\QCA_AID_assets\QCA_Utils.py", line 1608, in create_completion
+    response = await self.client.chat.completions.create(**params)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[18:53:23]   File "C:\Users\justu\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.11_qbz5n2kfra8p0\LocalCache\local-packages\Python311\site-packages\openai\resources\chat\completions\completions.py", line 2028, in create
+    return await self._post(
+           ^^^^^^^^^^^^^^^^^
+[18:53:23]   File "C:\Users\justu\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.11_qbz5n2kfra8p0\LocalCache\local-packages\Python311\site-packages\openai\_base_client.py", line 1742, in post
+    return await self.request(cast_to, opts, stream=stream, stream_cls=stream_cls)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[18:53:23]   File "C:\Users\justu\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.11_qbz5n2kfra8p0\LocalCache\local-packages\Python311\site-packages\openai\_base_client.py", line 1549, in request
+    raise self._make_status_error_from_response(err.response) from None
+[18:53:23] openai.BadRequestError: Error code: 400 - {'error': {'message': "Unsupported value: 'temperature' does not support 0.5 with this model. Only the default (1) value is supported.", 'type': 'invalid_request_error', 'param': 'temperature', 'code': 'unsupported_value'}}
+  âš  Keine Kodierung von auto_2 erhalten
+
+🧾 SÄttigungsstatus:
+   [TARGET] Theoretische SÄttigung: 53.6%
+   ℹ️ Materialabdeckung: 45.5%
+
+ℹ️ Fortschritt:
+   - Verarbeitete Segmente: 5/11
+   - Aktuelle Kategorien: 8
+   - Kodierungen: 0
+   - Batch-Zeit: 4.83s
+
+🏁 Abbruch durch Benutzer erkannt...
+
+🧾 Exportiere Zwischenergebnisse...
+
+Codebook gespeichert unter: C:\Users\justu\OneDrive\Projekte\Forschung\R-Projects\QCA-AID\output\codebook_intermediate_20251117_185323.json
+- Deduktive Kategorien: 8
+- Induktive Kategorien: 0
+- Grounded Kategorien: 0
+🔀 Zwischenkategorien gespeichert: 8 Kategorien
+❌  Keine Kodierungen zum Exportieren vorhanden
+
+FortschrittsÜberwachung beendet.
+
+Gesamtzahl Kodierungen: 0
+
+Keine Kodierungen fuer ReliabilitÄtsberechnung
+
+9. FÜhre kategorie-zentrierten Review-Prozess durch...
+🔀‹ Review-Modus: consensus
+📈 Eingabe: 0 ursprÜngliche Kodierungen
+
+=== REVIEW-PROZESS (CONSENSUS) ===
+ℹ️ Erstelle kategorie-spezifische Segmente...
+[OK] 0 kategorie-spezifische Segmente erstellt
+🕵️ FÜhre Consensus-Review durch...
+Review abgeschlossen: 0 finale Kodierungen
+[OK] Review abgeschlossen: 0 finale Kodierungen
+============================================================
+=== QCA-AID Console Log beendet: 2025-11-17 18:53:23 ===

@@ -11,6 +11,7 @@ import pandas as pd
 from openpyxl import load_workbook
 import tkinter as tk
 from tkinter import ttk, messagebox
+from .core.config import CONFIG
 try:
     import docx
     DOCX_AVAILABLE = True
@@ -31,6 +32,8 @@ class TokenTracker:
     def __init__(self):
         self.session_stats = {'input': 0, 'output': 0, 'requests': 0, 'cost': 0.0}
         self.daily_stats = self.load_daily_stats()
+        # Cache für Model-Capabilities (z.B. welche Parameter unterstützt werden)
+        self.model_capabilities = {}  # {'model_name': {'supports_temperature': True/False}}
         self.model_prices = {
             # === CLAUDE MODELLE (bereits korrekt mit vielen Nachkommastellen) ===
             'claude-sonnet-4-20250514': {'input': 0.000015, 'output': 0.000075},     # $15/$75 per 1M tokens
@@ -79,7 +82,8 @@ class TokenTracker:
     
     def get_model_price(self, model_name):
         """
-        Ermittelt den Preis für ein Modell mit Fallback-Logik.
+        Ermittelt den Preis für ein Modell mit intelligenter Fallback-Logik.
+        Unterstützt verschiedene Model-Familien und Größenkategorien.
         """
         # Exakte Übereinstimmung
         if model_name in self.model_prices:
@@ -126,9 +130,35 @@ class TokenTracker:
             else:
                 return self.model_prices['claude-3-5-sonnet-20241022']
         
-        # Default Fallback (GPT-4o-mini - günstig aber leistungsfähig)
-        print(f"⚠️ Unbekanntes Modell '{model_name}' - verwende GPT-4o-mini Preise als Fallback")
-        return self.model_prices['gpt-4o-mini']
+        # GPT-5 Familie (neue Modelle)
+        elif 'gpt-5' in model_lower:
+            if 'nano' in model_lower:
+                # GPT-5-nano: teurer als 4o-mini aber günstiger als vollständiges GPT-5
+                return {'input': 0.000001, 'output': 0.000004}  # Ähnlich GPT-4o-mini
+            elif 'mini' in model_lower:
+                return {'input': 0.000002, 'output': 0.000008}
+            else:
+                # Vollständiges GPT-5
+                return {'input': 0.000005, 'output': 0.000020}
+        
+        # Mistral Familie
+        elif 'mistral' in model_lower:
+            if 'large' in model_lower:
+                return {'input': 0.000002, 'output': 0.000006}
+            else:
+                return {'input': 0.000001, 'output': 0.000003}
+        
+        # Default Fallback: Versuche intelligente Schätzung basierend auf Name
+        # Small/Nano/Mini Models sind günstiger
+        if any(x in model_lower for x in ['nano', 'mini', 'small', 'lite']):
+            return {'input': 0.000001, 'output': 0.000004}  # Ähnlich GPT-4o-mini
+        
+        # Medium Models
+        if any(x in model_lower for x in ['standard', 'base', 'default']):
+            return {'input': 0.000003, 'output': 0.000010}  # Ähnlich GPT-4o
+        
+        # Large Models
+        return {'input': 0.000005, 'output': 0.000020}  # Ähnlich bessere Modelle
     
     def load_daily_stats(self):
         """Lade Tagesstatistiken aus Datei"""
@@ -196,8 +226,8 @@ class TokenTracker:
         self.save_daily_stats()
         
         # Debug-Info
-        print(f"   ✅ Session-Total: {old_session_total} → {new_session_total}")
-        print(f"   📊 Session-Stats: {self.session_stats}")
+        print(f"   [OK] Session-Total: {old_session_total} -> {new_session_total}")
+        print(f"   [STATS] Session-Stats: {self.session_stats}")
         
         # Debug-Call protokollieren
         self.debug_calls.append({
@@ -268,9 +298,16 @@ class TokenTracker:
         except Exception as e:
             print(f"Token-Tracking-Fehler: {e}")
     
+    def track_error(self, model):
+        """Tracke LLM-Fehler"""
+        # Einfach protokollieren, keine Token zu zählen
+        self.session_stats['requests'] += 1
+        self.daily_stats['requests'] += 1
+        self.save_daily_stats()
+    
     def print_debug_summary(self):
         """Zeige Debug-Zusammenfassung"""
-        print(f"\n🔍 DEBUG-ZUSAMMENFASSUNG:")
+        print(f"\n[SEARCH] DEBUG-ZUSAMMENFASSUNG:")
         print(f"   📞 Gesamt Debug-Calls: {len(self.debug_calls)}")
         
         add_tokens_calls = [c for c in self.debug_calls if c['method'] == 'add_tokens']
@@ -281,20 +318,20 @@ class TokenTracker:
         
         if add_tokens_calls:
             total_add_tokens = sum(c['input'] + c['output'] for c in add_tokens_calls)
-            print(f"   📊 add_tokens Gesamt: {total_add_tokens}")
+            print(f"   [STATS] add_tokens Gesamt: {total_add_tokens}")
             
         if track_response_calls:
             total_track_tokens = sum(c['input'] + c['output'] for c in track_response_calls)
-            print(f"   📊 track_response Gesamt: {total_track_tokens}")
+            print(f"   [STATS] track_response Gesamt: {total_track_tokens}")
     
     def print_stats(self, input_tokens, output_tokens, cost, model, duration):
         """Zeige detaillierte Statistiken in der Konsole"""
         print(f"\n🔢 Token-Statistiken:")
-        print(f"   📨 Input: {input_tokens:,} | 📤 Output: {output_tokens:,}")
-        print(f"   💰 Kosten: ${cost:.6f} | ⏱️ Dauer: {duration:.2f}s")
-        print(f"   🤖 Modell: {model}")
-        print(f"   📊 Session: {self.session_stats['input']:,}in + {self.session_stats['output']:,}out = ${self.session_stats['cost']:.4f}")
-        print(f"   📅 Heute: {self.daily_stats['input']:,}in + {self.daily_stats['output']:,}out = ${self.daily_stats['cost']:.4f}")
+        print(f"   [INPUT] Input: {input_tokens:,} | [OUTPUT] Output: {output_tokens:,}")
+        print(f"   [COST] Kosten: ${cost:.6f} | [TIME] Dauer: {duration:.2f}s")
+        print(f"   [MODEL] Modell: {model}")
+        print(f"   [SESSION] Session: {self.session_stats['input']:,}in + {self.session_stats['output']:,}out = ${self.session_stats['cost']:.4f}")
+        print(f"   [TODAY] Heute: {self.daily_stats['input']:,}in + {self.daily_stats['output']:,}out = ${self.daily_stats['cost']:.4f}")
     
     def check_rate_limits(self, input_tokens, output_tokens):
         """Prüfe und warne vor Rate-Limits"""
@@ -345,7 +382,7 @@ class TokenTracker:
     def reset_session(self):
         """Setzt Session-Statistiken zurück"""
         self.session_stats = {'input': 0, 'output': 0, 'requests': 0, 'cost': 0.0}
-        print("✅ Session-Statistiken zurückgesetzt")
+        print("[OK] Session-Statistiken zurueckgesetzt")
 
 
 # FIX: Globale Instanz anpassen (ersetzt den alten TokenCounter)
@@ -972,15 +1009,10 @@ def validate_multiple_selection(selected_indices: List[int],
 
 # --- Klasse: ConfigLoader ---
 class ConfigLoader:
-    def __init__(self, script_dir):
+    def __init__(self, script_dir: str, global_config: Dict):
         self.script_dir = script_dir
         self.excel_path = os.path.join(script_dir, "QCA-AID-Codebook.xlsx")
-        self.config = {
-            'FORSCHUNGSFRAGE': "",
-            'KODIERREGELN': {},
-            'DEDUKTIVE_KATEGORIEN': {},
-            'CONFIG': {}
-        }
+        self.global_config = global_config  # Referenz zum globalen CONFIG-Objekt
         
     # ConfigLoader Klasse
     def load_codebook(self):
@@ -1016,16 +1048,8 @@ class ConfigLoader:
             
             # Prüfe das Ergebnis
             if kategorien:
-                print("\nGeladene Kategorien:")
-                for name, data in kategorien.items():
-                    print(f"\n{name}:")
-                    print(f"- Definition: {len(data['definition'])} Zeichen")
-                    print(f"- Beispiele: {len(data['examples'])}")
-                    print(f"- Regeln: {len(data['rules'])}")
-                    print(f"- Subkategorien: {len(data['subcategories'])}")
-                
                 # Speichere in Config
-                self.config['DEDUKTIVE_KATEGORIEN'] = kategorien
+                self.global_config['DEDUKTIVE_KATEGORIEN'] = kategorien
                 print("\nKategorien erfolgreich in Config gespeichert")
                 return True
             else:
@@ -1053,15 +1077,15 @@ class ConfigLoader:
                 kategorien = self._load_deduktive_kategorien(wb)
                 
                 if kategorien:
-                    self.config['DEDUKTIVE_KATEGORIEN'] = kategorien
-                    print("\n✓ Konfiguration trotz geöffneter Datei erfolgreich geladen!")
+                    self.global_config['DEDUKTIVE_KATEGORIEN'] = kategorien
+                    print("\n[OK] Konfiguration trotz geöffneter Datei erfolgreich geladen!")
                     return True
                 else:
-                    print("\n✗ Keine Kategorien geladen, auch bei alternativer Methode")
+                    print("\n[ERROR] Keine Kategorien geladen, auch bei alternativer Methode")
                     return False
                     
             except Exception as alt_e:
-                print(f"\n✗ Auch alternative Lademethode fehlgeschlagen: {str(alt_e)}")
+                print(f"\n[ERROR] Auch alternative Lademethode fehlgeschlagen: {str(alt_e)}")
                 print("\nLösung: Schließen Sie die Excel-Datei und versuchen Sie erneut,")
                 print("oder deaktivieren Sie das automatische Speichern in OneDrive.")
                 return False
@@ -1078,7 +1102,7 @@ class ConfigLoader:
             sheet = wb['FORSCHUNGSFRAGE']
             value = sheet['B1'].value
             # print(f"Geladene Forschungsfrage: {value}")  # Debug-Ausgabe
-            self.config['FORSCHUNGSFRAGE'] = value
+            self.global_config['FORSCHUNGSFRAGE'] = value
 
 
     def _load_coding_rules(self, wb):
@@ -1109,7 +1133,7 @@ class ConfigLoader:
             print(f"- Formatregeln: {len(rules['format'])}")
             print(f"- Ausschlussregeln: {len(rules['exclusion'])}")
             
-            self.config['KODIERREGELN'] = rules
+            self.global_config['KODIERREGELN'] = rules
 
     def _load_deduktive_kategorien(self, wb):
         try:
@@ -1128,7 +1152,6 @@ class ConfigLoader:
             headers = []
             for cell in sheet[1]:
                 headers.append(cell.value)
-            # print(f"Gefundene Spalten: {headers}")
             
             # Indizes für Spalten finden
             key_idx = headers.index('Key') if 'Key' in headers else None
@@ -1153,7 +1176,6 @@ class ConfigLoader:
                     if key and isinstance(key, str):
                         key = key.strip()
                         if key not in kategorien:
-                            print(f"\nNeue Hauptkategorie: {key}")
                             current_category = key
                             kategorien[key] = {
                                 'definition': '',
@@ -1170,45 +1192,31 @@ class ConfigLoader:
                             
                         if sub_key == 'definition':
                             kategorien[current_category]['definition'] = value
-                            print(f"  Definition hinzugefügt: {len(value)} Zeichen")
                             
                         elif sub_key == 'rules':
                             if value:
                                 kategorien[current_category]['rules'].append(value)
-                                print(f"  Regel hinzugefügt: {value[:50]}...")
                                 
                         elif sub_key == 'examples':
                             if value:
                                 kategorien[current_category]['examples'].append(value)
-                                print(f"  Beispiel hinzugefügt: {value[:50]}...")
                                 
                         elif sub_key == 'subcategories' and sub_sub_key:
                             kategorien[current_category]['subcategories'][sub_sub_key] = value
-                            print(f"  Subkategorie hinzugefügt: {sub_sub_key}")
                                 
                 except Exception as e:
                     print(f"Fehler in Zeile {row_idx}: {str(e)}")
                     continue
 
             # Validierung der geladenen Daten
-            print("\nValidiere geladene Kategorien:")
-            # for name, kat in kategorien.items():
-            #     print(f"\nKategorie: {name}")
-            #     print(f"- Definition: {len(kat['definition'])} Zeichen")
-            #     if not kat['definition']:
-            #         print("  WARNUNG: Keine Definition!")
-            #     print(f"- Regeln: {len(kat['rules'])}")
-            #     print(f"- Beispiele: {len(kat['examples'])}")
-            #     print(f"- Subkategorien: {len(kat['subcategories'])}")
-            #     for sub_name, sub_def in kat['subcategories'].items():
-            #         print(f"  • {sub_name}: {sub_def[:50]}...")
+            # Debugging-Ausgabe fuer geladene Kategorien entfernt, um die Konsole zu entlasten.
 
             # Ergebnis
             if kategorien:
-                print(f"\nErfolgreich {len(kategorien)} Kategorien geladen")
+                print(f"Erfolgreich {len(kategorien)} Kategorien geladen")
                 return kategorien
             else:
-                print("\nKeine Kategorien gefunden!")
+                print("Keine Kategorien gefunden!")
                 return {}
 
         except Exception as e:
@@ -1317,53 +1325,61 @@ class ConfigLoader:
             if config['ATTRIBUTE_LABELS']['attribut3']:
                 print(f"Drittes Attribut-Label geladen: {config['ATTRIBUTE_LABELS']['attribut3']}")
 
-            self.config['CONFIG'] = self._sanitize_config(config)
+            # Extrahiere Top-Level Booleans aus verschachtelten Struktur
+            # Diese Parameter werden möglicherweise als sub_key unter SETTINGS gespeichert
+            for key in ['SETTINGS', 'OPTIONS', 'GENERAL']:
+                if key in config and isinstance(config[key], dict):
+                    for param_name in ['CODE_WITH_CONTEXT', 'MULTIPLE_CODINGS', 'PARALLEL_PROCESSING', 'SAVE_PROGRESS']:
+                        if param_name in config[key]:
+                            config[param_name] = config[key][param_name]
+                            print(f"[DEBUG] Extrahierte {param_name} aus {key}: {config[param_name]}")
+            
+            self._sanitize_config(config)
+            self.global_config.update(config) # Update the global config with loaded and sanitized values
             return True  # Explizite Rückgabe von True
         return False
 
-    def _sanitize_config(self, config):
+    def _sanitize_config(self, loaded_config: Dict):
         """
         Bereinigt und validiert die Konfigurationswerte.
-        Überschreibt Standardwerte mit Werten aus dem Codebook.
+        Ueberschreibt Standardwerte mit Werten aus dem Codebook direkt im globalen CONFIG.
         
         Args:
-            config: Dictionary mit rohen Konfigurationswerten
-            
-        Returns:
-            dict: Bereinigtes Konfigurations-Dictionary
+            loaded_config: Dictionary mit rohen Konfigurationswerten aus dem Codebook
         """
         try:
-            sanitized = {}
-            script_dir = os.path.dirname(os.path.abspath(__file__))
+            # Gehe UP zu Root statt zu QCA_AID_assets
+            current_dir = os.path.dirname(os.path.abspath(__file__))  # QCA_AID_assets
+            script_dir = os.path.dirname(current_dir)  # Root
             
-            # Stelle sicher, dass OUTPUT_DIR immer gesetzt wird
-            sanitized['OUTPUT_DIR'] = os.path.join(script_dir, 'output')
-            os.makedirs(sanitized['OUTPUT_DIR'], exist_ok=True)
-            print(f"Standard-Ausgabeverzeichnis gesichert: {sanitized['OUTPUT_DIR']}")
+            # Aktualisiere OUTPUT_DIR und erstelle es bei Bedarf
+            self.global_config['OUTPUT_DIR'] = os.path.join(script_dir, 'output')
+            os.makedirs(self.global_config['OUTPUT_DIR'], exist_ok=True)
+            print(f"Standard-Ausgabeverzeichnis gesichert: {self.global_config['OUTPUT_DIR']}")
             
-            for key, value in config.items():
-                # Verzeichnispfade relativ zum aktuellen Arbeitsverzeichnis
-                if key in ['DATA_DIR', 'OUTPUT_DIR']:
-                    sanitized[key] = os.path.join(script_dir, str(value))
+            for key, value in loaded_config.items():
+                # Verzeichnispfade relativ zum Root Arbeitsverzeichnis
+                if key in ['DATA_DIR', 'OUTPUT_DIR', 'INPUT_DIR']:
+                    self.global_config[key] = os.path.join(script_dir, str(value).lstrip('/\\'))
                     # Stelle sicher, dass Verzeichnis existiert
-                    os.makedirs(sanitized[key], exist_ok=True)
-                    print(f"Verzeichnis gesichert: {sanitized[key]}")
+                    os.makedirs(self.global_config[key], exist_ok=True)
+                    print(f"Verzeichnis gesichert: {self.global_config[key]}")
                 
                 # Numerische Werte für Chunking
                 elif key in ['CHUNK_SIZE', 'CHUNK_OVERLAP']:
                     try:
                         # Konvertiere zu Integer und stelle sicher, dass die Werte positiv sind
-                        sanitized[key] = max(1, int(value))
-                        print(f"Übernehme {key} aus Codebook: {sanitized[key]}")
+                        self.global_config[key] = max(1, int(value))
+                        print(f"Übernehme {key} aus Codebook: {self.global_config[key]}")
                     except (ValueError, TypeError):
                         # Wenn Konvertierung fehlschlägt, behalte Standardwert
                         default_value = CONFIG[key]
                         print(f"Warnung: Ungültiger Wert für {key}, verwende Standard: {default_value}")
-                        sanitized[key] = default_value
+                        self.global_config[key] = default_value
                 
                 # Coder-Einstellungen mit Typkonvertierung
                 elif key == 'CODER_SETTINGS':
-                    sanitized[key] = [
+                    self.global_config[key] = [
                         {
                             'temperature': float(coder['temperature']) 
                                 if isinstance(coder.get('temperature'), (int, float, str)) 
@@ -1375,164 +1391,83 @@ class ConfigLoader:
                 
                 # Alle anderen Werte unverändert übernehmen
                 else:
-                    sanitized[key] = value
+                    self.global_config[key] = value
 
             # Verarbeitung des CODE_WITH_CONTEXT Parameters
-            if 'CODE_WITH_CONTEXT' in config:
-                # Konvertiere zu Boolean
-                value = config['CODE_WITH_CONTEXT']
+            if 'CODE_WITH_CONTEXT' in loaded_config:
+                value = loaded_config['CODE_WITH_CONTEXT']
                 if isinstance(value, str):
-                    sanitized['CODE_WITH_CONTEXT'] = value.lower() in ('true', 'ja', 'yes', '1')
+                    self.global_config['CODE_WITH_CONTEXT'] = value.lower() in ('true', 'ja', 'yes', '1')
                 else:
-                    sanitized['CODE_WITH_CONTEXT'] = bool(value)
-                print(f"Übernehme CODE_WITH_CONTEXT aus Codebook: {sanitized['CODE_WITH_CONTEXT']}")
+                    self.global_config['CODE_WITH_CONTEXT'] = bool(value)
+                print(f"Übernehme CODE_WITH_CONTEXT aus Codebook: {self.global_config['CODE_WITH_CONTEXT']}")
             else:
-                # Standardwert setzen
-                sanitized['CODE_WITH_CONTEXT'] = True
-                print(f"CODE_WITH_CONTEXT nicht in Codebook gefunden, verwende Standard: {sanitized['CODE_WITH_CONTEXT']}")
+                self.global_config['CODE_WITH_CONTEXT'] = True
+                print(f"CODE_WITH_CONTEXT nicht in Codebook gefunden, verwende Standard: {self.global_config['CODE_WITH_CONTEXT']}")
 
             # Verarbeitung des MULTIPLE_CODINGS Parameters
-            if 'MULTIPLE_CODINGS' in config:
-                # Konvertiere zu Boolean
-                value = config['MULTIPLE_CODINGS']
+            if 'MULTIPLE_CODINGS' in loaded_config:
+                value = loaded_config['MULTIPLE_CODINGS']
                 if isinstance(value, str):
-                    sanitized['MULTIPLE_CODINGS'] = value.lower() in ('true', 'ja', 'yes', '1')
+                    self.global_config['MULTIPLE_CODINGS'] = value.lower() in ('true', 'ja', 'yes', '1')
                 else:
-                    sanitized['MULTIPLE_CODINGS'] = bool(value)
-                print(f"Übernehme MULTIPLE_CODINGS aus Codebook: {sanitized['MULTIPLE_CODINGS']}")
+                    self.global_config['MULTIPLE_CODINGS'] = bool(value)
+                print(f"Übernehme MULTIPLE_CODINGS aus Codebook: {self.global_config['MULTIPLE_CODINGS']}")
             else:
-                # Standardwert setzen
-                sanitized['MULTIPLE_CODINGS'] = True
-                print(f"MULTIPLE_CODINGS nicht in Codebook gefunden, verwende Standard: {sanitized['MULTIPLE_CODINGS']}")
+                self.global_config['MULTIPLE_CODINGS'] = True
+                print(f"MULTIPLE_CODINGS nicht in Codebook gefunden, verwende Standard: {self.global_config['MULTIPLE_CODINGS']}")
             
             # Verarbeitung des MULTIPLE_CODING_THRESHOLD Parameters
-            if 'MULTIPLE_CODING_THRESHOLD' in config:
+            if 'MULTIPLE_CODING_THRESHOLD' in loaded_config:
                 try:
-                    threshold = float(config['MULTIPLE_CODING_THRESHOLD'])
+                    threshold = float(loaded_config['MULTIPLE_CODING_THRESHOLD'])
                     if 0.0 <= threshold <= 1.0:
-                        sanitized['MULTIPLE_CODING_THRESHOLD'] = threshold
-                        print(f"Übernehme MULTIPLE_CODING_THRESHOLD aus Codebook: {sanitized['MULTIPLE_CODING_THRESHOLD']}")
+                        self.global_config['MULTIPLE_CODING_THRESHOLD'] = threshold
+                        print(f"Übernehme MULTIPLE_CODING_THRESHOLD aus Codebook: {self.global_config['MULTIPLE_CODING_THRESHOLD']}")
                     else:
                         print(f"Warnung: MULTIPLE_CODING_THRESHOLD muss zwischen 0.0 und 1.0 liegen, verwende Standard: 0.6")
-                        sanitized['MULTIPLE_CODING_THRESHOLD'] = 0.6
+                        self.global_config['MULTIPLE_CODING_THRESHOLD'] = 0.6
                 except (ValueError, TypeError):
                     print(f"Warnung: Ungültiger MULTIPLE_CODING_THRESHOLD Wert, verwende Standard: 0.6")
-                    sanitized['MULTIPLE_CODING_THRESHOLD'] = 0.6
+                    self.global_config['MULTIPLE_CODING_THRESHOLD'] = 0.6
             else:
-                sanitized['MULTIPLE_CODING_THRESHOLD'] = 0.6
-                print(f"MULTIPLE_CODING_THRESHOLD nicht in Codebook gefunden, verwende Standard: {sanitized['MULTIPLE_CODING_THRESHOLD']}")
+                self.global_config['MULTIPLE_CODING_THRESHOLD'] = 0.6
+                print(f"MULTIPLE_CODING_THRESHOLD nicht in Codebook gefunden, verwende Standard: {self.global_config['MULTIPLE_CODING_THRESHOLD']}")
 
             # Verarbeitung des BATCH_SIZE Parameters
-            if 'BATCH_SIZE' in config:
+            if 'BATCH_SIZE' in loaded_config:
                 try:
-                    batch_size = int(config['BATCH_SIZE'])
+                    batch_size = int(loaded_config['BATCH_SIZE'])
                     if batch_size < 1:
                         print("Warnung: BATCH_SIZE muss mindestens 1 sein")
                         batch_size = 5
                     elif batch_size > 20:
                         print("Warnung: BATCH_SIZE > 20 könnte Performance-Probleme verursachen")
-                    sanitized['BATCH_SIZE'] = batch_size
+                    self.global_config['BATCH_SIZE'] = batch_size
                     print(f"Finale BATCH_SIZE: {batch_size}")
                 except (ValueError, TypeError):
                     print("Warnung: Ungültiger BATCH_SIZE Wert")
-                    sanitized['BATCH_SIZE'] = 5
+                    self.global_config['BATCH_SIZE'] = 5
             else:
                 print("BATCH_SIZE nicht in Codebook gefunden, verwende Standard: 5")
-                sanitized['BATCH_SIZE'] = 5
-
-            for key, value in config.items():
-                if key == 'BATCH_SIZE':
-                    continue
+                self.global_config['BATCH_SIZE'] = 5
 
             # Stelle sicher, dass CHUNK_OVERLAP kleiner als CHUNK_SIZE ist
-            if 'CHUNK_SIZE' in sanitized and 'CHUNK_OVERLAP' in sanitized:
-                if sanitized['CHUNK_OVERLAP'] >= sanitized['CHUNK_SIZE']:
-                    print(f"Warnung: CHUNK_OVERLAP ({sanitized['CHUNK_OVERLAP']}) muss kleiner sein als CHUNK_SIZE ({sanitized['CHUNK_SIZE']})")
-                    sanitized['CHUNK_OVERLAP'] = sanitized['CHUNK_SIZE'] // 10  # 10% als Standardwert
+            if 'CHUNK_SIZE' in self.global_config and 'CHUNK_OVERLAP' in self.global_config:
+                if self.global_config['CHUNK_OVERLAP'] >= self.global_config['CHUNK_SIZE']:
+                    print(f"Warnung: CHUNK_OVERLAP ({self.global_config['CHUNK_OVERLAP']}) muss kleiner sein als CHUNK_SIZE ({self.global_config['CHUNK_SIZE']})")
+                    self.global_config['CHUNK_OVERLAP'] = self.global_config['CHUNK_SIZE'] // 10  # 10% als Standardwert
                     
-            return sanitized
+            return
             
         except Exception as e:
             print(f"Fehler bei der Konfigurationsbereinigung: {str(e)}")
             import traceback
             traceback.print_exc()
             # Verwende im Fehlerfall die Standard-Konfiguration
-            return CONFIG
+            return
     
 
-    def update_script_globals(self, globals_dict):
-        """
-        Aktualisiert die globalen Variablen mit den Werten aus der Config.
-        """
-        try:
-            print("\nAktualisiere globale Variablen...")
-            
-            # Update DEDUKTIVE_KATEGORIEN
-            if 'DEDUKTIVE_KATEGORIEN' in self.config:
-                deduktive_kat = self.config['DEDUKTIVE_KATEGORIEN']
-                if deduktive_kat and isinstance(deduktive_kat, dict):
-                    globals_dict['DEDUKTIVE_KATEGORIEN'] = deduktive_kat
-                    print(f"\nDEDUKTIVE_KATEGORIEN aktualisiert:")
-                    for name in deduktive_kat.keys():
-                        print(f"- {name}")
-                else:
-                    print("Warnung: Keine gültigen DEDUKTIVE_KATEGORIEN in Config")
-            
-            # WICHTIG: Update das CONFIG Dictionary komplett
-            if 'CONFIG' in self.config:
-                config_from_codebook = self.config['CONFIG']
-                
-                # Aktualisiere das globale CONFIG Dictionary
-                if 'CONFIG' in globals_dict:
-                    globals_dict['CONFIG'].update(config_from_codebook)
-                    print(f"\nCONFIG Dictionary aktualisiert mit {len(config_from_codebook)} Einträgen")
-                    
-                    # Spezielle Debug-Ausgabe für MULTIPLE_CODINGS
-                    if 'MULTIPLE_CODINGS' in config_from_codebook:
-                        print(f"MULTIPLE_CODINGS aus Codebook: {config_from_codebook['MULTIPLE_CODINGS']}")
-                        print(f"MULTIPLE_CODINGS in globalem CONFIG: {globals_dict['CONFIG'].get('MULTIPLE_CODINGS')}")
-                    
-                    # Spezielle Debug-Ausgabe für andere wichtige Settings
-                    important_settings = ['ANALYSIS_MODE', 'REVIEW_MODE', 'CODE_WITH_CONTEXT', 'BATCH_SIZE']
-                    for setting in important_settings:
-                        if setting in config_from_codebook:
-                            print(f"{setting} aus Codebook: {config_from_codebook[setting]}")
-                else:
-                    print("Warnung: CONFIG nicht im globalen Namespace gefunden")
-            
-            # Update andere Konfigurationswerte
-            for key, value in self.config.items():
-                if key not in ['DEDUKTIVE_KATEGORIEN', 'CONFIG'] and key in globals_dict:
-                    if isinstance(value, dict) and isinstance(globals_dict[key], dict):
-                        globals_dict[key].clear()
-                        globals_dict[key].update(value)
-                        print(f"Dict {key} aktualisiert")
-                    else:
-                        globals_dict[key] = value
-                        print(f"Variable {key} aktualisiert")
-
-            # Validiere Update
-            if 'DEDUKTIVE_KATEGORIEN' in globals_dict:
-                kat_count = len(globals_dict['DEDUKTIVE_KATEGORIEN'])
-                print(f"\nFinale Validierung: {kat_count} Kategorien in globalem Namespace")
-                if kat_count == 0:
-                    print("Warnung: Keine Kategorien im globalen Namespace!")
-            else:
-                print("Fehler: DEDUKTIVE_KATEGORIEN nicht im globalen Namespace!")
-
-            # Finale Validierung der MULTIPLE_CODINGS Einstellung
-            if 'CONFIG' in globals_dict and 'MULTIPLE_CODINGS' in globals_dict['CONFIG']:
-                final_multiple_codings = globals_dict['CONFIG']['MULTIPLE_CODINGS']
-                print(f"\n🔍 FINALE MULTIPLE_CODINGS Einstellung: {final_multiple_codings}")
-                if not final_multiple_codings:
-                    print("✅ Mehrfachkodierung wurde DEAKTIVIERT")
-                else:
-                    print("ℹ️ Mehrfachkodierung bleibt AKTIVIERT")
-
-        except Exception as e:
-            print(f"Fehler beim Update der globalen Variablen: {str(e)}")
-            import traceback
-            traceback.print_exc()
 
     def _load_validation_config(self, wb):
         """Lädt die Validierungskonfiguration aus dem Codebook."""
@@ -1568,7 +1503,7 @@ class ConfigLoader:
         return validation_config
 
     def get_config(self):
-        return self.config
+        return self.global_config
 
     
 """
@@ -1639,6 +1574,14 @@ class LLMProvider(ABC):
                               response_format: Optional[Dict] = None) -> Any:
         """Erstellt eine Chat Completion"""
         pass
+    
+    def test_model_capabilities(self, model: str) -> None:
+        """
+        Default-Implementierung: Kann von Subclasses überschrieben werden.
+        Testet die Capabilities eines Models (z.B. temperature-Parameter).
+        """
+        # Default: keine Tests durchführen
+        pass
 
 class OpenAIProvider(LLMProvider):
     """OpenAI Provider Implementation"""
@@ -1659,6 +1602,15 @@ class OpenAIProvider(LLMProvider):
             raise ImportError("OpenAI Bibliothek nicht installiert. Bitte installieren Sie: pip install openai")
         except Exception as e:
             raise Exception(f"Fehler bei OpenAI Client-Initialisierung: {str(e)}")
+    
+    def test_model_capabilities(self, model: str) -> None:
+        """
+        Markiert ein Model für Capability-Testing beim ersten API Call.
+        Der Test wird asynchron beim ersten create_completion durchgeführt.
+        """
+        # Markiere als "zu testen" wenn noch nicht getestet
+        if model not in token_counter.model_capabilities:
+            token_counter.model_capabilities[model] = None  # None = noch nicht getestet
     
     async def create_completion(self, 
                               model: str,
@@ -1684,21 +1636,79 @@ class OpenAIProvider(LLMProvider):
             params = {
                 'model': model,
                 'messages': messages,
-                'temperature': temperature
             }
-            
+
+            # Prüfe Capability-Cache für dieses Model
+            supports_temperature = token_counter.model_capabilities.get(model, None)
+
+            if supports_temperature is None:
+                # Keine Information vorhanden - versuche mit temperature
+                if temperature is not None:
+                    params['temperature'] = temperature
+            elif supports_temperature:
+                # Model unterstützt temperature - nutze es
+                if temperature is not None:
+                    params['temperature'] = temperature
+            # else: Model unterstützt temperature nicht - füge es nicht hinzu
+
             # Füge optionale Parameter hinzu
             if max_tokens:
                 params['max_tokens'] = max_tokens
+            
+            # Versuche mit response_format Falls vorhanden
             if response_format:
                 params['response_format'] = response_format
+            elif response_format is None:
+                # Nur setzen wenn nicht explizit auf None gesetzt
+                params['response_format'] = {'type': 'json_object'}
             
             # API Call
-            response = await self.client.chat.completions.create(**params)
-            return response
-            
+            try:
+                response = await self.client.chat.completions.create(**params)
+                # Wenn erfolgreich und temperature war im Request und noch nicht getestet
+                if 'temperature' in params and supports_temperature is None:
+                    token_counter.model_capabilities[model] = True
+                    print(f"[OK] Model {model} unterstützt temperature-Parameter")
+                return response
+            except Exception as api_error:
+                # Prüfe ob der Fehler temperature-bezogen ist
+                error_msg = str(api_error)
+                if 'temperature' in error_msg.lower() and 'temperature' in params:
+                    # Markiere Model als nicht-unterstützt
+                    token_counter.model_capabilities[model] = False
+                    print(f"[OK] Model {model} unterstützt temperature-Parameter NICHT. Retry ohne...")
+                    # Versuche erneut ohne temperature
+                    params_without_temp = {k: v for k, v in params.items() if k != 'temperature'}
+                    try:
+                        response = await self.client.chat.completions.create(**params_without_temp)
+                        return response
+                    except Exception as retry_error:
+                        # Zweiter Versuch auch fehlgeschlagen - versuche auch ohne response_format
+                        retry_error_msg = str(retry_error)
+                        if 'response_format' in retry_error_msg.lower():
+                            print(f"[INFO] Model {model} unterstützt auch response_format nicht. Retry ohne beide...")
+                            params_minimal = {k: v for k, v in params.items() if k not in ['temperature', 'response_format']}
+                            try:
+                                response = await self.client.chat.completions.create(**params_minimal)
+                                return response
+                            except Exception as minimal_error:
+                                print(f"[ERROR] Auch minimal-Versuch fehlgeschlagen: {str(minimal_error)[:200]}")
+                                token_counter.track_error(self.model_name)
+                                raise
+                        else:
+                            # Anderer Fehler
+                            print(f"[ERROR] Retry ohne temperature fehlgeschlagen: {retry_error_msg[:200]}")
+                            token_counter.track_error(self.model_name)
+                            raise
+                else:
+                    # Anderer Fehler - logge und rethrow
+                    print(f"[ERROR] API-Fehler (nicht temperature-bezogen): {error_msg[:200]}")
+                    token_counter.track_error(self.model_name)
+                    # Anderer Fehler - re-raise
+                    raise
         except Exception as e:
-            print(f"Fehler bei OpenAI API Call: {str(e)}")
+            print(f"[ERROR] Unerwarteter Fehler in create_completion: {str(e)[:200]}")
+            token_counter.track_error(self.model_name)
             raise
 
 class MistralProvider(LLMProvider):
@@ -1782,12 +1792,13 @@ class LLMProviderFactory:
     """Factory Klasse zur Erstellung von LLM Providern"""
     
     @staticmethod
-    def create_provider(provider_name: str) -> LLMProvider:
+    def create_provider(provider_name: str, model_name: Optional[str] = None) -> LLMProvider:
         """
         Erstellt einen LLM Provider basierend auf dem Namen
         
         Args:
             provider_name: Name des Providers ('openai' oder 'mistral')
+            model_name: Optional - Model Name zum Testen der Capabilities
             
         Returns:
             LLMProvider: Initialisierter Provider
@@ -1801,9 +1812,17 @@ class LLMProviderFactory:
         
         try:
             if provider_name in ['openai', 'gpt']:
-                return OpenAIProvider()
+                provider = OpenAIProvider()
+                # Teste Model-Capabilities falls model_name vorhanden
+                if model_name:
+                    provider.test_model_capabilities(model_name)
+                return provider
             elif provider_name in ['mistral', 'mistralai']:
-                return MistralProvider()
+                provider = MistralProvider()
+                # Teste Model-Capabilities falls model_name vorhanden
+                if model_name:
+                    provider.test_model_capabilities(model_name)
+                return provider
             else:
                 raise ValueError(f"Unbekannter LLM Provider: {provider_name}. "
                                f"Unterstützte Provider: 'openai', 'mistral'")
@@ -2021,7 +2040,7 @@ class EscapeHandler:
         self.escape_pressed = False
         self.user_wants_to_abort = False
         
-        print("\n💡 Tipp: Drücken Sie ESC um die Kodierung sicher zu unterbrechen und Zwischenergebnisse zu speichern")
+        print("\n[TIP] Tipp: Druecken Sie ESC um die Kodierung sicher zu unterbrechen und Zwischenergebnisse zu speichern")
         
         # FIX: Bereinige alten Thread falls vorhanden
         if self.keyboard_thread and self.keyboard_thread.is_alive():
@@ -2339,7 +2358,7 @@ class EscapeHandler:
         # Alternative: Setze ein neues Attribut
         setattr(self.analysis_manager, '_escape_abort_requested', True)
         
-        print("🔄 Abbruch-Signal gesendet...")
+        print("[ABORT] Abbruch-Signal gesendet...")
     
     def should_abort(self) -> bool:
         """Prüft ob abgebrochen werden soll"""
@@ -2453,7 +2472,7 @@ class DocumentReader:
             
             print(f"\nGefundene Dateien:")
             for file in all_files:
-                status = "✓" if is_supported_file(file) else "✗"
+                status = "[OK]" if is_supported_file(file) else "[ERROR]"
                 print(f"{status} {file}")
             
             print(f"\nVerarbeite Dateien:")
@@ -2476,12 +2495,12 @@ class DocumentReader:
                     
                     if content and content.strip():
                         documents[filename] = content
-                        print(f"✓ Erfolgreich eingelesen: {len(content)} Zeichen")
+                        print(f"[OK] Erfolgreich eingelesen: {len(content)} Zeichen")
                     else:
                         print(f"⚠ Keine Textinhalte gefunden")
                 
                 except Exception as e:
-                    print(f"✗ Fehler bei {filename}: {str(e)}")
+                    print(f"[ERROR] Fehler bei {filename}: {str(e)}")
                     print("Details:")
                     import traceback
                     traceback.print_exc()
@@ -2546,8 +2565,8 @@ class DocumentReader:
             if paragraphs:
                 full_text = '\n'.join(paragraphs)
                 print(f"\nErgebnis:")
-                print(f"  ✓ {len(paragraphs)} Textparagraphen extrahiert")
-                print(f"  ✓ Gesamtlänge: {len(full_text)} Zeichen")
+                print(f"  [OK] {len(paragraphs)} Textparagraphen extrahiert")
+                print(f"  [OK] Gesamtlänge: {len(full_text)} Zeichen")
                 return full_text
             
             # Wenn keine Paragraphen gefunden wurden, suche in anderen Bereichen
@@ -2569,20 +2588,20 @@ class DocumentReader:
             if table_texts:
                 full_text = '\n'.join(table_texts)
                 print(f"\nErgebnis:")
-                print(f"  ✓ {len(table_texts)} Tabelleneinträge extrahiert")
-                print(f"  ✓ Gesamtlänge: {len(full_text)} Zeichen")
+                print(f"  [OK] {len(table_texts)} Tabelleneinträge extrahiert")
+                print(f"  [OK] Gesamtlänge: {len(full_text)} Zeichen")
                 return full_text
                 
-            print("\n✗ Keine Textinhalte im Dokument gefunden")
+            print("\n[ERROR] Keine Textinhalte im Dokument gefunden")
             return ""
                 
         except ImportError:
-            print("\n✗ python-docx nicht installiert.")
+            print("\n[ERROR] python-docx nicht installiert.")
             print("  Bitte installieren Sie das Paket mit:")
             print("  pip install python-docx")
             raise
         except Exception as e:
-            print(f"\n✗ Unerwarteter Fehler beim DOCX-Lesen:")
+            print(f"\n[ERROR] Unerwarteter Fehler beim DOCX-Lesen:")
             print(f"  {str(e)}")
             import traceback
             traceback.print_exc()
@@ -2675,11 +2694,11 @@ class DocumentReader:
             if text_content:
                 full_text = '\n'.join(text_content)
                 print(f"\nErgebnis:")
-                print(f"  ✓ {len(text_content)} Textabschnitte extrahiert")
-                print(f"  ✓ Gesamtlänge: {len(full_text)} Zeichen")
+                print(f"  [OK] {len(text_content)} Textabschnitte extrahiert")
+                print(f"  [OK] Gesamtlänge: {len(full_text)} Zeichen")
                 return full_text
             else:
-                print("\n✗ Kein Text aus PDF extrahiert")
+                print("\n[ERROR] Kein Text aus PDF extrahiert")
                 return ""
                 
         except ImportError:
@@ -2732,7 +2751,7 @@ class ManualReviewGUI:
         review_decisions = []
         
         for i, segment in enumerate(segments_needing_review, 1):
-            print(f"\n🎯 Review {i}/{len(segments_needing_review)}: {segment['segment_id']}")
+            print(f"\n[REVIEW] Review {i}/{len(segments_needing_review)}: {segment['segment_id']}")
             print(f"   Kategorie: {segment['target_category']}")
             
             if segment['is_multiple_coding']:
@@ -3380,7 +3399,7 @@ class ManualReviewComponent:
             # Füge neue Entscheidung hinzu
             self.review_results.append(decision)
             
-            print(f"✓ Entscheidung gespeichert für {segment_id}: {decision['category']} → {decision.get('subcategories', [])}")
+            print(f"[OK] Entscheidung gespeichert für {segment_id}: {decision['category']} → {decision.get('subcategories', [])}")
             
             # Bestätigungs-Feedback
             if category == "Nicht kodiert":
@@ -3699,7 +3718,7 @@ def validate_category_specific_segments(category_segments: List[Dict]) -> bool:
     """
     Validiert die korrekte Erstellung kategorie-spezifischer Segmente
     """
-    print("\n🔍 Validiere kategorie-spezifische Segmente...")
+    print("\n[SEARCH] Validiere kategorie-spezifische Segmente...")
     
     validation_errors = []
     original_segments = defaultdict(list)
@@ -3952,7 +3971,7 @@ class PDFAnnotator:
             if category is None:
                 category = 'Nicht kodiert'
             
-            print(f"\n      🔍 Kodierung {i+1}: {segment_id} → {category}")
+            print(f"\n      [SEARCH] Kodierung {i+1}: {segment_id} → {category}")
             
             try:
                 if '_chunk_' not in segment_id:
@@ -4213,7 +4232,7 @@ class PDFAnnotator:
         print(f"      📋 {len(text_groups)} Text-Gruppen zu verarbeiten")
         
         for i, (original_text, codings_group) in enumerate(text_groups.items(), 1):
-            print(f"\n      🔍 Gruppe {i}/{len(text_groups)}: {len(codings_group)} Kodierungen")
+            print(f"\n      [SEARCH] Gruppe {i}/{len(text_groups)}: {len(codings_group)} Kodierungen")
             print(f"          Text-Länge: {len(original_text)} Zeichen")
             
             # FIX: Strategie 1 - Exakte Text-Grenzen durch Content-Matching
@@ -4360,7 +4379,7 @@ class PDFAnnotator:
             print(f"          ❌ Zu wenige charakteristische Wörter: {len(target_words)}")
             return None, None, None
         
-        print(f"          🔍 Suche {len(target_words)} Ziel-Wörter im PDF...")
+        print(f"          [SEARCH] Suche {len(target_words)} Ziel-Wörter im PDF...")
         
         # FIX: Finde zusammenhängenden Textbereich
         # Strategie: Suche nach einer Sequenz von mindestens 5 aufeinanderfolgenden Wörtern
@@ -5155,7 +5174,7 @@ class DocumentToPDFConverter:
         
         try:
             # FIX: Importiere PDF-Annotator
-            from QCA_Utils import PDFAnnotator, DocumentToPDFConverter
+            from .QCA_Utils import PDFAnnotator, DocumentToPDFConverter
         except ImportError:
             print("   ❌ PyMuPDF nicht verfügbar - PDF-Annotation übersprungen")
             return []
@@ -5181,7 +5200,7 @@ class DocumentToPDFConverter:
             return []
         
         if not input_files:
-            print("   ℹ️ Keine unterstützten Dateien im Input-Verzeichnis gefunden")
+            print("   [INFO] Keine unterstützten Dateien im Input-Verzeichnis gefunden")
             return []
         
         print(f"   📁 {len(input_files)} Dateien gefunden:")
@@ -5514,7 +5533,7 @@ class DocumentToPDFConverter:
         
         try:
             # FIX: Importiere PDF-Annotator
-            from QCA_Utils import PDFAnnotator, DocumentToPDFConverter
+            from .QCA_Utils import PDFAnnotator, DocumentToPDFConverter
         except ImportError:
             print("   ❌ PyMuPDF nicht verfügbar - PDF-Annotation übersprungen")
             return []
@@ -5540,7 +5559,7 @@ class DocumentToPDFConverter:
             return []
         
         if not input_files:
-            print("   ℹ️ Keine unterstützten Dateien im Input-Verzeichnis gefunden")
+            print("   [INFO] Keine unterstützten Dateien im Input-Verzeichnis gefunden")
             return []
         
         print(f"   📁 {len(input_files)} Dateien gefunden:")
@@ -5659,14 +5678,14 @@ class ConsoleLogger:
         # FIX: Log-Datei erstellen und öffnen
         try:
             os.makedirs(self.output_dir, exist_ok=True)
-            print(f"📁 Output-Verzeichnis: {self.output_dir}")
+            print(f"[DIR] Output-Verzeichnis: {self.output_dir}")
         except Exception as e:
-            print(f"❌ Fehler beim Erstellen des Output-Verzeichnisses: {e}")
+            print(f"[ERROR] Fehler beim Erstellen des Output-Verzeichnisses: {e}")
             
         self.log_file = None
         self.is_active = False
         
-        print(f"📝 Console Logger initialisiert: {self.log_path}")
+        print(f"[LOG] Console Logger initialisiert: {self.log_path}")
     
     def start_logging(self):
         """
@@ -5689,7 +5708,7 @@ class ConsoleLogger:
             print("=" * 60)
             
         except Exception as e:
-            print(f"❌ Fehler beim Starten des Console Loggers: {e}")
+            print(f"[ERROR] Fehler beim Starten des Console Loggers: {e}")
             self.stop_logging()
     
     def stop_logging(self):
@@ -5716,10 +5735,10 @@ class ConsoleLogger:
                 
                 # FIX: Vollständigen absoluten Pfad anzeigen
                 abs_path = os.path.abspath(self.log_path)
-                print(f"✅ Console Log gespeichert: {abs_path}")
+                print(f"[SUCCESS] Console Log gespeichert: {abs_path}")
                 
             except Exception as e:
-                print(f"❌ Fehler beim Stoppen des Console Loggers: {e}")
+                print(f"[ERROR] Fehler beim Stoppen des Console Loggers: {e}")
                 # Notfall-Wiederherstellung
                 sys.stdout = self.original_stdout
                 sys.stderr = self.original_stderr

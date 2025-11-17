@@ -1,0 +1,464 @@
+=== QCA-AID Console Log gestartet: 2025-11-17 19:15:05 ===
+Log-Datei: C:\Users\justu\OneDrive\Projekte\Forschung\R-Projects\QCA-AID\output\console_log_20251117_191505.txt
+============================================================
+=== Qualitative Inhaltsanalyse nach Mayring ===
+Versuche Konfiguration zu laden von: C:\Users\justu\OneDrive\Projekte\Forschung\R-Projects\QCA-AID\QCA-AID-Codebook.xlsx
+
+Öffne Excel-Datei...
+Excel-Datei erfolgreich geladen. Verfügbare Sheets: ['FORSCHUNGSFRAGE', 'DEDUKTIVE_KATEGORIEN', 'KODIERREGELN', 'CONFIG']
+
+Lese DEDUKTIVE_KATEGORIEN Sheet...
+
+Kodierregeln geladen:
+- Allgemeine Regeln: 5
+- Formatregeln: 3
+- Ausschlussregeln: 3
+EXPORT_ANNOTATED_PDFS aus Codebook geladen: True (ursprünglich: 'true')
+ANALYSIS_MODE aus Codebook geladen: abductive
+REVIEW_MODE aus Codebook geladen: consensus
+Drittes Attribut-Label geladen: nan
+Standard-Ausgabeverzeichnis gesichert: C:\Users\justu\OneDrive\Projekte\Forschung\R-Projects\QCA-AID\output
+Verzeichnis gesichert: C:\Users\justu\OneDrive\Projekte\Forschung\R-Projects\QCA-AID\input
+Verzeichnis gesichert: C:\Users\justu\OneDrive\Projekte\Forschung\R-Projects\QCA-AID\output
+Übernehme CHUNK_SIZE aus Codebook: 1000
+Übernehme CHUNK_OVERLAP aus Codebook: 40
+Übernehme CODE_WITH_CONTEXT aus Codebook: False
+Übernehme MULTIPLE_CODINGS aus Codebook: True
+Übernehme MULTIPLE_CODING_THRESHOLD aus Codebook: 0.85
+Finale BATCH_SIZE: 5
+
+Starte Laden der deduktiven Kategorien...
+
+Lade deduktive Kategorien...
+Erfolgreich 8 Kategorien geladen
+
+Kategorien erfolgreich in Config gespeichert
+
+Konfiguration erfolgreich geladen
+No existing revision history found - starting fresh
+
+2. Lese Dokumente ein...
+
+DocumentReader initialisiert:
+Verzeichnis: C:\Users\justu\OneDrive\Projekte\Forschung\R-Projects\QCA-AID\input
+Unterstützte Formate: .txt, .docx, .pdf
+
+Dateianalyse:
+
+Gefundene Dateien:
+[ERROR] .input-dir
+[OK] dummy_solar_media.txt
+[OK] text_demo_wiss.pdf
+[OK] trial_case_iv_2.pdf
+
+Verarbeite Dateien:
+
+Lese: dummy_solar_media.txt
+[OK] Erfolgreich eingelesen: 441 Zeichen
+
+Lese: text_demo_wiss.pdf
+
+Lese PDF: text_demo_wiss.pdf
+  Gefundene Seiten: 1
+  Seite 1/1: 4126 Zeichen extrahiert
+
+Ergebnis:
+  [OK] 1 Textabschnitte extrahiert
+  [OK] Gesamtlänge: 4126 Zeichen
+[OK] Erfolgreich eingelesen: 4126 Zeichen
+
+Lese: trial_case_iv_2.pdf
+
+Lese PDF: trial_case_iv_2.pdf
+  Gefundene Seiten: 1
+  Seite 1/1: 4320 Zeichen extrahiert
+
+Ergebnis:
+  [OK] 1 Textabschnitte extrahiert
+  [OK] Gesamtlänge: 4320 Zeichen
+[OK] Erfolgreich eingelesen: 4320 Zeichen
+
+Verarbeitungsstatistik:
+- Dateien im Verzeichnis: 4
+- Unterstützte Dateien: 3
+- Erfolgreich eingelesen: 3
+
+3. Induktive Kodierung konfigurieren...
+
+Gespeichertes induktives Codebook gefunden.
+Automatische FortfÜhrung in 10 Sekunden...
+
+MÖchten Sie das gespeicherte erweiterte Kodesystem laden? (j/N) (10s): 
+MÖchten Sie das gespeicherte erweiterte Kodesystem laden? (j/N) (9s): 
+MÖchten Sie das gespeicherte erweiterte Kodesystem laden? (j/N) (8s): 
+MÖchten Sie das gespeicherte erweiterte Kodesystem laden? (j/N) (7s): 
+
+Aktueller Analysemodus aus Codebook: {default_mode}
+Sie haben 10 Sekunden Zeit fuer die Eingabe.
+Optionen:
+1 = inductive (volle induktive Analyse)
+2 = abductive (nur Subkategorien entwickeln)
+3 = deductive (nur deduktiv)
+4 = grounded (Subkategorien sammeln, spaeter Hauptkategorien generieren)
+
+Welchen Analysemodus moechten Sie verwenden? [1/2/3/4] (Standard: abductive) (10s): 
+Welchen Analysemodus moechten Sie verwenden? [1/2/3/4] (Standard: abductive) (9s): 
+Welchen Analysemodus moechten Sie verwenden? [1/2/3/4] (Standard: abductive) (8s): 
+
+Analysemodus: deductive (Skip induktiv)
+
+4. Konfiguriere Kodierer...
+🧾 Kodierer auto_1: 8 deduktive Kategorien geladen (deductive mode)
+Initialisiere LLM Provider: openai
+OpenAI Client erfolgreich initialisiert
+🤖 LLM Provider 'openai' fuer Kodierer auto_1 initialisiert
+🧾 Kodierer auto_2: 8 deduktive Kategorien geladen (deductive mode)
+Initialisiere LLM Provider: openai
+OpenAI Client erfolgreich initialisiert
+🤖 LLM Provider 'openai' fuer Kodierer auto_2 initialisiert
+
+Konfiguriere manuelle Kodierung...
+Sie haben 10 Sekunden Zeit fuer die Eingabe.
+Druecken Sie 'j' fuer manuelle Kodierung oder 'n' zum Überspringen.
+
+MÖchten Sie manuell kodieren? (j/N) (10s): 
+MÖchten Sie manuell kodieren? (j/N) (9s): 
+MÖchten Sie manuell kodieren? (j/N) (8s): 
+
+[INFO] Keine manuelle Kodierung - nur automatische Kodierung wird durchgefÜhrt
+
+5. Bereite Material vor...
+
+Chunking Ergebnis:
+- Anzahl Chunks: 1
+- Durchschnittliche Chunk-Länge: 441 Zeichen
+- dummy_solar_media.txt: 1 Chunks erstellt
+
+Chunking Ergebnis:
+- Anzahl Chunks: 5
+- Durchschnittliche Chunk-Länge: 831 Zeichen
+- text_demo_wiss.pdf: 5 Chunks erstellt
+
+Chunking Ergebnis:
+- Anzahl Chunks: 5
+- Durchschnittliche Chunk-Länge: 867 Zeichen
+- trial_case_iv_2.pdf: 5 Chunks erstellt
+
+7. Starte integrierte Analyse...
+
+Kodierungsmodus: Mit progressivem Kontext
+Initialisiere LLM Provider: openai
+OpenAI Client erfolgreich initialisiert
+
+RelevanceChecker initialisiert:
+- 0 Ausschlussregeln geladen
+
+RelevanceChecker initialisiert:
+- 0 Ausschlussregeln geladen
+- Mehrfachkodierung: Aktiviert
+- Mehrfachkodierung-Schwellenwert: 0.85
+Initialisiere LLM Provider: openai
+OpenAI Client erfolgreich initialisiert
+
+ðŸ”¬ Induktive Kodierung initialisiert:
+- Min. Batches vor SÄttigung: 5
+- Min. Materialabdeckung: 80%
+- StabilitÄtsschwelle: 3 Batches
+🧾 Kodierer auto_1: 8 deduktive Kategorien geladen (deductive mode)
+Initialisiere LLM Provider: openai
+OpenAI Client erfolgreich initialisiert
+🤖 LLM Provider 'openai' fuer Kodierer auto_1 initialisiert
+🧾 Kodierer auto_2: 8 deduktive Kategorien geladen (deductive mode)
+Initialisiere LLM Provider: openai
+OpenAI Client erfolgreich initialisiert
+🤖 LLM Provider 'openai' fuer Kodierer auto_2 initialisiert
+
+Kontextuelle Kodierung: Aktiviert
+
+ðŸ”¬ IntegratedAnalysisManager initialisiert:
+   - Analysemodus: deductive
+[OK] Session-Statistiken zurueckgesetzt
+
+[TIP] Tipp: Druecken Sie ESC um die Kodierung sicher zu unterbrechen und Zwischenergebnisse zu speichern
+
+Analyse gestartet um 19:15:15
+Verarbeite 11 Segmente mit Batch-GrÖẞe 5...
+Verarbeite 11 Segmente mit Batch-GrÖẞe 5...
+
+============================================================
+🧾 BATCH 1: 5 Segmente
+ℹ️ Material verarbeitet: 0.0%
+============================================================
+
+🕵️ Schritt 1: Erweiterte RelevanzprÜfung fuer Forschungsfrage...
+[REVIEW] Erweiterte Relevanzpruefung mit Kategorie-Vorauswahl fuer 5 Segmente...
+
+--- Analysefortschritt ---
+Verarbeitet: 0 Segmente
+Geschwindigkeit: 0.0 Segmente/Stunde
+------------------------
+[OK] Model gpt-5-nano unterstützt temperature-Parameter NICHT. Retry ohne...
+
+--- Analysefortschritt ---
+Verarbeitet: 0 Segmente
+Geschwindigkeit: 0.0 Segmente/Stunde
+------------------------
+[OK] Erweiterte Relevanzpruefung abgeschlossen: 5 relevante Segmente
+🧾 Erweiterte Relevanz: 5 von 5 Segmenten relevant
+🎯 Kategorie-PrÄferenzen: {'Akteure': 5, 'Kontextfaktoren': 4, 'Outcomes': 1, 'Legitimation': 3, 'Prozesse': 1, 'Strategien': 1}
+
+📝 NÄchster Schritt: Deduktive Kodierung aller 5 Segmente...
+🎯 Kontext-Kodierung: 5 Segmente haben Kategorie-PrÄferenzen
+🎯 HÄufigste PrÄferenzen: {'Akteure': 5, 'Kontextfaktoren': 4, 'Legitimation': 3}
+[SEARCH] Relevanzpruefung: 5 neue Segmente
+   📦 Verwende normale Batch-Methode für 5 Segmente
+
+--- Analysefortschritt ---
+Verarbeitet: 5 Segmente
+Geschwindigkeit: 299.9 Segmente/Stunde
+------------------------
+[WARN] Unbekanntes Modell 'gpt-5-nano' - verwende GPT-4o-mini Preise als Fallback
+   [STATS] Relevanz-Ergebnisse: 5/5 als relevant eingestuft
+  ℹ️ PrÜfe 5 relevante Segmente auf Mehrfachkodierung...
+[LAUNCH] Parallele Mehrfachkodierungs-Pruefung: 5 Segmente
+[WARN] Fehler bei Mehrfachkodierungs-Pruefung dummy_solar_media.txt_chunk_0: invalid literal for int() with base 10: '0.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.8
+[WARN] Fehler bei Mehrfachkodierungs-Pruefung text_demo_wiss.pdf_chunk_0: invalid literal for int() with base 10: '0.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.8
+[WARN] Fehler bei Mehrfachkodierungs-Pruefung text_demo_wiss.pdf_chunk_1: invalid literal for int() with base 10: '0.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.8
+[WARN] Fehler bei Mehrfachkodierungs-Pruefung text_demo_wiss.pdf_chunk_2: invalid literal for int() with base 10: '0.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.8
+[WARN] Fehler bei Mehrfachkodierungs-Pruefung text_demo_wiss.pdf_chunk_3: invalid literal for int() with base 10: '0.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.8
+⚡ 5 Mehrfachkodierungs-Prüfungen in 0.00s
+🔄 0 Segmente mit Mehrfachkodierung identifiziert
+
+🕵️ Verarbeite Segment dummy_solar_media.txt_chunk_0 mit Kontext ([TARGET] Fokus auf 3 Kategorien: Akteure, Kontextfaktoren, Outcomes)
+
+Deduktiver Kodierer 🤖 **auto_1** verarbeitet Chunk mit progressivem Kontext...
+Dokumentfortschritt: ca. 0.0%
+Summary-Reifephase: PHASE 1 (Sammlung), max. Änderung: 50%
+
+--- Analysefortschritt ---
+Verarbeitet: 5 Segmente
+Geschwindigkeit: 200.0 Segmente/Stunde
+------------------------
+[WARN] Unbekanntes Modell 'gpt-5-nano' - verwende GPT-4o-mini Preise als Fallback
+
+ðŸ—’ï¸  Paraphrase: In Deutschland boomt die Solarbranche dank massiver Förderungen; Enpal, ein junges Berliner Unternehmen, hat sich zum Marktführer entwickelt. Es wird untersucht, welche Eigenschaften Enpal für deutsche Hausbesitzer attraktiv machen.
+  ✅ Kodierung von auto_1: 📝  Akteure
+  ✅ Subkategorien von auto_1: 📝  Kollektive_Akteure
+  ✅ Keywords von auto_1: 📝  Enpal; Förderungen; Hausbesitzer
+
+🔀 Summary fuer dummy_solar_media.txt aktualisiert (33 WÖrter):
+Solarbranche in Deutschland boomt dank Förderungen; Enpal, ein junges Berliner Unternehmen, führt den Markt. Der Text fragt, welche Eigenschaften Enpal für deutsche Hausbesitzer attraktiv machen, und verweist auf den anhaltenden Boom als Setting....
+ℹ️ Summary aktualisiert: 33 WÖrter
+  ✅ Kodierer auto_1: Akteure [TARGET]
+
+Deduktiver Kodierer 🤖 **auto_2** verarbeitet Chunk mit progressivem Kontext...
+Dokumentfortschritt: ca. 0.0%
+Summary-Reifephase: PHASE 1 (Sammlung), max. Änderung: 50%
+
+--- Analysefortschritt ---
+Verarbeitet: 5 Segmente
+Geschwindigkeit: 150.0 Segmente/Stunde
+------------------------
+
+--- Analysefortschritt ---
+Verarbeitet: 5 Segmente
+Geschwindigkeit: 120.0 Segmente/Stunde
+------------------------
+[WARN] Unbekanntes Modell 'gpt-5-nano' - verwende GPT-4o-mini Preise als Fallback
+
+ðŸ—’ï¸  Paraphrase: Enpal ist ein junges Berliner Solarunternehmen und Marktführer; es appealiert deutsche Hausbesitzer; der Solarboom wird durch Förderungen befeuert.
+  ✅ Kodierung von auto_2: 📝  Akteure
+  ✅ Subkategorien von auto_2: 📝  Kollektive_Akteure
+  ✅ Keywords von auto_2: 📝  Enpal, Solarförderungen, Hausbesitzer
+
+🔀 Summary fuer dummy_solar_media.txt aktualisiert (25 WÖrter):
+AKTEURE: Enpal als junges Berliner Unternehmen; Marktführer; Zielgruppe: deutsche Hausbesitzer. KONtextfaktoren: Massive Förderungen treiben den Solarboom; strukturelle Rahmenbedingungen. OUTCOMES: Enpals Attraktivität für Hausbesitzer; Marktposition gestärkt....
+  ✅ Kodierer auto_2: Akteure [TARGET]
+
+🕵️ Verarbeite Segment text_demo_wiss.pdf_chunk_0 mit Kontext ([TARGET] Fokus auf 3 Kategorien: Akteure, Kontextfaktoren, Legitimation)
+
+Deduktiver Kodierer 🤖 **auto_1** verarbeitet Chunk mit progressivem Kontext...
+Dokumentfortschritt: ca. 0.0%
+Summary-Reifephase: PHASE 1 (Sammlung), max. Änderung: 50%
+
+--- Analysefortschritt ---
+Verarbeitet: 5 Segmente
+Geschwindigkeit: 100.0 Segmente/Stunde
+------------------------
+
+--- Analysefortschritt ---
+Verarbeitet: 5 Segmente
+Geschwindigkeit: 85.7 Segmente/Stunde
+------------------------
+[WARN] Unbekanntes Modell 'gpt-5-nano' - verwende GPT-4o-mini Preise als Fallback
+
+ðŸ—’ï¸  Paraphrase: Deutschland betrachtet Bildung als öffentliches Gut und kostenfrei; der Staat und die Länder tragen Verantwortung für öffentliche Hochschulen; daneben existiert ein privater Hochschulsektor, der Genehmigungen und Anerkennung durch den Staat benötigt.
+  ✅ Kodierung von auto_1: 📝  Akteure
+  ✅ Subkategorien von auto_1: 📝  Beziehungen
+  ✅ Keywords von auto_1: 📝  öffentliches Gut; öffentliche Hochschulen; Privatsektor
+
+🔀 Summary fuer text_demo_wiss.pdf aktualisiert (43 WÖrter):
+Deutschland besitzt ein staatlich finanziertes, überwiegend binäres Hochschulsystem: Öffentliche Hochschulen sind kostenfrei; 16 Länder tragen Verantwortung für öffentliche Einrichtungen. Ein privater Hochschulsektor existiert, der durch Genehmigung und staatliche Anerkennung reguliert wird. Das Segment betont somit das Zusammenspiel von Staat, Ländern und privaten Hochschulen....
+ℹ️ Summary aktualisiert: 43 WÖrter
+  ✅ Kodierer auto_1: Akteure [TARGET]
+
+Deduktiver Kodierer 🤖 **auto_2** verarbeitet Chunk mit progressivem Kontext...
+Dokumentfortschritt: ca. 0.0%
+Summary-Reifephase: PHASE 1 (Sammlung), max. Änderung: 50%
+
+--- Analysefortschritt ---
+Verarbeitet: 5 Segmente
+Geschwindigkeit: 75.0 Segmente/Stunde
+------------------------
+
+--- Analysefortschritt ---
+Verarbeitet: 5 Segmente
+Geschwindigkeit: 66.7 Segmente/Stunde
+------------------------
+[WARN] Unbekanntes Modell 'gpt-5-nano' - verwende GPT-4o-mini Preise als Fallback
+
+ðŸ—’ï¸  Paraphrase: Deutschland hat ein überwiegend öffentliches Hochschulsystem mit kostenfreier Bildung, das dezentralisiert ist. Es gibt zwei zentrale Hochschultyper, daneben existiert ein privater Sektor, der staatliche Genehmigungen und Anerkennung benötigt.
+  ✅ Kodierung von auto_2: 📝  Kontextfaktoren
+  ✅ Subkategorien von auto_2: 📝  Strukturell
+  ✅ Keywords von auto_2: 📝  Private Hochschulen; öffentliche Hochschulbildung; staatliche Genehmigungen/Anerkennung
+
+🔀 Summary fuer text_demo_wiss.pdf aktualisiert (45 WÖrter):
+Deutschland besitzt ein überwiegend öffentlich finanziertes, kostenfreies Hochschulsystem mit dezentraler staatlicher Verantwortung (16 Länder) und einem dominanten Dualsystem aus Universitäten und Hochschulen für angewandte Wissenschaften. Daneben existiert ein privater Hochschulsektor, der Gründungsgenehmigungen und Abschlussanerkennungen durch den Staat benötigt, während Hochschulbildung als öffentliches Gut betrachtet wird....
+  ✅ Kodierer auto_2: Kontextfaktoren [TARGET]
+
+🕵️ Verarbeite Segment text_demo_wiss.pdf_chunk_1 mit Kontext ([TARGET] Fokus auf 3 Kategorien: Akteure, Prozesse, Legitimation)
+
+Deduktiver Kodierer 🤖 **auto_1** verarbeitet Chunk mit progressivem Kontext...
+Dokumentfortschritt: ca. 5.0%
+Summary-Reifephase: PHASE 1 (Sammlung), max. Änderung: 50%
+
+--- Analysefortschritt ---
+Verarbeitet: 5 Segmente
+Geschwindigkeit: 60.0 Segmente/Stunde
+------------------------
+[WARN] Unbekanntes Modell 'gpt-5-nano' - verwende GPT-4o-mini Preise als Fallback
+Summary Änderung: 92.3% (Ziel: max. 50%)
+
+ðŸ—’ï¸  Paraphrase: Private Hochschulen benötigen staatliche Anerkennung durch institutionelle Akkreditierung (Science Council) sowie Programmakkreditierung; der Sektor wird von Nicht-Staatlichen Akteuren dominiert, private Anbieter gelten oft als klein/unausgereift, weshalb öffentliche Debatten gering sind; Sperlich benennt sechs Akteursgruppen.
+  ✅ Kodierung von auto_1: 📝  Akteure
+  ✅ Subkategorien von auto_1: 📝  Kollektive_Akteure
+  ✅ Keywords von auto_1: 📝  Akkreditierung; staatliche Anerkennung; Nichtstaatliche Akteure
+
+🔀 Summary fuer text_demo_wiss.pdf aktualisiert (50 WÖrter):
+Kategorie1: Akteure – Nichtstaatliche Akteure dominieren den privaten HE-Sektor; Sperlich identifiziert sechs Akteursgruppen. Kategorie2: Prozesse/Legitimation – Private Hochschulen benötigen institutionelle Akkreditierung (Science Council) und Programmakkreditierung. Kategorie3: Sektorlogik – Private Einrichtungen gelten als klein, spezialisiert, oft unbedeutend für öffentliche Debatten. Kategorie4: Kontext – Regulierung durch Staat/Länder; Wechselwirkungen prägen Privathochschulen in Deutschland....
+ℹ️ Summary aktualisiert: 50 WÖrter
+  ✅ Kodierer auto_1: Akteure [TARGET]
+
+Deduktiver Kodierer 🤖 **auto_2** verarbeitet Chunk mit progressivem Kontext...
+Dokumentfortschritt: ca. 5.0%
+Summary-Reifephase: PHASE 1 (Sammlung), max. Änderung: 50%
+
+--- Analysefortschritt ---
+Verarbeitet: 5 Segmente
+Geschwindigkeit: 54.5 Segmente/Stunde
+------------------------
+
+--- Analysefortschritt ---
+Verarbeitet: 5 Segmente
+Geschwindigkeit: 50.0 Segmente/Stunde
+------------------------
+[WARN] Unbekanntes Modell 'gpt-5-nano' - verwende GPT-4o-mini Preise als Fallback
+Summary Änderung: 88.0% (Ziel: max. 50%)
+
+ðŸ—’ï¸  Paraphrase: Private Hochschulen benötigen staatliche Akkreditierung (Institutional) und Studiengangakkreditierung, um Anerkennung zu erhalten; der Sektor wird von Nicht-Staatlichen Akteuren getragen, darunter private Einzelpersonen, Unternehmen, Stiftungen, Verbände, Kirchen und Städte.
+  ✅ Kodierung von auto_2: 📝  Akteure
+  ✅ Subkategorien von auto_2: 📝  Kollektive_Akteure
+  ✅ Keywords von auto_2: 📝  Akkreditierung; private Hochschulen; Nicht-Staatliche Akteure
+
+🔀 Summary fuer text_demo_wiss.pdf aktualisiert (45 WÖrter):
+Private Hochschulen in Deutschland benötigen institutionelle Akkreditierung durch den Wissenschaftsrat und Studiengangakkreditierung, um staatliche Anerkennung zu erhalten. Der Sektor wird maßgeblich von Nicht-Staatlichen Akteuren getragen (private Personen, Unternehmen, Stiftungen, Verbände, Kirchen, Städte); er gilt häufig als klein, spezialisiert oder mittelmäßig, während öffentliche Debatten zurückhaltend bleiben....
+  ✅ Kodierer auto_2: Akteure [TARGET]
+
+🕵️ Verarbeite Segment text_demo_wiss.pdf_chunk_2 mit Kontext ([TARGET] Fokus auf 3 Kategorien: Akteure, Kontextfaktoren, Legitimation)
+
+Deduktiver Kodierer 🤖 **auto_1** verarbeitet Chunk mit progressivem Kontext...
+Dokumentfortschritt: ca. 10.0%
+Summary-Reifephase: PHASE 1 (Sammlung), max. Änderung: 50%
+
+--- Analysefortschritt ---
+Verarbeitet: 5 Segmente
+Geschwindigkeit: 46.1 Segmente/Stunde
+------------------------
+
+--- Analysefortschritt ---
+Verarbeitet: 5 Segmente
+Geschwindigkeit: 42.9 Segmente/Stunde
+------------------------
+[WARN] Unbekanntes Modell 'gpt-5-nano' - verwende GPT-4o-mini Preise als Fallback
+Summary Änderung: 93.8% (Ziel: max. 50%)
+
+ðŸ—’ï¸  Paraphrase: Private Hochschulen entstehen durch verschiedene Akteure (Städte, Individuen) aus drei Strukturgründen: Knappheit öffentlicher Studienplätze, Überlastung der Kapazitäten und veränderte Sicht auf Bildung als öffentliches Gut; zudem Motive wie Branchenbedarf, Prestigegewinn und Einfluss auf Politik.
+  ✅ Kodierung von auto_1: 📝  Akteure
+  ✅ Subkategorien von auto_1: 📝  Kollektive_Akteure
+  ✅ Keywords von auto_1: 📝  ['Akteure', 'Strukturfaktoren', 'Motive']
+
+🔀 Summary fuer text_demo_wiss.pdf aktualisiert (23 WÖrter):
+Kategorie1: Akteure: Städte und Individuen gründen/private Hochschulen; Kategorie2: Kontextfaktoren: Knappheit öffentlicher Studienplätze; Kapazitätsüberschreitungen; verändertes Bildungsgut-Bild; Kategorie3: Motive/Legitimation: Branchenspezifische Qualifikationen; Image; Einfluss auf Politik....
+ℹ️ Summary aktualisiert: 23 WÖrter
+  ✅ Kodierer auto_1: Akteure [TARGET]
+
+Deduktiver Kodierer 🤖 **auto_2** verarbeitet Chunk mit progressivem Kontext...
+Dokumentfortschritt: ca. 10.0%
+Summary-Reifephase: PHASE 1 (Sammlung), max. Änderung: 50%
+
+--- Analysefortschritt ---
+Verarbeitet: 5 Segmente
+Geschwindigkeit: 40.0 Segmente/Stunde
+------------------------
+
+--- Analysefortschritt ---
+Verarbeitet: 5 Segmente
+Geschwindigkeit: 37.5 Segmente/Stunde
+------------------------
+[WARN] Unbekanntes Modell 'gpt-5-nano' - verwende GPT-4o-mini Preise als Fallback
+Summary Änderung: 81.2% (Ziel: max. 50%)
+
+ðŸ—’ï¸  Paraphrase: Private Hochschulen werden von Akteuren gegründet und betrieben. Drei kontextuelle Faktoren beeinflussen Gründungen: Knappheit öffentlicher Studienplätze, Kapazitätsüberlastung, veränderte Auffassung von Bildung als öffentliches Gut; zudem vier Motive für Gründungen: branchenspezifische Qualifikationen, Image/Prestige und Einflussmöglichkeiten.
+  ✅ Kodierung von auto_2: 📝  Akteure
+  ✅ Subkategorien von auto_2: 📝  Kollektive_Akteure
+  ✅ Keywords von auto_2: 📝  Akteure; Kontextfaktoren; Gründungsmotive
+
+🔀 Summary fuer text_demo_wiss.pdf aktualisiert (32 WÖrter):
+Kategorie1: Akteure: Gründung/Betreibung privater HEIs durch Städte und Individuen. Kategorie2: Kontextfaktoren: öffentliche Knappheit, Kapazitätsüberlastung, verändertes Bildungsverständnis. Kategorie3: Motive/Legitimation: Branchenspezifische Qualifikationen, Image/Prestige, Einflussmöglichkeiten. Kategorie4: Regulierung und Kontext: Staat/Länder-Regulierung; Nichtstaatliche Akteure dominieren den Sektor....
+  ✅ Kodierer auto_2: Akteure [TARGET]
+
+🕵️ Verarbeite Segment text_demo_wiss.pdf_chunk_3 mit Kontext ([TARGET] Fokus auf 3 Kategorien: Akteure, Kontextfaktoren, Strategien)
+
+Deduktiver Kodierer 🤖 **auto_1** verarbeitet Chunk mit progressivem Kontext...
+Dokumentfortschritt: ca. 15.0%
+Summary-Reifephase: PHASE 1 (Sammlung), max. Änderung: 50%
+
+--- Analysefortschritt ---
+Verarbeitet: 5 Segmente
+Geschwindigkeit: 35.3 Segmente/Stunde
+------------------------
+[WARN] Unbekanntes Modell 'gpt-5-nano' - verwende GPT-4o-mini Preise als Fallback
+Summary Änderung: 97.1% (Ziel: max. 50%)
+
+ðŸ—’ï¸  Paraphrase: Private Hochschulen in Deutschland verfolgen wirtschaftliche Motive (Gewinn, Steuervorteile, Portfolio-Ergänzung) und werden als Modelle gesehen, das öffentliche Hochschulsystem zu reformieren. Sie betonen mehr Freiheit und weniger Bürokratie, während Größe des Sektors und Debatten über den privaten Sektor fokussiert werden.
+  ✅ Kodierung von auto_1: 📝  Kontextfaktoren
+  ✅ Subkategorien von auto_1: 📝  Strukturell
+  ✅ Keywords von auto_1: 📝  Private Hochschulen; Profit/Steuern; Bürokratie; Reformen; Profilbildung
+
+🔀 Summary fuer text_demo_wiss.pdf aktualisiert (53 WÖrter):
+Private Hochschulen in Deutschland ergeben sich aus wirtschaftlichen Motiven (Gewinn, Steuern, Portfolio) und werden als Modelle gesehen, das öffentliche Hochschulsystem zu reformieren. Sie betonen größere gestalterische Freiheit und geringere Bürokratie. Der Text verweist auf Größenvergleiche mit dem öffentlichen Sektor sowie Gründungsmotive und öffentliche Debatten, und fokussiert damit auf Kontextfaktoren und deren strukturelle Auswirkungen....
+ℹ️ Summary aktualisiert: 53 WÖrter
+  ✅ Kodierer auto_1: Kontextfaktoren [TARGET]
+
+Deduktiver Kodierer 🤖 **auto_2** verarbeitet Chunk mit progressivem Kontext...
+Dokumentfortschritt: ca. 15.0%
+Summary-Reifephase: PHASE 1 (Sammlung), max. Änderung: 50%
+
+--- Analysefortschritt ---
+Verarbeitet: 5 Segmente
+Geschwindigkeit: 33.3 Segmente/Stunde
+------------------------
+
+Analyse wurde abgebrochen.
+============================================================
+=== QCA-AID Console Log beendet: 2025-11-17 19:24:15 ===

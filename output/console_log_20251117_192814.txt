@@ -1,0 +1,652 @@
+=== QCA-AID Console Log gestartet: 2025-11-17 19:28:14 ===
+Log-Datei: C:\Users\justu\OneDrive\Projekte\Forschung\R-Projects\QCA-AID\output\console_log_20251117_192814.txt
+============================================================
+=== Qualitative Inhaltsanalyse nach Mayring ===
+Versuche Konfiguration zu laden von: C:\Users\justu\OneDrive\Projekte\Forschung\R-Projects\QCA-AID\QCA-AID-Codebook.xlsx
+
+Öffne Excel-Datei...
+
+⚠️ Datei ist bereits geöffnet (z.B. in Excel).
+Versuche alternative Lademethode...
+
+[ERROR] Auch alternative Lademethode fehlgeschlagen: [Errno 13] Permission denied: 'C:\\Users\\justu\\OneDrive\\Projekte\\Forschung\\R-Projects\\QCA-AID\\QCA-AID-Codebook.xlsx'
+
+Lösung: Schließen Sie die Excel-Datei und versuchen Sie erneut,
+oder deaktivieren Sie das automatische Speichern in OneDrive.
+Verwende Standard-Konfiguration
+No existing revision history found - starting fresh
+
+2. Lese Dokumente ein...
+
+DocumentReader initialisiert:
+Verzeichnis: C:\Users\justu\OneDrive\Projekte\Forschung\R-Projects\QCA-AID\input
+Unterstützte Formate: .docx, .txt, .pdf
+
+Dateianalyse:
+
+Gefundene Dateien:
+[ERROR] .input-dir
+[OK] dummy_solar_media.txt
+[OK] text_demo_wiss.pdf
+[OK] trial_case_iv_2.pdf
+
+Verarbeite Dateien:
+
+Lese: dummy_solar_media.txt
+[OK] Erfolgreich eingelesen: 441 Zeichen
+
+Lese: text_demo_wiss.pdf
+
+Lese PDF: text_demo_wiss.pdf
+  Gefundene Seiten: 1
+  Seite 1/1: 4126 Zeichen extrahiert
+
+Ergebnis:
+  [OK] 1 Textabschnitte extrahiert
+  [OK] Gesamtlänge: 4126 Zeichen
+[OK] Erfolgreich eingelesen: 4126 Zeichen
+
+Lese: trial_case_iv_2.pdf
+
+Lese PDF: trial_case_iv_2.pdf
+  Gefundene Seiten: 1
+  Seite 1/1: 4320 Zeichen extrahiert
+
+Ergebnis:
+  [OK] 1 Textabschnitte extrahiert
+  [OK] Gesamtlänge: 4320 Zeichen
+[OK] Erfolgreich eingelesen: 4320 Zeichen
+
+Verarbeitungsstatistik:
+- Dateien im Verzeichnis: 4
+- Unterstützte Dateien: 3
+- Erfolgreich eingelesen: 3
+
+3. Induktive Kodierung konfigurieren...
+
+Gespeichertes induktives Codebook gefunden.
+Automatische FortfÜhrung in 10 Sekunden...
+
+MÖchten Sie das gespeicherte erweiterte Kodesystem laden? (j/N) (10s): 
+MÖchten Sie das gespeicherte erweiterte Kodesystem laden? (j/N) (9s): 
+MÖchten Sie das gespeicherte erweiterte Kodesystem laden? (j/N) (8s): 
+MÖchten Sie das gespeicherte erweiterte Kodesystem laden? (j/N) (7s): 
+MÖchten Sie das gespeicherte erweiterte Kodesystem laden? (j/N) (6s): 
+MÖchten Sie das gespeicherte erweiterte Kodesystem laden? (j/N) (5s): 
+MÖchten Sie das gespeicherte erweiterte Kodesystem laden? (j/N) (4s): 
+MÖchten Sie das gespeicherte erweiterte Kodesystem laden? (j/N) (3s): 
+MÖchten Sie das gespeicherte erweiterte Kodesystem laden? (j/N) (2s): 
+MÖchten Sie das gespeicherte erweiterte Kodesystem laden? (j/N) (1s): 
+Keine Eingabe innerhalb von 10 Sekunden - verwende 'n'
+
+Aktueller Analysemodus aus Codebook: {default_mode}
+Sie haben 10 Sekunden Zeit fuer die Eingabe.
+Optionen:
+1 = inductive (volle induktive Analyse)
+2 = abductive (nur Subkategorien entwickeln)
+3 = deductive (nur deduktiv)
+4 = grounded (Subkategorien sammeln, spaeter Hauptkategorien generieren)
+
+Welchen Analysemodus moechten Sie verwenden? [1/2/3/4] (Standard: deductive) (10s): 
+Welchen Analysemodus moechten Sie verwenden? [1/2/3/4] (Standard: deductive) (9s): 
+Welchen Analysemodus moechten Sie verwenden? [1/2/3/4] (Standard: deductive) (8s): 
+Welchen Analysemodus moechten Sie verwenden? [1/2/3/4] (Standard: deductive) (7s): 
+Welchen Analysemodus moechten Sie verwenden? [1/2/3/4] (Standard: deductive) (6s): 
+Welchen Analysemodus moechten Sie verwenden? [1/2/3/4] (Standard: deductive) (5s): 
+Welchen Analysemodus moechten Sie verwenden? [1/2/3/4] (Standard: deductive) (4s): 
+Welchen Analysemodus moechten Sie verwenden? [1/2/3/4] (Standard: deductive) (3s): 
+Welchen Analysemodus moechten Sie verwenden? [1/2/3/4] (Standard: deductive) (2s): 
+Welchen Analysemodus moechten Sie verwenden? [1/2/3/4] (Standard: deductive) (1s): 
+Keine Eingabe innerhalb von 10 Sekunden - verwende 'n'
+
+Ungueltiger Modus 'n'. Verwende Default-Modus 'deductive'.
+
+Analysemodus: deductive (Skip induktiv)
+
+4. Konfiguriere Kodierer...
+🧾 Kodierer auto_1: 8 deduktive Kategorien geladen (deductive mode)
+Initialisiere LLM Provider: openai
+OpenAI Client erfolgreich initialisiert
+🤖 LLM Provider 'openai' fuer Kodierer auto_1 initialisiert
+🧾 Kodierer auto_2: 8 deduktive Kategorien geladen (deductive mode)
+Initialisiere LLM Provider: openai
+OpenAI Client erfolgreich initialisiert
+🤖 LLM Provider 'openai' fuer Kodierer auto_2 initialisiert
+
+Konfiguriere manuelle Kodierung...
+Sie haben 10 Sekunden Zeit fuer die Eingabe.
+Druecken Sie 'j' fuer manuelle Kodierung oder 'n' zum Überspringen.
+
+MÖchten Sie manuell kodieren? (j/N) (10s): 
+MÖchten Sie manuell kodieren? (j/N) (9s): 
+MÖchten Sie manuell kodieren? (j/N) (8s): 
+MÖchten Sie manuell kodieren? (j/N) (7s): 
+MÖchten Sie manuell kodieren? (j/N) (6s): 
+MÖchten Sie manuell kodieren? (j/N) (5s): 
+
+[INFO] Keine manuelle Kodierung - nur automatische Kodierung wird durchgefÜhrt
+
+5. Bereite Material vor...
+
+Chunking Ergebnis:
+- Anzahl Chunks: 1
+- Durchschnittliche Chunk-Länge: 441 Zeichen
+- dummy_solar_media.txt: 1 Chunks erstellt
+
+Chunking Ergebnis:
+- Anzahl Chunks: 4
+- Durchschnittliche Chunk-Länge: 1029 Zeichen
+- text_demo_wiss.pdf: 4 Chunks erstellt
+
+Chunking Ergebnis:
+- Anzahl Chunks: 4
+- Durchschnittliche Chunk-Länge: 1080 Zeichen
+- trial_case_iv_2.pdf: 4 Chunks erstellt
+
+7. Starte integrierte Analyse...
+
+Kodierungsmodus: Ohne Kontext
+Initialisiere LLM Provider: openai
+OpenAI Client erfolgreich initialisiert
+
+RelevanceChecker initialisiert:
+- 0 Ausschlussregeln geladen
+
+RelevanceChecker initialisiert:
+- 0 Ausschlussregeln geladen
+- Mehrfachkodierung: Aktiviert
+- Mehrfachkodierung-Schwellenwert: 0.85
+Initialisiere LLM Provider: openai
+OpenAI Client erfolgreich initialisiert
+
+ðŸ”¬ Induktive Kodierung initialisiert:
+- Min. Batches vor SÄttigung: 5
+- Min. Materialabdeckung: 80%
+- StabilitÄtsschwelle: 3 Batches
+🧾 Kodierer auto_1: 8 deduktive Kategorien geladen (deductive mode)
+Initialisiere LLM Provider: openai
+OpenAI Client erfolgreich initialisiert
+🤖 LLM Provider 'openai' fuer Kodierer auto_1 initialisiert
+🧾 Kodierer auto_2: 8 deduktive Kategorien geladen (deductive mode)
+Initialisiere LLM Provider: openai
+OpenAI Client erfolgreich initialisiert
+🤖 LLM Provider 'openai' fuer Kodierer auto_2 initialisiert
+
+Kontextuelle Kodierung: Deaktiviert
+
+ðŸ”¬ IntegratedAnalysisManager initialisiert:
+   - Analysemodus: deductive
+[OK] Session-Statistiken zurueckgesetzt
+
+[TIP] Tipp: Druecken Sie ESC um die Kodierung sicher zu unterbrechen und Zwischenergebnisse zu speichern
+
+Analyse gestartet um 19:28:42
+Verarbeite 9 Segmente mit Batch-GrÖẞe 8...
+Verarbeite 9 Segmente mit Batch-GrÖẞe 8...
+
+============================================================
+🧾 BATCH 1: 8 Segmente
+ℹ️ Material verarbeitet: 0.0%
+============================================================
+
+🕵️ Schritt 1: Erweiterte RelevanzprÜfung fuer Forschungsfrage...
+[REVIEW] Erweiterte Relevanzpruefung mit Kategorie-Vorauswahl fuer 8 Segmente...
+
+--- Analysefortschritt ---
+Verarbeitet: 0 Segmente
+Geschwindigkeit: 0.0 Segmente/Stunde
+------------------------
+[OK] Model gpt-4o-mini unterstützt temperature-Parameter
+[OK] Erweiterte Relevanzpruefung abgeschlossen: 8 relevante Segmente
+🧾 Erweiterte Relevanz: 8 von 8 Segmenten relevant
+🎯 Kategorie-PrÄferenzen: {'Akteure': 2, 'Outcomes': 2, 'Kontextfaktoren': 1, 'Herausforderungen': 4, 'Prozesse': 2}
+
+📝 NÄchster Schritt: Deduktive Kodierung aller 8 Segmente...
+
+[LAUNCH] PARALLEL-KODIERUNG: 8 Segmente gleichzeitig
+🎯 8 Segmente haben Kategorie-PrÄferenzen
+🎯 HÄufigste PrÄferenzen: {'Herausforderungen': 4, 'Akteure': 2, 'Outcomes': 2}
+
+🕵️ PrÜfe Kodierungs-Relevanz...
+[SEARCH] Relevanzpruefung: 8 neue Segmente
+   [LAUNCH] Verwende Parallelisierung in Sub-Batches fuer 8 Segmente
+
+--- Analysefortschritt ---
+Verarbeitet: 8 Segmente
+Geschwindigkeit: 959.5 Segmente/Stunde
+------------------------
+   ⚡ 3 Sub-Batches in 9.95s verarbeitet
+   [STATS] Relevanz-Ergebnisse: 6/8 als relevant eingestuft
+
+🕵️ Kodierungs-RelevanzprÜfung Ergebnisse:
+   - Segmente geprÜft: 8
+   - Als kodierungsrelevant eingestuft: 6
+   - Als nicht kodierungsrelevant eingestuft: 2
+  ℹ️ PrÜfe 6 kodierungsrelevante Segmente auf Mehrfachkodierung...
+[LAUNCH] Parallele Mehrfachkodierungs-Pruefung: 6 Segmente
+  [LOOP] Mehrfachkodierung: dummy_solar_media.txt_chunk_0
+    - Akteure: 0.90
+    - Kontextfaktoren: 0.85
+  [LOOP] Mehrfachkodierung: text_demo_wiss.pdf_chunk_2
+    - Akteure: 0.85
+    - Kontextfaktoren: 0.90
+    - Prozesse: 0.85
+  [LOOP] Mehrfachkodierung: text_demo_wiss.pdf_chunk_3
+    - Akteure: 0.85
+    - Kontextfaktoren: 0.85
+    - Outcomes: 0.85
+  [LOOP] Mehrfachkodierung: trial_case_iv_2.pdf_chunk_0
+    - Kontextfaktoren: 0.90
+    - Ressourcen: 0.85
+    - Herausforderungen: 0.85
+  [LOOP] Mehrfachkodierung: trial_case_iv_2.pdf_chunk_1
+    - Akteure: 0.85
+    - Prozesse: 0.85
+    - Ressourcen: 0.85
+  [LOOP] Mehrfachkodierung: trial_case_iv_2.pdf_chunk_2
+    - Akteure: 0.85
+    - Ressourcen: 0.85
+    - Herausforderungen: 0.85
+    - Strategien: 0.85
+⚡ 6 Mehrfachkodierungs-Prüfungen in 11.86s
+🔄 6 Segmente mit Mehrfachkodierung identifiziert
+[LAUNCH] Starte parallele Kodierung von 8 Segmenten...
+    [TARGET] Segment dummy_solar_media.txt_chunk_0: Fokus auf 2 Kategorien: Akteure, Outcomes
+    [TARGET] Segment text_demo_wiss.pdf_chunk_0: Fokus auf 1 Kategorien: Kontextfaktoren
+   ðŸš« Segment text_demo_wiss.pdf_chunk_0 wird als 'Nicht kodiert' markiert
+    [TARGET] Segment text_demo_wiss.pdf_chunk_1: Fokus auf 1 Kategorien: Akteure
+   ðŸš« Segment text_demo_wiss.pdf_chunk_1 wird als 'Nicht kodiert' markiert
+    [TARGET] Segment text_demo_wiss.pdf_chunk_2: Fokus auf 2 Kategorien: Herausforderungen, Prozesse
+    [TARGET] Segment text_demo_wiss.pdf_chunk_3: Fokus auf 1 Kategorien: Outcomes
+    [TARGET] Segment trial_case_iv_2.pdf_chunk_0: Fokus auf 2 Kategorien: Herausforderungen, Prozesse
+    [TARGET] Segment trial_case_iv_2.pdf_chunk_1: Fokus auf 1 Kategorien: Herausforderungen
+    [TARGET] Segment trial_case_iv_2.pdf_chunk_2: Fokus auf 1 Kategorien: Herausforderungen
+    [TARGET] Fokuskategorie 'Kontextfaktoren' zu verfÜgbaren Kategorien hinzugefÜgt
+    [TARGET] Fokuskategorie 'Kontextfaktoren' zu verfÜgbaren Kategorien hinzugefÜgt
+    [TARGET] Fokuskategorie 'Akteure' zu verfÜgbaren Kategorien hinzugefÜgt
+    [TARGET] Fokuskategorie 'Akteure' zu verfÜgbaren Kategorien hinzugefÜgt
+    [TARGET] Fokuskategorie 'Kontextfaktoren' zu verfÜgbaren Kategorien hinzugefÜgt
+    [TARGET] Fokuskategorie 'Kontextfaktoren' zu verfÜgbaren Kategorien hinzugefÜgt
+    [TARGET] Fokuskategorie 'Akteure' zu verfÜgbaren Kategorien hinzugefÜgt
+    [TARGET] Fokuskategorie 'Akteure' zu verfÜgbaren Kategorien hinzugefÜgt
+    [TARGET] Fokuskategorie 'Kontextfaktoren' zu verfÜgbaren Kategorien hinzugefÜgt
+    [TARGET] Fokuskategorie 'Kontextfaktoren' zu verfÜgbaren Kategorien hinzugefÜgt
+    [TARGET] Fokuskategorie 'Kontextfaktoren' zu verfÜgbaren Kategorien hinzugefÜgt
+    [TARGET] Fokuskategorie 'Kontextfaktoren' zu verfÜgbaren Kategorien hinzugefÜgt
+    [TARGET] Fokuskategorie 'Ressourcen' zu verfÜgbaren Kategorien hinzugefÜgt
+    [TARGET] Fokuskategorie 'Ressourcen' zu verfÜgbaren Kategorien hinzugefÜgt
+    [TARGET] Fokuskategorie 'Akteure' zu verfÜgbaren Kategorien hinzugefÜgt
+    [TARGET] Fokuskategorie 'Akteure' zu verfÜgbaren Kategorien hinzugefÜgt
+    [TARGET] Fokuskategorie 'Prozesse' zu verfÜgbaren Kategorien hinzugefÜgt
+    [TARGET] Fokuskategorie 'Prozesse' zu verfÜgbaren Kategorien hinzugefÜgt
+    [TARGET] Fokuskategorie 'Ressourcen' zu verfÜgbaren Kategorien hinzugefÜgt
+    [TARGET] Fokuskategorie 'Ressourcen' zu verfÜgbaren Kategorien hinzugefÜgt
+    [TARGET] Fokuskategorie 'Akteure' zu verfÜgbaren Kategorien hinzugefÜgt
+    [TARGET] Fokuskategorie 'Akteure' zu verfÜgbaren Kategorien hinzugefÜgt
+    [TARGET] Fokuskategorie 'Ressourcen' zu verfÜgbaren Kategorien hinzugefÜgt
+    [TARGET] Fokuskategorie 'Ressourcen' zu verfÜgbaren Kategorien hinzugefÜgt
+    [TARGET] Fokuskategorie 'Strategien' zu verfÜgbaren Kategorien hinzugefÜgt
+    [TARGET] Fokuskategorie 'Strategien' zu verfÜgbaren Kategorien hinzugefÜgt
+      ðŸ—’ï¸  Fokus-Paraphrase: Die Bedingungen für Forschung sind herausfordernd, da Überstunden die Lehrqualität beeinträchtigen können.
+      🎯 Fokuskodierung von auto_1: 📝  Herausforderungen
+      ✅ Subkategorien: 📝  Prozessual, Individuell
+      ✅ Keywords: 📝  Herausforderungen, Überstunden, Lehrqualität
+      🧾 Fokus-Score: 0.85, GewÄhlt-Score: 0.85
+    [OK] Alle 2 Subkategorien gÜltig (Quelle: enhanced_categories)
+      ðŸ—’ï¸  Fokus-Paraphrase: Die Durchführung von Projekten erfordert erhebliche Mehrarbeit und externen Druck, was als Herausforderung wahrgenommen wird.
+      🎯 Fokuskodierung von auto_2: 📝  Herausforderungen
+      ✅ Subkategorien: 📝  Strukturell, Individuell
+      ✅ Keywords: 📝  Mehrarbeit, Druck, Herausforderungen
+      🧾 Fokus-Score: 0.85, GewÄhlt-Score: 0.85
+    [OK] Alle 2 Subkategorien gÜltig (Quelle: enhanced_categories)
+      ðŸ—’ï¸  Fokus-Paraphrase: Die Bedingungen für das Forschen sind kritisch; Boni könnten zwar Anreize schaffen, aber die Qualität leidet darunter.
+      🎯 Fokuskodierung von auto_2: 📝  Kontextfaktoren
+      ✅ Subkategorien: 📝  Strukturell
+      ✅ Keywords: 📝  Forschung, Bedingungen, Boni
+      🧾 Fokus-Score: 0.90, GewÄhlt-Score: 0.90
+    [OK] Alle 1 Subkategorien gÜltig (Quelle: enhanced_categories)
+      ðŸ—’ï¸  Fokus-Paraphrase: Die Bedingungen für Forschung sind herausfordernd, da Überstunden die Qualität der Lehre beeinträchtigen können.
+      🎯 Fokuskodierung von auto_2: 📝  Herausforderungen
+      ✅ Subkategorien: 📝  Prozessual, Individuell
+      ✅ Keywords: 📝  Überstunden, Qualität, Forschung
+      🧾 Fokus-Score: 0.85, GewÄhlt-Score: 0.85
+    [OK] Alle 2 Subkategorien gÜltig (Quelle: enhanced_categories)
+      ðŸ—’ï¸  Fokus-Paraphrase: Engpässe im Hochschulsektor und veränderte Bildungswahrnehmung beeinflussen die Gründung privater Hochschulen.
+      🎯 Fokuskodierung von auto_2: 📝  Kontextfaktoren
+      ✅ Subkategorien: 📝  Strukturell
+      ✅ Keywords: 📝  Hochschulsektor, Bildung, private Hochschulen
+      🧾 Fokus-Score: 0.90, GewÄhlt-Score: 0.90
+    [OK] Alle 1 Subkategorien gÜltig (Quelle: enhanced_categories)
+      ðŸ—’ï¸  Fokus-Paraphrase: Kollegen berichten von erheblicher Mehrarbeit bei Projekten und äußeren Druck durch Anreize, was Herausforderungen darstellt.
+      🎯 Fokuskodierung von auto_1: 📝  Herausforderungen
+      ✅ Subkategorien: 📝  Strukturell, Individuell
+      ✅ Keywords: 📝  Mehrarbeit, Druck, Anreize
+      🧾 Fokus-Score: 0.85, GewÄhlt-Score: 0.85
+    [OK] Alle 2 Subkategorien gÜltig (Quelle: enhanced_categories)
+      ðŸ—’ï¸  Fokus-Paraphrase: Der Text beschreibt die Verfügbarkeit von Boni und zusätzlichen Bezahlungen als Ressourcen für Forscher, warnt jedoch vor möglichen negativen Auswirkungen auf die Lehrqualität.
+      🎯 Fokuskodierung von auto_2: 📝  Ressourcen
+      ✅ Subkategorien: 📝  Materiell, Immateriell
+      ✅ Keywords: 📝  Boni, Ressourcen, Forschung
+      🧾 Fokus-Score: 0.85, GewÄhlt-Score: 0.85
+    [OK] Alle 2 Subkategorien gÜltig (Quelle: enhanced_categories)
+      ðŸ—’ï¸  Fokus-Paraphrase: Der Text beschreibt, wie private Hochschulen in Deutschland durch weniger Bürokratie flexibler agieren können.
+      🎯 Fokuskodierung von auto_2: 📝  Kontextfaktoren
+      ✅ Subkategorien: 📝  Strukturell
+      ✅ Keywords: 📝  private Hochschulen, Bürokratie, Flexibilität
+      🧾 Fokus-Score: 0.85, GewÄhlt-Score: 0.85
+    [OK] Alle 1 Subkategorien gÜltig (Quelle: enhanced_categories)
+      ðŸ—’ï¸  Fokus-Paraphrase: Die massive Förderung und der Boom der Solarbranche schaffen günstige Rahmenbedingungen für Enpal, das als Marktführer in Deutschland gilt.
+      🎯 Fokuskodierung von auto_1: 📝  Kontextfaktoren
+      ✅ Subkategorien: 📝  Strukturell
+      ✅ Keywords: 📝  Solarbranche, Förderungen, Enpal
+      🧾 Fokus-Score: 0.85, GewÄhlt-Score: 0.85
+    [OK] Alle 1 Subkategorien gÜltig (Quelle: enhanced_categories)
+      ðŸ—’ï¸  Fokus-Paraphrase: Die Bedingungen für das Forschen und die Anreize für Kollegen werden thematisiert, wobei die Qualität der Lehre durch Zusatzarbeit gefährdet sein könnte.
+      🎯 Fokuskodierung von auto_1: 📝  Kontextfaktoren
+      ✅ Subkategorien: 📝  Strukturell
+      ✅ Keywords: 📝  Forschung, Bedingungen, Anreize
+      🧾 Fokus-Score: 0.90, GewÄhlt-Score: 0.90
+    [OK] Alle 1 Subkategorien gÜltig (Quelle: enhanced_categories)
+      ðŸ—’ï¸  Fokus-Paraphrase: Die Bedingungen für die Forschung werden durch Boni und zusätzliche Bezahlungen beeinflusst, die jedoch die Qualität der Lehre gefährden können.
+      🎯 Fokuskodierung von auto_1: 📝  Ressourcen
+      ✅ Subkategorien: 📝  Materiell, Immateriell
+      ✅ Keywords: 📝  Boni, Forschung, Qualität
+      🧾 Fokus-Score: 0.85, GewÄhlt-Score: 0.85
+    [OK] Alle 2 Subkategorien gÜltig (Quelle: enhanced_categories)
+      ðŸ—’ï¸  Fokus-Paraphrase: Die Solarfirma Enpal profitiert von massiven Förderungen und einem Boom in der Branche, was die Attraktivität für Hausbesitzer erhöht.
+      🎯 Fokuskodierung von auto_2: 📝  Kontextfaktoren
+      ✅ Subkategorien: 📝  Strukturell
+      ✅ Keywords: 📝  Solarbranche, Förderungen, Enpal
+      🧾 Fokus-Score: 0.85, GewÄhlt-Score: 0.85
+    [OK] Alle 1 Subkategorien gÜltig (Quelle: enhanced_categories)
+      ðŸ—’ï¸  Fokus-Paraphrase: Der Text thematisiert die Rolle privater Hochschulen in Deutschland und deren strukturelle Vorteile gegenüber öffentlichen Institutionen.
+      🎯 Fokuskodierung von auto_1: 📝  Kontextfaktoren
+      ✅ Subkategorien: 📝  Strukturell
+      ✅ Keywords: 📝  private Hochschulen, Struktur, Kontextfaktoren
+      🧾 Fokus-Score: 0.85, GewÄhlt-Score: 0.85
+    [OK] Alle 1 Subkategorien gÜltig (Quelle: enhanced_categories)
+      ðŸ—’ï¸  Fokus-Paraphrase: Engpässe im öffentlichen Hochschulsektor und die veränderte Wahrnehmung von Bildung als öffentliches Gut beeinflussen die Gründung privater Hochschulen.
+      🎯 Fokuskodierung von auto_1: 📝  Kontextfaktoren
+      ✅ Subkategorien: 📝  Strukturell
+      ✅ Keywords: 📝  Hochschulbildung, Kontextfaktoren, Engpass
+      🧾 Fokus-Score: 0.90, GewÄhlt-Score: 0.90
+    [OK] Alle 1 Subkategorien gÜltig (Quelle: enhanced_categories)
+      ðŸ—’ï¸  Fokus-Paraphrase: Kollegen berichten von Anreizen wie weniger Unterrichtsstunden oder mehr Bezahlung, um sich als Experten in Nachhaltigkeit zu positionieren und Herausforderungen in der Lehre zu vermeiden.
+      🎯 Fokuskodierung von auto_1: 📝  Strategien
+      ✅ Subkategorien: 📝  Formell, Informell
+      ✅ Keywords: 📝  Anreize, Expertenpositionierung, Nachhaltigkeit
+      🧾 Fokus-Score: 0.85, GewÄhlt-Score: 0.85
+    [OK] Alle 2 Subkategorien gÜltig (Quelle: enhanced_categories)
+      ðŸ—’ï¸  Fokus-Paraphrase: Enpal hat sich als führendes Unternehmen in der boomenden deutschen Solarbranche etabliert, was es für Hausbesitzer attraktiv macht.
+      🎯 Fokuskodierung von auto_1: 📝  Akteure
+      ✅ Subkategorien: 📝  Kollektive_Akteure
+      ✅ Keywords: 📝  Enpal, Solarbranche, Akteure
+      🧾 Fokus-Score: 0.90, GewÄhlt-Score: 0.90
+    [OK] Alle 1 Subkategorien gÜltig (Quelle: enhanced_categories)
+      ðŸ—’ï¸  Fokus-Paraphrase: Die Diskussion zeigt, dass Ressourcen wie Materialien und Projekte zur Verbesserung der Lehre und zur Vermeidung von Burnout beitragen können.
+      🎯 Fokuskodierung von auto_2: 📝  Ressourcen
+      ✅ Subkategorien: 📝  Materiell, Immateriell
+      ✅ Keywords: 📝  Ressourcen, Materialien, Projekte
+      🧾 Fokus-Score: 0.85, GewÄhlt-Score: 0.85
+    [OK] Alle 2 Subkategorien gÜltig (Quelle: enhanced_categories)
+      ðŸ—’ï¸  Fokus-Paraphrase: Enpal hat sich als führendes Unternehmen in der boomenden deutschen Solarbranche etabliert und zieht viele Hausbesitzer an.
+      🎯 Fokuskodierung von auto_2: 📝  Akteure
+      ✅ Subkategorien: 📝  Kollektive_Akteure
+      ✅ Keywords: 📝  Enpal, Solarbranche, Akteure
+      🧾 Fokus-Score: 0.90, GewÄhlt-Score: 0.90
+    [OK] Alle 1 Subkategorien gÜltig (Quelle: enhanced_categories)
+      ðŸ—’ï¸  Fokus-Paraphrase: Die Diskussion über die Belastungen in der Lehre hebt die Bedeutung von Ressourcen wie Materialien und Projekten hervor, um die Qualität der Lehre zu verbessern.
+      🎯 Fokuskodierung von auto_1: 📝  Ressourcen
+      ✅ Subkategorien: 📝  Materiell, Immateriell
+      ✅ Keywords: 📝  Ressourcen, Materialien, Projekte
+      🧾 Fokus-Score: 0.85, GewÄhlt-Score: 0.85
+    [OK] Alle 2 Subkategorien gÜltig (Quelle: enhanced_categories)
+      ðŸ—’ï¸  Fokus-Paraphrase: Die Gründung privater Hochschulen wird durch verschiedene Akteure wie Städte und Einzelpersonen motiviert, um spezifische Bildungsbedürfnisse zu decken und das Bildungssystem zu verbessern.
+      🎯 Fokuskodierung von auto_2: 📝  Akteure
+      ✅ Subkategorien: 📝  Individuelle_Akteure, Kollektive_Akteure
+      ✅ Keywords: 📝  Akteure, private Hochschulen, Bildung
+      🧾 Fokus-Score: 0.85, GewÄhlt-Score: 0.85
+    [OK] Alle 2 Subkategorien gÜltig (Quelle: enhanced_categories)
+      ðŸ—’ï¸  Fokus-Paraphrase: Der Text beschreibt die Rolle privater Hochschulen in Deutschland, einschließlich ihrer Struktur und der öffentlichen Wahrnehmung.
+      🎯 Fokuskodierung von auto_2: 📝  Akteure
+      ✅ Subkategorien: 📝  Kollektive_Akteure, Beziehungen
+      ✅ Keywords: 📝  private Hochschulen, Akteure, öffentliche Wahrnehmung
+      🧾 Fokus-Score: 0.85, GewÄhlt-Score: 0.85
+    [OK] Alle 2 Subkategorien gÜltig (Quelle: enhanced_categories)
+
+--- Analysefortschritt ---
+Verarbeitet: 8 Segmente
+Geschwindigkeit: 479.7 Segmente/Stunde
+------------------------
+      ðŸ—’ï¸  Fokus-Paraphrase: Der Text beschreibt die Rolle privater Hochschulen in Deutschland und deren Einfluss auf die Bildungslandschaft.
+      🎯 Fokuskodierung von auto_1: 📝  Akteure
+      ✅ Subkategorien: 📝  Kollektive_Akteure
+      ✅ Keywords: 📝  private Hochschulen, Akteure, Bildung
+      🧾 Fokus-Score: 0.85, GewÄhlt-Score: 0.85
+    [OK] Alle 1 Subkategorien gÜltig (Quelle: enhanced_categories)
+      ðŸ—’ï¸  Fokus-Paraphrase: Der Text beschreibt die Rolle von Städten und Individuen als Gründer privater Hochschulen im Kontext der Bildung.
+      🎯 Fokuskodierung von auto_1: 📝  Akteure
+      ✅ Subkategorien: 📝  Individuelle_Akteure, Kollektive_Akteure
+      ✅ Keywords: 📝  Akteure, Gründer, Bildung
+      🧾 Fokus-Score: 0.85, GewÄhlt-Score: 0.85
+    [OK] Alle 2 Subkategorien gÜltig (Quelle: enhanced_categories)
+      ðŸ—’ï¸  Fokus-Paraphrase: Kollegen und Hochschulleitung spielen eine zentrale Rolle bei der Motivation zur Teilnahme an Projekten, indem sie Anreize oder Druck ausüben.
+      🎯 Fokuskodierung von auto_2: 📝  Akteure
+      ✅ Subkategorien: 📝  Individuelle_Akteure, Kollektive_Akteure
+      ✅ Keywords: 📝  Akteure, Hochschulleitung, Kollegen
+      🧾 Fokus-Score: 0.85, GewÄhlt-Score: 0.85
+    [OK] Alle 2 Subkategorien gÜltig (Quelle: enhanced_categories)
+      ðŸ—’ï¸  Fokus-Paraphrase: Die Gründung privater Hochschulen wird durch verschiedene Motive wie wirtschaftliche Bedürfnisse und das Streben nach Prestige beeinflusst.
+      🎯 Fokuskodierung von auto_1: 📝  Prozesse
+      ✅ Subkategorien: 📝  Entscheidungsprozesse, Entwicklungsprozesse
+      ✅ Keywords: 📝  Hochschulgründung, Bildungsreform, wirtschaftliche Motive
+      🧾 Fokus-Score: 0.85, GewÄhlt-Score: 0.85
+    [OK] Alle 2 Subkategorien gÜltig (Quelle: enhanced_categories)
+      ðŸ—’ï¸  Fokus-Paraphrase: Kollegen berichten von Anreizen wie Unterrichtserlass oder Mehrbezahlung, um die Motivation für Forschungsprojekte zu steigern und die eigene Expertise zu entwickeln.
+      🎯 Fokuskodierung von auto_1: 📝  Ressourcen
+      ✅ Subkategorien: 📝  Materiell, Immateriell
+      ✅ Keywords: 📝  Anreize, Motivation, Ressourcen
+      🧾 Fokus-Score: 0.85, GewÄhlt-Score: 0.85
+    [OK] Alle 2 Subkategorien gÜltig (Quelle: enhanced_categories)
+      ðŸ—’ï¸  Fokus-Paraphrase: Die Diskussion über die Herausforderungen in der Lehre zeigt, wie Akteure wie Hochschulen und Lehrende durch strukturelle und individuelle Faktoren beeinflusst werden.
+      🎯 Fokuskodierung von auto_1: 📝  Akteure
+      ✅ Subkategorien: 📝  Individuelle_Akteure, Kollektive_Akteure
+      ✅ Keywords: 📝  Akteure, Hochschule, Lehre
+      🧾 Fokus-Score: 0.85, GewÄhlt-Score: 0.85
+    [OK] Alle 2 Subkategorien gÜltig (Quelle: enhanced_categories)
+      ðŸ—’ï¸  Fokus-Paraphrase: Es gibt Anreize wie weniger Unterrichtsstunden oder höhere Bezahlung, die die Entscheidung beeinflussen, sich in Forschungsprojekten zu engagieren und als Experte zu positionieren.
+      🎯 Fokuskodierung von auto_2: 📝  Strategien
+      ✅ Subkategorien: 📝  Formell, Informell
+      ✅ Keywords: 📝  Anreize, Expertenpositionierung, Forschungsprojekte
+      🧾 Fokus-Score: 0.85, GewÄhlt-Score: 0.85
+    [OK] Alle 2 Subkategorien gÜltig (Quelle: enhanced_categories)
+      ðŸ—’ï¸  Fokus-Paraphrase: Kollegen und Hochschulleitung beeinflussen die Motivation und Anreize für Forschungsprojekte, was die Rolle der Akteure im Bildungskontext verdeutlicht.
+      🎯 Fokuskodierung von auto_1: 📝  Akteure
+      ✅ Subkategorien: 📝  Individuelle_Akteure, Kollektive_Akteure, Beziehungen
+      ✅ Keywords: 📝  Akteure, Hochschulleitung, Motivation
+      🧾 Fokus-Score: 0.85, GewÄhlt-Score: 0.85
+    [OK] Alle 3 Subkategorien gÜltig (Quelle: enhanced_categories)
+      ðŸ—’ï¸  Fokus-Paraphrase: Die Herausforderungen in der Lehre führen zu einem Burnout-Risiko, während alternative Lehrmodelle den Austausch und das Lernen fördern.
+      🎯 Fokuskodierung von auto_2: 📝  Prozesse
+      ✅ Subkategorien: 📝  Entscheidungsprozesse, Entwicklungsprozesse
+      ✅ Keywords: 📝  Lehre, Prozesse, Burnout
+      🧾 Fokus-Score: 0.85, GewÄhlt-Score: 0.85
+    [OK] Alle 2 Subkategorien gÜltig (Quelle: enhanced_categories)
+      ðŸ—’ï¸  Fokus-Paraphrase: Kollegen berichten von Anreizen wie weniger Unterrichtsstunden oder mehr Bezahlung, um sich in Forschungsprojekten zu engagieren, was sowohl materielle als auch immaterielle Ressourcen betrifft.
+      🎯 Fokuskodierung von auto_2: 📝  Ressourcen
+      ✅ Subkategorien: 📝  Materiell, Immateriell
+      ✅ Keywords: 📝  Anreize, Ressourcen, Forschung
+      🧾 Fokus-Score: 0.85, GewÄhlt-Score: 0.90
+    [OK] Alle 2 Subkategorien gÜltig (Quelle: enhanced_categories)
+      ðŸ—’ï¸  Fokus-Paraphrase: Der Artikel beleuchtet die Rolle der privaten Hochschulbildung in Deutschland und deren öffentliche Wahrnehmung sowie die damit verbundenen Ergebnisse.
+      🎯 Fokuskodierung von auto_1: 📝  Outcomes
+      ✅ Subkategorien: 📝  Intendiert, Nicht_intendiert
+      ✅ Keywords: 📝  private Hochschulbildung, öffentliche Wahrnehmung, Ergebnisse
+      🧾 Fokus-Score: 0.85, GewÄhlt-Score: 0.85
+    [OK] Alle 2 Subkategorien gÜltig (Quelle: enhanced_categories)
+      ðŸ—’ï¸  Fokus-Paraphrase: Der Artikel beleuchtet die Rolle privater Hochschulen in Deutschland und deren öffentliche Wahrnehmung sowie die Auswirkungen auf den Bildungssektor.
+      🎯 Fokuskodierung von auto_2: 📝  Outcomes
+      ✅ Subkategorien: 📝  Intendiert, Nicht_intendiert
+      ✅ Keywords: 📝  private Hochschulen, Wahrnehmung, Outcomes
+      🧾 Fokus-Score: 0.85, GewÄhlt-Score: 0.85
+    [OK] Alle 2 Subkategorien gÜltig (Quelle: enhanced_categories)
+      ðŸ—’ï¸  Fokus-Paraphrase: Die Diskussion über die Herausforderungen in der Lehre und die Attraktivität von Projektarbeit zeigt, wie Lehrprozesse gestaltet werden können.
+      🎯 Fokuskodierung von auto_1: 📝  Prozesse
+      ✅ Subkategorien: 📝  Entscheidungsprozesse, Entwicklungsprozesse
+      ✅ Keywords: 📝  Lehre, Prozesse, Projektarbeit
+      🧾 Fokus-Score: 0.85, GewÄhlt-Score: 0.85
+    [OK] Alle 2 Subkategorien gÜltig (Quelle: enhanced_categories)
+      ðŸ—’ï¸  Fokus-Paraphrase: Die Diskussion über die Herausforderungen in der Lehre und die Rolle der Hochschule HS1 zeigt, wie Akteure durch neue Lehrmodelle entlastet und motiviert werden können.
+      🎯 Fokuskodierung von auto_2: 📝  Akteure
+      ✅ Subkategorien: 📝  Individuelle_Akteure, Kollektive_Akteure
+      ✅ Keywords: 📝  Hochschule, Akteure, Lehre
+      🧾 Fokus-Score: 0.85, GewÄhlt-Score: 0.85
+    [OK] Alle 2 Subkategorien gÜltig (Quelle: enhanced_categories)
+      ðŸ—’ï¸  Fokus-Paraphrase: Die Gründung privater Hochschulen wird durch verschiedene wirtschaftliche und gesellschaftliche Motive beeinflusst, die Abläufe im Bildungssystem darstellen.
+      🎯 Fokuskodierung von auto_2: 📝  Prozesse
+      ✅ Subkategorien: 📝  Entscheidungsprozesse, Entwicklungsprozesse
+      ✅ Keywords: 📝  Hochschulen, Gründung, Bildungssystem
+      🧾 Fokus-Score: 0.85, GewÄhlt-Score: 0.85
+    [OK] Alle 2 Subkategorien gÜltig (Quelle: enhanced_categories)
+[OK] PARALLEL-BATCH ABGESCHLOSSEN:
+   âš¡ Zeit: 36.73s
+   [LAUNCH] Geschwindigkeit: 0.2 Segmente/Sekunde
+   ✅ Erfolgreiche Segmente: 8/8
+   🧾 Gesamte Kodierungen: 40
+   [TARGET] Kategorie-Vorauswahl genutzt: 40 Kodierungen
+   🔧 Subkategorie-Validierung durchgefÜhrt: 0 Kodierungen
+
+🧾 SÄttigungsstatus:
+   [TARGET] Theoretische SÄttigung: 53.6%
+   ℹ️ Materialabdeckung: 88.9%
+
+ℹ️ Fortschritt:
+   - Verarbeitete Segmente: 8/9
+   - Aktuelle Kategorien: 8
+   - Kodierungen: 40
+   - Batch-Zeit: 65.68s
+
+============================================================
+🧾 BATCH 2: 1 Segmente
+ℹ️ Material verarbeitet: 88.9%
+============================================================
+
+🕵️ Schritt 1: Erweiterte RelevanzprÜfung fuer Forschungsfrage...
+[REVIEW] Erweiterte Relevanzpruefung mit Kategorie-Vorauswahl fuer 1 Segmente...
+[OK] Erweiterte Relevanzpruefung abgeschlossen: 1 relevante Segmente
+🧾 Erweiterte Relevanz: 1 von 1 Segmenten relevant
+🎯 Kategorie-PrÄferenzen: {'Akteure': 1, 'Prozesse': 1}
+
+📝 NÄchster Schritt: Deduktive Kodierung aller 1 Segmente...
+
+[LAUNCH] PARALLEL-KODIERUNG: 1 Segmente gleichzeitig
+🎯 1 Segmente haben Kategorie-PrÄferenzen
+🎯 HÄufigste PrÄferenzen: {'Akteure': 1, 'Prozesse': 1}
+
+🕵️ PrÜfe Kodierungs-Relevanz...
+[SEARCH] Relevanzpruefung: 1 neue Segmente
+   📦 Verwende normale Batch-Methode für 1 Segmente
+   [STATS] Relevanz-Ergebnisse: 0/1 als relevant eingestuft
+
+🕵️ Kodierungs-RelevanzprÜfung Ergebnisse:
+   - Segmente geprÜft: 1
+   - Als kodierungsrelevant eingestuft: 0
+   - Als nicht kodierungsrelevant eingestuft: 1
+[LAUNCH] Starte parallele Kodierung von 1 Segmenten...
+    [TARGET] Segment trial_case_iv_2.pdf_chunk_3: Fokus auf 2 Kategorien: Akteure, Prozesse
+   ðŸš« Segment trial_case_iv_2.pdf_chunk_3 wird als 'Nicht kodiert' markiert
+[OK] PARALLEL-BATCH ABGESCHLOSSEN:
+   âš¡ Zeit: 3.34s
+   [LAUNCH] Geschwindigkeit: 0.3 Segmente/Sekunde
+   ✅ Erfolgreiche Segmente: 1/1
+   🧾 Gesamte Kodierungen: 2
+   [TARGET] Kategorie-Vorauswahl genutzt: 2 Kodierungen
+   🔧 Subkategorie-Validierung durchgefÜhrt: 0 Kodierungen
+
+🧾 SÄttigungsstatus:
+   [TARGET] Theoretische SÄttigung: 53.6%
+   ℹ️ Materialabdeckung: 100.0%
+
+ℹ️ Fortschritt:
+   - Verarbeitete Segmente: 9/9
+   - Aktuelle Kategorien: 8
+   - Kodierungen: 42
+   - Batch-Zeit: 9.55s
+
+🏁 FINALISIERUNG (DEDUCTIVE MODE):
+
+ℹ️ DEDUCTIVE MODE Finalisierung:
+   - Kategorien: 8
+
+================================================================================
+🧾 KATEGORIENENTWICKLUNG ABGESCHLOSSEN
+================================================================================
+ℹ️ Entwicklungsbilanz:
+   - Verarbeitete Batches: 2
+   - Initial: 8 Kategorien
+   - Neu entwickelt: 0 Kategorien
+   - Final: 8 Kategorien
+   - Subkategorien: 32
+
+FortschrittsÜberwachung beendet.
+
+FÜge 42 automatische Kodierungen hinzu
+
+Gesamtzahl Kodierungen: 42
+
+8. Berechne korrekte Intercoder-ReliabilitÄt...
+
+🧾 Umfassende Krippendorff's Alpha Analyse...
+🕵️ Gefilterte ursprÜngliche Kodierungen: 42
+🧾 Overall Alpha Details:
+   - Durchschnittliche Jaccard-Übereinstimmung: 0.978
+   - Erwartete ZufallsÜbereinstimmung: 0.250
+   - Overall Alpha (Jaccard-basiert): 0.970
+🧾 Hauptkategorien Alpha Details:
+   - Durchschnittliche Übereinstimmung: 1.000
+   - Hauptkategorien Alpha (Jaccard): 1.000
+🕵️ Debug Subkategorien: Analysiere 9 Segmente
+  Vergleich 1: ['Strukturell', 'Kollektive_Akteure'] vs ['Strukturell', 'Kollektive_Akteure'] -> 1.000
+  Vergleich 2: [] vs [] -> 1.000
+  Vergleich 3: [] vs [] -> 1.000
+🧾 Subkategorien-Alpha Details:
+   - Vergleiche durchgefÜhrt: 9
+   - Durchschnittliche Übereinstimmung: 0.965
+   - Erwartete ZufallsÜbereinstimmung: 0.250
+   - Partielle Übereinstimmungs-Alpha: 0.954
+
+ℹ️ Krippendorff's Alpha ReliabilitÄts-Analyse:
+============================================================
+Overall Alpha (Jaccard-basiert):       0.970
+Hauptkategorien Alpha (Jaccard):       1.000
+Subkategorien Alpha (Jaccard):         0.954
+Vergleichbare Segmente:                9
+Anzahl Kodierer:                       2
+
+ℹ️ Methodik:
+   - Alle Alpha-Werte verwenden Jaccard-Ähnlichkeit
+   - Konsistente Set-basierte Berechnung
+   - Overall sollte zwischen Haupt- und Sub-Alpha liegen
+   [OK] Mathematische Konsistenz: 0.954 â‰¤ 0.970 â‰¤ 1.000
+
+Bewertung Overall Alpha:               Exzellent
+📈 Krippendorff's Alpha (korrigiert fuer Mehrfachkodierungen): 0.970
+
+9. FÜhre kategorie-zentrierten Review-Prozess durch...
+🔀‹ Review-Modus: consensus
+📈 Eingabe: 42 ursprÜngliche Kodierungen
+
+=== REVIEW-PROZESS (CONSENSUS) ===
+ℹ️ Erstelle kategorie-spezifische Segmente...
+  🧾 Mehrfachkodierung dummy_solar_media.txt_chunk_0: 2 Kategorien -> 2 Segmente
+  🧾 Mehrfachkodierung text_demo_wiss.pdf_chunk_2: 3 Kategorien -> 3 Segmente
+  🧾 Mehrfachkodierung text_demo_wiss.pdf_chunk_3: 3 Kategorien -> 3 Segmente
+  🧾 Mehrfachkodierung trial_case_iv_2.pdf_chunk_0: 3 Kategorien -> 3 Segmente
+  🧾 Mehrfachkodierung trial_case_iv_2.pdf_chunk_1: 3 Kategorien -> 3 Segmente
+  🧾 Mehrfachkodierung trial_case_iv_2.pdf_chunk_2: 4 Kategorien -> 4 Segmente
+[OK] 21 kategorie-spezifische Segmente erstellt
+🕵️ FÜhre Consensus-Review durch...
+Review abgeschlossen: 21 finale Kodierungen
+[OK] Review abgeschlossen: 21 finale Kodierungen
+============================================================
+=== QCA-AID Console Log beendet: 2025-11-17 19:29:57 ===

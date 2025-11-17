@@ -1,0 +1,573 @@
+=== QCA-AID Console Log gestartet: 2025-11-17 19:44:49 ===
+Log-Datei: C:\Users\justu\OneDrive\Projekte\Forschung\R-Projects\QCA-AID\output\console_log_20251117_194449.txt
+============================================================
+=== Qualitative Inhaltsanalyse nach Mayring ===
+Versuche Konfiguration zu laden von: C:\Users\justu\OneDrive\Projekte\Forschung\R-Projects\QCA-AID\QCA-AID-Codebook.xlsx
+
+Öffne Excel-Datei...
+Excel-Datei erfolgreich geladen. Verfügbare Sheets: ['FORSCHUNGSFRAGE', 'DEDUKTIVE_KATEGORIEN', 'KODIERREGELN', 'CONFIG']
+
+Lese DEDUKTIVE_KATEGORIEN Sheet...
+
+Kodierregeln geladen:
+- Allgemeine Regeln: 5
+- Formatregeln: 3
+- Ausschlussregeln: 3
+EXPORT_ANNOTATED_PDFS aus Codebook geladen: True (ursprünglich: 'true')
+ANALYSIS_MODE aus Codebook geladen: abductive
+REVIEW_MODE aus Codebook geladen: consensus
+Drittes Attribut-Label geladen: nan
+Standard-Ausgabeverzeichnis gesichert: C:\Users\justu\OneDrive\Projekte\Forschung\R-Projects\QCA-AID\output
+Verzeichnis gesichert: C:\Users\justu\OneDrive\Projekte\Forschung\R-Projects\QCA-AID\input
+Verzeichnis gesichert: C:\Users\justu\OneDrive\Projekte\Forschung\R-Projects\QCA-AID\output
+Übernehme CHUNK_SIZE aus Codebook: 1000
+Übernehme CHUNK_OVERLAP aus Codebook: 40
+Übernehme CODE_WITH_CONTEXT aus Codebook: False
+Übernehme MULTIPLE_CODINGS aus Codebook: True
+Übernehme MULTIPLE_CODING_THRESHOLD aus Codebook: 0.85
+Finale BATCH_SIZE: 5
+
+Starte Laden der deduktiven Kategorien...
+
+Lade deduktive Kategorien...
+Erfolgreich 8 Kategorien geladen
+
+Kategorien erfolgreich in Config gespeichert
+
+Konfiguration erfolgreich geladen
+No existing revision history found - starting fresh
+
+2. Lese Dokumente ein...
+
+DocumentReader initialisiert:
+Verzeichnis: C:\Users\justu\OneDrive\Projekte\Forschung\R-Projects\QCA-AID\input
+Unterstützte Formate: .pdf, .docx, .txt
+
+Dateianalyse:
+
+Gefundene Dateien:
+[ERROR] .input-dir
+[OK] dummy_solar_media.txt
+[OK] text_demo_wiss.pdf
+[OK] trial_case_iv_2.pdf
+
+Verarbeite Dateien:
+
+Lese: dummy_solar_media.txt
+[OK] Erfolgreich eingelesen: 441 Zeichen
+
+Lese: text_demo_wiss.pdf
+
+Lese PDF: text_demo_wiss.pdf
+  Gefundene Seiten: 1
+  Seite 1/1: 4126 Zeichen extrahiert
+
+Ergebnis:
+  [OK] 1 Textabschnitte extrahiert
+  [OK] Gesamtlänge: 4126 Zeichen
+[OK] Erfolgreich eingelesen: 4126 Zeichen
+
+Lese: trial_case_iv_2.pdf
+
+Lese PDF: trial_case_iv_2.pdf
+  Gefundene Seiten: 1
+  Seite 1/1: 4320 Zeichen extrahiert
+
+Ergebnis:
+  [OK] 1 Textabschnitte extrahiert
+  [OK] Gesamtlänge: 4320 Zeichen
+[OK] Erfolgreich eingelesen: 4320 Zeichen
+
+Verarbeitungsstatistik:
+- Dateien im Verzeichnis: 4
+- Unterstützte Dateien: 3
+- Erfolgreich eingelesen: 3
+
+3. Induktive Kodierung konfigurieren...
+
+Gespeichertes induktives Codebook gefunden.
+Automatische FortfÜhrung in 10 Sekunden...
+
+MÖchten Sie das gespeicherte erweiterte Kodesystem laden? (j/N) (10s): 
+MÖchten Sie das gespeicherte erweiterte Kodesystem laden? (j/N) (9s): 
+MÖchten Sie das gespeicherte erweiterte Kodesystem laden? (j/N) (8s): 
+MÖchten Sie das gespeicherte erweiterte Kodesystem laden? (j/N) (7s): 
+MÖchten Sie das gespeicherte erweiterte Kodesystem laden? (j/N) (6s): 
+MÖchten Sie das gespeicherte erweiterte Kodesystem laden? (j/N) (5s): 
+MÖchten Sie das gespeicherte erweiterte Kodesystem laden? (j/N) (4s): 
+
+Aktueller Analysemodus aus Codebook: {default_mode}
+Sie haben 10 Sekunden Zeit fuer die Eingabe.
+Optionen:
+1 = inductive (volle induktive Analyse)
+2 = abductive (nur Subkategorien entwickeln)
+3 = deductive (nur deduktiv)
+4 = grounded (Subkategorien sammeln, spaeter Hauptkategorien generieren)
+
+Welchen Analysemodus moechten Sie verwenden? [1/2/3/4] (Standard: abductive) (10s): 
+Welchen Analysemodus moechten Sie verwenden? [1/2/3/4] (Standard: abductive) (9s): 
+Welchen Analysemodus moechten Sie verwenden? [1/2/3/4] (Standard: abductive) (8s): 
+Welchen Analysemodus moechten Sie verwenden? [1/2/3/4] (Standard: abductive) (7s): 
+Welchen Analysemodus moechten Sie verwenden? [1/2/3/4] (Standard: abductive) (6s): 
+
+Analysemodus: deductive (Skip induktiv)
+
+4. Konfiguriere Kodierer...
+🧾 Kodierer auto_1: 8 deduktive Kategorien geladen (deductive mode)
+Initialisiere LLM Provider: openai
+OpenAI Client erfolgreich initialisiert
+🤖 LLM Provider 'openai' fuer Kodierer auto_1 initialisiert
+🧾 Kodierer auto_2: 8 deduktive Kategorien geladen (deductive mode)
+Initialisiere LLM Provider: openai
+OpenAI Client erfolgreich initialisiert
+🤖 LLM Provider 'openai' fuer Kodierer auto_2 initialisiert
+
+Konfiguriere manuelle Kodierung...
+Sie haben 10 Sekunden Zeit fuer die Eingabe.
+Druecken Sie 'j' fuer manuelle Kodierung oder 'n' zum Überspringen.
+
+MÖchten Sie manuell kodieren? (j/N) (10s): 
+MÖchten Sie manuell kodieren? (j/N) (9s): 
+MÖchten Sie manuell kodieren? (j/N) (8s): 
+MÖchten Sie manuell kodieren? (j/N) (7s): 
+MÖchten Sie manuell kodieren? (j/N) (6s): 
+MÖchten Sie manuell kodieren? (j/N) (5s): 
+
+[INFO] Keine manuelle Kodierung - nur automatische Kodierung wird durchgefÜhrt
+
+5. Bereite Material vor...
+
+Chunking Ergebnis:
+- Anzahl Chunks: 1
+- Durchschnittliche Chunk-Länge: 441 Zeichen
+- dummy_solar_media.txt: 1 Chunks erstellt
+
+Chunking Ergebnis:
+- Anzahl Chunks: 5
+- Durchschnittliche Chunk-Länge: 831 Zeichen
+- text_demo_wiss.pdf: 5 Chunks erstellt
+
+Chunking Ergebnis:
+- Anzahl Chunks: 5
+- Durchschnittliche Chunk-Länge: 867 Zeichen
+- trial_case_iv_2.pdf: 5 Chunks erstellt
+
+7. Starte integrierte Analyse...
+
+Kodierungsmodus: Mit progressivem Kontext
+Initialisiere LLM Provider: openai
+OpenAI Client erfolgreich initialisiert
+
+RelevanceChecker initialisiert:
+- 0 Ausschlussregeln geladen
+
+RelevanceChecker initialisiert:
+- 0 Ausschlussregeln geladen
+- Mehrfachkodierung: Aktiviert
+- Mehrfachkodierung-Schwellenwert: 0.85
+Initialisiere LLM Provider: openai
+OpenAI Client erfolgreich initialisiert
+
+ðŸ”¬ Induktive Kodierung initialisiert:
+- Min. Batches vor SÄttigung: 5
+- Min. Materialabdeckung: 80%
+- StabilitÄtsschwelle: 3 Batches
+🧾 Kodierer auto_1: 8 deduktive Kategorien geladen (deductive mode)
+Initialisiere LLM Provider: openai
+OpenAI Client erfolgreich initialisiert
+🤖 LLM Provider 'openai' fuer Kodierer auto_1 initialisiert
+🧾 Kodierer auto_2: 8 deduktive Kategorien geladen (deductive mode)
+Initialisiere LLM Provider: openai
+OpenAI Client erfolgreich initialisiert
+🤖 LLM Provider 'openai' fuer Kodierer auto_2 initialisiert
+
+Kontextuelle Kodierung: Aktiviert
+
+ðŸ”¬ IntegratedAnalysisManager initialisiert:
+   - Analysemodus: deductive
+[OK] Session-Statistiken zurueckgesetzt
+
+[TIP] Tipp: Druecken Sie ESC um die Kodierung sicher zu unterbrechen und Zwischenergebnisse zu speichern
+
+Analyse gestartet um 19:45:07
+Verarbeite 11 Segmente mit Batch-GrÖẞe 5...
+Verarbeite 11 Segmente mit Batch-GrÖẞe 5...
+
+============================================================
+🧾 BATCH 1: 5 Segmente
+ℹ️ Material verarbeitet: 0.0%
+============================================================
+
+🕵️ Schritt 1: Erweiterte RelevanzprÜfung fuer Forschungsfrage...
+[REVIEW] Erweiterte Relevanzpruefung mit Kategorie-Vorauswahl fuer 5 Segmente...
+
+--- Analysefortschritt ---
+Verarbeitet: 0 Segmente
+Geschwindigkeit: 0.0 Segmente/Stunde
+------------------------
+[OK] Model gpt-5-nano unterstützt temperature-Parameter NICHT. Retry ohne...
+
+--- Analysefortschritt ---
+Verarbeitet: 0 Segmente
+Geschwindigkeit: 0.0 Segmente/Stunde
+------------------------
+[OK] Erweiterte Relevanzpruefung abgeschlossen: 5 relevante Segmente
+🧾 Erweiterte Relevanz: 5 von 5 Segmenten relevant
+🎯 Kategorie-PrÄferenzen: {'Akteure': 5, 'Kontextfaktoren': 3, 'Legitimation': 2, 'Prozesse': 1, 'Strategien': 2, 'Ressourcen': 1}
+
+📝 NÄchster Schritt: Deduktive Kodierung aller 5 Segmente...
+🎯 Kontext-Kodierung: 5 Segmente haben Kategorie-PrÄferenzen
+🎯 HÄufigste PrÄferenzen: {'Akteure': 5, 'Kontextfaktoren': 3, 'Legitimation': 2}
+[SEARCH] Relevanzpruefung: 5 neue Segmente
+   📦 Verwende normale Batch-Methode für 5 Segmente
+
+--- Analysefortschritt ---
+Verarbeitet: 5 Segmente
+Geschwindigkeit: 299.9 Segmente/Stunde
+------------------------
+
+--- Analysefortschritt ---
+Verarbeitet: 5 Segmente
+Geschwindigkeit: 199.9 Segmente/Stunde
+------------------------
+   [STATS] Relevanz-Ergebnisse: 4/5 als relevant eingestuft
+  ℹ️ PrÜfe 4 relevante Segmente auf Mehrfachkodierung...
+[LAUNCH] Parallele Mehrfachkodierungs-Pruefung: 4 Segmente
+[WARN] Fehler bei Mehrfachkodierungs-Pruefung text_demo_wiss.pdf_chunk_0: invalid literal for int() with base 10: '0.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.8
+[WARN] Fehler bei Mehrfachkodierungs-Pruefung text_demo_wiss.pdf_chunk_1: invalid literal for int() with base 10: '0.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.8
+[WARN] Fehler bei Mehrfachkodierungs-Pruefung text_demo_wiss.pdf_chunk_2: invalid literal for int() with base 10: '0.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.8
+[WARN] Fehler bei Mehrfachkodierungs-Pruefung text_demo_wiss.pdf_chunk_3: invalid literal for int() with base 10: '0.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.850.8
+⚡ 4 Mehrfachkodierungs-Prüfungen in 0.00s
+🔄 0 Segmente mit Mehrfachkodierung identifiziert
+
+🕵️ Verarbeite Segment dummy_solar_media.txt_chunk_0 mit Kontext ([TARGET] Fokus auf 2 Kategorien: Akteure, Kontextfaktoren)
+  🗑️ Segment als nicht relevant markiert - wird Übersprungen
+
+🕵️ Verarbeite Segment text_demo_wiss.pdf_chunk_0 mit Kontext ([TARGET] Fokus auf 3 Kategorien: Akteure, Kontextfaktoren, Legitimation)
+
+Deduktiver Kodierer 🤖 **auto_1** verarbeitet Chunk mit progressivem Kontext...
+Dokumentfortschritt: ca. 0.0%
+Summary-Reifephase: PHASE 1 (Sammlung), max. Änderung: 50%
+
+--- Analysefortschritt ---
+Verarbeitet: 5 Segmente
+Geschwindigkeit: 149.9 Segmente/Stunde
+------------------------
+
+ðŸ—’ï¸  Paraphrase: In Deutschland gilt Bildung überwiegend als öffentliches Gut und ist im öffentlichen Sektor gebührenfrei. Das System ist dezentralisiert, wobei die Länder Verantwortung tragen. Ein privates Hochschulwesen existiert, doch staatliche Genehmigung zur Gründung und Anerkennung von Abschlüssen ist erforderlich.
+  ✅ Kodierung von auto_1: 📝  Kontextfaktoren
+  ✅ Subkategorien von auto_1: 📝  Strukturell
+  ✅ Keywords von auto_1: 📝  öffentliches Gut; Dezentralisierung; Privates Hochschulwesen
+
+🔀 Summary fuer text_demo_wiss.pdf aktualisiert (55 WÖrter):
+Deutschland zeigt ein hybrides Hochschulsystem: Bildung gilt überwiegend als öffentliches Gut und wird im öffentlichen Sektor gebührenfrei angeboten; die Zuständigkeit liegt dezentral bei 16 Ländern. Es existiert ein privates Hochschulwesen, doch staatliche Genehmigung zur Gründung und Anerkennung von Abschlüssen ist erforderlich. Der Text betont damit strukturelle Rahmenbedingungen und regulatorische Schnittstellen zwischen öffentlichem und privatem Sektor....
+ℹ️ Summary aktualisiert: 55 WÖrter
+  ✅ Kodierer auto_1: Kontextfaktoren [TARGET]
+
+Deduktiver Kodierer 🤖 **auto_2** verarbeitet Chunk mit progressivem Kontext...
+Dokumentfortschritt: ca. 0.0%
+Summary-Reifephase: PHASE 1 (Sammlung), max. Änderung: 50%
+
+--- Analysefortschritt ---
+Verarbeitet: 5 Segmente
+Geschwindigkeit: 120.0 Segmente/Stunde
+------------------------
+
+--- Analysefortschritt ---
+Verarbeitet: 5 Segmente
+Geschwindigkeit: 100.0 Segmente/Stunde
+------------------------
+
+ðŸ—’ï¸  Paraphrase: Deutschland betrachtet Bildung als Allgemeingut; öffentliche Hochschulen sind gebührenfrei. Das System ist dezentralisiert (16 Länder). Neben öffentlichen gibt es private Hochschulen, die staatliche Zulassung benötigen und Abschlussanerkennung erhalten müssen.
+  ✅ Kodierung von auto_2: 📝  Kontextfaktoren
+  ✅ Subkategorien von auto_2: 📝  Strukturell
+  ✅ Keywords von auto_2: 📝  öffentliche Hochschulen; private Hochschulen; Dezentralisierung der Zuständigkeiten (Länder)
+
+🔀 Summary fuer text_demo_wiss.pdf aktualisiert (49 WÖrter):
+Deutschland betreibt ein überwiegend öffentliches Hochschulsystem, in dem Bildung als Gemeinwohl gilt und im öffentlichen Sektor keine Studiengebühren anfallen. Das System ist dezentralisiert; die 16 Länder tragen Verantwortung. Hochschulen bestehen vorwiegend aus Universitäten und Hochschulen für angewandte Wissenschaften. Private Hochschulen existieren und benötigen staatliche Zulassung sowie Anerkennung von Abschlüssen....
+  ✅ Kodierer auto_2: Kontextfaktoren [TARGET]
+
+🕵️ Verarbeite Segment text_demo_wiss.pdf_chunk_1 mit Kontext ([TARGET] Fokus auf 3 Kategorien: Akteure, Prozesse, Legitimation)
+
+Deduktiver Kodierer 🤖 **auto_1** verarbeitet Chunk mit progressivem Kontext...
+Dokumentfortschritt: ca. 5.0%
+Summary-Reifephase: PHASE 1 (Sammlung), max. Änderung: 50%
+
+--- Analysefortschritt ---
+Verarbeitet: 5 Segmente
+Geschwindigkeit: 85.7 Segmente/Stunde
+------------------------
+Summary Änderung: 96.2% (Ziel: max. 50%)
+
+ðŸ—’ï¸  Paraphrase: Private Hochschulen in Deutschland benötigen staatliche Institutionalisierung und Programmakkreditierung; der Private-Sektor wird von Nichtstaatlichen Akteuren geprägt, Diskussionen darüber sind zurückhaltend; Sperlich unterscheidet sechs Akteursgruppen wie Privatpersonen, Unternehmen, Stiftungen, Verbände, Kirche, Städte.
+  ✅ Kodierung von auto_1: 📝  Akteure
+  ✅ Subkategorien von auto_1: 📝  Kollektive_Akteure
+  ✅ Keywords von auto_1: 📝  Akteure; Akkreditierung; Private Hochschulen
+
+🔀 Summary fuer text_demo_wiss.pdf aktualisiert (33 WÖrter):
+Private Hochschulen in Deutschland benötigen institutionelle Akkreditierung und Programmakkreditierung; Nichtstaatliche Akteure dominieren den Privatsektor; Debatten hierzu sind zurückhaltend; Sperlich nennt sechs Akteursgruppen: Privatpersonen, Unternehmen, Stiftungen, Verbände, Kirche, Städte; Kontext: hybrides Hochschulsystem und Regulierung....
+ℹ️ Summary aktualisiert: 33 WÖrter
+  ✅ Kodierer auto_1: Akteure [TARGET]
+
+Deduktiver Kodierer 🤖 **auto_2** verarbeitet Chunk mit progressivem Kontext...
+Dokumentfortschritt: ca. 5.0%
+Summary-Reifephase: PHASE 1 (Sammlung), max. Änderung: 50%
+
+--- Analysefortschritt ---
+Verarbeitet: 5 Segmente
+Geschwindigkeit: 75.0 Segmente/Stunde
+------------------------
+
+--- Analysefortschritt ---
+Verarbeitet: 5 Segmente
+Geschwindigkeit: 66.6 Segmente/Stunde
+------------------------
+Summary Änderung: 93.7% (Ziel: max. 50%)
+
+ðŸ—’ï¸  Paraphrase: Private Hochschulen benötigen staatliche Anerkennung (institutionelle Akkreditierung durch den Wissenschaftsrat, Programmakkreditierung); der Sektor ist klein, oft spezialisiert; nichtstaatliche Akteure spielen zentrale Rolle; Sperlich benennt sechs Akteursgruppen.
+  ✅ Kodierung von auto_2: 📝  Akteure
+  ✅ Subkategorien von auto_2: 📝  Kollektive_Akteure
+  ✅ Keywords von auto_2: 📝  Private Hochschulen; Akteure; Akkreditierung
+
+🔀 Summary fuer text_demo_wiss.pdf aktualisiert (34 WÖrter):
+Akteure: Private Hochschulen als zentrale Akteure; Nichtstaatliche Akteure dominieren (Privatpersonen, Unternehmen, Stiftungen, Vereine, Kirche, Städte). Prozesse: Staatliche Anerkennung erfordert institutionelle Akkreditierung (Wissenschaftsrat) und Programmakkreditierung. Kontext: Hybrides, dezentral gesteuertes Hochschulsystem; Debatten über Private eher zurückhaltend....
+  ✅ Kodierer auto_2: Akteure [TARGET]
+
+🕵️ Verarbeite Segment text_demo_wiss.pdf_chunk_2 mit Kontext ([TARGET] Fokus auf 3 Kategorien: Akteure, Kontextfaktoren, Strategien)
+
+Deduktiver Kodierer 🤖 **auto_1** verarbeitet Chunk mit progressivem Kontext...
+Dokumentfortschritt: ca. 10.0%
+Summary-Reifephase: PHASE 1 (Sammlung), max. Änderung: 50%
+
+--- Analysefortschritt ---
+Verarbeitet: 5 Segmente
+Geschwindigkeit: 60.0 Segmente/Stunde
+------------------------
+
+--- Analysefortschritt ---
+Verarbeitet: 5 Segmente
+Geschwindigkeit: 54.5 Segmente/Stunde
+------------------------
+Summary Änderung: 95.5% (Ziel: max. 50%)
+
+ðŸ—’ï¸  Paraphrase: Privathochschulen werden von Akteuren gegründet und betrieben, getrieben von Branchendefiziten, Kapazitätsengpässen im öffentlichen Sektor und einer veränderten Sicht auf Bildung als öffentliches Gut; Gründung zielt zudem auf Prestigegewinn und Einflussnahme.
+  ✅ Kodierung von auto_1: 📝  Strategien
+  ✅ Subkategorien von auto_1: 📝  Adaptiv
+  ✅ Keywords von auto_1: 📝  Privathochschulen; Motive; Branchenspezifische Qualifikationen
+
+🔀 Summary fuer text_demo_wiss.pdf aktualisiert (41 WÖrter):
+Strategien: Motive zur Gründung privater Hochschulen: Branchenspezifische Qualifikationen sichern; Prestige und Image verbessern; Einflussnahme auf politische Entscheidungen. Kontextfaktoren: Öffentliche Kapazitätsengpässe und Wahrnehmung von Bildung als Gut beeinflussen Gründung. Akteure: Private Akteure (Individuen, Städte) gründen Institutionen zur Erfüllung wirtschaftlicher und gesellschaftlicher Ziele....
+ℹ️ Summary aktualisiert: 41 WÖrter
+  ✅ Kodierer auto_1: Strategien [TARGET]
+
+Deduktiver Kodierer 🤖 **auto_2** verarbeitet Chunk mit progressivem Kontext...
+Dokumentfortschritt: ca. 10.0%
+Summary-Reifephase: PHASE 1 (Sammlung), max. Änderung: 50%
+
+
+============================================================
+🛑 ESCAPE-TASTE GEDRÜCKT - KODIERUNG UNTERBRECHEN?
+============================================================
+
+Aktueller Status:
+- Verarbeitete Segmente: 5
+- Erstellte Kodierungen: 0
+- Verstrichene Zeit: 338.3 Sekunden
+
+⚠️  Noch keine Kodierungen vorhanden
+   Ein Export würde leere Ergebnisse erzeugen.
+
+============================================================
+OPTIONEN:
+j + ENTER = Kodierung beenden und Zwischenergebnisse exportieren
+n + ENTER = Kodierung fortsetzen
+ESC       = Sofort beenden ohne Export
+============================================================
+
+Ihre Wahl (Timeout in 30 Sekunden): 
+ESC
+
+🛑 Sofortiger Abbruch ohne Export...
+[ABORT] Abbruch-Signal gesendet...
+
+--- Analysefortschritt ---
+Verarbeitet: 5 Segmente
+Geschwindigkeit: 50.0 Segmente/Stunde
+------------------------
+Summary Änderung: 92.2% (Ziel: max. 50%)
+
+ðŸ—’ï¸  Paraphrase: Private Hochschulen werden von diversen Akteuren gegründet; drei kontextuelle Treiber sind Knappheit öffentlicher Studienplätze, Kapazitätsüberlastung und eine veränderte Wahrnehmung von Bildung als öffentliches Gut. Vier Motive betreffen branchenspezifische Qualifikationen, Image/Prestige sowie Einfluss auf Politik und Gesellschaft.
+  ✅ Kodierung von auto_2: 📝  Akteure
+  ✅ Subkategorien von auto_2: 📝  Kollektive_Akteure
+  ✅ Keywords von auto_2: 📝  Akteure; Gründungsmotive; Kontextfaktoren
+
+🔀 Summary fuer text_demo_wiss.pdf aktualisiert (38 WÖrter):
+Private Hochschulen gründen sich durch diverse Akteure (Privatpersonen, Organisationen, Städte). Drei kontextuelle Treiber sind Knappheit öffentlicher Studienplätze, Kapazitätsüberlastung und veränderte Wahrnehmung von Bildung als öffentliches Gut. Vier Motive betreffen branchenspezifische Qualifikationen, Image/Prestige sowie Einfluss auf Politik und Gesellschaft....
+  ✅ Kodierer auto_2: Akteure [TARGET]
+
+🕵️ Verarbeite Segment text_demo_wiss.pdf_chunk_3 mit Kontext ([TARGET] Fokus auf 3 Kategorien: Ressourcen, Strategien, Akteure)
+
+Deduktiver Kodierer 🤖 **auto_1** verarbeitet Chunk mit progressivem Kontext...
+Dokumentfortschritt: ca. 15.0%
+Summary-Reifephase: PHASE 1 (Sammlung), max. Änderung: 50%
+
+--- Analysefortschritt ---
+Verarbeitet: 5 Segmente
+Geschwindigkeit: 46.1 Segmente/Stunde
+------------------------
+
+--- Analysefortschritt ---
+Verarbeitet: 5 Segmente
+Geschwindigkeit: 42.8 Segmente/Stunde
+------------------------
+
+--- Analysefortschritt ---
+Verarbeitet: 5 Segmente
+Geschwindigkeit: 40.0 Segmente/Stunde
+------------------------
+Summary Änderung: 91.8% (Ziel: max. 50%)
+
+ðŸ—’ï¸  Paraphrase: Private Hochschulen verfolgten ökonomische Motive (Gewinnmaximierung, Steuervorteile, Portfolio-Erweiterung) und positionieren sich als Reformmodelle, um Probleme im öffentlichen Hochschulsystem zu überwinden; zugleich betonen sie Autonomie und geringere Bürokratie, die ihnen Freiraum für eigene Strukturen und Ansätze geben.
+  ✅ Kodierung von auto_1: 📝  Ressourcen
+  ✅ Subkategorien von auto_1: 📝  Materiell
+  ✅ Keywords von auto_1: 📝  Profit; Steuervorteile; Autonomie
+
+🔀 Summary fuer text_demo_wiss.pdf aktualisiert (28 WÖrter):
+Ressourcen: Profit, Steuervorteile, Portfolio-Erweiterung. Strategien/Autonomie: Größere Freiheit, weniger Bürokratie, Modellcharakter zur Reform des Hochschulsystems. Akteure/Kontext: Private Hochschulen als Akteure im deutschen Sektor; Debatten und Wahrnehmungen gegenüber dem Privatssektor....
+ℹ️ Summary aktualisiert: 28 WÖrter
+  ✅ Kodierer auto_1: Ressourcen [TARGET]
+
+Deduktiver Kodierer 🤖 **auto_2** verarbeitet Chunk mit progressivem Kontext...
+Dokumentfortschritt: ca. 15.0%
+Summary-Reifephase: PHASE 1 (Sammlung), max. Änderung: 50%
+
+--- Analysefortschritt ---
+Verarbeitet: 5 Segmente
+Geschwindigkeit: 37.5 Segmente/Stunde
+------------------------
+Summary Änderung: 94.0% (Ziel: max. 50%)
+
+ðŸ—’ï¸  Paraphrase: Wirtschaftliche Motive privater Hochschulen (Gewinn, Steuervorteile, Portfolioergänzung) und der Ansatz, das System durch Modelle mit größerer Unabhängigkeit von Bürokratie zu verbessern; mehr Freiheit zur Gestaltung.
+  ✅ Kodierung von auto_2: 📝  Strategien
+  ✅ Subkategorien von auto_2: 📝  Innovativ
+  ✅ Keywords von auto_2: 📝  Gewinnmotive; Bürokratie-Freiheit; Innovatives Bildungsmodell
+
+🔀 Summary fuer text_demo_wiss.pdf aktualisiert (34 WÖrter):
+Privatuniversitäten in Deutschland handeln aus wirtschaftlichen Motiven (Gewinn, Steuervorteile, Portfolioergänzung) und präsentieren sich als Modelle mit mehr Freiheit von Bürokratie, um Reformen des Bildungssystems zu ermöglichen. Der Text behandelt Größenvergleiche, Gründungsmotive und öffentliche Debatten....
+  ✅ Kodierer auto_2: Strategien [TARGET]
+
+🧾 SÄttigungsstatus:
+   [TARGET] Theoretische SÄttigung: 53.6%
+   ℹ️ Materialabdeckung: 45.5%
+
+ℹ️ Fortschritt:
+   - Verarbeitete Segmente: 5/11
+   - Aktuelle Kategorien: 8
+   - Kodierungen: 10
+   - Batch-Zeit: 509.65s
+
+🏁 Abbruch durch Benutzer erkannt...
+
+🧾 Exportiere Zwischenergebnisse...
+
+Codebook gespeichert unter: C:\Users\justu\OneDrive\Projekte\Forschung\R-Projects\QCA-AID\output\codebook_intermediate_20251117_195337.json
+- Deduktive Kategorien: 8
+- Induktive Kategorien: 0
+- Grounded Kategorien: 0
+🔀 Zwischenkategorien gespeichert: 8 Kategorien
+🧾 Exportiere 10 Zwischenkodierungen...
+No existing revision history found - starting fresh
+🧾 Exportiere Zwischenergebnisse bei Abbruch...
+🧾 Exportiere umfassende Ergebnisse mit consensus-Modus...
+🔀‹ Exportiere Hauptergebnisse...
+   - RelevanceChecker Details: {'confidence': 0.6, 'key_aspects': [], 'justification': 'Thematisch passt Segment 1 nicht zum Kern der Forschungsfrage (Private Hochschulbildung in Deutschland) und dem Setting. Es behandelt eine Solarfirma und Haushaltskunden im Kontext von Solarenergie, nicht den privaten Hochschulsektor.', 'reasoning': 'Keine Begründung verfügbar', 'main_themes': [], 'exclusion_match': False}
+   - RelevanceChecker Details: {'confidence': 0.6, 'key_aspects': [], 'justification': 'Thematisch passt Segment 1 nicht zum Kern der Forschungsfrage (Private Hochschulbildung in Deutschland) und dem Setting. Es behandelt eine Solarfirma und Haushaltskunden im Kontext von Solarenergie, nicht den privaten Hochschulsektor.', 'reasoning': 'Keine Begründung verfügbar', 'main_themes': [], 'exclusion_match': False}
+
+Farbzuordnung initialisiert:
+- Akteure: FFf29191
+- Kontextfaktoren: FFc1f291
+- Ressourcen: FF91f2f2
+- Strategien: FFc191f2
+- Nicht kodiert: CCCCCC
+VerfÜgbare Kategorie-Farben: ['Akteure', 'Kontextfaktoren', 'Ressourcen', 'Strategien', 'Nicht kodiert']
+Hauptkategorie-Spalte gefunden bei Index: 9
+Excel-Tabelle 'Table_Kodierungsergebnisse' erfolgreich erstellt
+Worksheet 'Kodierungsergebnisse' erfolgreich formatiert mit Farbkodierung fuer Hauptkategorien (Spalte 9)
+🧾 Exportiere HÄufigkeiten...
+[OK] HÄufigkeitsanalysen erfolgreich mit standardisierter Formatierung exportiert
+🧾 Exportiere IntercoderBericht...
+❌ Keine ursprÜnglichen Kodierungen oder ReliabilitÄt verfÜgbar
+🔀‚ Exportiere Kategorien-Übersicht...
+🔀 Exportiere Progressive Summaries...
+🔀 Erstelle formatierte Progressive Summaries...
+[OK] 1 formatierte Document-Summaries exportiert
+🎯 Exportiere Review-Statistiken...
+[OK] Erweiterte Review-Statistiken erfolgreich exportiert
+🧾 Exportiere Revisionshistorie...
+Keine Revisionshistorie zum Exportieren vorhanden
+✅ Exportiere Konfiguration...
+✅ Konfiguration erfolgreich exportiert
+[OK] Zwischenergebnisse erfolgreich exportiert!
+[OK] Zwischenergebnisse erfolgreich exportiert!
+🔀‚ Dateien im Ordner: C:\Users\justu\OneDrive\Projekte\Forschung\R-Projects\QCA-AID\output
+🔀„ Export-Datei: QCA-AID_Analysis_INTERMEDIATE_20251117_195337.xlsx
+
+FortschrittsÜberwachung beendet.
+
+FÜge 10 automatische Kodierungen hinzu
+
+Gesamtzahl Kodierungen: 10
+
+8. Berechne korrekte Intercoder-ReliabilitÄt...
+
+🧾 Umfassende Krippendorff's Alpha Analyse...
+🕵️ Gefilterte ursprÜngliche Kodierungen: 10
+🧾 Overall Alpha Details:
+   - Durchschnittliche Jaccard-Übereinstimmung: 0.600
+   - Erwartete ZufallsÜbereinstimmung: 0.250
+   - Overall Alpha (Jaccard-basiert): 0.467
+🧾 Hauptkategorien Alpha Details:
+   - Durchschnittliche Übereinstimmung: 0.600
+   - Hauptkategorien Alpha (Jaccard): 0.500
+🕵️ Debug Subkategorien: Analysiere 5 Segmente
+  Vergleich 1: [] vs [] -> 1.000
+  Vergleich 2: ['Strukturell'] vs ['Strukturell'] -> 1.000
+  Vergleich 3: ['Kollektive_Akteure'] vs ['Kollektive_Akteure'] -> 1.000
+🧾 Subkategorien-Alpha Details:
+   - Vergleiche durchgefÜhrt: 5
+   - Durchschnittliche Übereinstimmung: 0.600
+   - Erwartete ZufallsÜbereinstimmung: 0.250
+   - Partielle Übereinstimmungs-Alpha: 0.467
+
+ℹ️ Krippendorff's Alpha ReliabilitÄts-Analyse:
+============================================================
+Overall Alpha (Jaccard-basiert):       0.467
+Hauptkategorien Alpha (Jaccard):       0.500
+Subkategorien Alpha (Jaccard):         0.467
+Vergleichbare Segmente:                5
+Anzahl Kodierer:                       2
+
+ℹ️ Methodik:
+   - Alle Alpha-Werte verwenden Jaccard-Ähnlichkeit
+   - Konsistente Set-basierte Berechnung
+   - Overall sollte zwischen Haupt- und Sub-Alpha liegen
+   [OK] Mathematische Konsistenz: 0.467 â‰¤ 0.467 â‰¤ 0.500
+
+Bewertung Overall Alpha:               Unzureichend
+❌  ReliabilitÄt unter Schwellenwert - Kategoriensystem Überarbeiten
+📈 Krippendorff's Alpha (korrigiert fuer Mehrfachkodierungen): 0.467
+
+9. FÜhre kategorie-zentrierten Review-Prozess durch...
+🔀‹ Review-Modus: consensus
+📈 Eingabe: 10 ursprÜngliche Kodierungen
+
+=== REVIEW-PROZESS (CONSENSUS) ===
+ℹ️ Erstelle kategorie-spezifische Segmente...
+  🧾 Mehrfachkodierung text_demo_wiss.pdf_chunk_2: 2 Kategorien -> 2 Segmente
+  🧾 Mehrfachkodierung text_demo_wiss.pdf_chunk_3: 2 Kategorien -> 2 Segmente
+[OK] 7 kategorie-spezifische Segmente erstellt
+🕵️ FÜhre Consensus-Review durch...
+Review abgeschlossen: 7 finale Kodierungen
+[OK] Review abgeschlossen: 7 finale Kodierungen
+============================================================
+=== QCA-AID Console Log beendet: 2025-11-17 19:53:37 ===

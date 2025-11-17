@@ -1,0 +1,176 @@
+╔════════════════════════════════════════════════════════════════════════════════╗
+║                  QCA_Utils.py REFACTORING MASTERPLAN                           ║
+╚════════════════════════════════════════════════════════════════════════════════╝
+
+CURRENT STATE (MONOLITH):
+┌─────────────────────────────────────┐
+│  QCA_Utils.py (3954+ lines)         │
+├─────────────────────────────────────┤
+│ • TokenTracker (360 lines)          │
+│ • ConfigLoader (500 lines)          │
+│ • LLM Providers (210 lines)         │
+│ • Tkinter GUI (1000+ lines)         │
+│ • Document I/O (310 lines)          │
+│ • PDF/Review Export (1000+ lines)   │
+│ • EscapeHandler (400 lines)         │
+│ • Misc utilities                    │
+└─────────────────────────────────────┘
+     ↓ PROBLEM: Impossible to maintain
+
+TARGET STATE (MODULAR):
+┌──────────────────────────────────────────────────────────────────────────────┐
+│                          utils/                                              │
+├────────────────┬─────────────────┬──────────────┬─────────────────────────────┤
+│ llm/           │ config/         │ tracking/    │ dialog/                     │
+├────────────────┼─────────────────┼──────────────┼─────────────────────────────┤
+│ • base.py      │ • loader.py     │ • tracker    │ • widgets.py               │
+│ • response.py  │   (500 lines)   │   .py        │ • multiple_coding.py       │
+│ • openai       │                 │ • counter    │                            │
+│   _provider.py │   RESPONSIBILITY:│   .py        │   RESPONSIBILITY:          │
+│ • mistral      │   Load config   │              │   • MultiSelect GUI        │
+│   _provider.py │   from Excel    │   REPONSIB-  │   • Coding dialogs         │
+│ • factory.py   │   & validate    │   ILITY:     │   • User interactions      │
+│                │                 │   • Track    │                            │
+│   RESPONSIB:   │   NO GUI CODE   │     tokens   │   100% Tkinter             │
+│   • Create     │   NO LLM calls  │   • Count    │                            │
+│     LLM calls  │   NO I/O        │     usage    │                            │
+│   • Handle     │                 │   • Pricing  │                            │
+│     responses  │                 │              │                            │
+│   • Test caps  │                 │              │                            │
+└────────────────┴─────────────────┴──────────────┴─────────────────────────────┘
+
+┌────────────────────────────────────────────────────────────────────────────────┐
+│ export/                         │ io/                  │ common.py              │
+├─────────────────────────────────┼──────────────────────┼────────────────────────┤
+│ • pdf_annotator.py              │ • document_reader.py │ • Constants            │
+│ • review.py (ManualReviewGUI)   │ • escape_handler.py  │ • Shared helpers       │
+│ • review.py (ManualReview       │                      │                        │
+│   Component)                    │   RESPONSIBILITY:    │   RESPONSIBILITY:      │
+│                                 │   • Parse TXT/DOCX   │   • Shared constants   │
+│   RESPONSIBILITY:               │     /PDF             │   • Utility functions  │
+│   • PDF generation              │   • Handle ESC key    │                        │
+│   • Manual review GUI            │   • Safe shutdown    │                        │
+│   • Category review workflow     │                      │                        │
+│   • Discrepancy resolution       │   NO Tkinter (except │                        │
+│                                 │   input handling)    │                        │
+└─────────────────────────────────┴──────────────────────┴────────────────────────┘
+
+MIGRATION PHASES (8 phases, ~8 hours total):
+═════════════════════════════════════════════════════════════════════════════════
+
+Phase 1: Structure Setup (1h)
+  └─ Create directory hierarchy
+  └─ Add __init__.py files
+  └─ Setup imports
+
+Phase 2: LLM System (1.5h)
+  ├─ utils/llm/base.py
+  ├─ utils/llm/response.py
+  ├─ utils/llm/openai_provider.py
+  ├─ utils/llm/mistral_provider.py
+  └─ utils/llm/factory.py
+
+Phase 3: Configuration (0.5h)
+  └─ utils/config/loader.py
+
+Phase 4: Tracking (0.5h)
+  ├─ utils/tracking/token_tracker.py
+  └─ utils/tracking/token_counter.py
+
+Phase 5: Dialog/GUI (1h)
+  ├─ utils/dialog/widgets.py
+  └─ utils/dialog/multiple_coding.py
+
+Phase 6: Export (2h)
+  ├─ utils/export/pdf_annotator.py
+  └─ utils/export/review.py
+
+Phase 7: I/O (1h)
+  ├─ utils/io/document_reader.py
+  └─ utils/io/escape_handler.py
+
+Phase 8: Compatibility (0.5h)
+  ├─ QCA_Utils.py → compatibility layer
+  └─ Update all imports
+
+AFFECTED FILES (imports to update):
+═════════════════════════════════════════════════════════════════════════════════
+
+BEFORE:
+  from QCA_Utils import TokenTracker, ConfigLoader, DocumentReader, ...
+
+AFTER:
+  from utils.tracking import TokenTracker
+  from utils.config import ConfigLoader
+  from utils.io import DocumentReader
+  from utils.llm import LLMProviderFactory
+  # etc.
+
+Files to update:
+  • main.py
+  • analysis_manager.py
+  • deductive_coding.py
+  • inductive_coding.py
+  • relevance_checker.py
+  • results_exporter.py
+  • QCA_Prompts.py (if needed)
+  • All test files
+
+KEY BENEFITS:
+═════════════════════════════════════════════════════════════════════════════════
+
+1. MAINTAINABILITY: 3954 lines → 6 focused modules (200-500 lines each)
+2. TESTABILITY: Can test LLM, config, tracking independently
+3. READABILITY: Clear separation of concerns
+4. REUSABILITY: Can use utils.llm.* in other projects
+5. DEVELOPMENT: Parallel work possible (no merge conflicts)
+6. ONBOARDING: Easier to understand architecture
+7. DEBUGGING: Smaller scopes to search
+8. PERFORMANCE: Lazy loading possible for heavy modules
+
+BACKWARD COMPATIBILITY:
+═════════════════════════════════════════════════════════════════════════════════
+
+OLD CODE:
+  from QCA_Utils import TokenTracker
+
+NEW CODE (Phase 8):
+  QCA_Utils.py acts as proxy:
+  
+  from .utils.tracking import TokenTracker
+  from .utils.config import ConfigLoader
+  from .utils.llm import LLMProviderFactory
+  # ... all exports re-exported
+
+Result: Zero breaking changes, smooth migration
+
+TESTING STRATEGY:
+═════════════════════════════════════════════════════════════════════════════════
+
+After each phase:
+  1. Unit tests for new module
+  2. Integration tests with other modules
+  3. Verify old imports still work (via QCA_Utils.py proxy)
+  4. Run existing test suite
+
+Critical paths to verify:
+  ✓ LLM capability detection
+  ✓ Config Excel parsing
+  ✓ Token cost calculation
+  ✓ Manual review GUI
+  ✓ Document type handling
+  ✓ ESC shutdown safety
+
+STATUS TRACKER:
+═════════════════════════════════════════════════════════════════════════════════
+
+[ ] Phase 1: Structure
+[ ] Phase 2: LLM System
+[ ] Phase 3: Config
+[ ] Phase 4: Tracking
+[ ] Phase 5: Dialog
+[ ] Phase 6: Export
+[ ] Phase 7: I/O
+[ ] Phase 8: Compatibility
+
+Ready to start? Use REFACTORING_PLAN.md for detailed specifications.
