@@ -57,7 +57,7 @@ class RelevanceChecker:
 
         # Hole Mehrfachkodierungsparameter aus CONFIG
         self.multiple_codings_enabled = CONFIG.get('MULTIPLE_CODINGS', True)
-        self.multiple_threshold = CONFIG.get('MULTIPLE_CODING_THRESHOLD', 0.7)
+        self.multiple_threshold = float(CONFIG.get('MULTIPLE_CODING_THRESHOLD', 0.7))
 
         # Cache für Mehrfachkodierungen
         self.multiple_coding_cache = {}

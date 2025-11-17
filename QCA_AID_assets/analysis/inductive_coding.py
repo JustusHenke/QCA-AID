@@ -746,9 +746,10 @@ class InductiveCoder:
             candidates = {}
             
             for cat_data in result.get('new_categories', []):
-                if cat_data.get('confidence', 0) >= self.MIN_CONFIDENCE:
+                confidence = float(cat_data.get('confidence', 0))
+                if confidence >= self.MIN_CONFIDENCE:
                     candidates[cat_data['name']] = self._create_category_definition(cat_data)
-                    print(f"[OK] Neuer Kandidat: '{cat_data['name']}' (Konfidenz: {cat_data.get('confidence', 0):.2f})")
+                    print(f"[OK] Neuer Kandidat: '{cat_data['name']}' (Konfidenz: {confidence:.2f})")
             
             return candidates
             
