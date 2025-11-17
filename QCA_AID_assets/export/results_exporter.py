@@ -26,7 +26,7 @@ from ..utils.export.helpers import (
     sanitize_text_for_excel, generate_pastel_colors, format_confidence
 )
 from ..QCA_Utils import (
-    _calculate_multiple_coding_stats, export_multiple_coding_report
+    calculate_multiple_coding_stats, export_multiple_coding_report
 )
 
 try:

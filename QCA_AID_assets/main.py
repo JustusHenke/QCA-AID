@@ -28,7 +28,7 @@ from .utils.system import patch_tkinter_for_threaded_exit, get_input_with_timeou
 from .utils.logging import ConsoleLogger, TeeWriter
 
 # Utilities still in old QCA_Utils (to be refactored)
-from .QCA_Utils import _calculate_multiple_coding_stats
+from .utils.analysis import calculate_multiple_coding_stats
 
 # Check if PDF annotation is available
 try:
@@ -663,7 +663,7 @@ async def main() -> None:
                 codings_for_stats = original_codings_for_reliability if original_codings_for_reliability else all_codings
                 
                 if codings_for_stats:
-                    multiple_coding_stats = _calculate_multiple_coding_stats(codings_for_stats)
+                    multiple_coding_stats = calculate_multiple_coding_stats(codings_for_stats)
                     
                     # FIX: ZeroDivisionError bei Division durch Null verhindern
                     auto_coder_ids = set(c.get('coder_id', '') for c in codings_for_stats if c.get('coder_id', '').startswith('auto'))
