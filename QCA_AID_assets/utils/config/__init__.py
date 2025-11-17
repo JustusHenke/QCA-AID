@@ -10,6 +10,13 @@ Handles:
 - Temperature settings per coder
 
 No LLM calls, no GUI code, no I/O except Excel reading.
+
+Exports:
+  - ConfigLoader: Main configuration loader class
 """
 
-# Imports will be added during Phase 3 migration
+from .loader import ConfigLoader
+
+__all__ = [
+    'ConfigLoader',
+]
