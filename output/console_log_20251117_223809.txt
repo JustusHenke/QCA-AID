@@ -521,3 +521,132 @@ Geschwindigkeit: 149.9 Segmente/Stunde
     🔀 Kontext-Kodierung 3/3
         Fokus: Strategien
     [TARGET] Fokuskodierung fuer Kategorie: Strategien (Relevanz: 0.85)
+        ðŸ—’ï¸  Fokus-Kontext-Paraphrase: Die individuelle Motivation zur Steigerung der Expertise in Nachhaltigkeit wird durch Anreize wie Erlass von Unterrichtsstunden oder höhere Bezahlung gefördert, wodurch die Teilnahme an Forschungsprojekten als Strategie zur Zielerreichung empfohlen wird.
+        🎯 Fokus-Kontext-Kodierung von auto_1: 📝  Strategien
+        ✅ Subkategorien: 📝  Formell, Informell
+        ✅ Keywords: 📝  Anreize, Expertise, Forschungsprojekte
+        ✅ auto_1: Strategien [TARGET]
+    [TARGET] Fokuskodierung fuer Kategorie: Strategien (Relevanz: 0.85)
+        ðŸ—’ï¸  Fokus-Kontext-Paraphrase: Die individuelle Motivation zur Steigerung der Expertise in Nachhaltigkeit wird durch externe Anreize wie weniger Unterrichtsstunden oder höhere Bezahlung unterstützt. Ein Aufbau der Persönlichkeit als Experte erfordert Engagement in Forschungsprojekten.
+        🎯 Fokus-Kontext-Kodierung von auto_2: 📝  Strategien
+        ✅ Subkategorien: 📝  Formell, Informell
+        ✅ Keywords: 📝  Anreize, Expertise, Forschungsprojekte
+        ✅ auto_2: Strategien [TARGET]
+
+🧾 SÄttigungsstatus:
+   [TARGET] Theoretische SÄttigung: 53.6%
+   ℹ️ Materialabdeckung: 90.9%
+
+ℹ️ Fortschritt:
+   - Verarbeitete Segmente: 10/11
+   - Aktuelle Kategorien: 8
+   - Kodierungen: 32
+   - Batch-Zeit: 201.30s
+
+============================================================
+🧾 BATCH 3: 1 Segmente
+ℹ️ Material verarbeitet: 90.9%
+============================================================
+
+🕵️ Schritt 1: Erweiterte RelevanzprÜfung fuer Forschungsfrage...
+[REVIEW] Erweiterte Relevanzpruefung mit Kategorie-Vorauswahl fuer 1 Segmente...
+[OK] Erweiterte Relevanzpruefung abgeschlossen: 1 relevante Segmente
+🧾 Erweiterte Relevanz: 1 von 1 Segmenten relevant
+🎯 Kategorie-PrÄferenzen: {'Akteure': 1, 'Prozesse': 1, 'Herausforderungen': 1}
+
+📝 NÄchster Schritt: Deduktive Kodierung aller 1 Segmente...
+🎯 Kontext-Kodierung: 1 Segmente haben Kategorie-PrÄferenzen
+🎯 HÄufigste PrÄferenzen: {'Akteure': 1, 'Prozesse': 1, 'Herausforderungen': 1}
+[SEARCH] Relevanzpruefung: 1 neue Segmente
+   📦 Verwende normale Batch-Methode für 1 Segmente
+   [STATS] Relevanz-Ergebnisse: 0/1 als relevant eingestuft
+
+🕵️ Verarbeite Segment trial_case_iv_2.pdf_chunk_4 mit Kontext ([TARGET] Fokus auf 3 Kategorien: Akteure, Prozesse, Herausforderungen)
+  🗑️ Segment als nicht relevant markiert - wird Übersprungen
+
+🧾 SÄttigungsstatus:
+   [TARGET] Theoretische SÄttigung: 53.6%
+   ℹ️ Materialabdeckung: 100.0%
+
+ℹ️ Fortschritt:
+   - Verarbeitete Segmente: 11/11
+   - Aktuelle Kategorien: 8
+   - Kodierungen: 34
+   - Batch-Zeit: 6.43s
+
+🏁 FINALISIERUNG (DEDUCTIVE MODE):
+
+ℹ️ DEDUCTIVE MODE Finalisierung:
+   - Kategorien: 8
+
+================================================================================
+🧾 KATEGORIENENTWICKLUNG ABGESCHLOSSEN
+================================================================================
+ℹ️ Entwicklungsbilanz:
+   - Verarbeitete Batches: 3
+   - Initial: 8 Kategorien
+   - Neu entwickelt: 0 Kategorien
+   - Final: 8 Kategorien
+   - Subkategorien: 32
+
+FortschrittsÜberwachung beendet.
+
+FÜge 34 automatische Kodierungen hinzu
+
+Gesamtzahl Kodierungen: 34
+
+8. Berechne korrekte Intercoder-ReliabilitÄt...
+
+🧾 Umfassende Krippendorff's Alpha Analyse...
+🕵️ Gefilterte ursprÜngliche Kodierungen: 34
+🧾 Overall Alpha Details:
+   - Durchschnittliche Jaccard-Übereinstimmung: 0.933
+   - Erwartete ZufallsÜbereinstimmung: 0.250
+   - Overall Alpha (Jaccard-basiert): 0.911
+🧾 Hauptkategorien Alpha Details:
+   - Durchschnittliche Übereinstimmung: 1.000
+   - Hauptkategorien Alpha (Jaccard): 1.000
+🕵️ Debug Subkategorien: Analysiere 11 Segmente
+  Vergleich 1: ['Beziehungen', 'Strukturell', 'Kollektive_Akteure'] vs ['Rollen', 'Zeitlich', 'Strukturell', 'Kollektive_Akteure'] -> 0.400
+  Vergleich 2: [] vs [] -> 1.000
+  Vergleich 3: [] vs [] -> 1.000
+🧾 Subkategorien-Alpha Details:
+   - Vergleiche durchgefÜhrt: 11
+   - Durchschnittliche Übereinstimmung: 0.905
+   - Erwartete ZufallsÜbereinstimmung: 0.250
+   - Partielle Übereinstimmungs-Alpha: 0.873
+
+ℹ️ Krippendorff's Alpha ReliabilitÄts-Analyse:
+============================================================
+Overall Alpha (Jaccard-basiert):       0.911
+Hauptkategorien Alpha (Jaccard):       1.000
+Subkategorien Alpha (Jaccard):         0.873
+Vergleichbare Segmente:                11
+Anzahl Kodierer:                       2
+
+ℹ️ Methodik:
+   - Alle Alpha-Werte verwenden Jaccard-Ähnlichkeit
+   - Konsistente Set-basierte Berechnung
+   - Overall sollte zwischen Haupt- und Sub-Alpha liegen
+   [OK] Mathematische Konsistenz: 0.873 â‰¤ 0.911 â‰¤ 1.000
+
+Bewertung Overall Alpha:               Exzellent
+📈 Krippendorff's Alpha (korrigiert fuer Mehrfachkodierungen): 0.911
+
+9. FÜhre kategorie-zentrierten Review-Prozess durch...
+🔀‹ Review-Modus: consensus
+📈 Eingabe: 34 ursprÜngliche Kodierungen
+
+=== REVIEW-PROZESS (CONSENSUS) ===
+ℹ️ Erstelle kategorie-spezifische Segmente...
+  🧾 Mehrfachkodierung dummy_solar_media.txt_chunk_0: 2 Kategorien -> 2 Segmente
+  🧾 Mehrfachkodierung trial_case_iv_2.pdf_chunk_0: 2 Kategorien -> 2 Segmente
+  🧾 Mehrfachkodierung trial_case_iv_2.pdf_chunk_1: 2 Kategorien -> 2 Segmente
+  🧾 Mehrfachkodierung trial_case_iv_2.pdf_chunk_2: 2 Kategorien -> 2 Segmente
+  🧾 Mehrfachkodierung trial_case_iv_2.pdf_chunk_3: 3 Kategorien -> 3 Segmente
+[OK] 17 kategorie-spezifische Segmente erstellt
+🕵️ FÜhre Consensus-Review durch...
+Review abgeschlossen: 17 finale Kodierungen
+[OK] Review abgeschlossen: 17 finale Kodierungen
+============================================================
+=== QCA-AID Console Log beendet: 2025-11-17 22:42:52 ===

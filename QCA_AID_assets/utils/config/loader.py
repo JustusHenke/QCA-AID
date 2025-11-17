@@ -396,7 +396,24 @@ class ConfigLoader:
 
         
         self._sanitize_config(config)
-        self.global_config.update(config)
+        
+        # Update global_config with values that weren't specially handled in _sanitize_config
+        # Only add keys that aren't already set by _sanitize_config
+        specially_handled_keys = {
+            'DATA_DIR', 'OUTPUT_DIR', 'INPUT_DIR',
+            'CHUNK_SIZE', 'CHUNK_OVERLAP',
+            'CODER_SETTINGS',
+            'CODE_WITH_CONTEXT',
+            'MULTIPLE_CODINGS',
+            'MULTIPLE_CODING_THRESHOLD',
+            'SIMILARITY_THRESHOLD',
+            'PDF_ANNOTATION_FUZZY_THRESHOLD',
+        }
+        
+        for key, value in config.items():
+            if key not in specially_handled_keys and key not in self.global_config:
+                self.global_config[key] = value
+        
         return True
 
     def _sanitize_config(self, loaded_config: Dict) -> None:
