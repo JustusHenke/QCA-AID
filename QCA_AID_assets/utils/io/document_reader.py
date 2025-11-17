@@ -15,13 +15,17 @@ from ..export.helpers import sanitize_text_for_excel
 
 try:
     from docx import Document as DocxDocument
+    DOCX_AVAILABLE = True
 except ImportError:
     DocxDocument = None
+    DOCX_AVAILABLE = False
 
 try:
     import PyPDF2
+    PDF_AVAILABLE = True
 except ImportError:
     PyPDF2 = None
+    PDF_AVAILABLE = False
 
 
 class DocumentReader:
