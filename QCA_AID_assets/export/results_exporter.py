@@ -3117,7 +3117,7 @@ class ResultsExporter:
         
         try:
             # FIX: Importiere PDF-Annotator (nur wenn benÖtigt)
-            from ..QCA_Utils import PDFAnnotator
+            from ..utils.export.pdf_annotator import PDFAnnotator
         except ImportError:
             print("   ⚠️ PyMuPDF nicht verfÜgbar - PDF-Annotation Übersprungen")
             print("   ℹ️ Installieren Sie mit: pip install PyMuPDF")
@@ -3228,7 +3228,8 @@ class ResultsExporter:
         
         try:
             # FIX: Importiere benÖtigte Klassen
-            from ..QCA_Utils import PDFAnnotator, DocumentToPDFConverter
+            from ..utils.export.pdf_annotator import PDFAnnotator
+            from ..utils.export.converters import DocumentToPDFConverter
         except ImportError:
             print("   ⚠️ BenÖtigte Bibliotheken nicht verfÜgbar")
             print("   ℹ️ Installieren Sie mit: pip install PyMuPDF reportlab")

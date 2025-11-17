@@ -6,6 +6,7 @@ Provides utilities for dialog configuration and multiple coding information.
 
 from typing import Dict, List, Optional, Any
 from datetime import datetime
+import tkinter.messagebox as messagebox
 
 
 def setup_manual_coding_window_enhanced(parent, categories: List[str]) -> Dict[str, Any]:
@@ -32,51 +33,65 @@ def setup_manual_coding_window_enhanced(parent, categories: List[str]) -> Dict[s
 
 
 def create_multiple_coding_results(
-    segment_id: str,
-    coding_decisions: List[Dict],
+    selected_categories: List[Dict],
+    text: str,
+    coder_id: str,
     timestamp: Optional[datetime] = None
-) -> Dict[str, Any]:
+) -> Any:
     """
     Creates a formatted result object for multiple coding decisions.
     
     Args:
-        segment_id: ID of the segment being coded
-        coding_decisions: List of coding decision dictionaries
+        selected_categories: List of selected category dictionaries
+        text: Text that was coded
+        coder_id: ID of the coder
         timestamp: Optional timestamp for the decision
         
     Returns:
-        Formatted result dictionary
+        List of CodingResult objects or formatted dictionaries
     """
     if timestamp is None:
         timestamp = datetime.now()
     
-    return {
-        'segment_id': segment_id,
-        'coding_decisions': coding_decisions,
-        'decision_count': len(coding_decisions),
-        'timestamp': timestamp.isoformat(),
-        'has_consensus': len(set(c.get('category', '') for c in coding_decisions)) == 1
-    }
+    from ..core.data_models import CodingResult
+    
+    results = []
+    for category in selected_categories:
+        result = CodingResult(
+            category=category.get('main_category', category.get('name')),
+            subcategories=tuple([category.get('name')]) if category.get('type') == 'sub' else (),
+            justification=f"Manuelle Mehrfachkodierung von Coder {coder_id}",
+            confidence={'total': 1.0, 'category': 1.0, 'subcategories': 1.0},
+            text_references=(text[:100] if text else "",)
+        )
+        results.append(result)
+    
+    return results
 
 
-def show_multiple_coding_info(coding_decisions: List[Dict]) -> str:
+def show_multiple_coding_info(
+    parent,
+    decision_count: int,
+    main_categories: List[str]
+) -> bool:
     """
-    Generates an info string about multiple coding decisions.
+    Shows information about multiple coding and asks for confirmation.
     
     Args:
-        coding_decisions: List of coding decision dictionaries
+        parent: Parent widget
+        decision_count: Number of coding decisions
+        main_categories: List of main category names
         
     Returns:
-        Formatted information string
+        True if user confirmed, False otherwise
     """
-    if not coding_decisions:
-        return "Keine Kodierungsentscheidungen vorhanden"
+    message = (
+        f"Mehrfachkodierung: {decision_count} Entscheidungen\n"
+        f"Hauptkategorien: {', '.join(sorted(main_categories))}\n\n"
+        f"Möchten Sie diese Mehrfachkodierung speichern?"
+    )
     
-    categories = set(c.get('category', 'unknown') for c in coding_decisions)
-    info = f"Mehrfachkodierung: {len(coding_decisions)} Entscheidungen über {len(categories)} Kategorien\n"
-    info += "Kategorien: " + ", ".join(sorted(categories))
-    
-    return info
+    return messagebox.askyesno("Mehrfachkodierung bestätigen", message, parent=parent)
 
 
 __all__ = [

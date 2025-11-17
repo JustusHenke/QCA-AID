@@ -207,7 +207,6 @@ class ManualCoder:
                     return
                 
                 # Validiere Auswahl
-                from ..QCA_Utils import validate_multiple_selection
                 is_valid, error_msg, selected_categories = validate_multiple_selection(
                     selected_indices, self.category_map
                 )
@@ -308,7 +307,6 @@ class ManualCoder:
         main_categories = set(cat['main_category'] for cat in selected_categories)
         
         # BestÄtigungsdialog anzeigen
-        from ..QCA_Utils import show_multiple_coding_info
         confirmed = show_multiple_coding_info(
             self.root,
             len(selected_categories),
@@ -344,7 +342,6 @@ class ManualCoder:
             print(f"Einzelkodierung mit mehreren Subkategorien: {main_cat} -> {', '.join(subcategories)}")
         else:
             # Echte Mehrfachkodierung: verschiedene Hauptkategorien
-            from ..QCA_Utils import create_multiple_coding_results
             
             coding_results = create_multiple_coding_results(
                 selected_categories=selected_categories,
@@ -836,7 +833,6 @@ class ManualCoder:
         
         
         # Verwende die neue MultiSelectListbox aus QCA_Utils
-        from ..QCA_Utils import MultiSelectListbox
         self.category_listbox = MultiSelectListbox(category_frame, font=('Arial', 10))
         
         cat_scrollbar = ttk.Scrollbar(category_frame, orient=tk.VERTICAL, command=self.category_listbox.yview)

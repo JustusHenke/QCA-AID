@@ -20,10 +20,11 @@ SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, SCRIPT_DIR)
 
 # Importiere main aus dem refactored Code
-from QCA_AID_assets.main import main, _patch_tkinter_for_threaded_exit
+from QCA_AID_assets.main import main
+from QCA_AID_assets.utils.system import patch_tkinter_for_threaded_exit
 
 # Patch für Tkinter-Threading
-_patch_tkinter_for_threaded_exit()
+patch_tkinter_for_threaded_exit()
 
 if __name__ == "__main__":
     try:
