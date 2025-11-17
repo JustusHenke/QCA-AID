@@ -11,9 +11,16 @@ Features:
 - Decision recording and consensus building
 
 Exports:
-- PDFAnnotator: Creates annotated PDFs from codings
-- ManualReviewGUI: Simple category review interface
-- ManualReviewComponent: Advanced review with discrepancy handling
+  - PDFAnnotator: Creates annotated PDFs from codings
+  - ManualReviewGUI: Simple category review interface
+  - ManualReviewComponent: Advanced review with discrepancy handling
 """
 
-# Imports will be added during Phase 6 migration
+from .pdf_annotator import PDFAnnotator
+from .review import ManualReviewGUI, ManualReviewComponent
+
+__all__ = [
+    'PDFAnnotator',
+    'ManualReviewGUI',
+    'ManualReviewComponent',
+]
