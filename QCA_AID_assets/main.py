@@ -20,15 +20,26 @@ from .management import DevelopmentHistory, CategoryRevisionManager, CategoryMan
 from .quality.reliability import ReliabilityCalculator
 from .quality.review_manager import ReviewManager
 from .export.results_exporter import ResultsExporter
+
+# Config and utilities from modular packages
+from .utils.config.loader import ConfigLoader
+from .utils.io.document_reader import DocumentReader
+
+# Utilities still in old QCA_Utils (to be refactored)
 from .QCA_Utils import (
-    ConfigLoader, _patch_tkinter_for_threaded_exit,
-    ConsoleLogger, TeeWriter, DocumentReader, get_input_with_timeout, token_counter
+    _patch_tkinter_for_threaded_exit,
+    ConsoleLogger, TeeWriter, get_input_with_timeout,
+    _calculate_multiple_coding_stats
 )
-from .QCA_Utils import _calculate_multiple_coding_stats
 
 # Check if PDF annotation is available
 try:
-    from .QCA_Utils import PDFAnnotator, DocumentToPDFConverter
+    from .utils.export.pdf_annotator import PDFAnnotator
+    # DocumentToPDFConverter not yet extracted - try old location
+    try:
+        from .QCA_Utils import DocumentToPDFConverter
+    except ImportError:
+        DocumentToPDFConverter = None
     pdf_annotation_available = True
 except ImportError:
     pdf_annotation_available = False
