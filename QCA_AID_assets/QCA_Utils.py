@@ -1341,6 +1341,11 @@ class ConfigLoader:
                         if param_name in config[key]:
                             config[param_name] = config[key][param_name]
                             print(f"[DEBUG] Extrahierte {param_name} aus {key}: {config[param_name]}")
+                    # Also extract threshold values
+                    for threshold_name in ['MULTIPLE_CODING_THRESHOLD', 'SIMILARITY_THRESHOLD', 'PDF_ANNOTATION_FUZZY_THRESHOLD']:
+                        if threshold_name in config[key]:
+                            config[threshold_name] = config[key][threshold_name]
+                            print(f"[DEBUG] Extrahierte {threshold_name} aus {key}: {config[threshold_name]}")
             
             self._sanitize_config(config)
             self.global_config.update(config) # Update the global config with loaded and sanitized values

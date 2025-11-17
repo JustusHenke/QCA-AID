@@ -491,3 +491,122 @@ Summary-Reifephase: PHASE 1 (Sammlung), max. Änderung: 50%
 Verarbeitet: 10 Segmente
 Geschwindigkeit: 80.0 Segmente/Stunde
 ------------------------
+Summary Änderung: 93.2% (Ziel: max. 50%)
+
+ðŸ—’ï¸  Paraphrase: Der Sprecher rät neuen Kollegen von bezahlter Zusatzarbeit ab, weil sie Lehre und Qualität schadet und Burnout fördert; die klassische Lehre bleibt Basis, und die Hochschule betont Qualität in der Lehre.
+  ✅ Kodierung von auto_1: 📝  Outcomes
+  ✅ Subkategorien von auto_1: 📝  Qualitätsabwertung der Lehre und Burnout-Risiken durch Zusatzarbeit
+  ✅ Keywords von auto_1: 📝  Burnout; Zusatzarbeit; Lehre-Qualität
+
+🔀 Summary fuer trial_case_iv_2.pdf aktualisiert (45 WÖrter):
+Zusatzarbeit in Form von bezahlten Zusatzprojekten wird kritisch gesehen, da sie Lehre-Qualität mindert und Burnout-Risiken erhöht. Das Segment betont, dass klassische Lehre Basis bleibt und zusätzlicher Aufwand schwer zu leisten ist. Kontextualisiert wird dies durch eine vorherrschende Anreizkultur und Druck, der Teilnahme an Zusatzprojekten beeinflusst....
+ℹ️ Summary aktualisiert: 45 WÖrter
+  ✅ Kodierer auto_1: Outcomes
+
+Deduktiver Kodierer 🤖 **auto_2** verarbeitet Chunk mit progressivem Kontext...
+Dokumentfortschritt: ca. 5.0%
+Summary-Reifephase: PHASE 1 (Sammlung), max. Änderung: 50%
+
+--- Analysefortschritt ---
+Verarbeitet: 10 Segmente
+Geschwindigkeit: 75.0 Segmente/Stunde
+------------------------
+
+--- Analysefortschritt ---
+Verarbeitet: 10 Segmente
+Geschwindigkeit: 70.6 Segmente/Stunde
+------------------------
+Summary Änderung: 95.1% (Ziel: max. 50%)
+
+ðŸ—’ï¸  Paraphrase: Neue Kollegen sollten von bezahlter Zusatzarbeit Abstand nehmen, da Lehrequalität leidet und Burnout droht; die klassische Lehre bleibt Basis, und HS1 betont Qualitätsstandards, wodurch zusätzliche Aufgaben schwer zu gewährleisten sind.
+  ✅ Kodierung von auto_2: 📝  Akteure
+  ✅ Subkategorien von auto_2: 📝  Individuelle_Akteure
+  ✅ Keywords von auto_2: 📝  Zusatzarbeit, Lehrequalität, Burnout
+
+🔀 Summary fuer trial_case_iv_2.pdf aktualisiert (28 WÖrter):
+Akteure: Neue Kolleginnen/Kollegen entscheiden gegen bezahlte Zusatzarbeit; HS1 als instituti oneller Kontext. Kontextfaktoren: Anreizkultur und Druck beeinflussen Teilnahme an Zusatzprojekten. Outcomes: Qualitätsabwertung der Lehre und Burnout-Risiken durch Mehrarbeit....
+  ✅ Kodierer auto_2: Akteure
+
+🕵️ Verarbeite Segment trial_case_iv_2.pdf_chunk_2 mit Kontext
+
+Deduktiver Kodierer 🤖 **auto_1** verarbeitet Chunk mit progressivem Kontext...
+Dokumentfortschritt: ca. 10.0%
+Summary-Reifephase: PHASE 1 (Sammlung), max. Änderung: 50%
+
+
+============================================================
+🛑 ESCAPE-TASTE GEDRÜCKT - KODIERUNG UNTERBRECHEN?
+============================================================
+
+Aktueller Status:
+- Verarbeitete Segmente: 10
+- Erstellte Kodierungen: 10
+- Verstrichene Zeit: 534.2 Sekunden
+
+✅ 10 Kodierungen wurden bereits erstellt
+   Diese können als Zwischenergebnisse exportiert werden.
+
+============================================================
+OPTIONEN:
+j + ENTER = Kodierung beenden und Zwischenergebnisse exportieren
+n + ENTER = Kodierung fortsetzen
+ESC       = Sofort beenden ohne Export
+============================================================
+
+Ihre Wahl (Timeout in 30 Sekunden): celar
+Ungültige Eingabe. Bitte 'j', 'n' oder ESC drücken.
+
+⏰ Keine gültige Eingabe - Kodierung wird fortgesetzt...
+
+[TIP] Tipp: Druecken Sie ESC um die Kodierung sicher zu unterbrechen und Zwischenergebnisse zu speichern
+
+
+============================================================
+🛑 ESCAPE-TASTE GEDRÜCKT - KODIERUNG UNTERBRECHEN?
+============================================================
+
+Aktueller Status:
+- Verarbeitete Segmente: 10
+- Erstellte Kodierungen: 10
+- Verstrichene Zeit: 536.1 Sekunden
+
+✅ 10 Kodierungen wurden bereits erstellt
+   Diese können als Zwischenergebnisse exportiert werden.
+
+============================================================
+OPTIONEN:
+j + ENTER = Kodierung beenden und Zwischenergebnisse exportieren
+n + ENTER = Kodierung fortsetzen
+ESC       = Sofort beenden ohne Export
+============================================================
+
+Ihre Wahl (Timeout in 30 Sekunden): 
+ESC
+
+🛑 Sofortiger Abbruch ohne Export...
+[ABORT] Abbruch-Signal gesendet...
+
+--- Analysefortschritt ---
+Verarbeitet: 10 Segmente
+Geschwindigkeit: 66.7 Segmente/Stunde
+------------------------
+Summary Änderung: 94.4% (Ziel: max. 50%)
+
+ðŸ—’ï¸  Paraphrase: Akteure sehen das Übernehmen von Projekten als Lernchance, fügen Inhalte hinzu und fördern Austausch in der Lehre; zugleich wird Mehrarbeit und Burnout-Risiko durch Zusatzprojekte betont; der Kontext von Anreizkultur und Druck beeinflusst Teilnahme.
+  ✅ Kodierung von auto_1: 📝  Prozesse
+  ✅ Subkategorien von auto_1: 📝  Projektintegration in Lehre
+  ✅ Keywords von auto_1: 📝  Projektintegration in Lehre; Anreizkultur/Druck; Burnout-Risiken
+
+🔀 Summary fuer trial_case_iv_2.pdf aktualisiert (18 WÖrter):
+Prozesse: Projektintegration in Lehre; Interaktionsprozesse: Austausch und Lerninhalte; Ressourcen/Belastung: Mehrarbeit und Burnout-Risiken; Kontext: Anreizkultur und Druck beeinflussen Teilnahme....
+ℹ️ Summary aktualisiert: 18 WÖrter
+  ✅ Kodierer auto_1: Prozesse
+
+Deduktiver Kodierer 🤖 **auto_2** verarbeitet Chunk mit progressivem Kontext...
+Dokumentfortschritt: ca. 10.0%
+Summary-Reifephase: PHASE 1 (Sammlung), max. Änderung: 50%
+
+--- Analysefortschritt ---
+Verarbeitet: 10 Segmente
+Geschwindigkeit: 63.1 Segmente/Stunde
+------------------------

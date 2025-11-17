@@ -488,7 +488,7 @@ class QCAPrompts:
             
             AUFGABE - MEHRFACHKODIERUNGS-ANALYSE:
             Prüfe für jedes Segment, ob es für MEHRERE Hauptkategorien gleichzeitig relevant ist.
-            Ein Segment kann mehrfach kodiert werden, wenn es mindestens {multiple_threshold} ({int(multiple_threshold*100)}%) Relevanz 
+            Ein Segment kann mehrfach kodiert werden, wenn es mindestens {multiple_threshold} ({int(float(multiple_threshold)*100)}%) Relevanz 
             für verschiedene Hauptkategorien hat.
             
             BEISPIEL für Mehrfachkodierung:
@@ -497,7 +497,7 @@ class QCAPrompts:
             → Könnte sowohl "Strukturen" (Referat) als auch "Prozesse" (Aushandlung) zugeordnet werden
             
             KRITERIEN FÜR MEHRFACHKODIERUNG:
-            - Mindestens {int(multiple_threshold*100)}% Relevanz für jede zugeordnete Kategorie
+            - Mindestens {int(float(multiple_threshold)*100)}% Relevanz für jede zugeordnete Kategorie
             - Verschiedene Aspekte des Segments sprechen verschiedene Kategorien an
             - Keine künstliche Aufblähung - nur wenn wirklich mehrere Themen behandelt werden
             - Textinhalt muss substanziell genug für mehrere Zuordnungen sein
