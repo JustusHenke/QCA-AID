@@ -25,13 +25,11 @@ from ..quality.reliability import ReliabilityCalculator
 from ..utils.export.helpers import (
     sanitize_text_for_excel, generate_pastel_colors, format_confidence
 )
-from ..QCA_Utils import (
-    export_multiple_coding_report
-)
+from ..utils.impact_analysis import export_multiple_coding_report
 
 try:
     from ..utils.export.pdf_annotator import PDFAnnotator
-    from ..QCA_Utils import DocumentToPDFConverter  # Legacy - not yet refactored
+    from ..utils.export.converters import DocumentToPDFConverter
     pdf_annotation_available = True
 except ImportError:
     pdf_annotation_available = False

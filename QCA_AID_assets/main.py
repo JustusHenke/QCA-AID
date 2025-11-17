@@ -33,11 +33,7 @@ from .utils.analysis import calculate_multiple_coding_stats
 # Check if PDF annotation is available
 try:
     from .utils.export.pdf_annotator import PDFAnnotator
-    # DocumentToPDFConverter not yet extracted - try old location
-    try:
-        from .QCA_Utils import DocumentToPDFConverter
-    except ImportError:
-        DocumentToPDFConverter = None
+    from .utils.export.converters import DocumentToPDFConverter
     pdf_annotation_available = True
 except ImportError:
     pdf_annotation_available = False

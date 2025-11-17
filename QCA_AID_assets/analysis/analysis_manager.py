@@ -22,10 +22,11 @@ from .deductive_coding import DeductiveCoder
 from .inductive_coding import InductiveCoder
 from .manual_coding import ManualCoder
 from .saturation_controller import ImprovedSaturationController
-from ..QCA_Utils import (
-    TokenTracker, EscapeHandler, add_escape_handler_to_manager,
-    analyze_multiple_coding_impact, validate_category_specific_segments, LLMResponse
-)
+from ..utils.tracking.token_tracker import TokenTracker
+from ..utils.io.escape_handler import EscapeHandler, add_escape_handler_to_manager
+from ..utils.impact_analysis import analyze_multiple_coding_impact
+from ..utils.validators import validate_category_specific_segments
+from ..utils.llm.response import LLMResponse
 from ..QCA_Prompts import QCAPrompts
 
 # Globaler Token-Counter
