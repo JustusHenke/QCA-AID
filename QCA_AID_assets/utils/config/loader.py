@@ -465,7 +465,7 @@ class ConfigLoader:
                     self.global_config['CODE_WITH_CONTEXT'] = bool(value)
                 print(f"[SANITIZE] CODE_WITH_CONTEXT = {self.global_config['CODE_WITH_CONTEXT']}")
             else:
-                self.global_config['CODE_WITH_CONTEXT'] = True
+                self.global_config['CODE_WITH_CONTEXT'] = False
 
             # MULTIPLE_CODINGS handling
             if 'MULTIPLE_CODINGS' in loaded_config:
