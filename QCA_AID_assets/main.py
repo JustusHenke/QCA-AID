@@ -25,12 +25,10 @@ from .export.results_exporter import ResultsExporter
 from .utils.config.loader import ConfigLoader
 from .utils.io.document_reader import DocumentReader
 from .utils.system import patch_tkinter_for_threaded_exit, get_input_with_timeout
+from .utils.logging import ConsoleLogger, TeeWriter
 
 # Utilities still in old QCA_Utils (to be refactored)
-from .QCA_Utils import (
-    ConsoleLogger, TeeWriter,
-    _calculate_multiple_coding_stats
-)
+from .QCA_Utils import _calculate_multiple_coding_stats
 
 # Check if PDF annotation is available
 try:
