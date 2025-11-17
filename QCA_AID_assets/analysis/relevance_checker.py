@@ -140,7 +140,7 @@ class RelevanceChecker:
                     response = await self.llm_provider.create_completion(
                         model=self.model_name,
                         messages=[
-                            {"role": "system", "content": "Du bist ein Experte für qualitative Inhaltsanalyse. Du antwortest auf deutsch."},
+                            {"role": "system", "content": "Du bist ein Experte für qualitative Inhaltsanalyse. Du antwortest auf deutsch. Antworte ausschliesslich mit einem JSON-Objekt."},
                             {"role": "user", "content": prompt}
                         ],
                         temperature=self.temperature,

@@ -413,7 +413,7 @@ async def main() -> None:
         print("\n7. Starte integrierte Analyse...")
 
         # Zeige Kontext-Modus an
-        print(f"\nKodierungsmodus: {'Mit progressivem Kontext' if CONFIG.get('CODE_WITH_CONTEXT', True) else 'Ohne Kontext'}")
+        print(f"\nKodierungsmodus: {'Mit progressivem Kontext' if CONFIG.get('CODE_WITH_CONTEXT', False) else 'Ohne Kontext'}")
         
         analysis_manager = IntegratedAnalysisManager(CONFIG)
 

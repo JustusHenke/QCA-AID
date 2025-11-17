@@ -7,10 +7,10 @@
   "analysis_events": [
     {
       "event": "analysis_start",
-      "timestamp": "2025-11-17T19:45:07.616792",
+      "timestamp": "2025-11-17T21:50:28.997604",
       "total_segments": 11,
       "total_categories": 8,
-      "start_time": "2025-11-17 19:45:07"
+      "start_time": "2025-11-17 21:50:28"
     }
   ],
   "errors": [],
@@ -21,9 +21,9 @@
     "processing_rates": []
   },
   "analysis_start": {
-    "timestamp": "2025-11-17T19:45:07.616792",
+    "timestamp": "2025-11-17T21:50:28.997604",
     "total_segments": 11,
     "total_categories": 8,
-    "start_time": "2025-11-17 19:45:07"
+    "start_time": "2025-11-17 21:50:28"
   }
 }

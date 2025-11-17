@@ -89,7 +89,7 @@ class IntegratedAnalysisManager:
         }
 
         # Konfigurationsparameter (unverÄndert)
-        self.use_context = config.get('CODE_WITH_CONTEXT', True)
+        self.use_context = config.get('CODE_WITH_CONTEXT', False)
         print(f"\nKontextuelle Kodierung: {'Aktiviert' if self.use_context else 'Deaktiviert'}")
 
         # Dictionary fuer die Verwaltung der Document-Summaries (unverÄndert)

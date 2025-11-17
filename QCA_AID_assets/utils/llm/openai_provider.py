@@ -118,12 +118,9 @@ class OpenAIProvider(LLMProvider):
             if max_tokens:
                 params['max_tokens'] = max_tokens
             
-            # Versuche mit response_format Falls vorhanden
-            if response_format:
+            # Füge response_format nur hinzu wenn explizit übergeben
+            if response_format is not None:
                 params['response_format'] = response_format
-            elif response_format is None:
-                # Nur setzen wenn nicht explizit auf None gesetzt
-                params['response_format'] = {'type': 'json_object'}
             
             # API Call mit Fehlerbehandlung
             try:

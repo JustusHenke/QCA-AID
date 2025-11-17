@@ -326,6 +326,14 @@ class ConfigLoader:
                                 default_values = {'BATCH_SIZE': 5, 'CHUNK_SIZE': 2000, 'CHUNK_OVERLAP': 200, 'MAX_RETRIES': 3}
                                 config[key][sub_key] = default_values.get(sub_key, 5)
                                 print(f"[CONFIG] Ungültiger {sub_key} Wert '{value}', verwende Standard: {config[key][sub_key]}")
+                        elif sub_key in ['MULTIPLE_CODING_THRESHOLD', 'SIMILARITY_THRESHOLD', 'PDF_ANNOTATION_FUZZY_THRESHOLD']:
+                            try:
+                                config[key][sub_key] = float(value)
+                                print(f"[CONFIG] {sub_key} geladen: {config[key][sub_key]}")
+                            except (ValueError, TypeError):
+                                default_values = {'MULTIPLE_CODING_THRESHOLD': 0.85, 'SIMILARITY_THRESHOLD': 0.7, 'PDF_ANNOTATION_FUZZY_THRESHOLD': 0.85}
+                                config[key][sub_key] = default_values.get(sub_key, 0.85)
+                                print(f"[CONFIG] Ungültiger {sub_key} Wert '{value}', verwende Standard: {config[key][sub_key]}")
                         else:
                             config[key][sub_key] = value
                     else:
