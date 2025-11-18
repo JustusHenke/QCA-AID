@@ -113,7 +113,7 @@ class RelevanceChecker:
             return {sid: self.multiple_coding_cache[sid] for sid, _ in segments}
 
         try:
-            print(f"[LAUNCH] Parallele Mehrfachkodierungs-Pruefung: {len(uncached_segments)} Segmente")
+            print(f"🚀 Parallele Mehrfachkodierungs-Pruefung: {len(uncached_segments)} Segmente")
             
             # Bereite Kategorien-Kontext vor
             category_descriptions = []
@@ -207,7 +207,7 @@ class RelevanceChecker:
                 # Debug-Ausgabe für Mehrfachkodierung
                 if len(relevant_categories) > 1:
                     segments_with_multiple += 1
-                    print(f"  [LOOP] Mehrfachkodierung: {segment_id}")
+                    print(f"  🔁 Mehrfachkodierung: {segment_id}")
                     for cat in relevant_categories:
                         print(f"    - {cat['category']}: {cat['relevance_score']:.2f}")
             
@@ -252,7 +252,7 @@ class RelevanceChecker:
             return {sid: self.relevance_cache[sid] for sid, _ in segments}
 
         try:
-            print(f"[SEARCH] Relevanzpruefung: {len(uncached_segments)} neue Segmente")
+            print(f"🔍 Relevanzpruefung: {len(uncached_segments)} neue Segmente")
             
             # STRATEGIE: Kleine Batches (≤5) → bewährte Batch-Methode
             #           Große Batches (>5) → Parallelisierung in Sub-Batches
@@ -335,7 +335,7 @@ class RelevanceChecker:
                 
             else:
                 # PARALLELISIERUNG für große Batches
-                print(f"   [LAUNCH] Verwende Parallelisierung in Sub-Batches fuer {len(uncached_segments)} Segmente")
+                print(f"   🚀 Verwende Parallelisierung in Sub-Batches fuer {len(uncached_segments)} Segmente")
                 
                 # Teile in Sub-Batches von je 3-4 Segmenten
                 sub_batch_size = 3
@@ -445,7 +445,7 @@ class RelevanceChecker:
             
             # Debug-Ausgabe der Ergebnisse
             relevant_count = sum(1 for is_relevant in relevance_results.values() if is_relevant)
-            print(f"   [STATS] Relevanz-Ergebnisse: {relevant_count}/{len(relevance_results)} als relevant eingestuft")
+            print(f"   ℹ️ Relevanz-Ergebnisse: {relevant_count}/{len(relevance_results)} als relevant eingestuft")
             
             # Kombiniere mit bereits gecachten Ergebnissen für finale Antwort
             final_results = {}
@@ -551,7 +551,7 @@ class RelevanceChecker:
                         'reasoning': 'Unvollständiges Batch-Ergebnis'
                     }
             
-            print(f"[OK] Erweiterte Relevanzpruefung abgeschlossen: {len([r for r in results.values() if r['is_relevant']])} relevante Segmente")
+            print(f"✅ Erweiterte Relevanzpruefung abgeschlossen: {len([r for r in results.values() if r['is_relevant']])} relevante Segmente")
             
         except Exception as e:
             print(f"Fehler bei erweiterter Relevanzprüfung: {str(e)}")

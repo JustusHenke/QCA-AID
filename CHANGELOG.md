@@ -2,6 +2,62 @@
 
 ## Versionen und Updates
 
+### Neu in 0.10.0
+
+MASSIVES REFACTORING: KOMPLETTE MODULARISIERUNG DES GESAMTSYSTEMS
+- Transformation der monolithischen Codebase in modulare Mikroservice-ähnliche Architektur
+- Auflösung von QCA_Utils.py (3954 Zeilen) und Ausgliedern von Code aus main.py in spezialisierte Module
+- Neue modulare Struktur mit 8 Fachmodulen:
+  - `utils/llm/` - LLM-Abstraktionsschicht (OpenAI, Mistral mit Factory-Pattern)
+  - `utils/config/` - Konfigurationsladung und Validation
+  - `utils/tracking/` - Token-Tracking und Kostenberechnung für alle API-Calls
+  - `utils/dialog/` - Tkinter GUI-Komponenten für manuelles Kodieren
+  - `utils/export/` - Export-Formatierung, PDF-Annotation, Excel-Generierung
+  - `utils/io/` - Dokumentenladung (.txt, .pdf, .docx) und Datei-I/O
+  - `utils/analysis/` - Hilfsreiches für Kodierungslogik (Kategorien, Konsensus)
+  - `core/`, `analysis/`, `preprocessing/`, `quality/`, `export/`, `management/` - Spezialisierte Subdomain-Module
+
+Architektur-Verbesserungen:
+- Reduzierte zirkuläre Abhängigkeiten durch klare Modul-Grenzen
+- Verbesserte Code-Wartbarkeit mit fokussierten, testbaren Komponenten
+- Erweiterte Testbarkeit: Isolierte Module ermöglichen Unit-Testing ohne API-Dependencies
+- Bessere Skalierbarkeit: Neue Provider, Export-Formate oder Analysemodi können leicht hinzugefügt werden
+- Windows Unicode-Kodierungsfixes: Robuste Verarbeitung von Sonderzeichen und Umlauten
+- Vereinfachtes Onboarding: Klare Verantwortlichkeiten pro Modul
+
+UI/UX Verbesserungen:
+|- Verbesserte Analyse-Konfiguration beim Start mit übersichtlicher Darstellung
+|- Konfigurationsparameter-Übersicht: Zeigt alle wichtigen Einstellungen beim Programmstart
+|- Interaktive Analysemodus-Auswahl mit 10s Timeout (inductive/abductive/deductive/grounded)
+|- Intelligente Codebook-Verwaltung: Erkennt gespeicherte induktive Codesysteme automatisch
+|- Optionale manuelle Kodierung mit informativen Hinweisen zum Workflow
+|- Zusammenfassung der Konfigurationsentscheidungen vor Analysestart
+|- Robust gestaltete Excel-Tabellenerstellung mit Fallback auf AutoFilter bei Fehlern
+
+Bugfixes:
+|- Import-Fehler in category_revision.py behoben (fehlende openpyxl-Imports)
+|- token_counter nicht definiert in main.py behoben (Import hinzugefügt)
+|- PDF-Annotation nicht verfügbar - fuzzywuzzy und python-Levenshtein installiert
+|- Tuple-Import in pdf_annotator.py ergänzt
+|- DocumentToPDFConverter.convert_document_to_pdf() -> convert() Methode korrigiert
+|- Robustere Excel-Tabellenerstellung mit Validierung und Fallback-Mechanismen
+|- `re` Import in pdf_annotator.py hinzugefügt
+|- cleanup_temp_pdfs() Methode in DocumentToPDFConverter implementiert
+|- Platform-Import in manual_coding.py hinzugefügt
+|- Threading-Event für manuelle Kodierung synchronisiert (Fenster warten auf Schließung)
+|- ESC-Taste Handling für manuelles Kodieren verbessert (Doppel-ESC zum Abbruch)
+|- Doppelte Abfrage zur manuellen Kodierung entfernt
+|- CodingResult zu Dictionary Konvertierung in manueller Kodierung robuster gemacht
+|- Annotierte PDFs werden jetzt in `output/Annotated/` Unterordner gespeichert
+|- Benutzerdefinierte INPUT_DIR/OUTPUT_DIR Ordnernamen werden konsistent respektiert
+
+Manuelle Kodierung Verbesserungen:
+|- Threading-basierte Synchronisation für sequenzielle Fenster-Verarbeitung
+|- ESC-Taste drücken und nochmal ESC zum bestätigen für Abbruch
+|- Mehrfachkodierung mit CodingResult Objekten jetzt unterstützt
+|- Robustes Tkinter-Fenster-Management mit korrektem Thread-Handling
+
+
 ### Neu in 0.9.18 (2025-07-07)
 
 KATEGORIE-KONSISTENZ: Deduktiver Modus mit Hauptkategorie-Vorauswahl (1-3 wahrscheinlichste), 40-60% weniger Token, keine inkompatiblen Subkategorie-Zuordnungen
@@ -86,17 +142,14 @@ Neu in 0.9.15 (2025-06-02)
     Verbesserte Fortschrittsvisualisierung während der Subcode-Erfassung
     Verbesserte Handhabung von Schlüsselwörtern mit direkter Verbindung zu Subcodes
 
-### Neu in 0.9.10
 
-QCA-AID-Explorer.py
-
-    kann mit Excel konfiguriert werden und muss nicht mehr manuell angepasst werden.
-    Konfiguration über Excel-Datei "QCA-AID-Explorer-Config.xlsx"
-    Heatmap-Visualisierung von Codes entlang von Dokumentattributen
-    Mehrere Analysetypen konfigurierbar (Netzwerk, Heatmap, verschiedene Zusammenfassungen)
-    Anpassbare Parameter für jede Analyse QCA-AID.py
-    Hinzufügen eines Präfixes zur Chunk-Nummer für eindeutige Segment-IDs
-    prägnantere progessive Zusammenfassungen, weniger verlustbehaftet
+QCA-AID-Explorer.py Enhancements:
+- Excel-basierte Konfiguration (QCA-AID-Explorer-Config.xlsx)
+- Heatmap-Visualisierung von Codes entlang von Dokumentattributen
+- Mehrere Analysetypen konfigurierbar (Netzwerk, Heatmap, Zusammenfassungen)
+- Anpassbare Parameter für jede Analyse
+- Eindeutige Segment-IDs mit Präfix zur Chunk-Nummer
+- Prägnantere progressive Zusammenfassungen mit weniger Informationsverlust
 
 ### Neu in 0.9.9
 

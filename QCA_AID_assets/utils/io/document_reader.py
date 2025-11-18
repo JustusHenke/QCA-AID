@@ -70,7 +70,7 @@ class DocumentReader:
             
             print(f"\nGefundene Dateien:")
             for file in all_files:
-                status = "[OK]" if is_supported_file(file) else "[ERROR]"
+                status = "✅" if is_supported_file(file) else "[ERROR]"
                 print(f"{status} {file}")
             
             print(f"\nVerarbeite Dateien:")
@@ -93,7 +93,7 @@ class DocumentReader:
                     
                     if content and content.strip():
                         documents[filename] = content
-                        print(f"[OK] Erfolgreich eingelesen: {len(content)} Zeichen")
+                        print(f"✅ Erfolgreich eingelesen: {len(content)} Zeichen")
                     else:
                         print(f"⚠ Keine Textinhalte gefunden")
                 
@@ -163,8 +163,8 @@ class DocumentReader:
             if paragraphs:
                 full_text = '\n'.join(paragraphs)
                 print(f"\nErgebnis:")
-                print(f"  [OK] {len(paragraphs)} Textparagraphen extrahiert")
-                print(f"  [OK] Gesamtlänge: {len(full_text)} Zeichen")
+                print(f"  ✅ {len(paragraphs)} Textparagraphen extrahiert")
+                print(f"  ✅ Gesamtlänge: {len(full_text)} Zeichen")
                 return full_text
             
             # Wenn keine Paragraphen gefunden wurden, suche in anderen Bereichen
@@ -186,8 +186,8 @@ class DocumentReader:
             if table_texts:
                 full_text = '\n'.join(table_texts)
                 print(f"\nErgebnis:")
-                print(f"  [OK] {len(table_texts)} Tabelleneinträge extrahiert")
-                print(f"  [OK] Gesamtlänge: {len(full_text)} Zeichen")
+                print(f"  ✅ {len(table_texts)} Tabelleneinträge extrahiert")
+                print(f"  ✅ Gesamtlänge: {len(full_text)} Zeichen")
                 return full_text
                 
             print("\n[ERROR] Keine Textinhalte im Dokument gefunden")
@@ -292,8 +292,8 @@ class DocumentReader:
             if text_content:
                 full_text = '\n'.join(text_content)
                 print(f"\nErgebnis:")
-                print(f"  [OK] {len(text_content)} Textabschnitte extrahiert")
-                print(f"  [OK] Gesamtlänge: {len(full_text)} Zeichen")
+                print(f"  ✅ {len(text_content)} Textabschnitte extrahiert")
+                print(f"  ✅ Gesamtlänge: {len(full_text)} Zeichen")
                 return full_text
             else:
                 print("\n[ERROR] Kein Text aus PDF extrahiert")

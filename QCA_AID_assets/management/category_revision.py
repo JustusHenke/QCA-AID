@@ -9,6 +9,7 @@ import os
 import pandas as pd
 from datetime import datetime
 from typing import List, Dict, Optional
+from openpyxl.styles import Font, PatternFill, Alignment
 
 from ..core.data_models import CategoryChange
 from ..core.config import FORSCHUNGSFRAGE, KODIERREGELN, DEDUKTIVE_KATEGORIEN

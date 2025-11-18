@@ -6,9 +6,12 @@ Manuelles Kodieren von Textsegmenten mit GUI-Unterstützung.
 
 import json
 import asyncio
+import platform
+import threading
 import tkinter as tk
 from tkinter import ttk, messagebox
 from typing import Dict, Optional, List, Union, Any
+from datetime import datetime
 
 from ..core.data_models import CategoryDefinition, CodingResult
 from ..utils.dialog.widgets import MultiSelectListbox
@@ -35,8 +38,10 @@ class ManualCoder:
         # NEU: Mehrfachkodierung-Support
         self.multiple_selection_enabled = True
         self.category_map = {}  # Mapping von Listbox-Index zu Kategorie-Info
-
         
+        # NEU: Threading-Event für Synchronisation
+        self.window_closed_event = threading.Event()
+        self.window_closed_event.set()  # Startet im "geschlossen" State
     def _on_selection_change(self, event):
         """
         ERWEITERT: Behandelt Änderungen der Kategorienauswahl mit Nummern-Info
@@ -591,16 +596,24 @@ class ManualCoder:
         
     async def code_chunk(self, chunk: str, categories: Optional[Dict[str, CategoryDefinition]], is_last_segment: bool = False) -> Optional[Union[Dict, List[Dict]]]:
         """
-        KORRIGIERT: Minimale Tkinter-Bereinigung nach MainLoop
+        KORRIGIERT: Mit Event-basierter Synchronisation
         """
         try:
             self.categories = self.current_categories or categories
             self.current_coding = None
             self.is_last_segment = is_last_segment
             
+            # Reset des Events bevor Fenster geöffnet wird
+            self.window_closed_event.clear()
+            
             # Erstelle und starte das Tkinter-Fenster im Hauptthread
             loop = asyncio.get_event_loop()
             await loop.run_in_executor(None, self._run_enhanced_tk_window, chunk)
+            
+            # WICHTIG: Warte bis das Fenster geschlossen ist
+            # Das Event wird in _safe_window_close gesetzt
+            self.window_closed_event.wait(timeout=600)  # Max 10 Minuten warten
+            print(f"Fenster für Segment geschlossen, Kodierung erhalten: {self.current_coding is not None}")
             
             # KORRIGIERT: PrÜfe auf ABORT_ALL BEVOR weitere Verarbeitung
             if self.current_coding == "ABORT_ALL":
@@ -614,8 +627,24 @@ class ManualCoder:
             if self.current_coding:
                 if isinstance(self.current_coding, list):
                     enhanced_codings = []
-                    for coding_dict in self.current_coding:
-                        enhanced_coding = coding_dict.copy()
+                    for coding_item in self.current_coding:
+                        # Handhabe sowohl Dict als auch CodingResult Objekte
+                        if isinstance(coding_item, dict):
+                            enhanced_coding = coding_item.copy()
+                        else:
+                            # Konvertiere CodingResult zu Dict
+                            enhanced_coding = {
+                                'category': coding_item.category,
+                                'subcategories': list(coding_item.subcategories),
+                                'justification': coding_item.justification,
+                                'confidence': coding_item.confidence,
+                                'text_references': list(coding_item.text_references),
+                                'uncertainties': list(coding_item.uncertainties) if coding_item.uncertainties else None,
+                                'paraphrase': getattr(coding_item, 'paraphrase', ''),
+                                'keywords': getattr(coding_item, 'keywords', ''),
+                                'manual_coding': True,
+                                'manual_multiple_coding': True,
+                            }
                         enhanced_coding['text'] = chunk
                         enhanced_codings.append(enhanced_coding)
                     self.current_coding = enhanced_codings
@@ -745,19 +774,28 @@ class ManualCoder:
                 self.root = None
                 print("Tkinter MainLoop beendet")
                 
+                # Signal dass Fenster geschlossen wurde
+                self.window_closed_event.set()
+                
             except tk.TclError as tcl_error:
                 if "application has been destroyed" in str(tcl_error):
-                    # Das ist OK - Fenster wurde ordnungsgemÄẞ geschlossen
+                    # Das ist OK - Fenster wurde ordnungsgemäß geschlossen
                     self.root = None
-                    print("Tkinter-Anwendung ordnungsgemÄẞ beendet")
+                    print("Tkinter-Anwendung ordnungsgemäß beendet")
                 else:
                     print(f"TclError: {tcl_error}")
                     self.root = None
+                
+                # Signal auch im Fehlerfall
+                self.window_closed_event.set()
             
         except Exception as e:
             print(f"Fehler beim Erstellen des Tkinter-Fensters: {str(e)}")
             self.current_coding = None
             self.root = None
+            
+            # Signal auch im Fehlerfall
+            self.window_closed_event.set()
             return
 
     def _create_enhanced_gui(self, chunk: str):
@@ -902,6 +940,28 @@ class ManualCoder:
         
         # Kategorien laden
         self.update_category_list_enhanced()
+        
+        # ESC-Key Binding für Abbruch
+        self.root.bind('<Escape>', lambda e: self._on_escape_key_pressed())
+
+    def _on_escape_key_pressed(self):
+        """
+        Behandelt ESC-Taste: Beim ersten Mal Dialog, beim zweiten Mal Abbruch
+        """
+        if not hasattr(self, '_escape_pressed_flag'):
+            self._escape_pressed_flag = False
+        
+        if not self._escape_pressed_flag:
+            # Erstes ESC: Dialog anzeigen
+            self._escape_pressed_flag = True
+            print("ESC gedrückt - Nochmals ESC zum bestätigen")
+            
+            # Reset Flag nach 2 Sekunden falls nicht nochmal ESC gedrückt wird
+            self.root.after(2000, lambda: setattr(self, '_escape_pressed_flag', False))
+        else:
+            # Zweites ESC innerhalb von 2 Sekunden: Abbruch
+            self._safe_abort_coding()
+            self._escape_pressed_flag = False
 
     def _safe_window_close(self):
         """
@@ -936,6 +996,9 @@ class ManualCoder:
                     if self.root and self.root.winfo_exists():
                         self.root.quit()
                     
+                    # Signal setzen dass Fenster geschlossen wurde
+                    self.window_closed_event.set()
+                    
         except Exception as e:
             print(f"Info: Fenster-Schlieẞung: {str(e)}")
             # Im Fehlerfall: Kodierung ueberspringen
@@ -945,5 +1008,7 @@ class ManualCoder:
                     self.root.quit()
             except:
                 pass
-
+            
+            # Signal setzen auch im Fehlerfall
+            self.window_closed_event.set()
 

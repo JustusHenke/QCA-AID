@@ -38,6 +38,13 @@ class DocumentToPDFConverter:
         """
         print(f"Converting {input_file} to PDF...")
         return None
+    
+    def cleanup_temp_pdfs(self):
+        """
+        Cleanup temporary PDF files created during conversion.
+        This is a no-op for this simple converter.
+        """
+        pass
 
 
 __all__ = [

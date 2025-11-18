@@ -112,7 +112,7 @@ class ConfigLoader:
                 
                 if kategorien:
                     self.global_config['DEDUKTIVE_KATEGORIEN'] = kategorien
-                    print("\n[OK] Konfiguration trotz geöffneter Datei erfolgreich geladen!")
+                    print("\n✅ Konfiguration trotz geöffneter Datei erfolgreich geladen!")
                     return True
                 else:
                     print("\n[ERROR] Keine Kategorien geladen, auch bei alternativer Methode")
@@ -435,17 +435,22 @@ class ConfigLoader:
             current_dir = os.path.dirname(os.path.abspath(__file__))  # utils/config
             root_dir = os.path.dirname(os.path.dirname(os.path.dirname(current_dir)))  # QCA-AID root
             
-            # Update OUTPUT_DIR and create if needed
-            self.global_config['OUTPUT_DIR'] = os.path.join(root_dir, 'output')
-            os.makedirs(self.global_config['OUTPUT_DIR'], exist_ok=True)
-            print(f"[SANITIZE] Ausgabeverzeichnis: {self.global_config['OUTPUT_DIR']}")
-            
+            # FIX: Respektiere benutzerdefinierte Ordnernamen aus der Konfiguration
+            # Setze OUTPUT_DIR nur wenn nicht bereits aus loaded_config vorhanden
             for key, value in loaded_config.items():
-                # Directory paths relative to root
+                # Directory paths relative to root - FIRST pass to load user-defined directories
                 if key in ['DATA_DIR', 'OUTPUT_DIR', 'INPUT_DIR']:
-                    self.global_config[key] = os.path.join(root_dir, str(value).lstrip('/\\'))
+                    # Convert to absolute path if relative, otherwise use as-is
+                    path_value = str(value).strip()
+                    if os.path.isabs(path_value):
+                        # Absolute path - use directly
+                        self.global_config[key] = path_value
+                    else:
+                        # Relative path - relative to root
+                        self.global_config[key] = os.path.join(root_dir, path_value.lstrip('/\\'))
+                    
                     os.makedirs(self.global_config[key], exist_ok=True)
-                    print(f"[SANITIZE] Verzeichnis: {self.global_config[key]}")
+                    print(f"[SANITIZE] Verzeichnis {key}: {self.global_config[key]}")
                 
                 # Numeric values for chunking
                 elif key in ['CHUNK_SIZE', 'CHUNK_OVERLAP']:

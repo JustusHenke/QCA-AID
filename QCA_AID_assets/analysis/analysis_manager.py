@@ -111,7 +111,7 @@ class IntegratedAnalysisManager:
 
         self.current_categories = {}  # FIX: HinzufÜgen
 
-        print(f"\nðŸ”¬ IntegratedAnalysisManager initialisiert:")
+        print(f"\n🧑‍💼 IntegratedAnalysisManager initialisiert:")
         print(f"   - Analysemodus: {config.get('ANALYSIS_MODE', 'inductive')}")
         if config.get('ANALYSIS_MODE') == 'grounded':
             print(f"   - Grounded Mode: Subcode-Sammlung aktiviert")
@@ -180,10 +180,10 @@ class IntegratedAnalysisManager:
         # KORRIGIERT: Übergebe bestehende induktive Kategorien als Basis
         new_categories = await self.inductive_coder.develop_category_system(
             relevant_segments,
-            current_categories  # [OK] Bestehende induktive als Basis!
+            current_categories  # ✅ Bestehende induktive als Basis!
         )
         
-        print(f"[OK] INDUCTIVE MODE: {len(new_categories)} Kategorien entwickelt")
+        print(f"✅ INDUCTIVE MODE: {len(new_categories)} Kategorien entwickelt")
         if current_categories:
             print(f"   (zusÄtzlich zu {len(current_categories)} bereits bestehenden)")
         return new_categories
@@ -205,7 +205,7 @@ class IntegratedAnalysisManager:
             current_categories
         )
         
-        print(f"[OK] ABDUCTIVE MODE: {len(extended_categories)} Kategorien erweitert")
+        print(f"✅ ABDUCTIVE MODE: {len(extended_categories)} Kategorien erweitert")
         return extended_categories
 
     
@@ -265,9 +265,9 @@ class IntegratedAnalysisManager:
             print(f"   - SÄttigungs-Counter: {self.grounded_saturation_counter}")
             print(f"   - Ae˜ Subcodes/Batch: {avg_subcodes_per_batch:.1f}")
             
-            print(f"\n[TARGET] SÄttigungskriterien:")
+            print(f"\n🎯 SÄttigungskriterien:")
             for criterion, met in criteria.items():
-                status = "[OK]" if met else "⚠️"
+                status = "✅" if met else "⚠️"
                 print(f"   {status} {criterion}: {met}")
             
             # Bestimme SÄttigungsstatus
@@ -283,7 +283,7 @@ class IntegratedAnalysisManager:
             
             if is_saturated:
                 saturation_type = "VollstÄndig" if full_saturation else ("Partiell" if partial_saturation else "Material-bedingt")
-                print(f"\n[TARGET] GROUNDED MODE SÄTTIGUNG erreicht ({saturation_type}):")
+                print(f"\n🎯 GROUNDED MODE SÄTTIGUNG erreicht ({saturation_type}):")
                 print(f"   - Material: {material_percentage:.1f}% verarbeitet")
                 print(f"   - Subcodes: {len(self.grounded_subcodes_collection)} gesammelt")
                 print(f"   - SÄttigungs-Counter: {self.grounded_saturation_counter}")
@@ -358,7 +358,7 @@ class IntegratedAnalysisManager:
                         if sub_data.get('confidence', 0) >= 0.7:  # Schwelle fuer Subkategorien
                             new_subcats[sub_data['name']] = sub_data['definition']
                             total_new_subcats += 1
-                            print(f"[OK] Neue Subkategorie: {main_cat_name} -> {sub_data['name']}")
+                            print(f"✅ Neue Subkategorie: {main_cat_name} -> {sub_data['name']}")
                     
                     if new_subcats:
                         # Erweitere bestehende Kategorie
@@ -383,7 +383,7 @@ class IntegratedAnalysisManager:
         FIX: Erweitert um Kategorie-Vorauswahl fuer deduktiven Modus
         BUGFIX: Verwendet separate, lockere RelevanzprÜfung fuer Kodierung.
         """
-        print(f"\n[LAUNCH] PARALLEL-KODIERUNG: {len(batch)} Segmente gleichzeitig")
+        print(f"\n🚀 PARALLEL-KODIERUNG: {len(batch)} Segmente gleichzeitig")
         start_time = time.time()
         
         # FIX: Standardwert fuer category_preselections
@@ -433,41 +433,13 @@ class IntegratedAnalysisManager:
         async def code_single_segment_all_coders(segment_id: str, text: str) -> List[Dict]:
             """FIX: Kodiert ein einzelnes Segment mit gefilterten Kategorien basierend auf Vorauswahl."""
             
-            # FIX: Bestimme effektive Kategorien fuer dieses Segment
-            preselection = category_preselections.get(segment_id, {})
-            preferred_cats = preselection.get('preferred_categories', [])
-            
-            if preferred_cats:
-                # FIX: Verwende vollstÄndige CategoryDefinition-Objekte aus categories
-                effective_categories = {
-                    name: cat for name, cat in categories.items() 
-                    if name in preferred_cats and isinstance(cat, CategoryDefinition)  # FIX: Validiere CategoryDefinition
-                }
-                
-                if not effective_categories:
-                    print(f"    ❌ Keine gÜltigen CategoryDefinition-Objekte in preferred_cats - verwende alle Kategorien")
-                    effective_categories = categories
-                else:
-                    print(f"    [TARGET] Segment {segment_id}: Fokus auf {len(effective_categories)} Kategorien: {', '.join(preferred_cats)}")
-                    
-                    # FIX: Validiere, dass effective_categories vollstÄndige Definitionen hat
-                    for name, cat in effective_categories.items():
-                        if not hasattr(cat, 'subcategories'):
-                            print(f"    ❌ KRITISCH: effective_categories['{name}'] fehlen Subkategorien - hole aus categories")
-                            if name in categories:
-                                effective_categories[name] = categories[name]
-            else:
-                # FIX: Fallback auf alle Kategorien wenn keine Vorauswahl
-                effective_categories = categories
-                print(f"    🔀 Segment {segment_id}: Standard-Kodierung mit allen {len(categories)} Kategorien")
-            
-            
+            # EARLY CHECK: Bestätige Kodierungsrelevanz VOR kategorie-Vorbereitung
             is_coding_relevant = coding_relevance_results.get(segment_id, True)  # Default: True
 
-            # ZusÄtzliche einfache Heuristik fuer offensichtlich irrelevante Inhalte
+            # Zusätzliche einfache Heuristik fuer offensichtlich irrelevante Inhalte
             if len(text.strip()) < 20:
                 is_coding_relevant = False
-                print(f"   ðŸš« Segment {segment_id} zu kurz fuer Kodierung")
+                print(f"   ❌ Segment {segment_id} zu kurz fuer Kodierung")
                 
             text_lower = text.lower()
             exclusion_patterns = [
@@ -479,12 +451,13 @@ class IntegratedAnalysisManager:
             is_metadata = any(pattern in text_lower for pattern in exclusion_patterns)
             if is_metadata and len(text) < 100:
                 is_coding_relevant = False
-                print(f"   ðŸš« Segment {segment_id} als Metadaten erkannt")
+                print(f"   ❌ Segment {segment_id} als Metadaten erkannt")
             
+            # EARLY RETURN: Falls nicht kodierungsrelevant, direkt "Nicht kodiert" zurückgeben OHNE Kategorienvorbereitung
             if not is_coding_relevant:
-                print(f"   ðŸš« Segment {segment_id} wird als 'Nicht kodiert' markiert")
+                print(f"   ❌ Segment {segment_id} wird als 'Nicht kodiert' markiert")
                 
-                # FIX: Hole BegrÜndung aus RelevanceChecker falls verfÜgbar
+                # FIX: Hole Begründung aus RelevanceChecker falls verfügbar
                 relevance_details = self.relevance_checker.get_relevance_details(segment_id)
                 justification = "Nicht relevant fuer Kodierung (zu kurz oder Metadaten)"
                 if relevance_details:
@@ -493,11 +466,15 @@ class IntegratedAnalysisManager:
                     elif 'justification' in relevance_details and relevance_details['justification']:
                         justification = relevance_details['justification']
                 
-                # Spezifische Fallback-BegrÜndungen
+                # Spezifische Fallback-Begründungen
                 if len(text.strip()) < 20:
                     justification = "Segment zu kurz fuer sinnvolle Kodierung"
                 elif is_metadata:
                     justification = "Segment als Metadaten (z.B. Seitenzahl, Inhaltsverzeichnis) erkannt"
+                
+                # FIX: Holt preselection-Info für nicht-kodierte Segmente
+                preselection = category_preselections.get(segment_id, {})
+                preferred_cats = preselection.get('preferred_categories', [])
                 
                 not_coded_results = []
                 for coder in self.deductive_coders:
@@ -513,13 +490,42 @@ class IntegratedAnalysisManager:
                         'total_coding_instances': 1,
                         'target_category': '',
                         'category_focus_used': False,
-                        # FIX: ZusÄtzliche Kategorie-Vorauswahl-Info
+                        # FIX: Zusätzliche Kategorie-Vorauswahl-Info
                         'category_preselection_used': bool(preferred_cats),
                         'preferred_categories': preferred_cats,
                         'preselection_reasoning': preselection.get('reasoning', '')
                     }
                     not_coded_results.append(result)
                 return not_coded_results
+            
+            # NOW: Bestimme effektive Kategorien fuer dieses Segment (nur wenn kodierungsrelevant)
+            preselection = category_preselections.get(segment_id, {})
+            preferred_cats = preselection.get('preferred_categories', [])
+            
+            if preferred_cats:
+                # FIX: Verwende vollstÄndige CategoryDefinition-Objekte aus categories
+                effective_categories = {
+                    name: cat for name, cat in categories.items() 
+                    if name in preferred_cats and isinstance(cat, CategoryDefinition)  # FIX: Validiere CategoryDefinition
+                }
+                
+                if not effective_categories:
+                    print(f"    ❌ Keine gÜltigen CategoryDefinition-Objekte in preferred_cats - verwende alle Kategorien")
+                    effective_categories = categories
+                else:
+                    print(f"    🎯 Segment {segment_id}: Fokus auf {len(effective_categories)} Kategorien: {', '.join(preferred_cats)}")
+                    
+                    # FIX: Validiere, dass effective_categories vollstÄndige Definitionen hat
+                    for name, cat in effective_categories.items():
+                        if not hasattr(cat, 'subcategories'):
+                            print(f"    ❌ KRITISCH: effective_categories['{name}'] fehlen Subkategorien - hole aus categories")
+                            if name in categories:
+                                effective_categories[name] = categories[name]
+            else:
+                # FIX: Fallback auf alle Kategorien wenn keine Vorauswahl
+                effective_categories = categories
+                print(f"    🔀 Segment {segment_id}: Standard-Kodierung mit allen {len(categories)} Kategorien")
+            
             
             # Bestimme Kodierungsinstanzen (fuer Mehrfachkodierung)
             coding_instances = []
@@ -543,7 +549,7 @@ class IntegratedAnalysisManager:
                     'category_context': None
                 })
             
-            # [LAUNCH] PARALLEL: Alle Kodierer fuer alle Instanzen
+            # 🚀 PARALLEL: Alle Kodierer fuer alle Instanzen
             async def code_with_coder_and_instance(coder, instance_info):
                 """FIX: Kodiert mit einem Kodierer unter Verwendung der vollstÄndigen CategoryDefinition-Objekte."""
                 try:
@@ -555,7 +561,7 @@ class IntegratedAnalysisManager:
                         if target_cat and target_cat not in enhanced_categories:
                             if target_cat in categories:  
                                 enhanced_categories[target_cat] = categories[target_cat]  
-                                print(f"    [TARGET] Fokuskategorie '{target_cat}' zu verfÜgbaren Kategorien hinzugefÜgt")
+                                print(f"    🎯 Fokuskategorie '{target_cat}' zu verfÜgbaren Kategorien hinzugefÜgt")
                             else:
                                 print(f"    ❌ Fokuskategorie '{target_cat}' nicht in Kategorien vorhanden")
 
@@ -599,7 +605,7 @@ class IntegratedAnalysisManager:
                             # FIX: Informative Meldung bei nicht verfÜgbaren Kategorien
                             if main_category not in enhanced_categories:
                                 print(f"    ℹ️ Kategorie '{main_category}' nicht in verfÜgbaren Kategorien")
-                                print(f"    [TARGET] VerfÜgbare Kategorien: {list(enhanced_categories.keys())}")
+                                print(f"    🎯 VerfÜgbare Kategorien: {list(enhanced_categories.keys())}")
                             elif not hasattr(enhanced_categories[main_category], 'subcategories'):
                                 print(f"    ℹ️ Keine Subkategorie-Definitionen verfÜgbar fuer '{main_category}'")
                         
@@ -610,7 +616,7 @@ class IntegratedAnalysisManager:
                             if removed:
                                 print(f"    🔧 Entfernt: {list(removed)} (Quelle: {validation_source})")
                         elif validation_source != "keine" and original_subcats:
-                            print(f"    [OK] Alle {len(original_subcats)} Subkategorien gÜltig (Quelle: {validation_source})")
+                            print(f"    ✅ Alle {len(original_subcats)} Subkategorien gÜltig (Quelle: {validation_source})")
                         elif validation_source == "keine" and original_subcats:
                             print(f"    ℹ️ Subkategorien-Validierung Übersprungen fuer '{main_category}' (Quelle: {validation_source})")
                         
@@ -667,15 +673,15 @@ class IntegratedAnalysisManager:
             
             return successful_codings
         
-        # [LAUNCH] Erstelle Tasks fuer alle Segmente des Batches
+        # 🚀 Erstelle Tasks fuer alle Segmente des Batches
         segment_tasks = [
             code_single_segment_all_coders(segment_id, text) 
             for segment_id, text in batch
         ]
         
-        print(f"[LAUNCH] Starte parallele Kodierung von {len(segment_tasks)} Segmenten...")
+        print(f"🚀 Starte parallele Kodierung von {len(segment_tasks)} Segmenten...")
         
-        # [LAUNCH] FÜhre alle Segment-Kodierungen parallel aus
+        # 🚀 FÜhre alle Segment-Kodierungen parallel aus
         all_segment_results = await asyncio.gather(*segment_tasks, return_exceptions=True)
         
         # Sammle alle Ergebnisse
@@ -708,17 +714,17 @@ class IntegratedAnalysisManager:
         
         processing_time = time.time() - start_time
         
-        print(f"[OK] PARALLEL-BATCH ABGESCHLOSSEN:")
+        print(f"✅ PARALLEL-BATCH ABGESCHLOSSEN:")
         print(f"   âš¡ Zeit: {processing_time:.2f}s")
         if processing_time > 0:
-            print(f"   [LAUNCH] Geschwindigkeit: {len(batch)/processing_time:.1f} Segmente/Sekunde")
+            print(f"   🚀 Geschwindigkeit: {len(batch)/processing_time:.1f} Segmente/Sekunde")
         else:
-            print(f"   [LAUNCH] Geschwindigkeit: {len(batch)} Segmente in <0.01s (sehr schnell)")
+            print(f"   🚀 Geschwindigkeit: {len(batch)} Segmente in <0.01s (sehr schnell)")
         print(f"   ✅ Erfolgreiche Segmente: {successful_segments}/{len(batch)}")
         print(f"   🧾 Gesamte Kodierungen: {len(batch_results)}")
         # FIX: ZusÄtzliche Statistiken fuer Kategorie-Vorauswahl
         if category_preselections:
-            print(f"   [TARGET] Kategorie-Vorauswahl genutzt: {preselection_used_count} Kodierungen")
+            print(f"   🎯 Kategorie-Vorauswahl genutzt: {preselection_used_count} Kodierungen")
             print(f"   🔧 Subkategorie-Validierung durchgefÜhrt: {validation_performed_count} Kodierungen")
         if error_count > 0:
             print(f"   ❌ Fehler: {error_count}")
@@ -817,7 +823,7 @@ class IntegratedAnalysisManager:
                     name: cat for name, cat in categories.items() 
                     if name in preferred_cats
                 }
-                print(f"\n🕵️ Verarbeite Segment {segment_id} mit Kontext ([TARGET] Fokus auf {len(filtered_categories)} Kategorien: {', '.join(preferred_cats)})")
+                print(f"\n🕵️ Verarbeite Segment {segment_id} mit Kontext (🎯 Fokus auf {len(filtered_categories)} Kategorien: {', '.join(preferred_cats)})")
                 effective_categories = filtered_categories
             else:
                 # FIX: Fallback auf alle Kategorien
@@ -905,7 +911,7 @@ class IntegratedAnalysisManager:
                             if target_cat and target_cat not in enhanced_categories:
                                 if target_cat in categories:  
                                     enhanced_categories[target_cat] = categories[target_cat]  
-                                    print(f"    [TARGET] Fokuskategorie '{target_cat}' zu verfÜgbaren Kategorien hinzugefÜgt")
+                                    print(f"    🎯 Fokuskategorie '{target_cat}' zu verfÜgbaren Kategorien hinzugefÜgt")
                                 else:
                                     print(f"    ❌ Fokuskategorie '{target_cat}' nicht in Kategorien vorhanden")
                         
@@ -993,12 +999,12 @@ class IntegratedAnalysisManager:
                             if instance_info['total_instances'] > 1:
                                 category_display = coding_entry['category']
                                 if preferred_cats and category_display in preferred_cats:
-                                    category_display += " [TARGET]"
+                                    category_display += " 🎯"
                                 print(f"        ✅ {coder.coder_id}: {category_display}")
                             else:
                                 category_display = coding_entry['category']
                                 if preferred_cats and category_display in preferred_cats:
-                                    category_display += " [TARGET]"
+                                    category_display += " 🎯"
                                 print(f"  ✅ Kodierer {coder.coder_id}: {category_display}")
                         else:
                             print(f"  âš  Keine Kodierung von {coder.coder_id} erhalten")
@@ -1040,7 +1046,7 @@ class IntegratedAnalysisManager:
                 
             elif analysis_mode == 'grounded':
                 # Im separaten Grounded Mode wurde bereits alles erledigt
-                print(f"\n[OK] GROUNDED MODE bereits vollstÄndig abgeschlossen")
+                print(f"\n✅ GROUNDED MODE bereits vollstÄndig abgeschlossen")
                 return current_categories
                 
             elif analysis_mode == 'abductive':
@@ -1069,7 +1075,7 @@ class IntegratedAnalysisManager:
         analysis_mode = CONFIG.get('ANALYSIS_MODE', 'inductive')
         
         if analysis_mode == 'inductive':
-            print(f"ðŸ”¬ INDUCTIVE MODE - EigenstÄndiges induktives System:")
+            print(f"🧑‍💼 INDUCTIVE MODE - EigenstÄndiges induktives System:")
             print(f"   - Deduktive Kategorien: IGNORIERT")
             print(f"   - Entwickelte induktive Kategorien: {len(final_categories)}")
             print(f"   - Verarbeitete Batches: {batch_count}")
@@ -1080,9 +1086,9 @@ class IntegratedAnalysisManager:
             
         else:
             # Bestehende Logik fuer andere Modi - KORRIGIERT
-            initial_count = len(initial_categories) if initial_categories else 0  # [OK] BUGFIX: len() hinzugefÜgt
+            initial_count = len(initial_categories) if initial_categories else 0  # ✅ BUGFIX: len() hinzugefÜgt
             final_count = len(final_categories)
-            new_count = final_count - initial_count  # [OK] Jetzt korrekt: int - int
+            new_count = final_count - initial_count  # ✅ Jetzt korrekt: int - int
             
             print(f"ℹ️ Entwicklungsbilanz:")
             print(f"   - Verarbeitete Batches: {batch_count}")
@@ -1100,7 +1106,7 @@ class IntegratedAnalysisManager:
             self.inductive_coder.theoretical_saturation_history):
             
             final_saturation = self.inductive_coder.theoretical_saturation_history[-1]
-            print(f"\n[TARGET] Finale SÄttigung:")
+            print(f"\n🎯 Finale SÄttigung:")
             print(f"   - Theoretische SÄttigung: {final_saturation['theoretical_saturation']:.1%}")
             print(f"   - KategorienqualitÄt: {final_saturation['category_quality']:.1%}")
             print(f"   - DiversitÄt: {final_saturation['category_diversity']:.1%}")
@@ -1385,13 +1391,13 @@ class IntegratedAnalysisManager:
                             # FIX: Bessere Ausgabe je nach Analysemodus
                             if analysis_mode == 'abductive':
                                 if added_count > 0:
-                                    print(f"[OK] {added_count} neue Hauptkategorien integriert")
+                                    print(f"✅ {added_count} neue Hauptkategorien integriert")
                                 if added_subcategories > 0:
-                                    print(f"[OK] {added_subcategories} neue Subkategorien integriert")
+                                    print(f"✅ {added_subcategories} neue Subkategorien integriert")
                                 if added_count == 0 and added_subcategories == 0:
-                                    print("[OK] 0 neue Kategorien integriert (wie erwartet im abduktiven Modus)")
+                                    print("✅ 0 neue Kategorien integriert (wie erwartet im abduktiven Modus)")
                             else:
-                                print(f"[OK] {added_count} neue Kategorien integriert")
+                                print(f"✅ {added_count} neue Kategorien integriert")
                                 if added_subcategories > 0:
                                     print(f"   🔀 ZusÄtzlich {added_subcategories} neue Subkategorien")
                             
@@ -1437,7 +1443,7 @@ class IntegratedAnalysisManager:
                     
                     coding_categories = grounded_categories
                     print(f"   🔀 Grounded Mode: Verwende {len(grounded_categories)} rein induktive Kategorien")
-                    print(f"   ðŸš« Ausgeschlossen: {len(current_categories) - len(grounded_categories)} deduktive Kategorien")
+                    print(f"   ❌ Ausgeschlossen: {len(current_categories) - len(grounded_categories)} deduktive Kategorien")
                 else:
                     coding_categories = current_categories
                 
@@ -1471,11 +1477,11 @@ class IntegratedAnalysisManager:
                 )
             
                 print(f"\n🧾 SÄttigungsstatus:")
-                print(f"   [TARGET] Theoretische SÄttigung: {saturation_status['theoretical_saturation']:.1%}")
+                print(f"   🎯 Theoretische SÄttigung: {saturation_status['theoretical_saturation']:.1%}")
                 print(f"   ℹ️ Materialabdeckung: {saturation_status['material_coverage']:.1%}")
                 
                 if saturation_status['is_saturated']:
-                    print(f"\n[TARGET] SÄTTIGUNG ERREICHT nach {batch_count} Batches!")
+                    print(f"\n🎯 SÄTTIGUNG ERREICHT nach {batch_count} Batches!")
                     break
                 
                 # Fortschrittsinfo
@@ -1576,7 +1582,7 @@ class IntegratedAnalysisManager:
                 print(f"\n🏁 GROUNDED SUBCODE-SAMMLUNG abgeschlossen nach {batch_count} Batches!")
                 break
         
-        print(f"\n[TARGET] GROUNDED PHASE 1 ABGESCHLOSSEN:")
+        print(f"\n🎯 GROUNDED PHASE 1 ABGESCHLOSSEN:")
         print(f"   - Gesammelte Subcodes: {len(self.grounded_subcodes_collection)}")
         print(f"   - Segment-Analysen: {len(self.grounded_segment_analyses)}")
         print(f"   - Keywords: {len(self.grounded_keywords_collection)}")
@@ -1593,7 +1599,7 @@ class IntegratedAnalysisManager:
             grounded_categories = await self.inductive_coder._generate_main_categories_from_subcodes(initial_categories)
             
             if grounded_categories:
-                print(f"[OK] {len(grounded_categories)} Hauptkategorien generiert")
+                print(f"✅ {len(grounded_categories)} Hauptkategorien generiert")
                 
                 # Aktualisiere alle Kodierer mit den neuen Kategorien
                 for coder in self.deductive_coders:
@@ -1653,7 +1659,7 @@ class IntegratedAnalysisManager:
                             # Sammle Keywords
                             self.grounded_keywords_collection.extend(subcode.get('keywords', []))
                             
-                            print(f"    [OK] Neuer Subcode: '{subcode_name}'")
+                            print(f"    ✅ Neuer Subcode: '{subcode_name}'")
                         else:
                             # Erweitere bestehenden Subcode
                             for existing_subcode in self.grounded_subcodes_collection:
@@ -1691,7 +1697,7 @@ class IntegratedAnalysisManager:
         }
         self.grounded_batch_history.append(batch_info)
         
-        print(f"[OK] SUBCODE-SAMMLUNG BATCH {batch_number}:")
+        print(f"✅ SUBCODE-SAMMLUNG BATCH {batch_number}:")
         print(f"   - Neue Subcodes: {new_subcodes_count}")
         print(f"   - Gesamt Subcodes: {len(self.grounded_subcodes_collection)}")
         print(f"   - SÄttigungs-Counter: {self.grounded_saturation_counter}")
@@ -1723,7 +1729,7 @@ class IntegratedAnalysisManager:
             for segment_id, _ in batch:
                 self.processed_segments.add(segment_id)
         
-        print(f"[OK] Kodierung abgeschlossen: {len(coding_results)} Kodierungen erstellt")
+        print(f"✅ Kodierung abgeschlossen: {len(coding_results)} Kodierungen erstellt")
         return coding_results
     
     async def _recode_segments_with_final_categories(self, final_categories: Dict[str, CategoryDefinition], chunks: Dict[str, List[str]]) -> None:
@@ -1736,7 +1742,7 @@ class IntegratedAnalysisManager:
         for coder in self.deductive_coders:
             success = await coder.update_category_system(final_categories)
             if success:
-                print(f"   [OK] Kodierer {coder.coder_id} erfolgreich aktualisiert")
+                print(f"   ✅ Kodierer {coder.coder_id} erfolgreich aktualisiert")
             else:
                 print(f"   ⚠️ Fehler bei Kodierer {coder.coder_id}")
         
@@ -1938,9 +1944,9 @@ class IntegratedAnalysisManager:
                     is_intermediate_export=True  # FIX: Kennzeichnung als Zwischenexport
                 )
                 
-                print("[OK] Zwischenergebnisse erfolgreich exportiert!")
-                print(f"🔀‚ Dateien im Ordner: {CONFIG['OUTPUT_DIR']}")
-                print(f"🔀„ Export-Datei: QCA-AID_Analysis_INTERMEDIATE_{timestamp}.xlsx")
+                print("✅ Zwischenergebnisse erfolgreich exportiert!")
+                print(f"ℹ️ Dateien im Ordner: {CONFIG['OUTPUT_DIR']}")
+                print(f"ℹ️ Export-Datei: QCA-AID_Analysis_INTERMEDIATE_{timestamp}.xlsx")
             else:
                 print("❌  Keine Kodierungen zum Exportieren vorhanden")
                 

@@ -677,7 +677,7 @@ class ManualReviewComponent:
             # Füge neue Entscheidung hinzu
             self.review_results.append(decision)
             
-            print(f"[OK] Entscheidung gespeichert für {segment_id}: {decision['category']} → {decision.get('subcategories', [])}")
+            print(f"✅ Entscheidung gespeichert für {segment_id}: {decision['category']} → {decision.get('subcategories', [])}")
             
             # Bestätigungs-Feedback
             if category == "Nicht kodiert":

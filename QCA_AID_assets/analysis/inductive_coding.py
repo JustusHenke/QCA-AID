@@ -85,7 +85,7 @@ class InductiveCoder:
             deduktive_kategorien=DEDUKTIVE_KATEGORIEN
         )
 
-        print(f"\nðŸ”¬ Induktive Kodierung initialisiert:")
+        print(f"\n🧑‍💼 Induktive Kodierung initialisiert:")
         print(f"- Min. Batches vor SÄttigung: {self.MIN_BATCHES_BEFORE_SATURATION}")
         print(f"- Min. Materialabdeckung: {self.MIN_MATERIAL_COVERAGE:.0%}")
         print(f"- StabilitÄtsschwelle: {self.STABILITY_THRESHOLD} Batches")
@@ -137,7 +137,7 @@ class InductiveCoder:
                 validated[name] = category
                 # WICHTIG: Nutzung fuer neue Kategorie setzen
                 self.category_usage_history[name] = self.category_usage_history.get(name, 0) + 1
-                print(f"[OK] '{name}' validiert (Nutzung: {self.category_usage_history[name]})")
+                print(f"✅ '{name}' validiert (Nutzung: {self.category_usage_history[name]})")
             else:
                 print(f"⚠️ '{name}' erfÜllt QualitÄtsstandards nicht")
         
@@ -183,7 +183,7 @@ class InductiveCoder:
                     other_name = name2 if better_name == name1 else name1
                     del consolidated[other_name]
                     
-                    print(f"[OK] Konsolidiert zu '{better_name}'")
+                    print(f"✅ Konsolidiert zu '{better_name}'")
         
         return consolidated
     
@@ -201,7 +201,7 @@ class InductiveCoder:
             
             # TEMPORÄRER FIX: Akzeptiere alle Kategorien in der Entwicklungsphase
             if self.current_phase == "development":
-                print(f"[OK] '{name}' Übernommen (Entwicklungsphase)")
+                print(f"✅ '{name}' Übernommen (Entwicklungsphase)")
                 cleaned[name] = category
                 continue
                 
@@ -216,7 +216,7 @@ class InductiveCoder:
                         category = category.replace(definition=enhanced.definition)
                 
                 cleaned[name] = category
-                print(f"[OK] '{name}' Übernommen (Nutzung: {usage_count})")
+                print(f"✅ '{name}' Übernommen (Nutzung: {usage_count})")
             else:
                 print(f"⚠️ '{name}' entfernt (Zu wenig genutzt: {usage_count}, Mindest: {min_usage})")
         
@@ -320,7 +320,7 @@ class InductiveCoder:
                     working_categories.update(validated_categories)
                     added_count = len(working_categories) - before_count
                     
-                    print(f"[OK] {added_count} neue Kategorien integriert")
+                    print(f"✅ {added_count} neue Kategorien integriert")
                     self.batches_without_new_categories = 0
                     self._update_usage_history(list(validated_categories.keys()))
                     
@@ -532,14 +532,14 @@ class InductiveCoder:
         
         print(f"\n🕵️ SÄttigungskriterien:")
         for criterion, met in criteria_met.items():
-            status = "[OK]" if met else "⚠️"
+            status = "✅" if met else "⚠️"
             print(f"   {status} {criterion}: {met}")
         
         # SÄttigung nur wenn ALLE Kriterien erfÜllt
         is_saturated = all(criteria_met.values())
         
         if is_saturated:
-            print(f"\n[TARGET] ALLE SÄttigungskriterien erfÜllt!")
+            print(f"\n🎯 ALLE SÄttigungskriterien erfÜllt!")
         else:
             missing = [k for k, v in criteria_met.items() if not v]
             print(f"\nℹ️ Fehlende Kriterien: {', '.join(missing)}")
@@ -749,7 +749,7 @@ class InductiveCoder:
                 confidence = float(cat_data.get('confidence', 0))
                 if confidence >= self.MIN_CONFIDENCE:
                     candidates[cat_data['name']] = self._create_category_definition(cat_data)
-                    print(f"[OK] Neuer Kandidat: '{cat_data['name']}' (Konfidenz: {confidence:.2f})")
+                    print(f"✅ Neuer Kandidat: '{cat_data['name']}' (Konfidenz: {confidence:.2f})")
             
             return candidates
             
@@ -813,7 +813,7 @@ class InductiveCoder:
         Protokolliert SÄttigungsfortschritt fuer Benutzer-Feedback
         """
         print(f"\n🧾 SÄttigungsfortschritt:")
-        print(f"   [TARGET] Theoretische SÄttigung: {saturation_metrics['theoretical_saturation']:.1%}")
+        print(f"   🎯 Theoretische SÄttigung: {saturation_metrics['theoretical_saturation']:.1%}")
         print(f"   ℹ️ Materialabdeckung: {saturation_metrics['material_coverage']:.1%}")
         print(f"   ℹ️ StabilitÄt: {saturation_metrics['stable_batches']} Batches ohne neue Kategorien")
         print(f"   â­ KategorienqualitÄt: {saturation_metrics['category_quality']:.1%}")
@@ -841,7 +841,7 @@ class InductiveCoder:
         # SÄttigungshistorie
         if self.theoretical_saturation_history:
             final_saturation = self.theoretical_saturation_history[-1]
-            print(f"\n[TARGET] Finale SÄttigung:")
+            print(f"\n🎯 Finale SÄttigung:")
             print(f"   - Theoretische SÄttigung: {final_saturation['theoretical_saturation']:.1%}")
             print(f"   - KategorienqualitÄt: {final_saturation['category_quality']:.1%}")
             print(f"   - DiversitÄt: {final_saturation['category_diversity']:.1%}")
@@ -1195,7 +1195,7 @@ class InductiveCoder:
             grounded_categories = {}
             subcode_mapping = result.get('subcode_mappings', {})
             
-            print(f"\n[OK] Hauptkategorien-Generierung abgeschlossen:")
+            print(f"\n✅ Hauptkategorien-Generierung abgeschlossen:")
             
             for i, category_data in enumerate(result.get('main_categories', []), 1):
                 name = category_data.get('name', '')
@@ -1251,7 +1251,7 @@ class InductiveCoder:
                 if len(unmapped_subcodes) > 5:
                     print(f"   ... und {len(unmapped_subcodes) - 5} weitere")
             else:
-                print(f"\n[OK] Alle {len(all_subcode_names)} Subcodes erfolgreich zugeordnet")
+                print(f"\n✅ Alle {len(all_subcode_names)} Subcodes erfolgreich zugeordnet")
             
             # Kombiniere mit initial categories falls vorhanden
             if initial_categories:
@@ -1470,7 +1470,7 @@ class InductiveCoder:
             print(f"⚠️ '{category.name}': Name zu kurz")
             return False
         
-        print(f"[OK] '{category.name}': QualitÄtsstandards erfÜllt")
+        print(f"✅ '{category.name}': QualitÄtsstandards erfÜllt")
         return True
 
     async def _auto_merge_categories(self, cat1: CategoryDefinition, cat2: CategoryDefinition, name1: str, name2: str) -> Optional[CategoryDefinition]:
@@ -1506,7 +1506,7 @@ class InductiveCoder:
                 modified_date=datetime.now().strftime("%Y-%m-%d")
             )
             
-            print(f"[OK] ZusammenfÜhrung erfolgreich zu '{better_name}'")
+            print(f"✅ ZusammenfÜhrung erfolgreich zu '{better_name}'")
             return merged
             
         except Exception as e:

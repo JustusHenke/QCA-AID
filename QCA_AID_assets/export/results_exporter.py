@@ -546,7 +546,7 @@ class ResultsExporter:
             if len(segments_with_issues) > 3:
                 print(f"  ... und {len(segments_with_issues) - 3} weitere")
         else:
-            print(f"\n[OK] Keine offensichtlichen Subkategorien-Probleme gefunden")
+            print(f"\n✅ Keine offensichtlichen Subkategorien-Probleme gefunden")
         
         print(f"\n🕵️ EXPORT-DEBUG ABGESCHLOSSEN")
 
@@ -959,14 +959,14 @@ class ResultsExporter:
                 if original_codings and reliability is not None:
                     # FIX: Verwende bereits berechnete ReliabilitÄt und ursprÜngliche Kodierungen
                     self._export_intercoder_bericht(writer, original_codings, reliability)
-                    print(f"[OK] IntercoderBericht mit Alpha={reliability:.3f} erstellt")
+                    print(f"✅ IntercoderBericht mit Alpha={reliability:.3f} erstellt")
                 else:
                     print("❌ Keine ursprÜnglichen Kodierungen oder ReliabilitÄt verfÜgbar")
                     self._create_empty_intercoder_sheet(writer)
                 
                 # 4. KATEGORIEN-ÜBERSICHT
                 if categories:
-                    print("🔀‚ Exportiere Kategorien-Übersicht...")
+                    print("ℹ️ Exportiere Kategorien-Übersicht...")
                     self._export_categories_sheet_formatted(writer, categories, original_categories)
                 
                 # 5. PROGRESSIVE SUMMARIES (falls vorhanden)
@@ -991,14 +991,14 @@ class ResultsExporter:
                 self._export_configuration(writer, export_mode)
                 
                 if is_intermediate_export:
-                    print(f"[OK] Zwischenergebnisse erfolgreich exportiert!")
+                    print(f"✅ Zwischenergebnisse erfolgreich exportiert!")
                 else:
-                    print(f"[OK] Export erfolgreich: {filename}")
+                    print(f"✅ Export erfolgreich: {filename}")
                 
             # FIX: Nur bei normalem Export Dateiinfo anzeigen
             if not is_intermediate_export:
-                print(f"🔀‚ Dateien im Ordner: {self.output_dir}")
-                print(f"🔀„ Export-Datei: {filename}")
+                print(f"ℹ️ Dateien im Ordner: {self.output_dir}")
+                print(f"ℹ️ Export-Datei: {filename}")
             
             # FIX: Return filename am Ende hinzugefÜgt
             return filename
@@ -1256,10 +1256,10 @@ class ResultsExporter:
                         if relevance_details and justification == "Keine BegrÜndung verfÜgbar":
                             if relevance_details.get('reasoning') and relevance_details['reasoning'] != 'Keine BegrÜndung verfÜgbar':
                                 justification = relevance_details['reasoning']
-                                # print(f"   - [OK] BegrÜndung aus RelevanceChecker geholt: '{justification}'")
+                                # print(f"   - ✅ BegrÜndung aus RelevanceChecker geholt: '{justification}'")
                             elif relevance_details.get('justification') and relevance_details['justification'] != 'Keine BegrÜndung verfÜgbar':
                                 justification = relevance_details['justification'] 
-                                # print(f"   - [OK] Justification aus RelevanceChecker geholt: '{justification}'")
+                                # print(f"   - ✅ Justification aus RelevanceChecker geholt: '{justification}'")
                     except Exception as e:
                         print(f"   - ⚠️ Fehler beim RelevanceChecker-Zugriff: {e}")
                 else:
@@ -1275,10 +1275,10 @@ class ResultsExporter:
                             if relevance_details and justification == "Keine BegrÜndung verfÜgbar":
                                 if relevance_details.get('reasoning') and relevance_details['reasoning'] != 'Keine BegrÜndung verfÜgbar':
                                     justification = relevance_details['reasoning']
-                                    # print(f"   - [OK] BegrÜndung aus Analysis Manager RelevanceChecker geholt: '{justification}'")
+                                    # print(f"   - ✅ BegrÜndung aus Analysis Manager RelevanceChecker geholt: '{justification}'")
                                 elif relevance_details.get('justification') and relevance_details['justification'] != 'Keine BegrÜndung verfÜgbar':
                                     # justification = relevance_details['justification']
-                                    print(f"   - [OK] Justification aus Analysis Manager RelevanceChecker geholt: '{justification}'")
+                                    print(f"   - ✅ Justification aus Analysis Manager RelevanceChecker geholt: '{justification}'")
                         except Exception as e:
                             print(f"   - ⚠️ Fehler beim Analysis Manager RelevanceChecker-Zugriff: {e}")
                     else:
@@ -1291,18 +1291,18 @@ class ResultsExporter:
                     
                     if text_length < 20:
                         justification = "Segment zu kurz fuer sinnvolle Kodierung"
-                        # print(f"   - [OK] Fallback: Zu kurz")
+                        # print(f"   - ✅ Fallback: Zu kurz")
                     elif any(pattern in text_content for pattern in ['seite ', 'page ', 'copyright', '©', 'inhaltsverzeichnis']):
                         justification = "Segment als Metadaten identifiziert"
-                        # print(f"   - [OK] Fallback: Metadaten")
+                        # print(f"   - ✅ Fallback: Metadaten")
                     elif text_length < 100:
                         justification = "Segment enthÄlt zu wenig Substanz fuer Kodierung"
-                        # print(f"   - [OK] Fallback: Zu wenig Substanz")
+                        # print(f"   - ✅ Fallback: Zu wenig Substanz")
                     else:
                         justification = "Segment nicht relevant fuer Analysekategorien"
-                        # print(f"   - [OK] Fallback: Nicht relevant")
+                        # print(f"   - ✅ Fallback: Nicht relevant")
                 
-                #  print(f"   - [TARGET] FINAL justification: '{justification}'")
+                #  print(f"   - 🎯 FINAL justification: '{justification}'")
             
             # FIX: Konfidenz korrekt extrahieren
             confidence = coding.get('confidence', {})
@@ -1386,7 +1386,7 @@ class ResultsExporter:
             worksheet = writer.sheets['Kodierungsergebnisse']
             # print(f"FIX: Formatiere Worksheet 'Kodierungsergebnisse' mit {len(df)} Zeilen und {len(df.columns)} Spalten")
             # print(f"FIX: Spalten: {list(df.columns)}")
-            self._format_worksheet(worksheet, as_table=True)  # FIX: Explizit as_table=True
+            self._format_worksheet(worksheet, as_table=False)  # FIX: Changed to False for robustness - use AutoFilter only
             
         else:
             print("❌ Keine Hauptergebnisse zum Exportieren")
@@ -1614,38 +1614,112 @@ class ResultsExporter:
                     last_col_letter = get_column_letter(last_col_index)
                     last_row = worksheet.max_row
                     
-                    # Generiere eindeutigen Tabellennamen
-                    safe_table_name = f"Table_{worksheet.title.replace(' ', '_').replace('-', '_')}"
+                    # DEBUG: Gebe Dimensionen aus
+                    print(f"DEBUG _format_worksheet: Dimensionen = {last_col_index}x{last_row}, max_column={worksheet.max_column}, max_row={worksheet.max_row}")
                     
-                    # Tabellenverweis generieren
-                    table_ref = f"A1:{last_col_letter}{last_row}"
+                    # Robuste Validierung der Dimensionen
+                    # WICHTIG: Minimum 2 Zeilen (Header + mindestens 1 Datenzeile)
+                    if last_col_index < 1 or last_row < 2:
+                        print(f"Warnung: Worksheet hat ungültige Dimensionen ({last_col_index}x{last_row}) - Fallback zu AutoFilter")
+                        if as_table:
+                            # Fallback zu AutoFilter
+                            worksheet.auto_filter.ref = f"A1:{last_col_letter}{last_row}"
+                        return
                     
-                    # FIX: Erstelle NUR Excel-Tabelle (nicht AutoFilter)
-                    tab = Table(displayName=safe_table_name, ref=table_ref)
-                    style = TableStyleInfo(
-                        name="TableStyleMedium9", 
-                        showFirstColumn=False,
-                        showLastColumn=False, 
-                        showRowStripes=True, 
-                        showColumnStripes=False
-                    )
-                    tab.tableStyleInfo = style
-                    worksheet.add_table(tab)
+                    # Generiere eindeutigen Tabellennamen - ROBUST und kurz
+                    # Max 31 Zeichen für Excel-Tabellennamen
+                    sheet_title = worksheet.title.replace(' ', '_').replace('-', '_')
+                    # Entferne Sonderzeichen
+                    sheet_title = ''.join(c for c in sheet_title if c.isalnum() or c == '_')[:20]
+                    safe_table_name = f"Tbl_{sheet_title}"
                     
-                    print(f"Excel-Tabelle '{safe_table_name}' erfolgreich erstellt")
+                    # Stelle sicher, dass der Tabellenname eindeutig ist
+                    counter = 1
+                    original_name = safe_table_name
+                    while safe_table_name in worksheet.tables:
+                        safe_table_name = f"{original_name}_{counter}"
+                        counter += 1
+                    
+                    # Tabellenverweis generieren - ROBUST
+                    # WICHTIG: Stelle sicher, dass last_row mindestens 2 ist (Header + 1 Zeile)
+                    if last_row < 2:
+                        last_row = 2  # Fallback minimum
+                    
+                    # DEBUG: Überprüfe tatsächlich geschriebene Zeilen
+                    actual_last_row = 1
+                    for row in worksheet.iter_rows(min_row=1, max_row=last_row):
+                        has_data = any(cell.value is not None for cell in row)
+                        if has_data:
+                            actual_last_row = row[0].row
+                    
+                    # DEBUG: Validiere Header-Zellenwerte (dürfen keine ungültigen Zeichen haben)
+                    header_row = worksheet[1]
+                    for cell in header_row:
+                        if cell.value is not None:
+                            cell_value = str(cell.value)
+                            # Prüfe auf problematische Zeichen
+                            if any(c in cell_value for c in ['[', ']', '{', '}', '<', '>']):
+                                print(f"WARNUNG: Header-Zelle '{cell.coordinate}' enthält problematische Zeichen: '{cell_value}'")
+                                # Sanitize
+                                sanitized = cell_value.replace('[', '').replace(']', '').replace('{', '').replace('}', '').replace('<', '').replace('>', '')
+                                cell.value = sanitized
+                    
+                    print(f"DEBUG: last_row (max_row)={last_row}, actual_last_row={actual_last_row}")
+                    
+                    # Verwende die tatsächlich gefüllte Zeile
+                    if actual_last_row < 2:
+                        print(f"Warnung: Keine ausreichenden Datenzeilen ({actual_last_row}) - verwende AutoFilter")
+                        worksheet.auto_filter.ref = f"A1:{last_col_letter}{last_row}"
+                        return
+                    
+                    table_ref = f"A1:{last_col_letter}{actual_last_row}"
+                    
+                    # Validiere Tabellenverweis
+                    try:
+                        # Detaillierte Validierung
+                        print(f"DEBUG: Versuche Tabelle '{safe_table_name}' mit Bereich '{table_ref}' zu erstellen")
+                        
+                        # Prüfe ob Bereich gültig ist
+                        if actual_last_row < 2 or last_col_index < 1:
+                            raise ValueError(f"Ungültige Tabellen-Dimensionen: Zeilen={actual_last_row}, Spalten={last_col_index}, Bereich={table_ref}")
+                        
+                        # FIX: Erstelle NUR Excel-Tabelle (nicht AutoFilter)
+                        tab = Table(displayName=safe_table_name, ref=table_ref)
+                        style = TableStyleInfo(
+                            name="TableStyleMedium9", 
+                            showFirstColumn=False,
+                            showLastColumn=False, 
+                            showRowStripes=True, 
+                            showColumnStripes=False
+                        )
+                        tab.tableStyleInfo = style
+                        worksheet.add_table(tab)
+                        
+                        print(f"✓ Excel-Tabelle '{safe_table_name}' erfolgreich erstellt ({table_ref})")
+                    except (ValueError, AttributeError, Exception) as ref_error:
+                        print(f"Fehler bei Tabellenerstellung: {str(ref_error)}")
+                        print(f"DEBUG: Fallback zu AutoFilter (last_row={last_row}, last_col_index={last_col_index})")
+                        # Direktes Fallback zu AutoFilter
+                        try:
+                            filter_range = f"A1:{last_col_letter}{actual_last_row}"
+                            worksheet.auto_filter.ref = filter_range
+                            print(f"AutoFilter als Fallback erstellt: {filter_range}")
+                        except Exception as filter_error:
+                            print(f"Auch AutoFilter-Fallback fehlgeschlagen: {str(filter_error)}")
                     
                 except Exception as table_error:
-                    print(f"Warnung bei Tabellenerstellung: {str(table_error)}")
-                    # FIX: Fallback zu AutoFilter wenn Tabelle fehlschlÄgt
-                    try:
-                        last_col_index = worksheet.max_column
-                        last_col_letter = get_column_letter(last_col_index)
-                        last_row = worksheet.max_row
-                        filter_range = f"A1:{last_col_letter}{last_row}"
-                        worksheet.auto_filter.ref = filter_range
-                        print(f"AutoFilter als Fallback erstellt: {filter_range}")
-                    except Exception as filter_error:
-                        print(f"Auch AutoFilter-Fallback fehlgeschlagen: {str(filter_error)}")
+                    print(f"Unerwarteter Fehler bei Tabellenerstellung: {str(table_error)}")
+            else:
+                # AutoFilter verwenden statt Tabelle
+                try:
+                    last_col_index = worksheet.max_column
+                    last_col_letter = get_column_letter(last_col_index)
+                    last_row = worksheet.max_row
+                    filter_range = f"A1:{last_col_letter}{last_row}"
+                    worksheet.auto_filter.ref = filter_range
+                    print(f"AutoFilter erstellt: {filter_range}")
+                except Exception as filter_error:
+                    print(f"Warnung: AutoFilter konnte nicht erstellt werden: {str(filter_error)}")
 
             print(f"Worksheet '{worksheet.title}' erfolgreich formatiert" + 
                 (f" mit Farbkodierung fuer Hauptkategorien (Spalte {hauptkategorie_idx})" if hauptkategorie_idx else ""))
@@ -1680,7 +1754,7 @@ class ResultsExporter:
                     color = category_colors[category]
                     cell.fill = PatternFill(start_color=color, end_color=color, fill_type='solid')
             
-            print(f"[OK] Farbkodierung angewendet fuer {len(category_colors)} Kategorien")
+            print(f"✅ Farbkodierung angewendet fuer {len(category_colors)} Kategorien")
             
         except Exception as e:
             print(f"❌ Fehler bei Farbkodierung: {str(e)}")
@@ -1875,7 +1949,7 @@ class ResultsExporter:
         with open(output_path, 'w', encoding='utf-8') as f:
             json.dump(export_data, f, indent=2, ensure_ascii=False)
         
-        print(f"🔀„ JSON-Export erstellt: {output_path}")
+        print(f"ℹ️ JSON-Export erstellt: {output_path}")
        
     def _extract_doc_and_chunk_id(self, segment_id: str) -> tuple:
         """
@@ -1993,10 +2067,10 @@ class ResultsExporter:
             main_categories = df_all['Hauptkategorie'].unique()
             category_colors = {cat: color for cat, color in zip(main_categories, generate_pastel_colors(len(main_categories)))}
 
-            if 'HÄufigkeitsanalysen' not in writer.sheets:
-                writer.book.create_sheet('HÄufigkeitsanalysen')
+            if 'Häufigkeitsanalysen' not in writer.sheets:
+                writer.book.create_sheet('Häufigkeitsanalysen')
             
-            worksheet = writer.sheets['HÄufigkeitsanalysen']
+            worksheet = writer.sheets['Häufigkeitsanalysen']
             worksheet.delete_rows(1, worksheet.max_row)  # Bestehende Daten lÖschen
 
             current_row = 1
@@ -2224,10 +2298,10 @@ class ResultsExporter:
                 self._apply_professional_formatting_to_range(worksheet, current_row, 1, len(cross_tab_2_3_df), len(cross_tab_2_3_df.columns))
                 current_row += len(cross_tab_2_3_df) + 3
             
-            print("[OK] HÄufigkeitsanalysen erfolgreich mit standardisierter Formatierung exportiert")
+            print("✅ Häufigkeitsanalysen erfolgreich mit standardisierter Formatierung exportiert")
             
         except Exception as e:
-            print(f"⚠️ Fehler bei HÄufigkeitsanalysen: {str(e)}")
+            print(f"⚠️ Fehler bei Häufigkeitsanalysen: {str(e)}")
             import traceback
             traceback.print_exc()
     
@@ -2343,7 +2417,7 @@ class ResultsExporter:
                 worksheet.column_dimensions['D'].width = 15  # Zeichenanzahl
                 worksheet.column_dimensions['E'].width = 20  # Durchschnittliche WortlÄnge
                 
-                print(f"[OK] {len(summary_data)} formatierte Document-Summaries exportiert")
+                print(f"✅ {len(summary_data)} formatierte Document-Summaries exportiert")
             
         except Exception as e:
             print(f"⚠️ Fehler bei formatierten Progressive Summaries: {str(e)}")
@@ -2561,7 +2635,7 @@ class ResultsExporter:
             worksheet.column_dimensions['B'].width = 15
             worksheet.column_dimensions['C'].width = 15
             
-            print("[OK] Erweiterte Review-Statistiken erfolgreich exportiert")
+            print("✅ Erweiterte Review-Statistiken erfolgreich exportiert")
             
         except Exception as e:
             print(f"⚠️ Fehler beim Export der Review-Statistiken: {str(e)}")
@@ -2654,7 +2728,7 @@ class ResultsExporter:
                 worksheet = writer.sheets['Intercoder_Unstimmigkeiten']
                 self._format_intercoder_sheet(worksheet, df_disagreements)
                 
-                print(f"[OK] {len(disagreement_data)} Intercoder-Unstimmigkeiten analysiert")
+                print(f"✅ {len(disagreement_data)} Intercoder-Unstimmigkeiten analysiert")
             else:
                 # Leeres Sheet mit Info erstellen
                 empty_data = [{'Info': 'Keine Intercoder-Unstimmigkeiten gefunden'}]
@@ -2812,7 +2886,7 @@ class ResultsExporter:
             worksheet.column_dimensions['A'].width = 35
             worksheet.column_dimensions['B'].width = 20
             
-            print("[OK] IntercoderBericht mit ursprÜnglichen Daten erstellt")
+            print("✅ IntercoderBericht mit ursprÜnglichen Daten erstellt")
             
         except Exception as e:
             print(f"⚠️ Fehler beim IntercoderBericht: {str(e)}")
@@ -2926,7 +3000,7 @@ class ResultsExporter:
             worksheet.column_dimensions['A'].width = 40
             worksheet.column_dimensions['B'].width = 25
             
-            print("[OK] Erweiterte Intercoder-Übersicht mit Alpha-Details erstellt")
+            print("✅ Erweiterte Intercoder-Übersicht mit Alpha-Details erstellt")
             
         except Exception as e:
             print(f"⚠️ Fehler bei erweiterter Intercoder-Übersicht: {str(e)}")
@@ -3113,7 +3187,7 @@ class ResultsExporter:
         Returns:
             List[str]: Liste der Pfade zu erstellten annotierten PDFs
         """
-        print(f"\nðŸŽ¨ Beginne PDF-Annotations-Export...")
+        print(f"\n💾 Beginne PDF-Annotations-Export...")
         
         try:
             # FIX: Importiere PDF-Annotator (nur wenn benÖtigt)
@@ -3150,12 +3224,12 @@ class ResultsExporter:
             print("   ℹ️ Keine PDF-Dateien im Input-Verzeichnis gefunden")
             return []
         
-        print(f"   🔀„ {len(pdf_files)} PDF-Dateien gefunden")
+        print(f"   ℹ️ {len(pdf_files)} PDF-Dateien gefunden")
         annotated_files = []
         
         # FIX: Annotiere jede PDF-Datei
         for filename, file_path in pdf_files:
-            print(f"\n   🔀„ Verarbeite: {filename}")
+            print(f"\n   ℹ️ Verarbeite: {filename}")
             
             # FIX: Filtere nur konsolidierte/Review-Kodierungen fuer diese Datei
             file_stem = os.path.splitext(filename)[0]
@@ -3185,9 +3259,12 @@ class ResultsExporter:
                 print(f"      ❌ Keine Kodierungen fuer {filename} gefunden")
                 continue
             
-            # FIX: Erstelle Ausgabepfad mit os.path
+            # FIX: Erstelle Ausgabepfad mit os.path - in "Annotated" Unterordner
+            annotated_dir = os.path.join(self.output_dir, "Annotated")
+            os.makedirs(annotated_dir, exist_ok=True)
+            
             output_filename = f"{file_stem}_QCA_annotiert.pdf"
-            output_file = os.path.join(self.output_dir, output_filename)
+            output_file = os.path.join(annotated_dir, output_filename)
             
             # FIX: Annotiere PDF
             try:
@@ -3200,13 +3277,13 @@ class ResultsExporter:
                 
                 if result_path:
                     annotated_files.append(result_path)
-                    print(f"      [OK] Erstellt: {os.path.basename(result_path)}")
+                    print(f"      ✅ Erstellt: {os.path.basename(result_path)}")
                 
             except Exception as e:
                 print(f"      ⚠️ Fehler bei {filename}: {e}")
                 continue
         
-        print(f"\n[OK] PDF-Annotation abgeschlossen: {len(annotated_files)} Dateien erstellt")
+        print(f"\n✅ PDF-Annotation abgeschlossen: {len(annotated_files)} Dateien erstellt")
         return annotated_files
     
     def export_annotated_pdfs_all_formats(self, 
@@ -3224,7 +3301,7 @@ class ResultsExporter:
         Returns:
             List[str]: Liste der Pfade zu erstellten annotierten PDFs
         """
-        print(f"\nðŸŽ¨ Beginne erweiterte PDF-Annotations-Export fuer alle Formate...")
+        print(f"\n💾 Beginne erweiterte PDF-Annotations-Export fuer alle Formate...")
         
         try:
             # FIX: Importiere benÖtigte Klassen
@@ -3275,7 +3352,7 @@ class ResultsExporter:
         
         # FIX: Verarbeite jede Datei
         for filename, file_path, file_ext in input_files:
-            print(f"\n   🔀„ Verarbeite: {filename}")
+            print(f"\n   ℹ️ Verarbeite: {filename}")
             
             # FIX: Filtere Review-Kodierungen fuer diese Datei
             file_stem = os.path.splitext(filename)[0]
@@ -3308,16 +3385,16 @@ class ResultsExporter:
             # FIX: Konvertiere zu PDF falls nÖtig
             if file_ext == '.pdf':
                 pdf_path = file_path
-                print(f"      [OK] Bereits PDF")
+                print(f"      ✅ Bereits PDF")
             else:
                 print(f"      ℹ️ Konvertiere {file_ext.upper()} zu PDF...")
-                pdf_path = pdf_converter.convert_document_to_pdf(file_path)
+                pdf_path = pdf_converter.convert(file_path)
                 
                 if not pdf_path:
                     print(f"      ⚠️ Konvertierung fehlgeschlagen")
                     continue
                 
-                print(f"      [OK] PDF erstellt: {os.path.basename(pdf_path)}")
+                print(f"      ✅ PDF erstellt: {os.path.basename(pdf_path)}")
             
             # FIX: Annotiere PDF
             try:
@@ -3333,7 +3410,7 @@ class ResultsExporter:
                 
                 if result_path:
                     annotated_files.append(result_path)
-                    print(f"      [OK] Annotiert: {os.path.basename(result_path)}")
+                    print(f"      ✅ Annotiert: {os.path.basename(result_path)}")
                 else:
                     print(f"      ⚠️ Annotation fehlgeschlagen")
                 
@@ -3347,7 +3424,7 @@ class ResultsExporter:
         except Exception as e:
             print(f"   ❌ Fehler bei Bereinigung: {e}")
         
-        print(f"\n[OK] Erweiterte PDF-Annotation abgeschlossen: {len(annotated_files)} Dateien erstellt")
+        print(f"\n✅ Erweiterte PDF-Annotation abgeschlossen: {len(annotated_files)} Dateien erstellt")
         return annotated_files
     
     def _export_configuration(self, writer, export_mode: str):
@@ -3415,5 +3492,3 @@ class ResultsExporter:
             import traceback
             traceback.print_exc()
                 
-# --- Klasse: CategoryRevisionManager ---
-# Aufgabe: Verwaltung der iterativen Kategorienrevision

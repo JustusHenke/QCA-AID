@@ -324,7 +324,7 @@ class DeductiveCoder:
                 }
                 
                 if filtered_categories:
-                    print(f"    [TARGET] Gefilterte Kodierung fuer {self.coder_id}: {len(filtered_categories)}/{len(current_categories)} Kategorien")
+                    print(f"    🎯 Gefilterte Kodierung fuer {self.coder_id}: {len(filtered_categories)}/{len(current_categories)} Kategorien")
                     print(f"    🔀‹ Fokus auf: {', '.join(preferred_cats)}")
                     effective_categories = filtered_categories
                 else:
@@ -396,12 +396,12 @@ class DeductiveCoder:
                     
                     coding_result = CodingResult(
                         category=result.get('category', 'Nicht kodiert'),
-                        subcategories=tuple(validated_subcats),  # [OK] Tuple statt Set
+                        subcategories=tuple(validated_subcats),  # ✅ Tuple statt Set
                         confidence=result.get('confidence', {}),
                         justification=result.get('justification', ''),
                         paraphrase=result.get('paraphrase', ''),
                         keywords=result.get('keywords', ''),
-                        text_references=tuple(result.get('text_references', [])),  # [OK] Tuple
+                        text_references=tuple(result.get('text_references', [])),  # ✅ Tuple
                         uncertainties=tuple(result.get('uncertainties', [])) if result.get('uncertainties') else None
                     )
                                         
@@ -620,12 +620,12 @@ class DeductiveCoder:
                 if coding_result:
                     paraphrase = coding_result.get('paraphrase', '')
                     if paraphrase:
-                        print(f"\nðŸ—’ï¸  Paraphrase: {paraphrase}")
+                        print(f"\n🧾  Paraphrase: {paraphrase}")
                     print(f"  ✅ Kodierung von {self.coder_id}: 📝  {coding_result.get('category', '')}")
                     print(f"  ✅ Subkategorien von {self.coder_id}: 📝  {', '.join(coding_result.get('subcategories', []))}")
                     print(f"  ✅ Keywords von {self.coder_id}: 📝  {coding_result.get('keywords', '')}")
                     print(f"\n🔀 Summary fuer {doc_name} aktualisiert ({len(updated_summary.split())} WÖrter):")
-                    print(f"{updated_summary[:1000]}..." if len(updated_summary) > 100 else f"🔀„ {updated_summary}")
+                    print(f"{updated_summary[:1000]}..." if len(updated_summary) > 100 else f"ℹ️ {updated_summary}")
                     
                     # Kombiniertes Ergebnis zurÜckgeben
                     return {
@@ -666,7 +666,7 @@ class DeductiveCoder:
                 print(f"Fehler: Kein Kategoriensystem fuer Kodierer {self.coder_id} verfÜgbar")
                 return None
 
-            # print(f"    [TARGET] Fokuskodierung fuer Kategorie: {focus_category} (Relevanz: {focus_context.get('relevance_score', 0):.2f})")
+            # print(f"    🎯 Fokuskodierung fuer Kategorie: {focus_category} (Relevanz: {focus_context.get('relevance_score', 0):.2f})")
 
             # Erstelle formatierte KategorienÜbersicht mit Fokus-Hervorhebung
             categories_overview = []
@@ -729,7 +729,7 @@ class DeductiveCoder:
                         # Verarbeite Paraphrase
                         paraphrase = result.get('paraphrase', '')
                         if paraphrase:
-                            print(f"      ðŸ—’ï¸  Fokus-Paraphrase: {paraphrase}")
+                            print(f"      🧾  Fokus-Paraphrase: {paraphrase}")
 
                         # Dokumentiere Fokus-Adherence
                         focus_adherence = result.get('focus_adherence', {})
@@ -806,7 +806,7 @@ class DeductiveCoder:
                 print(f"Fehler: Kein Kategoriensystem fuer Kodierer {self.coder_id} verfÜgbar")
                 return None
 
-            print(f"    [TARGET] Fokuskodierung fuer Kategorie: {focus_category} (Relevanz: {focus_context.get('relevance_score', 0):.2f})")
+            print(f"    🎯 Fokuskodierung fuer Kategorie: {focus_category} (Relevanz: {focus_context.get('relevance_score', 0):.2f})")
 
             # Erstelle formatierte KategorienÜbersicht mit Fokus-Hervorhebung
             categories_overview = []
@@ -1000,7 +1000,7 @@ class DeductiveCoder:
                 if coding_result:
                     paraphrase = coding_result.get('paraphrase', '')
                     if paraphrase:
-                        print(f"        ðŸ—’ï¸  Fokus-Kontext-Paraphrase: {paraphrase}")
+                        print(f"        🧾  Fokus-Kontext-Paraphrase: {paraphrase}")
 
                     # Dokumentiere Fokus-Adherence
                     focus_adherence = coding_result.get('focus_adherence', {})
@@ -1017,7 +1017,7 @@ class DeductiveCoder:
 
                     if update_summary:
                         print(f"        🔀 Summary fuer {doc_name} aktualisiert ({len(updated_summary.split())} WÖrter):")
-                        print(f"        {updated_summary[:100]}..." if len(updated_summary) > 100 else f"        🔀„ {updated_summary}")
+                        print(f"        {updated_summary[:100]}..." if len(updated_summary) > 100 else f"        ℹ️ {updated_summary}")
                     
                     # Kombiniertes Ergebnis zurÜckgeben
                     return {

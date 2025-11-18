@@ -832,7 +832,7 @@ class ReliabilityCalculator:
         max_component = max(main_alpha, sub_alpha)
         
         if min_component <= overall <= max_component:
-            print(f"   [OK] Mathematische Konsistenz: {min_component:.3f} â‰¤ {overall:.3f} â‰¤ {max_component:.3f}")
+            print(f"   ✅ Mathematische Konsistenz: {min_component:.3f} â‰¤ {overall:.3f} â‰¤ {max_component:.3f}")
         else:
             print(f"   ❌ Mathematische Inkonsistenz: Overall liegt auẞerhalb der Komponenten!")
             print(f"      Bereich: {min_component:.3f} - {max_component:.3f}, Overall: {overall:.3f}")

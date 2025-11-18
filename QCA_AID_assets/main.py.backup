@@ -605,7 +605,7 @@ async def main() -> None:
                 if CONFIG.get('CODE_WITH_CONTEXT', True) and analysis_manager.document_summaries:
                     print("\nFinale Document-Summaries:")
                     for doc_name, summary in analysis_manager.document_summaries.items():
-                        print(f"\n🔀„ {doc_name}:")
+                        print(f"\nℹ️ {doc_name}:")
                         print(f"  {summary}")
 
                 # FIX: Korrekte PrÃ¼fung von EXPORT_ANNOTATED_PDFS
@@ -620,7 +620,7 @@ async def main() -> None:
                 else:
                     # PDF-Annotation ist aktiviert und verfÃ¼gbar
                     try:
-                        print("\nðŸŽ¨ Exportiere annotierte PDFs fÃ¼r alle Dateiformate...")
+                        print("\n💾 Exportiere annotierte PDFs fÃ¼r alle Dateiformate...")
                         
                         # FIX: Verwende erweiterte Methode fÃ¼r alle Formate
                         annotated_pdfs = exporter.export_annotated_pdfs_all_formats(
@@ -630,7 +630,7 @@ async def main() -> None:
                         )
                         
                         if annotated_pdfs:
-                            print(f"🔀„ {len(annotated_pdfs)} annotierte PDFs erstellt:")
+                            print(f"ℹ️ {len(annotated_pdfs)} annotierte PDFs erstellt:")
                             for pdf_path in annotated_pdfs:
                                 print(f"   - {os.path.basename(pdf_path)}")
                         else:

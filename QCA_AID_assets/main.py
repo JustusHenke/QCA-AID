@@ -14,7 +14,7 @@ from .core.config import CONFIG, FORSCHUNGSFRAGE
 from .core.data_models import CategoryDefinition, CategoryChange
 from .preprocessing.material_loader import MaterialLoader
 from .analysis.deductive_coding import DeductiveCategoryBuilder, DeductiveCoder
-from .analysis.analysis_manager import IntegratedAnalysisManager
+from .analysis.analysis_manager import IntegratedAnalysisManager, token_counter
 from .analysis.manual_coding import ManualCoder
 from .management import DevelopmentHistory, CategoryRevisionManager, CategoryManager
 from .quality.reliability import ReliabilityCalculator
@@ -163,7 +163,7 @@ async def perform_manual_coding(chunks, categories, manual_coders):
                 # Kurze Pause zwischen den Chunks
                 await asyncio.sleep(0.5)
     
-        print("\n[OK] Manueller Kodierungsprozess abgeschlossen")
+        print("\n✅ Manueller Kodierungsprozess abgeschlossen")
         print(f"- {len(manual_codings)}/{total_segments} Segmente erfolgreich kodiert")
         
         # Sicherstellen, dass alle Fenster geschlossen sind
@@ -194,6 +194,151 @@ async def perform_manual_coding(chunks, categories, manual_coders):
     return manual_codings
 
 # ============================ 
+# Analyse-Konfiguration Dialog
+# ============================ 
+
+def display_config_parameters():
+    """
+    Zeigt die geladenen Konfigurationsparameter übersichtlich an
+    """
+    print("\n" + "="*70)
+    print("📋 KONFIGURATIONSPARAMETER")
+    print("="*70)
+    
+    important_params = [
+        ('MODEL_PROVIDER', 'LLM-Provider'),
+        ('MODEL_NAME', 'Modell'),
+        ('DATA_DIR', 'Eingabeverzeichnis'),
+        ('OUTPUT_DIR', 'Ausgabeverzeichnis'),
+        ('CHUNK_SIZE', 'Segment-Größe'),
+        ('CHUNK_OVERLAP', 'Segment-Überlappung'),
+        ('BATCH_SIZE', 'Batch-Größe'),
+        ('ANALYSIS_MODE', 'Analysemodus'),
+        ('CODE_WITH_CONTEXT', 'Kodierung mit Kontext'),
+        ('MULTIPLE_CODINGS', 'Mehrfachkodierung'),
+        ('MANUAL_CODING_ENABLED', 'Manuelles Kodieren'),
+        ('REVIEW_MODE', 'Review-Modus'),
+    ]
+    
+    for param, label in important_params:
+        value = CONFIG.get(param, 'N/A')
+        print(f"  • {label:.<30} {value}")
+    
+    print("="*70 + "\n")
+
+
+async def configure_analysis_start(CONFIG: Dict, codebook_path: str) -> Dict:
+    """
+    Interaktive Konfiguration des Analysestarts mit Timeouts
+    
+    Returns:
+        Dict mit Konfigurationsänderungen:
+        - analysis_mode: Gewählter Analysemodus
+        - use_saved_codebook: Bool ob Codebook verwendet werden soll
+        - enable_manual_coding: Bool ob manuelle Kodierung aktiviert sein soll
+        - skip_inductive: Bool ob induktive Phase übersprungen werden soll
+    """
+    result = {
+        'analysis_mode': CONFIG['ANALYSIS_MODE'],
+        'use_saved_codebook': False,
+        'enable_manual_coding': CONFIG.get('MANUAL_CODING_ENABLED', False),
+        'skip_inductive': False
+    }
+    
+    # 1. Zeige aktuelle Konfiguration
+    display_config_parameters()
+    
+    # 2. Frage zum Analysemodus-Änderung
+    print("\n🔄 ANALYSEMODUS")
+    print("-" * 70)
+    print("Analysemodus wird verwendet um zu entscheiden, welche Kodierungsphasen laufen:")
+    print("  1 = 'inductive' - Volle induktive Analyse (deduktiv + induktiv)")
+    print("  2 = 'abductive' - Nur Subkategorien entwickeln")
+    print("  3 = 'deductive' - Nur deduktive Kodierung")
+    print("  4 = 'grounded' - Subcodes sammeln, später Hauptkategorien generieren")
+    print(f"\nAktuell konfiguriert: '{CONFIG['ANALYSIS_MODE']}'")
+    
+    analysis_mode = get_input_with_timeout(
+        "Analysemodus ändern? [1/2/3/4] (Enter = beibehalten)",
+        timeout=10
+    )
+    
+    mode_mapping = {
+        '1': 'inductive',
+        '2': 'abductive',
+        '3': 'deductive',
+        '4': 'grounded'
+    }
+    
+    if analysis_mode and analysis_mode in mode_mapping:
+        new_mode = mode_mapping[analysis_mode]
+        if new_mode != CONFIG['ANALYSIS_MODE']:
+            print(f"✅ Analysemodus geändert: '{CONFIG['ANALYSIS_MODE']}' -> '{new_mode}'")
+            result['analysis_mode'] = new_mode
+        else:
+            print(f"ℹ️ Analysemodus bleibt: '{new_mode}'")
+    else:
+        print(f"ℹ️ Analysemodus bleibt: '{CONFIG['ANALYSIS_MODE']}'")
+    
+    result['skip_inductive'] = result['analysis_mode'] == 'deductive'
+    
+    # 3. Frage zu gespeichertem Codebook
+    print("\n📚 INDUKTIVES CODESYSTEM")
+    print("-" * 70)
+    
+    if os.path.exists(codebook_path):
+        print(f"✓ Gespeichertes induktives Codesystem gefunden")
+        print(f"  Pfad: {codebook_path}")
+        print("\nWenn Sie 'Ja' wählen, wird das erweiterte Codesystem geladen")
+        print("und die induktive Phase übersprungen.")
+        
+        use_saved = get_input_with_timeout(
+            "\nGespeichertes Codesystem verwenden? (j/N)",
+            timeout=10
+        )
+        
+        if use_saved.lower() == 'j':
+            result['use_saved_codebook'] = True
+            print("✅ Gespeichertes Codesystem wird geladen")
+        else:
+            print("ℹ️ Neue induktive Analyse wird durchgeführt")
+    else:
+        print("ℹ️ Kein gespeichertes induktives Codesystem vorhanden")
+        print("  Neue induktive Analyse wird durchgeführt")
+    
+    # 4. Frage zu manueller Kodierung
+    print("\n👤 MANUELLES KODIEREN")
+    print("-" * 70)
+    print("Manuelle Kodierung ermöglicht:")
+    print("  • Verfügbarkeit von Intercodierabgleich (zur Qualitätskontrolle)")
+    print("  • Möglichkeit, die automatische Kodierung zu überprüfen")
+    print("  • Erreichen höherer Reliabilität bei kleineren Stichproben")
+    print("\nWarnung: Manuelle Kodierung verlangsamt die Analyse deutlich!")
+    
+    enable_manual = get_input_with_timeout(
+        "Zusätzlich manuell kodieren? (j/N)",
+        timeout=10
+    )
+    
+    if enable_manual.lower() == 'j':
+        result['enable_manual_coding'] = True
+        print("✅ Manuelles Kodieren wird aktiviert")
+    else:
+        result['enable_manual_coding'] = False
+        print("ℹ️ Nur automatische Kodierung")
+    
+    print("\n" + "="*70)
+    print("📊 KONFIGURATION ZUSAMMENFASSUNG")
+    print("="*70)
+    print(f"  • Analysemodus: {result['analysis_mode']}")
+    print(f"  • Codesystem: {'Gespeichert laden' if result['use_saved_codebook'] else 'Neu entwickeln'}")
+    print(f"  • Manuelles Kodieren: {'Ja' if result['enable_manual_coding'] else 'Nein'}")
+    print("="*70 + "\n")
+    
+    return result
+
+
+# ============================ 
 # 5. Hauptprogramm
 # ============================ 
 
@@ -203,7 +348,7 @@ async def main() -> None:
         # 1. Konfiguration laden - ZUERST damit INPUT/OUTPUT_DIR gesetzt sind
         script_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))  # Go up one level to root
         
-        # Setze Input/Output Verzeichnisse, bevor ConfigLoader verwendet wird
+        # Setze Input/Output Verzeichnisse mit Defaults, bevor ConfigLoader verwendet wird
         CONFIG['OUTPUT_DIR'] = os.path.join(script_dir, 'output')
         CONFIG['DATA_DIR'] = os.path.join(script_dir, 'input')
         CONFIG['INPUT_DIR'] = os.path.join(script_dir, 'input')
@@ -225,10 +370,9 @@ async def main() -> None:
         else:
             print("Verwende Standard-Konfiguration")
         
-        # Stelle sicher, dass Input/Output Pfade im Root sind, nicht in QCA_AID_assets
-        CONFIG['OUTPUT_DIR'] = os.path.join(script_dir, 'output')
-        CONFIG['DATA_DIR'] = os.path.join(script_dir, 'input')
-        CONFIG['INPUT_DIR'] = os.path.join(script_dir, 'input')
+        # FIX: Respektiere die vom ConfigLoader gesetzten Verzeichnisnamen
+        # (Keine Überschreibung mit hardcodierten Pfaden mehr!)
+        # Die Verzeichnisse wurden bereits vom ConfigLoader gesetzt und validiert
 
         category_builder = DeductiveCategoryBuilder()
         initial_categories = category_builder.load_theoretical_categories()
@@ -259,92 +403,47 @@ async def main() -> None:
             print("\nKeine Dokumente zum Analysieren gefunden.")
             return
 
-        # 4b. Abfrage zur induktiven Kodierung
-        print("\n3. Induktive Kodierung konfigurieren...")
-
-        # PrÜfe ob ein induktives Codebook existiert
+        # 4b. Neue interaktive Analyse-Konfiguration
+        print("\n📌 ANALYSE-KONFIGURATION")
         codebook_path = os.path.join(CONFIG['OUTPUT_DIR'], "codebook_inductive.json")
-        skip_inductive = False
-
-        if os.path.exists(codebook_path):
-            print("\nGespeichertes induktives Codebook gefunden.")
-            print("Automatische FortfÜhrung in 10 Sekunden...")
-            
-            use_saved = get_input_with_timeout(
-                "\nMÖchten Sie das gespeicherte erweiterte Kodesystem laden? (j/N)",
-                timeout=10
-            )
-            
-            if use_saved.lower() == 'j':
-                try:
-                    with open(codebook_path, 'r', encoding='utf-8') as f:
-                        saved_categories = json.load(f)
-                        
-                    if 'categories' in saved_categories:
-                        # Konvertiere JSON zurÜck in CategoryDefinition Objekte
-                        for name, cat_data in saved_categories['categories'].items():
-                            initial_categories[name] = CategoryDefinition(
-                                name=name,
-                                definition=cat_data['definition'],
-                                examples=cat_data.get('examples', []),
-                                rules=cat_data.get('rules', []),
-                                subcategories=cat_data.get('subcategories', {}),
-                                added_date=cat_data.get('added_date', datetime.now().strftime("%Y-%m-%d")),
-                                modified_date=cat_data.get('modified_date', datetime.now().strftime("%Y-%m-%d"))
-                            )
-                        print(f"\n✅ {len(saved_categories['categories'])} Kategorien aus Codebook geladen")
-                        skip_inductive = True
-                    else:
-                        print("\nWarnung: UngÜltiges Codebook-Format")
-                        
-                except Exception as e:
-                    print(f"\nFehler beim Laden des Codebooks: {str(e)}")
-                    print("Fahre mit Standard-Kategorien fort")
-
-        if not skip_inductive:
-            default_mode = CONFIG['ANALYSIS_MODE']
-            print("\nAktueller Analysemodus aus Codebook: {default_mode}")
-            print("Sie haben 10 Sekunden Zeit fuer die Eingabe.")
-            print("Optionen:")
-            print("1 = inductive (volle induktive Analyse)")
-            print("2 = abductive (nur Subkategorien entwickeln)")
-            print("3 = deductive (nur deduktiv)")
-            print("4 = grounded (Subkategorien sammeln, spaeter Hauptkategorien generieren)")
-
-            analysis_mode = get_input_with_timeout(
-                f"\nWelchen Analysemodus moechten Sie verwenden? [1/2/3/4] (Standard: {CONFIG['ANALYSIS_MODE']})", 
-                timeout=10
-            )
-
-            # Mapping von Zahlen zu Modi
-            mode_mapping = {
-                '1': 'inductive',
-                '2': 'abductive',
-                '3': 'deductive',
-                '4': 'grounded'
-            }
-
-            # Verarbeite Zahlen oder direkte Modusangaben, behalte Default wenn leere oder ungÜltige Eingabe
-            if analysis_mode:  # Nur wenn etwas eingegeben wurde
-                if analysis_mode in mode_mapping:
-                    CONFIG['ANALYSIS_MODE'] = mode_mapping[analysis_mode]
-                elif analysis_mode.lower() in mode_mapping.values():
-                    CONFIG['ANALYSIS_MODE'] = analysis_mode.lower()
+        
+        config_result = await configure_analysis_start(CONFIG, codebook_path)
+        
+        # Wende die gewählte Konfiguration an
+        CONFIG['ANALYSIS_MODE'] = config_result['analysis_mode']
+        skip_inductive = config_result['skip_inductive']
+        use_saved_codebook = config_result['use_saved_codebook']
+        CONFIG['MANUAL_CODING_ENABLED'] = config_result['enable_manual_coding']
+        
+        # Lade gespeichertes Codebook wenn gewünscht
+        if use_saved_codebook and os.path.exists(codebook_path):
+            try:
+                with open(codebook_path, 'r', encoding='utf-8') as f:
+                    saved_categories = json.load(f)
+                    
+                if 'categories' in saved_categories:
+                    # Konvertiere JSON zurück in CategoryDefinition Objekte
+                    for name, cat_data in saved_categories['categories'].items():
+                        initial_categories[name] = CategoryDefinition(
+                            name=name,
+                            definition=cat_data['definition'],
+                            examples=cat_data.get('examples', []),
+                            rules=cat_data.get('rules', []),
+                            subcategories=cat_data.get('subcategories', {}),
+                            added_date=cat_data.get('added_date', datetime.now().strftime("%Y-%m-%d")),
+                            modified_date=cat_data.get('modified_date', datetime.now().strftime("%Y-%m-%d"))
+                        )
+                    print(f"\n✅ {len(saved_categories['categories'])} Kategorien aus gespeichertem Codesystem geladen")
+                    skip_inductive = True
                 else:
-                    print(f"\nUngueltiger Modus '{analysis_mode}'. Verwende Default-Modus '{default_mode}'.")
-                    # Keine Änderung an CONFIG['ANALYSIS_MODE'], Default bleibt bestehen
-            else:
-                print(f"Keine Eingabe. Verwende Default-Modus '{default_mode}'.")
-
-            # Bestimme, ob induktive Analyse Übersprungen wird
-            skip_inductive = CONFIG['ANALYSIS_MODE'] == 'deductive'
-
-            print(f"\nAnalysemodus: {CONFIG['ANALYSIS_MODE']} {'(Skip induktiv)' if skip_inductive else ''}")
-
-        # Grounded Theory Modus Info entfernt (Unicode-Probleme)
+                    print("\nWarnung: Ungültiges Codebook-Format")
+                    
+            except Exception as e:
+                print(f"\nFehler beim Laden des Codebooks: {str(e)}")
+                print("Fahre mit Standard-Kategorien fort")
 
         # 5. Kodierer konfigurieren
-        print("\n4. Konfiguriere Kodierer...")
+        print("\n5. Konfiguriere Kodierer...")
         # Automatische Kodierer
         auto_coders = [
             DeductiveCoder(
@@ -355,22 +454,13 @@ async def main() -> None:
             for coder_config in CONFIG['CODER_SETTINGS']
         ]
 
-        # Manuelle Kodierung konfigurieren
-        print("\nKonfiguriere manuelle Kodierung...")
-        print("Sie haben 10 Sekunden Zeit fuer die Eingabe.")
-        print("Druecken Sie 'j' fuer manuelle Kodierung oder 'n' zum Überspringen.")
-
+        # Manuelle Kodierung - bereits in configure_analysis_start() konfiguriert
         manual_coders = []
-        user_input = get_input_with_timeout(
-            "\nMÖchten Sie manuell kodieren? (j/N)",
-            timeout=10
-        )
-        
-        if user_input.lower() == 'j':
+        if CONFIG.get('MANUAL_CODING_ENABLED', False):
             manual_coders.append(ManualCoder(coder_id="human_1"))
-            print("\n✅ Manueller Kodierer wurde hinzugefÜgt")
+            print("\n✅ Manueller Kodierer hinzugefügt (wurde bereits in Konfiguration ausgewählt)")
         else:
-            print("\n[INFO] Keine manuelle Kodierung - nur automatische Kodierung wird durchgefÜhrt")
+            print("\n[INFO] Manuelle Kodierung deaktiviert - nur automatische Kodierung")
 
         # 6. Material vorbereiten
         print("\n5. Bereite Material vor...")
@@ -515,7 +605,7 @@ async def main() -> None:
                 # FÜhre kategorie-zentrierten Review durch
                 reviewed_codings = review_manager.process_coding_review(all_codings, review_mode)
                 
-                print(f"[OK] Review abgeschlossen: {len(reviewed_codings)} finale Kodierungen")
+                print(f"✅ Review abgeschlossen: {len(reviewed_codings)} finale Kodierungen")
                 
                 # Überschreibe all_codings mit den reviewten Ergebnissen
                 all_codings = reviewed_codings
@@ -624,7 +714,7 @@ async def main() -> None:
                 else:
                     # PDF-Annotation ist aktiviert und verfÜgbar
                     try:
-                        print("\nðŸŽ¨ Exportiere annotierte PDFs fuer alle Dateiformate...")
+                        print("\n💾 Exportiere annotierte PDFs fuer alle Dateiformate...")
                         
                         # FIX: Verwende erweiterte Methode fuer alle Formate
                         annotated_pdfs = exporter.export_annotated_pdfs_all_formats(

@@ -364,4 +364,4 @@ class TokenTracker:
     def reset_session(self) -> None:
         """Reset session statistics (keeps daily stats)."""
         self.session_stats = {'input': 0, 'output': 0, 'requests': 0, 'cost': 0.0}
-        print("[OK] Session statistics reset")
+        print("✅ Session statistics reset")

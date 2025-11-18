@@ -6,8 +6,9 @@ Creates visual representation of coded segments with legend and metadata.
 """
 
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 from fuzzywuzzy import fuzz
+import re
 import fitz  # PyMuPDF
 
 try:
@@ -121,7 +122,7 @@ class PDFAnnotator:
             if category is None:
                 category = 'Nicht kodiert'
             
-            print(f"\n      [SEARCH] Kodierung {i+1}: {segment_id} → {category}")
+            print(f"\n      🔍 Kodierung {i+1}: {segment_id} → {category}")
             
             try:
                 if '_chunk_' not in segment_id:
@@ -382,7 +383,7 @@ class PDFAnnotator:
         print(f"      📋 {len(text_groups)} Text-Gruppen zu verarbeiten")
         
         for i, (original_text, codings_group) in enumerate(text_groups.items(), 1):
-            print(f"\n      [SEARCH] Gruppe {i}/{len(text_groups)}: {len(codings_group)} Kodierungen")
+            print(f"\n      🔍 Gruppe {i}/{len(text_groups)}: {len(codings_group)} Kodierungen")
             print(f"          Text-Länge: {len(original_text)} Zeichen")
             
             # FIX: Strategie 1 - Exakte Text-Grenzen durch Content-Matching
@@ -529,7 +530,7 @@ class PDFAnnotator:
             print(f"          ❌ Zu wenige charakteristische Wörter: {len(target_words)}")
             return None, None, None
         
-        print(f"          [SEARCH] Suche {len(target_words)} Ziel-Wörter im PDF...")
+        print(f"          🔍 Suche {len(target_words)} Ziel-Wörter im PDF...")
         
         # FIX: Finde zusammenhängenden Textbereich
         # Strategie: Suche nach einer Sequenz von mindestens 5 aufeinanderfolgenden Wörtern

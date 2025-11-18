@@ -23,6 +23,9 @@ Dieses Python-Skript implementiert Mayrings Methode der deduktiven Qualitativen 
 - [Installation](#installation)
 - [Speichern des API-Schlüssels](#speichern-des-api-schlüssels)
 
+
+### Systemarchitektur
+|- [Architekturübersicht](#architekturübersicht)
 ### Konfiguration und Nutzung
 - [Unterstützte Eingabedateien](#unterstützte-eingabedateien)
 - [QCA-AID: Konfiguration und Nutzung](#qca-aid-konfiguration-und-nutzung)
@@ -45,6 +48,111 @@ Dieses Python-Skript implementiert Mayrings Methode der deduktiven Qualitativen 
 
 ### Referenzen
 - [Zitiervorschlag](#zitiervorschlag)
+
+## Architekturübersicht
+
+Die Version 0.10.0 führt ein massives Refactoring durch, das die komplette Codebase (alle Assets aus QCA-AID.py) in ein modulares System überführt:
+
+```
+QCA-AID/
+├── QCA-AID.py                  # Hauptlauncher (vereinfacht)
+├── QCA_AID_assets/             # Kernprogramm (Fachmodule)
+│   ├── main.py                # Hauptkoordinator
+│   ├── QCA_Prompts.py         # LLM-Prompt-Vorlagen
+│   ├── core/                  # Konfiguration und Datenmodelle
+│   │   ├── config.py          # Standard-Konfiguration
+│   │   ├── data_models.py     # Datenklassen (Segment, Code, etc.)
+│   │   └── validators.py      # Validationsregeln
+│   ├── preprocessing/         # Dokumentenverarbeitung
+│   │   └── material_loader.py # Laden von .txt/.pdf/.docx
+│   ├── analysis/              # Kodierungslogik
+│   │   ├── analysis_manager.py        # Orchester aller Kodierungen
+│   │   ├── deductive_coding.py        # Deduktive Kodierung
+│   │   ├── inductive_coding.py        # Induktive/Grounded-Mode Kodierung
+│   │   ├── manual_coding.py           # Tkinter GUI für manuelles Kodieren
+│   │   ├── relevance_checker.py       # Relevanzprüfung vor Kodierung
+│   │   └── saturation_controller.py   # Sättigungsprüfung
+│   ├── quality/               # Zuverlässigkeits- und Review-Management
+│   │   ├── reliability.py     # Intercoder-Reliabilität (Krippendorf)
+│   │   └── review_manager.py  # Konsensfindung und Review-Logik
+│   ├── management/            # Kategorie- und Entwicklungsverlauf
+│   │   ├── category_manager.py        # Kategoriemanagement
+│   │   ├── category_revision.py       # Kategorien-Versionierung
+│   │   └── development_history.py     # Historisierung
+│   ├── export/                # Exportfunktionalität
+│   │   └── results_exporter.py        # Excel-Export und Formatierung
+│   └── utils/                 # MODULARE HILFSFUNKTIONEN (REFACTORED in 0.10.0)
+│       ├── llm/               # LLM-Abstraktionsschicht
+│       │   ├── base.py        # Abstrakte LLM-Basisklasse
+│       │   ├── factory.py     # LLM-Factory-Pattern
+│       │   ├── openai_provider.py     # OpenAI-Implementation
+│       │   ├── mistral_provider.py    # Mistral-Implementation
+│       │   └── response.py    # Strukturierte Antworten
+│       ├── config/            # Konfigurationsladung
+│       │   └── loader.py      # Excel-Konfiguration laden
+│       ├── tracking/          # Token-Tracking und Kosten
+│       │   ├── token_counter.py       # Token-Zählung
+│       │   └── token_tracker.py       # Kostenberechnung
+│       ├── dialog/            # GUI-Komponenten
+│       │   ├── widgets.py     # Tkinter-Widgets
+│       │   └── multiple_coding.py     # Multi-Coder-Dialog
+│       ├── export/            # Export-Utilities
+│       │   ├── converters.py  # Format-Konvertierung
+│       │   ├── helpers.py     # Export-Hilfsfunktionen
+│       │   ├── pdf_annotator.py       # PDF-Annotation
+│       │   └── review.py      # Review-Export-Logik
+│       ├── io/                # Datei-I/O und Dokumentenladung
+│       │   ├── document_reader.py     # PDF/DOCX/TXT-Loader
+│       │   └── escape_handler.py      # Unicode/Escape-Verarbeitung
+│       ├── analysis.py        # Analysehilfs-Funktionen
+│       ├── common.py          # Gemeinsame Utilities
+│       ├── validators.py      # Validierungshelper
+│       ├── logging.py         # Logging und Status
+│       ├── system.py          # System-Utilities
+│       ├── dialog_helpers.py  # GUI-Helper
+│       └── impact_analysis.py # Auswirkungsanalyse
+├── QCA-AID-Explorer.py        # Explorative Datenanalyse und Visualisierung
+├── input/                     # Eingabedokumente
+├── output/                    # Analyseergebnisse
+└── QCA-AID-Codebook.xlsx      # Konfiguration und Kategoriensystem
+```
+
+### Transformation von monolithisch zu modular
+
+**Vorher (< 0.10.0):**
+- QCA_Utils.py: 3954 Zeilen Monolith mit 15+ Klassen
+- Code in main.py und QCA_Utils.py stark verflochten
+- Schwierig zu testen (zirkuläre Dependencies)
+- Schwierig zu erweitern (neuer Provider/Export-Format = Monolith-Änderung)
+
+**Nachher (0.10.0+):**
+- 8 spezialisierte Fachmodule in `utils/`
+- Klare Modul-Grenzen und Abhängigkeiten
+- Isoliert testbar (Unit Tests ohne API-Calls)
+- Einfach erweiterbar (Neuer LLM-Provider = neue Datei in `utils/llm/`)
+
+### Vorteile der neuen Modulararchitektur
+
+| Aspekt | Vorteil |
+|--------|--------|
+| **Wartbarkeit** | Spezialisierte Module mit klaren Verantwortlichkeiten, reduzierte Komplexität pro Datei |
+| **Testbarkeit** | Isolierte Module ermöglichen Unit-Testing ohne API-Dependencies, bessere Mock-Möglichkeiten |
+| **Skalierbarkeit** | Neuer LLM-Provider, Export-Format oder Analysetyp = neue Datei, keine Monolith-Änderung |
+| **Wartung** | Weniger zirkuläre Abhängigkeiten, lineare Abhängigkeitsgraphen |
+| **Onboarding** | Neue Entwickler verstehen Module schneller durch fokussierte Verantwortung |
+| **Robustheit** | Windows Unicode-Kodierungsfixes, bessere Fehlerbehandlung pro Modul |
+
+### Modul-Verantwortlichkeiten
+
+| Modul | Verantwortlichkeit | Dependencies |
+|-------|-------------------| ------------|
+| `llm/` | LLM-API-Integration, Provider-Abstraktion (OpenAI, Mistral) | openai, mistralai, requests |
+| `config/` | Excel-Konfiguration laden und validieren | openpyxl, pandas |
+| `tracking/` | Token-Zählung, Kostenberechnung | tiktoken |
+| `dialog/` | Tkinter GUI für manuelle Kodierung | tkinter (stdlib) |
+| `export/` | Excel/PDF-Export, Format-Konvertierung | openpyxl, pandas, PyPDF2 |
+| `io/` | Dokumentenladung (.pdf/.docx/.txt) | PyPDF2, python-docx, spacy |
+| `analysis/` | Hilfsreiches für Kodierungslogik | (keine externen Dependencies) |
 
 ## Anwendungsmöglichkeiten
 
@@ -121,17 +229,17 @@ Prinzipiell ist die Verarbeitung der Daten per LLM auch auf einem lokalen Rechne
 
 ## Zitiervorschlag
 
-Henke, J. (2025). QCA-AID: Qualitative Content Analysis with AI-supported Discovery (Version 0.9.16) [Software]. 
+Henke, J. (2025). QCA-AID: Qualitative Content Analysis with AI-supported Discovery (Version 0.10.0) [Software]. 
 Institut für Hochschulforschung Halle-Wittenberg. https://github.com/JustusHenke/QCA-AID
 
 ```BibTex
 @software{Henke_QCA-AID_2025,
   author       = {Henke, Justus},
   title        = {{QCA-AID: Qualitative Content Analysis with AI-supported Discovery}},
-  month        = june,
+  month        = december,
   year         = {2025},
   publisher    = {Institut für Hochschulforschung Halle-Wittenberg},
-  version      = {0.9.16},
+  version      = {0.10.0},
   url          = {https://github.com/JustusHenke/QCA-AID}
 }
 ```
