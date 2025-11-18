@@ -252,9 +252,9 @@ async def configure_analysis_start(CONFIG: Dict, codebook_path: str) -> Dict:
     print("\n🔄 ANALYSEMODUS")
     print("-" * 70)
     print("Analysemodus wird verwendet um zu entscheiden, welche Kodierungsphasen laufen:")
-    print("  1 = 'inductive' - Volle induktive Analyse (deduktiv + induktiv)")
+    print("  1 = 'deductive' - Nur deduktive Kodierung")
     print("  2 = 'abductive' - Nur Subkategorien entwickeln")
-    print("  3 = 'deductive' - Nur deduktive Kodierung")
+    print("  3 = 'inductive' - Volle induktive Analyse (deduktiv + induktiv)")
     print("  4 = 'grounded' - Subcodes sammeln, später Hauptkategorien generieren")
     print(f"\nAktuell konfiguriert: '{CONFIG['ANALYSIS_MODE']}'")
     
@@ -264,9 +264,9 @@ async def configure_analysis_start(CONFIG: Dict, codebook_path: str) -> Dict:
     )
     
     mode_mapping = {
-        '1': 'inductive',
+        '1': 'deductive',
         '2': 'abductive',
-        '3': 'deductive',
+        '3': 'inductive',
         '4': 'grounded'
     }
     
