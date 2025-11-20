@@ -21,10 +21,10 @@ except ImportError:
     DOCX_AVAILABLE = False
 
 try:
-    import PyPDF2
+    import pypdf
     PDF_AVAILABLE = True
 except ImportError:
-    PyPDF2 = None
+    pypdf = None
     PDF_AVAILABLE = False
 
 
@@ -216,13 +216,13 @@ class DocumentReader:
             str: Extrahierter und bereinigter Text
         """
         try:
-            import PyPDF2
+            import pypdf
             print(f"\nLese PDF: {os.path.basename(filepath)}")
             
             text_content = []
             with open(filepath, 'rb') as file:
                 try:
-                    pdf_reader = PyPDF2.PdfReader(file)
+                    pdf_reader = pypdf.PdfReader(file)
                     total_pages = len(pdf_reader.pages)
                     print(f"  Gefundene Seiten: {total_pages}")
                     

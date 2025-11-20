@@ -184,9 +184,9 @@ class MaterialLoader:
                         import subprocess
                         text = subprocess.check_output(['antiword', file_path]).decode('utf-8')
                     elif file_ext == '.pdf':
-                        import PyPDF2
+                        import pypdf
                         with open(file_path, 'rb') as f:
-                            pdf = PyPDF2.PdfReader(f)
+                            pdf = pypdf.PdfReader(f)
                             text = '\n'.join([page.extract_text() for page in pdf.pages])
                     else:
                         print(f"Überspringe nicht unterstützte Datei: {file}")
