@@ -91,10 +91,11 @@ class IntegratedAnalysisManager:
 
         # Konfigurationsparameter (unverÄndert)
         self.use_context = config.get('CODE_WITH_CONTEXT', False)
-        print(f"\nKontextuelle Kodierung: {'Aktiviert' if self.use_context else 'Deaktiviert'}")
+        print(f"\nKontextuelle Kodierung (Paraphrasen-basiert): {'Aktiviert' if self.use_context else 'Deaktiviert'}")
 
-        # Dictionary fuer die Verwaltung der Document-Summaries (unverÄndert)
-        self.document_summaries = {}
+        # Dictionary fuer die Verwaltung der Document-Paraphrasen
+        self.document_paraphrases = {}  # Format: {doc_name: [list of paraphrases]}
+        self.context_paraphrase_count = config.get('CONTEXT_PARAPHRASE_COUNT', 3)
 
         # NEU: Grounded Mode Spezifische Variablen
         self.grounded_subcodes_collection = []  # Zentrale Sammlung aller Subcodes
@@ -122,13 +123,14 @@ class IntegratedAnalysisManager:
                            batch_size: float) -> List[Tuple[str, str]]:
         """
         Bestimmt den nÄchsten zu analysierenden Batch.
+        ✅ BUGFIX: Batch enthält Segmente aus NUR EINEM Dokument!
         
         Args:
             segments: Liste aller Segmente
-            batch_size_percentage: Batch-GrÖẞe als Prozentsatz
+            batch_size: Batch-GrÖẞe
             
         Returns:
-            List[Tuple[str, str]]: NÄchster Batch von Segmenten
+            List[Tuple[str, str]]: NÄchster Batch von Segmenten AUS EINEM DOKUMENT
         """
         remaining_segments = [
             seg for seg in segments 
@@ -137,9 +139,25 @@ class IntegratedAnalysisManager:
         
         if not remaining_segments:
             return []
+        
+        # ✅ BUGFIX: Finde alle Segmente vom ERSTEN (unverarbeiteten) Dokument
+        first_segment_id = remaining_segments[0][0]
+        first_doc_name = self._extract_doc_and_chunk_id(first_segment_id)[0]
+        
+        # Sammle alle Segmente dieses Dokuments (bis batch_size oder Dokumentende)
+        current_batch = []
+        batch_size = max(1, int(batch_size))
+        
+        for seg_id, seg_text in remaining_segments:
+            doc_name = self._extract_doc_and_chunk_id(seg_id)[0]
             
-        batch_size = max(1, batch_size)
-        return remaining_segments[:batch_size]
+            # Stoppe wenn wir in ein neues Dokument kommen oder batch voll
+            if doc_name != first_doc_name or len(current_batch) >= batch_size:
+                break
+            
+            current_batch.append((seg_id, seg_text))
+        
+        return current_batch
     
     
     async def _process_batch_inductively(self, 
@@ -379,12 +397,28 @@ class IntegratedAnalysisManager:
                                      categories: Dict[str, CategoryDefinition],
                                      category_preselections: Dict[str, Dict] = None) -> List[Dict]:
         """
-        Kodiert einen Batch parallel ohne progressive Kontext-FunktionalitÄt.
+        Kodiert einen Batch parallel mit optionalem Paraphrasen-Kontext.
         FIX: Erweitert um Kategorie-Vorauswahl fuer deduktiven Modus
+        FIX: Nutzt Paraphrasen vorheriger Chunks als Kontext
         BUGFIX: Verwendet separate, lockere RelevanzprÜfung fuer Kodierung.
         """
         print(f"\n🚀 PARALLEL-KODIERUNG: {len(batch)} Segmente gleichzeitig")
         start_time = time.time()
+        
+        # NEU: Sammle Kontext-Paraphrasen für diesen Batch
+        # Bestimme Dokument für ersten Chunk im Batch
+        if self.use_context and batch:
+            first_segment_id = batch[0][0]
+            doc_name, _ = self._extract_doc_and_chunk_id(first_segment_id)
+            context_paraphrases = self.document_paraphrases.get(doc_name, [])
+            
+            # Limitiere auf letzte N Paraphrasen
+            context_paraphrases = context_paraphrases[-self.context_paraphrase_count:]
+            
+            if context_paraphrases:
+                print(f"📝 Nutze {len(context_paraphrases)} Kontext-Paraphrasen für Dokument '{doc_name}'")
+        else:
+            context_paraphrases = []
         
         # FIX: Standardwert fuer category_preselections
         if category_preselections is None:
@@ -457,20 +491,20 @@ class IntegratedAnalysisManager:
             if not is_coding_relevant:
                 print(f"   ❌ Segment {segment_id} wird als 'Nicht kodiert' markiert")
                 
-                # FIX: Hole Begründung aus RelevanceChecker falls verfügbar
+                # Bestimme spezifische Begründung
+                justification = "Nicht relevant fuer Kodierung"
+                if len(text.strip()) < 20:
+                    justification = "Segment zu kurz fuer sinnvolle Kodierung (<20 Zeichen)"
+                elif is_metadata:
+                    justification = "Segment als Metadaten erkannt (z.B. Seitenzahl, Inhaltsverzeichnis, Kapitelüberschrift)"
+                
+                # Versuche Begründung aus RelevanceChecker zu holen, falls verfügbar
                 relevance_details = self.relevance_checker.get_relevance_details(segment_id)
-                justification = "Nicht relevant fuer Kodierung (zu kurz oder Metadaten)"
                 if relevance_details:
-                    if 'reasoning' in relevance_details and relevance_details['reasoning']:
+                    if 'reasoning' in relevance_details and relevance_details['reasoning'] and 'Keine Begründung' not in relevance_details['reasoning']:
                         justification = relevance_details['reasoning']
                     elif 'justification' in relevance_details and relevance_details['justification']:
                         justification = relevance_details['justification']
-                
-                # Spezifische Fallback-Begründungen
-                if len(text.strip()) < 20:
-                    justification = "Segment zu kurz fuer sinnvolle Kodierung"
-                elif is_metadata:
-                    justification = "Segment als Metadaten (z.B. Seitenzahl, Inhaltsverzeichnis) erkannt"
                 
                 # FIX: Holt preselection-Info für nicht-kodierte Segmente
                 preselection = category_preselections.get(segment_id, {})
@@ -493,7 +527,8 @@ class IntegratedAnalysisManager:
                         # FIX: Zusätzliche Kategorie-Vorauswahl-Info
                         'category_preselection_used': bool(preferred_cats),
                         'preferred_categories': preferred_cats,
-                        'preselection_reasoning': preselection.get('reasoning', '')
+                        'preselection_reasoning': preselection.get('reasoning', ''),
+                        'context_paraphrases_used': bool(context_paraphrases)  # NEU: Ob Kontext-Paraphrasen verfügbar waren
                     }
                     not_coded_results.append(result)
                 return not_coded_results
@@ -569,10 +604,11 @@ class IntegratedAnalysisManager:
                         coding = await coder.code_chunk_with_focus(
                             text, enhanced_categories,
                             focus_category=target_cat,
-                            focus_context=instance_info['category_context']
+                            focus_context=instance_info['category_context'],
+                            context_paraphrases=context_paraphrases
                         )
                     else:
-                        coding = await coder.code_chunk(text, enhanced_categories)
+                        coding = await coder.code_chunk(text, enhanced_categories, context_paraphrases=context_paraphrases)
 
 
                     if coding and isinstance(coding, CodingResult):
@@ -645,7 +681,8 @@ class IntegratedAnalysisManager:
                             'validation_successful': validation_source != "keine",
                             'category_in_enhanced': main_category in enhanced_categories,  # FIX: Verwende enhanced_categories
                             'enhanced_has_subcategories': main_category in enhanced_categories and hasattr(enhanced_categories[main_category], 'subcategories'),  # FIX: Neue Debug-Info
-                            'focus_category_added': instance_info['target_category'] and instance_info['target_category'] not in effective_categories  # FIX: Neue Info
+                            'focus_category_added': instance_info['target_category'] and instance_info['target_category'] not in effective_categories,  # FIX: Neue Info
+                            'context_paraphrases_used': bool(context_paraphrases) if 'context_paraphrases' in locals() else False  # NEU: Ob Kontext-Paraphrasen genutzt wurden
                         }
                         
                     else:
@@ -712,6 +749,29 @@ class IntegratedAnalysisManager:
         for segment_id, text in batch:
             self.processed_segments.add(segment_id)
         
+        # NEU: Sammle Paraphrasen aus batch_results für zukünftigen Kontext
+        if self.use_context and batch_results:
+            for result in batch_results:
+                if result.get('paraphrase') and result.get('category') != 'Nicht kodiert':
+                    segment_id = result.get('segment_id')
+                    if segment_id:
+                        doc_name, chunk_id = self._extract_doc_and_chunk_id(segment_id)
+                        
+                        # Initialisiere Liste falls nötig
+                        if doc_name not in self.document_paraphrases:
+                            self.document_paraphrases[doc_name] = []
+                        
+                        # Füge Paraphrase hinzu (vermeidefehler Duplikate)
+                        paraphrase = result['paraphrase']
+                        if paraphrase not in self.document_paraphrases[doc_name]:
+                            self.document_paraphrases[doc_name].append(paraphrase)
+            
+            # Debug-Ausgabe
+            if batch:
+                doc_name, _ = self._extract_doc_and_chunk_id(batch[0][0])
+                total_paraphrases = len(self.document_paraphrases.get(doc_name, []))
+                print(f"📝 Dokument '{doc_name}' hat jetzt {total_paraphrases} Paraphrasen im Kontext")
+        
         processing_time = time.time() - start_time
         
         print(f"✅ PARALLEL-BATCH ABGESCHLOSSEN:")
@@ -745,275 +805,6 @@ class IntegratedAnalysisManager:
             # Standard-Kodierung
             return await coder.code_chunk(text, categories)
 
-    async def _code_batch_with_context(self, batch: List[Tuple[str, str]], 
-                                     categories: Dict[str, CategoryDefinition],
-                                     category_preselections: Dict[str, Dict] = None) -> List[Dict]:
-        """
-        Kodiert einen Batch sequentiell mit progressivem Dokumentkontext und Mehrfachkodierung.
-        FIX: Erweitert um category_preselections Parameter fuer gefilterte Kategorien
-        """
-        # FIX: Standardwert fuer category_preselections
-        if category_preselections is None:
-            category_preselections = {}
-        
-        batch_results = []
-        
-        # Debug-Info fuer Kategorie-PrÄferenzen
-        if category_preselections:
-            preselected_count = len([s for s in batch if s[0] in category_preselections])
-            print(f"🎯 Kontext-Kodierung: {preselected_count} Segmente haben Kategorie-PrÄferenzen")
-        
-            # FIX: Erweiterte Statistik zur Kategorie-Vorauswahl wie im ohne-Kontext-Modus
-            all_preferred = []
-            for prefs in category_preselections.values():
-                all_preferred.extend(prefs.get('preferred_categories', []))
-            
-            if all_preferred:
-                from collections import Counter
-                pref_stats = Counter(all_preferred)
-                print(f"🎯 HÄufigste PrÄferenzen: {dict(pref_stats.most_common(3))}")
-        else:
-            print("🎯 Kontext-Kodierung: Keine Kategorie-PrÄferenzen Übertragen")
-
-        # PrÜfe Mehrfachkodierungs-MÖglichkeiten fuer den ganzen Batch
-        multiple_coding_results = {}
-        if CONFIG.get('MULTIPLE_CODINGS', True):
-            # RelevanzprÜfung fuer ganzen Batch
-            relevance_results = await self.relevance_checker.check_relevance_batch(batch)
-            relevant_segments = [
-                (segment_id, text) for segment_id, text in batch
-                if relevance_results.get(segment_id, False)
-            ]
-            
-            if relevant_segments:
-                print(f"  ℹ️ PrÜfe {len(relevant_segments)} relevante Segmente auf Mehrfachkodierung...")
-                multiple_coding_results = await self.relevance_checker.check_multiple_category_relevance(
-                    relevant_segments, categories
-                )
-        
-        # Sequentielle Verarbeitung um Kontext aufzubauen
-        for segment_id, text in batch:
-            # Extrahiere Dokumentnamen und Chunk-ID
-            doc_name, chunk_id = self._extract_doc_and_chunk_id(segment_id)
-            position = f"Chunk {chunk_id}"
-            
-            # Hole aktuelles Summary oder initialisiere es
-            current_summary = self.document_summaries.get(doc_name, "")
-            
-            # Segment-Informationen
-            segment_info = {
-                'doc_name': doc_name,
-                'chunk_id': chunk_id,
-                'position': position
-            }
-            
-            # Kontext-Daten vorbereiten
-            context_data = {
-                'current_summary': current_summary,
-                'segment_info': segment_info
-            }
-            
-            # FIX: Bestimme gefilterte Kategorien fuer dieses Segment
-            preselection = category_preselections.get(segment_id, {})
-            preferred_cats = preselection.get('preferred_categories', [])
-            
-            if preferred_cats:
-                # FIX: Gefilterte Kategorien fuer Kodierung verwenden
-                filtered_categories = {
-                    name: cat for name, cat in categories.items() 
-                    if name in preferred_cats
-                }
-                print(f"\n🕵️ Verarbeite Segment {segment_id} mit Kontext (🎯 Fokus auf {len(filtered_categories)} Kategorien: {', '.join(preferred_cats)})")
-                effective_categories = filtered_categories
-            else:
-                # FIX: Fallback auf alle Kategorien
-                print(f"\n🕵️ Verarbeite Segment {segment_id} mit Kontext")
-                effective_categories = categories
-            
-            # PrÜfe Relevanz
-            relevance_result = await self.relevance_checker.check_relevance_batch([(segment_id, text)])
-            is_relevant = relevance_result.get(segment_id, False)
-            
-            if not is_relevant:
-                print(f"  🗑️ Segment als nicht relevant markiert - wird Übersprungen")
-                
-                # FIX: Hole spezifische BegrÜndung aus RelevanceChecker
-                relevance_details = self.relevance_checker.get_relevance_details(segment_id)
-                justification = "Nicht relevant fuer Forschungsfrage"
-                if relevance_details:
-                    if 'reasoning' in relevance_details and relevance_details['reasoning']:
-                        justification = relevance_details['reasoning']
-                    elif 'justification' in relevance_details and relevance_details['justification']:
-                        justification = relevance_details['justification']
-                # FIX: Ende
-                
-                # Erstelle "Nicht kodiert" Ergebnis fuer alle Kodierer
-                for coder in self.deductive_coders:
-                    result = {
-                        'segment_id': segment_id,
-                        'coder_id': coder.coder_id,
-                        'category': "Nicht kodiert",
-                        'subcategories': [],
-                        'confidence': {'total': 1.0, 'category': 1.0, 'subcategories': 1.0},
-                        'justification': justification,  # FIX: Verwende spezifische BegrÜndung
-                        'text': text,
-                        'context_summary': current_summary,
-                        'multiple_coding_instance': 1,
-                        'total_coding_instances': 1,
-                        'target_category': '',
-                        'category_focus_used': False,
-                        # FIX: Neue Felder fuer Kategorie-PrÄferenzen
-                        'category_preselection_used': bool(preferred_cats),
-                        'preselected_categories': preferred_cats,
-                        'category_filtering_applied': bool(preferred_cats)
-                    }
-                    batch_results.append(result)
-                continue
-            
-            # Bestimme Kodierungsinstanzen
-            coding_instances = []
-            multiple_categories = multiple_coding_results.get(segment_id, [])
-            
-            if len(multiple_categories) > 1:
-                print(f"  ℹ️ Mehrfachkodierung mit Kontext: {len(multiple_categories)} Kategorien")
-                for i, category_info in enumerate(multiple_categories, 1):
-                    coding_instances.append({
-                        'instance': i,
-                        'total_instances': len(multiple_categories),
-                        'target_category': category_info['category'],
-                        'category_context': category_info
-                    })
-            else:
-                coding_instances.append({
-                    'instance': 1,
-                    'total_instances': 1,
-                    'target_category': '',
-                    'category_context': None
-                })
-            
-            # Verarbeite relevante Segmente mit Kontext fuer ALLE Kodierer und Instanzen
-            updated_summary = current_summary
-            
-            for instance_info in coding_instances:
-                if instance_info['total_instances'] > 1:
-                    print(f"\n    🔀 Kontext-Kodierung {instance_info['instance']}/{instance_info['total_instances']}")
-                    print(f"        Fokus: {instance_info['target_category']}")
-            
-                for coder_index, coder in enumerate(self.deductive_coders):
-                    try:
-                        # Bestimme ob Summary aktualisiert werden soll (nur beim ersten Kodierer der ersten Instanz)
-                        should_update_summary = (coder_index == 0 and instance_info['instance'] == 1)
-
-                        # FIX: Enhanced Categories Logic - fÜge Fokuskategorie zu effective_categories hinzu
-                        enhanced_categories = effective_categories.copy()
-                        target_cat = instance_info['target_category']
-                        if target_cat:
-                            if target_cat and target_cat not in enhanced_categories:
-                                if target_cat in categories:  
-                                    enhanced_categories[target_cat] = categories[target_cat]  
-                                    print(f"    🎯 Fokuskategorie '{target_cat}' zu verfÜgbaren Kategorien hinzugefÜgt")
-                                else:
-                                    print(f"    ❌ Fokuskategorie '{target_cat}' nicht in Kategorien vorhanden")
-                        
-                        if instance_info['target_category']:
-                            # FIX: Mehrfachkodierung mit Fokus und Kontext (mit gefilterten Kategorien)
-                            combined_result = await coder.code_chunk_with_focus_and_context(
-                                text, enhanced_categories,  
-                                focus_category=instance_info['target_category'],
-                                focus_context=instance_info['category_context'],
-                                current_summary=updated_summary if should_update_summary else current_summary,
-                                segment_info=segment_info,
-                                update_summary=should_update_summary
-                            )
-                        else:
-                            # FIX: Standard Kontext-Kodierung (mit gefilterten Kategorien)
-                            combined_result = await coder.code_chunk_with_progressive_context(
-                                text, 
-                                enhanced_categories,  
-                                updated_summary if should_update_summary else current_summary,
-                                segment_info
-                            )
-                        
-                        if combined_result:
-                            # Extrahiere Kodierungsergebnis und ggf. aktualisiertes Summary
-                            coding_result = combined_result.get('coding_result', {})
-                            
-                            # Summary nur beim ersten Kodierer der ersten Instanz aktualisieren
-                            if should_update_summary:
-                                updated_summary = combined_result.get('updated_summary', current_summary)
-                                self.document_summaries[doc_name] = updated_summary
-                                print(f"ℹ️ Summary aktualisiert: {len(updated_summary.split())} WÖrter")
-                            
-                            # FIX: Erstelle erweiterten Kodierungseintrag mit Kategorie-PrÄferenzen
-                            coding_entry = {
-                                'segment_id': segment_id,
-                                'coder_id': coder.coder_id,
-                                'category': coding_result.get('category', ''),
-                                'subcategories': coding_result.get('subcategories', []),
-                                'justification': coding_result.get('justification', ''),
-                                'confidence': coding_result.get('confidence', {}),
-                                'text': text,
-                                'paraphrase': coding_result.get('paraphrase', ''),
-                                'keywords': coding_result.get('keywords', ''),
-                                'context_summary': updated_summary,
-                                'context_influence': coding_result.get('context_influence', ''),
-                                'multiple_coding_instance': instance_info['instance'],
-                                'total_coding_instances': instance_info['total_instances'],
-                                'target_category': instance_info['target_category'],
-                                'category_focus_used': bool(instance_info['target_category']),
-                                # FIX: Neue Felder fuer Kategorie-PrÄferenzen
-                                'category_preselection_used': bool(preferred_cats),
-                                'preselected_categories': preferred_cats,
-                                'category_filtering_applied': bool(preferred_cats),
-                                'relevance_scores': preselection.get('relevance_scores', {}),
-                                'preselection_reasoning': preselection.get('reasoning', '')
-                            }
-                            
-                            # FIX: Validiere Subkategorien gegen die gewÄhlte Hauptkategorie
-                            main_category = coding_entry['category']
-                            original_subcats = coding_entry['subcategories']
-                            if main_category and main_category != 'Nicht kodiert':
-                                # FIX: Verwende enhanced_categories fuer Validierung (schon vorhanden)
-                                categories_dict_for_validation = enhanced_categories
-                                
-                                if not categories_dict_for_validation:
-                                    print(f"❌ KRITISCH: Kein categories_dict verfÜgbar fuer Validierung!")
-                                    # Fallback: verwende original categories
-                                    categories_dict_for_validation = categories
-                                
-                                try:
-                                    validated_subcats = CategoryValidator.validate_subcategories_for_category(
-                                        original_subcats, main_category, categories_dict_for_validation, warn_only=False
-                                    )
-                                    if len(validated_subcats) != len(original_subcats):
-                                        print(f"    ❌ Subkategorien bereinigt: {len(original_subcats)} -> {len(validated_subcats)}")
-                                    coding_entry['subcategories'] = validated_subcats
-                                except Exception as e:
-                                    print(f"    ⚠️ Subkategorien-Validierung fehlgeschlagen: {str(e)}")
-                                    print(f"    🧾 Debug: main_category='{main_category}', enhanced_categories_keys={list(enhanced_categories.keys())[:5]}")
-                                    # Behalte ursprÜngliche Subkategorien bei Validierungsfehlern
-                            
-                            
-                            batch_results.append(coding_entry)
-                            
-                            if instance_info['total_instances'] > 1:
-                                category_display = coding_entry['category']
-                                if preferred_cats and category_display in preferred_cats:
-                                    category_display += " 🎯"
-                                print(f"        ✅ {coder.coder_id}: {category_display}")
-                            else:
-                                category_display = coding_entry['category']
-                                if preferred_cats and category_display in preferred_cats:
-                                    category_display += " 🎯"
-                                print(f"  ✅ Kodierer {coder.coder_id}: {category_display}")
-                        else:
-                            print(f"  âš  Keine Kodierung von {coder.coder_id} erhalten")
-                            
-                    except Exception as e:
-                        print(f"  âš  Fehler bei {coder.coder_id}: {str(e)}")
-                        continue
-        
-        return batch_results
     
     def _extract_doc_and_chunk_id(self, segment_id: str) -> Tuple[str, str]:
         """Extrahiert Dokumentname und Chunk-ID aus segment_id."""
@@ -1447,19 +1238,12 @@ class IntegratedAnalysisManager:
                 else:
                     coding_categories = current_categories
                 
-                # FÜhre Kodierung durch
-                if use_context:
-                    batch_results = await self._code_batch_with_context(
-                        batch, 
-                        coding_categories,
-                        category_preselections=category_preselections  # FIX: Neue Parameter
-                    )
-                else:
-                    batch_results = await self._code_batch_deductively(
-                        batch, 
-                        coding_categories,
-                        category_preselections=category_preselections  # FIX: Neue Parameter
-                    )
+                # FÜhre Kodierung durch (Paraphrasen-Kontext wird automatisch genutzt wenn aktiviert)
+                batch_results = await self._code_batch_deductively(
+                    batch, 
+                    coding_categories,
+                    category_preselections=category_preselections
+                )
             
                 self.coding_results.extend(batch_results)
                 
@@ -1940,7 +1724,7 @@ class IntegratedAnalysisManager:
                     revision_manager=revision_manager,
                     export_mode="consensus",
                     original_categories=initial_categories,
-                    document_summaries=getattr(self, 'document_summaries', None),
+                    document_summaries=None,  # Paraphrasen werden intern genutzt, nicht exportiert
                     is_intermediate_export=True  # FIX: Kennzeichnung als Zwischenexport
                 )
                 
@@ -2040,7 +1824,9 @@ class IntegratedAnalysisManager:
             List[Tuple[str, str]]: Liste von (segment_id, text) Tupeln
         """
         segments = []
-        for doc_name, doc_chunks in chunks.items():
+        # ✅ BUGFIX: Sortiere Dokumentnamen für Dokument-konsistente Batches
+        for doc_name in sorted(chunks.keys()):
+            doc_chunks = chunks[doc_name]
             for chunk_idx, chunk in enumerate(doc_chunks):
                 segment_id = f"{doc_name}_chunk_{chunk_idx}"
                 segments.append((segment_id, chunk))
@@ -2152,7 +1938,9 @@ class IntegratedAnalysisManager:
             List[Tuple[str, str]]: Liste von (segment_id, text) Tupeln
         """
         segments = []
-        for doc_name, doc_chunks in chunks.items():
+        # ✅ BUGFIX: Sortiere Dokumentnamen für Dokument-konsistente Batches
+        for doc_name in sorted(chunks.keys()):
+            doc_chunks = chunks[doc_name]
             for chunk_idx, chunk in enumerate(doc_chunks):
                 segment_id = f"{doc_name}_chunk_{chunk_idx}"
                 segments.append((segment_id, chunk))

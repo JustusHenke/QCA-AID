@@ -2,6 +2,50 @@
 
 ## Versionen und Updates
 
+### Neu in 0.10.1
+
+PARAPHRASEN-BASIERTER BATCH-KONTEXT & BUGFIXES
+
+Neue Features:
+- ✨ Paraphrasen-basierter Batch-Context für intelligenteres Kodieren
+  - Nutzt bereits generierte Paraphrasen aus vorherigen Batches als Kontext
+  - Verbessert das Verständnis impliziter Bezüge im Text
+  - Minimaler Performance-Overhead (<5%)
+  - Konfigurierbar: `CODE_WITH_CONTEXT` Flag und `CONTEXT_PARAPHRASE_COUNT` Anzahl
+- ✨ Neue Excel-Spalte "Kontext_verwendet" in Kodierungsergebnisse
+  - Zeigt an, ob Kontextparaphrasen bei der Kodierung verwendet wurden
+
+Verbesserungen:
+- 🔧 Begründungen bei nicht-relevanten Segmenten
+  - RelevanceChecker-Begründungen werden korrekt in Export-Tabelle übernommen
+  - Mit "[RelevanzprÜfung]" Präfix gekennzeichnet
+  - Intelligente Fallback-Begründungen bei fehlenden Details
+- 🔧 Unified Timeout-Animation im UI
+  - "Analysemodus ändern?" und "Gespeichertes Codesystem verwenden?" zeigen Countdown inline animiert
+- 🔧 Dokument-isolierte Paraphrasen-Batches
+  - Batches enthalten IMMER nur Segmente aus EINEM Dokument
+  - Keine Paraphrasen-Vermischung zwischen Dokumenten
+  - Segmente automatisch nach Dokument sortiert (reproducible Reihenfolge)
+
+Bugfixes:
+- 🐛 RelevanceChecker: Entfernt dupliziertes `justification` Feld
+  - Nur noch `reasoning` Feld für Begründungen
+  - Reduziert Code-Duplikation in results_exporter.py um ~99 Zeilen
+- 🐛 Inductive Coding Mode: Missing `datetime` Import behoben
+  - Fehler: `name 'datetime' is not defined` → ✅ Behoben
+- 🐛 Inductive Coding Mode: CategoryDefinition mit None definition
+  - Fehler: `AttributeError: 'NoneType' object has no attribute 'definition'` → ✅ Behoben
+  - Sichere Filterung ungültiger Kandidaten in `_validate_and_integrate_strict()`
+  - Robuste None-Checks in `_meets_quality_standards()`
+- 🐛 Export-Tabelle: Duplizierung bei Begründungs-Logik aufgelöst
+  - Vorher: ~50 Zeilen Debug-Code mit mehrfachen Checks
+  - Nachher: Single-Pass Logik mit klarer Priorität
+
+Code Quality:
+- 📉 Entfernt: 904 Zeilen obsoleter Code (alte progressive_context Methoden)
+- 📉 Refactored: 1,089 Zeilen Duplikats-Code aus analysis_manager, deductive_coding, results_exporter
+- ✅ Alle Dateien syntaktisch korrekt verifiziert
+
 ### Neu in 0.10.0
 
 MASSIVES REFACTORING: KOMPLETTE MODULARISIERUNG DES GESAMTSYSTEMS

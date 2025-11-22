@@ -151,6 +151,7 @@ CONFIG = {
     'CHUNK_OVERLAP': 50,
     'BATCH_SIZE': 8,
     'CODE_WITH_CONTEXT': False,
+    'CONTEXT_PARAPHRASE_COUNT': 3,  # Anzahl vorheriger Paraphrasen als Kontext (wenn CODE_WITH_CONTEXT aktiviert)
     'MULTIPLE_CODINGS': True, 
     'MULTIPLE_CODING_THRESHOLD': 0.85,  # Schwellenwert für zusätzliche Relevanz
     'ANALYSIS_MODE': 'deductive',

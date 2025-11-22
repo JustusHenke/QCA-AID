@@ -32,6 +32,7 @@ class PDFAnnotator:
         self.results_exporter = results_exporter
         self.category_colors = {}
         self.fuzzy_match_threshold = 0.85  # Ähnlichkeitsschwelle für Text-Matching
+        self.verbose = False  # Verbose output
         
         # FIX: Farbpalette für Hauptkategorien (RGB-Werte für PyMuPDF)
         self.default_colors = {
@@ -61,35 +62,34 @@ class PDFAnnotator:
         Returns:
             str: Pfad zur annotierten PDF-Datei
         """
-        print(f"\n🎨 Beginne PDF-Annotation: {Path(pdf_path).name}")
-        
-        # FIX: Öffne Original-PDF
+        # Öffne Original-PDF
         try:
             doc = fitz.open(pdf_path)
-            print(f"   📄 PDF geladen: {len(doc)} Seiten")
         except Exception as e:
-            print(f"❌ Fehler beim Öffnen der PDF: {e}")
+            print(f"PDF-Fehler {Path(pdf_path).name}: {e}")
             return None
         
-        # FIX: Bereite Kodierungsdaten vor
+        # Bereite Kodierungsdaten vor
         coding_map = self._prepare_coding_map(codings, chunks)
-        print(f"   📋 {len(coding_map)} Textabschnitte zu annotieren")
+        if not coding_map:
+            print(f"Warnung: Keine Kodierungen für {Path(pdf_path).name}")
+            doc.close()
+            return None
         
-        # FIX: Initialisiere Farbschema
+        # Initialisiere Farbschema
         self._initialize_color_scheme(coding_map)
         
-        # FIX: Annotiere jede Seite
+        # Annotiere Seiten
         total_annotations = 0
         for page_num in range(len(doc)):
             page = doc.load_page(page_num)
             annotations_on_page = self._annotate_page(page, coding_map, page_num + 1)
             total_annotations += annotations_on_page
-            print(f"   📄 Seite {page_num + 1}: {annotations_on_page} Highlights hinzugefügt")
         
-        # FIX: Erstelle Legende als erste Seite
+        # Erstelle Legende
         self._add_legend_page(doc)
         
-        # FIX: Speichere annotierte PDF
+        # Speichere PDF
         if not output_path:
             base_name = Path(pdf_path).stem
             output_path = f"{base_name}_annotiert.pdf"
@@ -97,10 +97,7 @@ class PDFAnnotator:
         doc.save(output_path)
         doc.close()
         
-        print(f"✅ PDF-Annotation abgeschlossen:")
-        print(f"   📊 {total_annotations} Highlights erstellt")
-        print(f"   💾 Gespeichert als: {output_path}")
-        
+        print(f"PDF-Export: {Path(pdf_path).name} -> {Path(output_path).name} ({total_annotations} Highlights)")
         return output_path
     
     # FIX: Diese Korrekturen in PDFAnnotator Klasse in QCA_Utils.py vornehmen
@@ -110,23 +107,19 @@ class PDFAnnotator:
         FIX: Korrigierte Version mit besserer Dateipfad-Behandlung und None-Kategorie-Handling
         """
         coding_map = {}
-        
-        print(f"\n   📋 Bereite {len(codings)} Kodierungen vor...")
-        print(f"   📁 Verfügbare Dokumente: {len(chunks)}")
+        errors = 0
         
         for i, coding in enumerate(codings):
             segment_id = coding.get('segment_id', '')
             category = coding.get('category', 'Nicht kodiert')
             
-            # FIX: Behandle None-Kategorien
+            # Behandle None-Kategorien
             if category is None:
                 category = 'Nicht kodiert'
             
-            print(f"\n      🔍 Kodierung {i+1}: {segment_id} → {category}")
-            
             try:
                 if '_chunk_' not in segment_id:
-                    print(f"          ❌ Ungültiges Segment-ID Format (kein '_chunk_')")
+                    errors += 1
                     continue
                 
                 doc_name = segment_id.split('_chunk_')[0]
@@ -137,41 +130,37 @@ class PDFAnnotator:
                 else:
                     chunk_id = int(chunk_part)
                 
-                print(f"          📂 Parsed: doc='{doc_name}', chunk_id={chunk_id}")
-                
                 if doc_name not in chunks:
-                    print(f"          ❌ Dokument '{doc_name}' nicht in chunks gefunden")
+                    errors += 1
                     continue
                 
                 doc_chunks = chunks[doc_name]
                 
                 if chunk_id >= len(doc_chunks):
-                    print(f"          ❌ Chunk {chunk_id} nicht vorhanden (nur {len(doc_chunks)} Chunks)")
+                    errors += 1
                     continue
                 
                 chunk_text = doc_chunks[chunk_id]
                 
                 if not chunk_text or len(str(chunk_text).strip()) < 10:
-                    print(f"          ⚠️ Chunk-Text zu kurz oder leer")
+                    errors += 1
                     continue
                 
                 text_content = str(chunk_text).strip()
                 
-                # FIX: Erweiterte Dateipfad-Erkennung und -Bereinigung
+                # Erweiterte Dateipfad-Erkennung und -Bereinigung
                 if self._contains_file_path_artifacts(text_content):
-                    # Versuche Text zu bereinigen statt komplett zu überspringen
                     cleaned_content = self._remove_file_path_artifacts(text_content)
-                    if len(cleaned_content.strip()) >= 50:  # Mindestens 50 Zeichen nach Bereinigung
+                    if len(cleaned_content.strip()) >= 50:
                         text_content = cleaned_content
-                        print(f"          🔧 Dateipfad-Artefakte entfernt, verwende bereinigten Text")
                     else:
-                        print(f"          ⚠️ Zu wenig Text nach Dateipfad-Bereinigung, überspringe")
+                        errors += 1
                         continue
                 
                 clean_text = self._clean_text_for_matching(text_content)
                 
                 if len(clean_text) < 10:
-                    print(f"          ⚠️ Bereinigter Text zu kurz: {len(clean_text)} Zeichen")
+                    errors += 1
                     continue
                 
                 map_key = f"{segment_id}_{category}"
@@ -188,14 +177,13 @@ class PDFAnnotator:
                     'chunk_id': chunk_id
                 }
                 
-                print(f"          ✅ Bereit: {len(clean_text)} Zeichen")
-                print(f"              Preview: '{clean_text[:80]}...'")
-                
             except Exception as e:
-                print(f"          ❌ Fehler: {e}")
+                errors += 1
                 continue
         
-        print(f"\n   📊 {len(coding_map)} Kodierungen erfolgreich vorbereitet")
+        if self.verbose and errors > 0:
+            print(f"  [{errors} Kodierungen uebersprungen]")
+        
         return coding_map
 
     def _contains_file_path_artifacts(self, text: str) -> bool:

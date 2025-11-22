@@ -315,11 +315,13 @@ class RelevanceChecker:
                         # Cache-Aktualisierung
                         self.relevance_cache[segment_id] = is_relevant
                         # Erweiterte Details-Speicherung mit Begründung
+                        # FIX: Vereinheitlicht auf 'reasoning' (kein 'justification' Duplikat)
+                        # 'reasoning' kommt direkt vom LLM und ist die Hauptbegründung
                         self.relevance_details[segment_id] = {
                             'confidence': segment_result.get('confidence', 0.8),
                             'key_aspects': segment_result.get('key_aspects', []),
-                            'justification': segment_result.get('justification', ''),
-                            'reasoning': segment_result.get('reasoning', 'Keine Begründung verfügbar'),
+                            'reasoning': segment_result.get('reasoning', segment_result.get('justification', 'Keine Begründung verfügbar')),
+                            'is_relevant': is_relevant,
                             'main_themes': segment_result.get('main_themes', []),
                             'exclusion_match': segment_result.get('exclusion_match', False)
                         }
@@ -396,11 +398,12 @@ class RelevanceChecker:
                                 sub_batch_results[segment_id] = is_relevant
                                 
                                 # Erweiterte Details-Speicherung mit Begründung
+                                # FIX: Vereinheitlicht auf 'reasoning' (kein 'justification' Duplikat)
                                 self.relevance_details[segment_id] = {
                                     'confidence': segment_result.get('confidence', 0.8),
                                     'key_aspects': segment_result.get('key_aspects', []),
-                                    'justification': segment_result.get('justification', ''),
-                                    'reasoning': segment_result.get('reasoning', 'Keine Begründung verfügbar'),
+                                    'reasoning': segment_result.get('reasoning', segment_result.get('justification', 'Keine Begründung verfügbar')),
+                                    'is_relevant': is_relevant,
                                     'main_themes': segment_result.get('main_themes', []),
                                     'exclusion_match': segment_result.get('exclusion_match', False)
                                 }

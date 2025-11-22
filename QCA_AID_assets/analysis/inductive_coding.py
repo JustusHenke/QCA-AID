@@ -9,6 +9,7 @@ from ..utils.tracking.token_tracker import TokenTracker
 from ..utils.llm.response import LLMResponse
 from ..utils.llm.factory import LLMProviderFactory
 import asyncio
+from datetime import datetime
 from typing import Dict, Optional, List, Set, Tuple, Any
 from collections import defaultdict
 
@@ -115,9 +116,19 @@ class InductiveCoder:
         """
         Validierung und automatische Konsolidierung neuer Kategorien
         """
+        # ✅ BUGFIX: Filtere None/ungültige Kandidaten
+        valid_candidates = {
+            name: category for name, category in candidates.items()
+            if category is not None and hasattr(category, 'definition')
+        }
+        
+        if not valid_candidates:
+            print(f"⚠️ Keine gültigen Kandidaten (von {len(candidates)} eingegangen)")
+            return {}
+        
         validated = {}
         
-        for name, category in candidates.items():
+        for name, category in valid_candidates.items():
             # 1. ÄhnlichkeitsprÜfung
             similar_existing = self._find_similar_category(category, existing)
             if similar_existing:
@@ -1455,22 +1466,32 @@ class InductiveCoder:
         PrÜft ob Kategorie strikte QualitÄtsstandards erfÜllt
         VEREINFACHT fuer bessere DurchlÄssigkeit
         """
-        # 1. Definition ausreichend lang (weiter reduziert)
-        if len(category.definition.split()) < 5:  # reduziert von 10
-            print(f"⚠️ '{category.name}': Definition zu kurz ({len(category.definition.split())} WÖrter)")
+        # Sicherheitsprüfung: Category muss gültig sein
+        if category is None or not hasattr(category, 'definition'):
+            print(f"⚠️ Ungültige CategoryDefinition")
             return False
         
-        # 2. GenÜgend Beispiele (weiter reduziert) 
-        if len(category.examples) < 1:  # reduziert von 2
-            print(f"⚠️ '{category.name}': Zu wenige Beispiele ({len(category.examples)})")
+        # Sicherheitsprüfung: Definition muss gesetzt sein
+        if not category.definition or not isinstance(category.definition, str):
+            print(f"⚠️ '{category.name}': Definition fehlt oder ungültig")
+            return False
+        
+        # 1. Definition ausreichend lang (weiter reduziert)
+        if len(category.definition.split()) < 5:  # reduziert von 10
+            print(f"⚠️ '{category.name}': Definition zu kurz ({len(category.definition.split())} Wörter)")
+            return False
+        
+        # 2. Genügend Beispiele (weiter reduziert) 
+        if not category.examples or len(category.examples) < 1:  # reduziert von 2
+            print(f"⚠️ '{category.name}': Zu wenige Beispiele ({len(category.examples) if category.examples else 0})")
             return False
         
         # 3. Name nicht zu kurz
-        if len(category.name) < 3:
-            print(f"⚠️ '{category.name}': Name zu kurz")
+        if not category.name or len(category.name) < 3:
+            print(f"⚠️ Name zu kurz oder leer")
             return False
         
-        print(f"✅ '{category.name}': QualitÄtsstandards erfÜllt")
+        print(f"✅ '{category.name}': Qualitätsstandards erfüllt")
         return True
 
     async def _auto_merge_categories(self, cat1: CategoryDefinition, cat2: CategoryDefinition, name1: str, name2: str) -> Optional[CategoryDefinition]:

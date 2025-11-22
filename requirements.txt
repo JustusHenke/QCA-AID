@@ -2,7 +2,7 @@
 # Dieses Projekt erfordert Python 3.11 oder älter (3.13 wird noch nicht unterstützt wegen spaCy-Modul)
 
 # Kern-Abhängigkeiten
-openai==1.16.0
+openai>=1.12.0
 python-dotenv==1.0.1
 pandas>=2.2.0
 openpyxl>=3.1.2
@@ -13,10 +13,10 @@ pypdf>=3.9.0
 python-docx>=1.1.0
 
 # Mistral API Support
-mistralai==0.0.12
+mistralai>=0.0.12
 
 # Benutzeroberfläche
-tk>=8.6.0
+# Hinweis: tkinter ist bereits in Python enthalten und wird nicht über pip installiert
 Keyboard
 
 # Abhängigkeiten für spaCy
@@ -26,7 +26,7 @@ Keyboard
 httpx>=0.24.0
 
 # Datentypen und Hilfsmittel
-typing_extensions==4.9.0
+typing_extensions>=4.0.0
 pytesseract==0.3.13
 
 # PDF-Annotation Unterstützung

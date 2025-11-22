@@ -49,73 +49,6 @@ Dieses Python-Skript implementiert Mayrings Methode der deduktiven Qualitativen 
 ### Referenzen
 - [Zitiervorschlag](#zitiervorschlag)
 
-## Architekturübersicht
-
-Die Version 0.10.0 führt ein massives Refactoring durch, das die komplette Codebase (alle Assets aus QCA-AID.py) in ein modulares System überführt:
-
-```
-QCA-AID/
-├── QCA-AID.py                  # Hauptlauncher (vereinfacht)
-├── QCA_AID_assets/             # Kernprogramm (Fachmodule)
-│   ├── main.py                # Hauptkoordinator
-│   ├── QCA_Prompts.py         # LLM-Prompt-Vorlagen
-│   ├── core/                  # Konfiguration und Datenmodelle
-│   │   ├── config.py          # Standard-Konfiguration
-│   │   ├── data_models.py     # Datenklassen (Segment, Code, etc.)
-│   │   └── validators.py      # Validationsregeln
-│   ├── preprocessing/         # Dokumentenverarbeitung
-│   │   └── material_loader.py # Laden von .txt/.pdf/.docx
-│   ├── analysis/              # Kodierungslogik
-│   │   ├── analysis_manager.py        # Orchester aller Kodierungen
-│   │   ├── deductive_coding.py        # Deduktive Kodierung
-│   │   ├── inductive_coding.py        # Induktive/Grounded-Mode Kodierung
-│   │   ├── manual_coding.py           # Tkinter GUI für manuelles Kodieren
-│   │   ├── relevance_checker.py       # Relevanzprüfung vor Kodierung
-│   │   └── saturation_controller.py   # Sättigungsprüfung
-│   ├── quality/               # Zuverlässigkeits- und Review-Management
-│   │   ├── reliability.py     # Intercoder-Reliabilität (Krippendorf)
-│   │   └── review_manager.py  # Konsensfindung und Review-Logik
-│   ├── management/            # Kategorie- und Entwicklungsverlauf
-│   │   ├── category_manager.py        # Kategoriemanagement
-│   │   ├── category_revision.py       # Kategorien-Versionierung
-│   │   └── development_history.py     # Historisierung
-│   ├── export/                # Exportfunktionalität
-│   │   └── results_exporter.py        # Excel-Export und Formatierung
-│   └── utils/                 # MODULARE HILFSFUNKTIONEN (REFACTORED in 0.10.0)
-│       ├── llm/               # LLM-Abstraktionsschicht
-│       │   ├── base.py        # Abstrakte LLM-Basisklasse
-│       │   ├── factory.py     # LLM-Factory-Pattern
-│       │   ├── openai_provider.py     # OpenAI-Implementation
-│       │   ├── mistral_provider.py    # Mistral-Implementation
-│       │   └── response.py    # Strukturierte Antworten
-│       ├── config/            # Konfigurationsladung
-│       │   └── loader.py      # Excel-Konfiguration laden
-│       ├── tracking/          # Token-Tracking und Kosten
-│       │   ├── token_counter.py       # Token-Zählung
-│       │   └── token_tracker.py       # Kostenberechnung
-│       ├── dialog/            # GUI-Komponenten
-│       │   ├── widgets.py     # Tkinter-Widgets
-│       │   └── multiple_coding.py     # Multi-Coder-Dialog
-│       ├── export/            # Export-Utilities
-│       │   ├── converters.py  # Format-Konvertierung
-│       │   ├── helpers.py     # Export-Hilfsfunktionen
-│       │   ├── pdf_annotator.py       # PDF-Annotation
-│       │   └── review.py      # Review-Export-Logik
-│       ├── io/                # Datei-I/O und Dokumentenladung
-│       │   ├── document_reader.py     # PDF/DOCX/TXT-Loader
-│       │   └── escape_handler.py      # Unicode/Escape-Verarbeitung
-│       ├── analysis.py        # Analysehilfs-Funktionen
-│       ├── common.py          # Gemeinsame Utilities
-│       ├── validators.py      # Validierungshelper
-│       ├── logging.py         # Logging und Status
-│       ├── system.py          # System-Utilities
-│       ├── dialog_helpers.py  # GUI-Helper
-│       └── impact_analysis.py # Auswirkungsanalyse
-├── QCA-AID-Explorer.py        # Explorative Datenanalyse und Visualisierung
-├── input/                     # Eingabedokumente
-├── output/                    # Analyseergebnisse
-└── QCA-AID-Codebook.xlsx      # Konfiguration und Kategoriensystem
-```
 
 ### Transformation von monolithisch zu modular
 
@@ -239,7 +172,7 @@ Institut für Hochschulforschung Halle-Wittenberg. https://github.com/JustusHenk
   month        = december,
   year         = {2025},
   publisher    = {Institut für Hochschulforschung Halle-Wittenberg},
-  version      = {0.10.0},
+  version      = {0.10.1},
   url          = {https://github.com/JustusHenke/QCA-AID}
 }
 ```

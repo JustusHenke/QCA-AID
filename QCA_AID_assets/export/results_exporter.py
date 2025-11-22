@@ -1194,31 +1194,32 @@ class ResultsExporter:
             # FIX: VERBESSERTE BEGRÜNDUNGSVERARBEITUNG - KERNFIX
             justification = ""
             
-            # PrioritÄtssystem fuer BegrÜndungen:
-            # 1. Normale justification (hÖchste PrioritÄt)
+            # ✅ VEREINFACHTES PRIORITÄTSSYSTEMfuer Begründungen
+            # 1. Zuerst normale justification (von DeductiveCoder bei Kodierung)
             if coding.get('justification') and coding.get('justification').strip():
                 justification = coding.get('justification')
-            # 2. reasoning Feld (oft von RelevanceChecker)
+            # 2. Fallback: RelevanceChecker reasoning (für nicht-kodierte Segmente)
             elif coding.get('reasoning') and coding.get('reasoning').strip() and coding.get('reasoning') != 'NICHT VORHANDEN':
                 justification = coding.get('reasoning')
-            # 3. original_justification (Backup)
+            # 3. Fallback: original_justification
             elif coding.get('original_justification') and coding.get('original_justification').strip() and coding.get('original_justification') != 'NICHT VORHANDEN':
                 justification = coding.get('original_justification')
-            # 4. Fallback fuer "Nicht kodiert" basierend auf Analyse
             else:
+                # ✅ NEUER CODE: Intelligente Begründungsermittlung für "Nicht kodiert"
                 if category in ["Nicht kodiert", ""] or display_category == "Nicht kodiert":
-                    # FIX: Hole Details vom RelevanceChecker falls verfÜgbar
                     segment_id = coding.get('segment_id', '')
+                    
+                    # Priorität 1: Hole RelevanceChecker-Begründung (wenn Segment initial als nicht-relevant markiert)
+                    relevance_details = None
                     if hasattr(self, 'relevance_checker') and segment_id:
                         relevance_details = self.relevance_checker.get_relevance_details(segment_id)
-                        if relevance_details:
-                            if relevance_details.get('reasoning') and relevance_details['reasoning'] != 'Keine BegrÜndung verfÜgbar':
-                                justification = relevance_details['reasoning']
-                            elif relevance_details.get('justification') and relevance_details['justification'] != 'Keine BegrÜndung verfÜgbar':
-                                justification = relevance_details['justification']
+                    elif hasattr(self, 'analysis_manager') and self.analysis_manager and hasattr(self.analysis_manager, 'relevance_checker'):
+                        relevance_details = self.analysis_manager.relevance_checker.get_relevance_details(segment_id)
                     
-                    # FIX: Intelligente Fallback-BegrÜndungen basierend auf Textanalyse
-                    if not justification:
+                    if relevance_details and relevance_details.get('reasoning') and relevance_details['reasoning'] != 'Keine Begründung verfügbar':
+                        justification = f"[RelevanzprÜfung] {relevance_details['reasoning']}"
+                    else:
+                        # Priorität 2: Intelligente Fallback-Begründungen basierend auf Textanalyse
                         text_content = text.lower() if text else ""
                         text_length = len(text_content.strip())
                         
@@ -1232,77 +1233,9 @@ class ResultsExporter:
                             justification = "Segment enthÄlt zu wenig Substanz fuer thematische Kodierung"
                         else:
                             justification = "Segment nicht relevant fuer die definierten Analysekategorien"
-                
-                # FIX: Fallback fuer andere Kategorien ohne BegrÜndung
-                elif not justification:
-                    justification = "Kodierung ohne spezifische BegrÜndung dokumentiert"
-            
-            # FIX: Debug-Output fuer Problemdiagnose
-            if display_category == "Nicht kodiert":
-                segment_id = coding.get('segment_id', 'unknown')
-                # print(f"🔧 FIX DEBUG Segment {segment_id}:")
-                # print(f"   - Finale justification: '{justification}'")
-                # print(f"   - Original justification: '{coding.get('justification', 'LEER')}'")
-                # print(f"   - Reasoning: '{coding.get('reasoning', 'LEER')}'")
-                # print(f"   - Original_justification: '{coding.get('original_justification', 'LEER')}'")
-                # FIX: ZUSÄTZLICHER CHECK - Direkt vom RelevanceChecker holen
-                if hasattr(self, 'relevance_checker') and self.relevance_checker:
-                    # print(f"   - RelevanceChecker verfÜgbar: JA")
-                    try:
-                        relevance_details = self.relevance_checker.get_relevance_details(segment_id)
-                        print(f"   - RelevanceChecker Details: {relevance_details}")
-                        
-                        # FIX: Verwende RelevanceChecker-Daten wenn vorhanden
-                        if relevance_details and justification == "Keine BegrÜndung verfÜgbar":
-                            if relevance_details.get('reasoning') and relevance_details['reasoning'] != 'Keine BegrÜndung verfÜgbar':
-                                justification = relevance_details['reasoning']
-                                # print(f"   - ✅ BegrÜndung aus RelevanceChecker geholt: '{justification}'")
-                            elif relevance_details.get('justification') and relevance_details['justification'] != 'Keine BegrÜndung verfÜgbar':
-                                justification = relevance_details['justification'] 
-                                # print(f"   - ✅ Justification aus RelevanceChecker geholt: '{justification}'")
-                    except Exception as e:
-                        print(f"   - ⚠️ Fehler beim RelevanceChecker-Zugriff: {e}")
                 else:
-                    print(f"   - RelevanceChecker verfÜgbar: NEIN")
-                    # FIX: Fallback auf analysis_manager falls self.relevance_checker nicht da ist
-                    if hasattr(self, 'analysis_manager') and self.analysis_manager and hasattr(self.analysis_manager, 'relevance_checker'):
-                        # print(f"   - Analysis Manager RelevanceChecker verfÜgbar: JA")
-                        try:
-                            relevance_details = self.analysis_manager.relevance_checker.get_relevance_details(segment_id)
-                            # print(f"   - Analysis Manager RelevanceChecker Details: {relevance_details}")
-                            
-                            # FIX: Verwende analysis_manager RelevanceChecker-Daten
-                            if relevance_details and justification == "Keine BegrÜndung verfÜgbar":
-                                if relevance_details.get('reasoning') and relevance_details['reasoning'] != 'Keine BegrÜndung verfÜgbar':
-                                    justification = relevance_details['reasoning']
-                                    # print(f"   - ✅ BegrÜndung aus Analysis Manager RelevanceChecker geholt: '{justification}'")
-                                elif relevance_details.get('justification') and relevance_details['justification'] != 'Keine BegrÜndung verfÜgbar':
-                                    # justification = relevance_details['justification']
-                                    print(f"   - ✅ Justification aus Analysis Manager RelevanceChecker geholt: '{justification}'")
-                        except Exception as e:
-                            print(f"   - ⚠️ Fehler beim Analysis Manager RelevanceChecker-Zugriff: {e}")
-                    else:
-                        print(f"   - Analysis Manager RelevanceChecker verfÜgbar: NEIN")
-                
-                # FIX: Wenn immer noch keine BegrÜndung, verwende intelligente Fallbacks
-                if not justification or justification == "Keine BegrÜndung verfÜgbar":
-                    text_content = text.lower() if text else ""
-                    text_length = len(text_content.strip())
-                    
-                    if text_length < 20:
-                        justification = "Segment zu kurz fuer sinnvolle Kodierung"
-                        # print(f"   - ✅ Fallback: Zu kurz")
-                    elif any(pattern in text_content for pattern in ['seite ', 'page ', 'copyright', '©', 'inhaltsverzeichnis']):
-                        justification = "Segment als Metadaten identifiziert"
-                        # print(f"   - ✅ Fallback: Metadaten")
-                    elif text_length < 100:
-                        justification = "Segment enthÄlt zu wenig Substanz fuer Kodierung"
-                        # print(f"   - ✅ Fallback: Zu wenig Substanz")
-                    else:
-                        justification = "Segment nicht relevant fuer Analysekategorien"
-                        # print(f"   - ✅ Fallback: Nicht relevant")
-                
-                #  print(f"   - 🎯 FINAL justification: '{justification}'")
+                    # Fallback für andere Kategorien ohne Begründung
+                    justification = "Kodierung ohne spezifische Begründung dokumentiert"
             
             # FIX: Konfidenz korrekt extrahieren
             confidence = coding.get('confidence', {})
@@ -1363,6 +1296,7 @@ class ResultsExporter:
                 'Kodierer': coding.get('coder_id', 'Unbekannt'),  # FIX: HinzugefÜgt               
                 'Fokus_Kategorie': sanitize_text_for_excel(coding.get('target_category', '')),
                 'Fokus_verwendet': 'Ja' if coding.get('category_focus_used', False) else 'Nein',
+                'Kontext_verwendet': 'Ja' if coding.get('context_paraphrases_used', False) else 'Nein',  # NEU: Spalte für Kontext-Nutzung
                 'Original_Chunk_ID': f"{chunk_prefix}-{chunk_id}"
             }
             

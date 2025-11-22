@@ -8,8 +8,7 @@ Getrennt vom Hauptskript für bessere Wartbarkeit und Übersichtlichkeit.
 Author: Justus Henke
 """
 
-from typing import Dict, List
-from typing import Any
+from typing import Dict, List, Optional, Any
 import json
 
 
@@ -213,9 +212,15 @@ class QCAPrompts:
         # print(f"- Kodierregeln: {len(self.KODIERREGELN)} Kategorien")
         # print(f"- Deduktive Kategorien: {len(self.DEDUKTIVE_KATEGORIEN)} Kategorien")
     
-    def get_deductive_coding_prompt(self, chunk: str, categories_overview: List[Dict]) -> str:
+    def get_deductive_coding_prompt(self, chunk: str, categories_overview: List[Dict], 
+                                    context_paraphrases: Optional[List[str]] = None) -> str:
         """
         Prompt für deduktive Kodierung von Text-Chunks mit Subkategorie-Validierung.
+        
+        Args:
+            chunk: Zu kodierender Text
+            categories_overview: Liste der verfügbaren Kategorien
+            context_paraphrases: Optionale Liste von Paraphrasen vorheriger Chunks als Kontext
         """
         # FIX: Verwende spezialisierte Coding-Konfidenz-Skala
         confidence_guidelines = ConfidenceScales.get_confidence_guidelines(
@@ -223,12 +228,24 @@ class QCAPrompts:
             context="kodierung"
         )
         
+        # NEU: Erstelle Kontext-Sektion wenn Paraphrasen vorhanden
+        context_section = ""
+        if context_paraphrases and len(context_paraphrases) > 0:
+            context_section = "\n## KONTEXT (vorherige Chunks):\n\n"
+            context_section += "Die folgenden Paraphrasen geben Kontext über bereits analysierte Textabschnitte.\n"
+            context_section += "Nutze sie NUR um das aktuelle Textsegment besser zu verstehen und die passendste Kategorie zu wählen.\n"
+            context_section += "Der Kontext hilft bei impliziten Bezügen und thematischen Zusammenhängen.\n\n"
+            
+            for i, paraphrase in enumerate(context_paraphrases, 1):
+                context_section += f"[Vorheriger Chunk {i}]: {paraphrase}\n"
+            
+            context_section += "\nWICHTIG: Kodiere nur das AKTUELLE TEXTSEGMENT unten, nicht die Kontext-Paraphrasen!\n"
 
         return f"""
             Analysiere folgenden Text im Kontext der Forschungsfrage:
             "{self.FORSCHUNGSFRAGE}"
-            
-            ## TEXT:
+            {context_section}
+            ## TEXT ZU KODIEREN (aktuelles Segment):
             {chunk}
 
             ## KATEGORIENSYSTEM:
@@ -243,6 +260,7 @@ class QCAPrompts:
             
             1. HAUPTKATEGORIEN-WAHL:
             - Vergleiche den Text systematisch mit JEDER Kategoriendefinition
+            - Nutze den Kontext um implizite Bezüge besser zu verstehen
             - Wähle GENAU EINE Hauptkategorie mit der besten Passung
             - Bei keiner eindeutigen Passung: "Keine passende Kategorie"
             
@@ -367,7 +385,7 @@ class QCAPrompts:
                         "confidence": 0.0-1.0,
                         "text_type": "interview|dokument|protokoll|andere",
                         "key_aspects": ["konkrete", "für", "die", "Forschungsfrage", "relevante", "Aspekte"],
-                        "justification": "Begründung der Relevanz unter Berücksichtigung der Textsorte"
+                        "justification": "Begründung der Relevanz-Entscheidung (WICHTIG: Auch bei nicht-relevanten Segmenten erklären WARUM nicht relevant)"
                     }},
                     ...
                 ]
@@ -378,7 +396,8 @@ class QCAPrompts:
             - Identifiziere die Kernthemen der Forschungsfrage und prüfe deren Präsenz im Text
             - Markiere Segmente als nicht relevant, wenn sie die Kernthemen nicht behandeln
             - Bei Unsicherheit (confidence < 0.75) als nicht relevant markieren
-            - Gib bei thematischer Nicht-Passung eine klare Begründung
+            - Gib bei JEDEM Segment eine klare Begründung (relevant UND nicht relevant)
+            - Bei nicht-relevanten Segmenten: Erkläre konkret warum nicht relevant (z.B. "Behandelt nur Metadaten", "Thematisch nicht passend zur Forschungsfrage", "Zu unspezifisch")
             - Sei streng bei der thematischen Vorprüfung
             """
 
@@ -460,7 +479,7 @@ class QCAPrompts:
                     "is_relevant": true/false,
                     "relevance_scores": {{"Kategorie1": 0.8, "Kategorie2": 0.3, ...}},
                     "preferred_categories": ["Kategorie1", "Kategorie2"],
-                    "reasoning": "Konkrete Begründung mit Textbezug für Kategorie-Einschätzung"
+                    "reasoning": "Konkrete Begründung mit Textbezug für Kategorie-Einschätzung (WICHTIG: Auch bei nicht-relevanten Segmenten erklären WARUM nicht relevant)"
                 }}
             ]
         }}
@@ -525,7 +544,9 @@ class QCAPrompts:
             }}
             """
 
-    def get_focus_coding_prompt(self, chunk: str, categories_overview: List[Dict], focus_category: str, focus_context: Dict) -> str:
+    def get_focus_coding_prompt(self, chunk: str, categories_overview: List[Dict], 
+                                focus_category: str, focus_context: Dict,
+                                context_paraphrases: Optional[List[str]] = None) -> str:
         """Prompt für fokussierte Kodierung mit strenger Subkategorie-Validierung"""
         # FIX: Verwende spezialisierte Subkategorie-Konfidenz-Skala
         confidence_guidelines = ConfidenceScales.get_confidence_guidelines(
@@ -533,14 +554,26 @@ class QCAPrompts:
             context="subkategorie"
         )
         
+        # NEU: Erstelle Kontext-Sektion wenn Paraphrasen vorhanden
+        context_section = ""
+        if context_paraphrases and len(context_paraphrases) > 0:
+            context_section = "\n## KONTEXT (vorherige Chunks):\n\n"
+            context_section += "Die folgenden Paraphrasen geben Kontext über bereits analysierte Textabschnitte.\n"
+            context_section += "Nutze sie NUR um das aktuelle Textsegment besser zu verstehen.\n\n"
+            
+            for i, paraphrase in enumerate(context_paraphrases, 1):
+                context_section += f"[Vorheriger Chunk {i}]: {paraphrase}\n"
+            
+            context_section += "\nWICHTIG: Kodiere nur das AKTUELLE TEXTSEGMENT unten!\n"
+        
         return f"""
             MEHRFACHKODIERUNGS-FOKUS auf: "{focus_category}"
             
             Forschungsfrage: "{self.FORSCHUNGSFRAGE}"
 
             {confidence_guidelines}
-            
-            ## TEXT:
+            {context_section}
+            ## TEXT ZU KODIEREN (aktuelles Segment):
             {chunk}
 
             ## FOCUS-KONTEXT:
@@ -553,6 +586,7 @@ class QCAPrompts:
             ## KRITISCH WICHTIG - SUBKATEGORIE-ZUORDNUNG:
             
             1. HAUPTKATEGORIEN-ENTSCHEIDUNG:
+            - Nutze den Kontext um implizite Bezüge besser zu verstehen
             - Bevorzuge "{focus_category}" wenn >= 60% Relevanz
             - Andere Kategorie nur bei deutlich höherer Passung (>80%)
             
@@ -597,112 +631,6 @@ class QCAPrompts:
             }}
             """
     
-    def get_progressive_context_prompt(self, chunk: str, categories_overview: List[Dict], current_summary: str, position_info: Dict, summary_update_prompt: str) -> str:
-        """Prompt für progressive Kontext-Kodierung"""
-
-        # FIX: Verwende spezialisierte Coding-Konfidenz-Skala
-        confidence_guidelines = ConfidenceScales.get_confidence_guidelines(
-            scale_type="coding", 
-            context="kodierung"
-        )
-
-        return f"""
-            ## AUFGABE 1: KODIERUNG
-            Analysiere folgenden Text im Kontext der Forschungsfrage:
-            "{self.FORSCHUNGSFRAGE}"
-            
-            ### PROGRESSIVER DOKUMENTKONTEXT (bisherige relevante Inhalte):
-            {current_summary if current_summary else "Noch keine relevanten Inhalte für dieses Dokument erfasst."}
-            
-            ### TEXTSEGMENT ZU KODIEREN:
-            {chunk}
-            
-            {position_info}
-
-            ### KATEGORIENSYSTEM:
-            {json.dumps(categories_overview, indent=2, ensure_ascii=False)}
-
-            ### KODIERREGELN:
-            {json.dumps(self.KODIERREGELN, indent=2, ensure_ascii=False)}
-
-            {confidence_guidelines}
-
-            ### WICHTIG - PROGRESSIVE KONTEXTANALYSE UND GENAUE KATEGORIENZUORDNUNG: 
-            
-            1. KATEGORIENVERGLEICH:
-            - Vergleiche das TEXTSEGMENT systematisch mit JEDER Kategoriendefinition
-            - Prüfe explizit die Übereinstimmung mit den Beispielen jeder Kategorie
-            - Identifiziere wörtliche und sinngemäße Übereinstimmungen
-            - Dokumentiere auch teilweise Übereinstimmungen für die Nachvollziehbarkeit
-            - Berücksichtige den DOKUMENTKONTEXT für tieferes Verständnis des TEXTSEGMENTS
-            
-            2. SUBKATEGORIENVERGLEICH:
-            - Bei passender Hauptkategorie: Prüfe ALLE zugehörigen Subkategorien
-            - WICHTIG: Wähle PRIMÄR NUR DIE EINE Subkategorie mit der höchsten Passung zum Text
-            - Vergebe weitere Subkategorien NUR, wenn der Text EINDEUTIG mehrere Subkategorien gleichgewichtig adressiert
-            - Bei mehreren passenden Subkategorien mit ähnlicher Relevanz: Begründe die Wahl
-            
-            3. KONTEXT-INTEGRATION:
-            - Prüfe, ob das aktuelle TEXTSEGMENT bisherige Einschätzungen bestätigt, ergänzt oder widerspricht
-            - Bei Kategorien wie "dominante Akteure": Besonders wichtig, den bisherigen Kontext zu berücksichtigen
-            - Formuliere eine klare Begründung, die den Kontext explizit einbezieht
-            
-            4. ENTSCHEIDUNGSREGELN:
-            - Kodiere nur bei eindeutiger Übereinstimmung mit Definition UND Beispielen
-            - Bei konkurrierenden Kategorien: Dokumentiere die Abwägung
-            - Bei niedriger Konfidenz (<0.80): Wähle "Keine passende Kategorie"
-            - Die Interpretation muss sich auf konkrete Textstellen stützen
-            - Keine Annahmen oder Spekulationen über den Text hinaus
-            - Prüfe die Relevanz für die Forschungsfrage explizit
-
-            5. QUALITÄTSSICHERUNG:
-            - Stelle intersubjektive Nachvollziehbarkeit sicher
-            - Dokumentiere Grenzfälle und Abwägungen transparent
-            - Prüfe die Konsistenz mit bisherigen Kodierungen
-            - Bei Unsicherheiten: Lieber konservativ kodieren
-            
-            ### LIEFERE IN DER KODIERUNG:
-
-            1. PARAPHRASE:
-            - Erfasse den zentralen Inhalt des TEXTSEGMENTS in max. 40 Wörtern
-            - IGNORIERE dafür den Dokumenttext
-            - Verwende sachliche, deskriptive Sprache
-            - Bleibe nah am Originaltext ohne Interpretation
-
-            2. SCHLÜSSELWÖRTER:
-            - 2-3 zentrale Begriffe aus dem Text
-            - Wähle bedeutungstragende Terme
-            - Vermeide zu allgemeine Begriffe
-
-            3. KATEGORIENZUORDNUNG:
-            - Entweder präzise Kategorie oder "Keine passende Kategorie"
-            - Ausführliche Begründung mit Textbelegen
-            - Transparente Konfidenzeinschätzung
-            - Erläutere explizit den Einfluss des Dokumentkontexts
-
-            {summary_update_prompt}
-
-            Antworte mit EINEM JSON-Objekt, das BEIDE Aufgaben umfasst:
-            {{
-                "coding_result": {{
-                    "paraphrase": "Deine prägnante Paraphrase des TEXTSEGMENTS hier",
-                    "keywords": "Deine Schlüsselwörter hier",
-                    "category": "Name der Hauptkategorie oder 'Keine passende Kategorie'",
-                    "subcategories": ["Subkategorie", "Subkategorie"],
-                    "justification": "Begründung muss enthalten: 1. Konkrete Textstellen, 2. Bezug zur Kategoriendefinition, 3. Verbindung zur Forschungsfrage",
-                    "confidence": {{
-                        "total": 0.00-1.00,
-                        "category": 0.00-1.00,
-                        "subcategories": 0.00-1.00
-                    }},
-                    "text_references": ["Relevante Textstellen"],
-                    "definition_matches": ["Welche Aspekte der Definition passen"],
-                    "context_influence": "Wie der Dokumentkontext die Kodierung beeinflusst hat"
-                }},
-                "updated_summary": "Das aktualisierte Document-Summary mit max. 70 Wörtern"
-            }}
-            """
-
     def get_focus_context_coding_prompt(self, chunk: str, categories_overview: List[Dict], focus_category: str, focus_context: Dict, current_summary: str, position_info: Dict, summary_update_prompt: str, update_summary: bool = False) -> str:
         """Prompt für fokussierte Kodierung mit Kontext"""
 

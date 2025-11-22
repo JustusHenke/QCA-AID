@@ -293,7 +293,7 @@ async def configure_analysis_start(CONFIG: Dict, codebook_path: str) -> Dict:
         print("und die induktive Phase übersprungen.")
         
         use_saved = get_input_with_timeout(
-            "\nGespeichertes Codesystem verwenden? (j/N)",
+            "Gespeichertes Codesystem verwenden? (j/N)",
             timeout=10
         )
         
@@ -661,8 +661,9 @@ async def main() -> None:
                 # FIX: Store original codings in exporter for reliability calculation
                 exporter.original_codings_for_reliability = original_codings_for_reliability
                 
-                # Exportiere Ergebnisse mit Document-Summaries, wenn vorhanden
-                summary_arg = analysis_manager.document_summaries if CONFIG.get('CODE_WITH_CONTEXT', True) else None
+                # Exportiere Ergebnisse
+                # NEU: Paraphrasen-Kontext ist intern, summaries nicht mehr für Export benötigt
+                summary_arg = None  # Paraphrasen werden intern während Kodierung genutzt
 
                 # FIX: VERWENDE den bereits bestimmten export_mode, lade NICHT nochmal aus CONFIG
                 # ENTFERNT: export_mode = CONFIG.get('REVIEW_MODE', 'consensus') 
@@ -695,12 +696,11 @@ async def main() -> None:
                     is_intermediate_export=False
                 )
 
-                # Ausgabe der finalen Summaries, wenn vorhanden
-                if CONFIG.get('CODE_WITH_CONTEXT', True) and analysis_manager.document_summaries:
-                    print("\nFinale Document-Summaries:")
-                    for doc_name, summary in analysis_manager.document_summaries.items():
-                        print(f"\n📋 {doc_name}:")
-                        print(f"  {summary}")
+                # Ausgabe der finalen Paraphrasen, wenn vorhanden
+                if CONFIG.get('CODE_WITH_CONTEXT', False) and hasattr(analysis_manager, 'document_paraphrases'):
+                    print("\nFinale Document-Paraphrasen:")
+                    for doc_name, paraphrases in analysis_manager.document_paraphrases.items():
+                        print(f"  {doc_name}: {len(paraphrases)} Paraphrasen")
 
                 # FIX: Korrekte PrÜfung von EXPORT_ANNOTATED_PDFS
                 export_pdfs_enabled = CONFIG.get('EXPORT_ANNOTATED_PDFS', True)

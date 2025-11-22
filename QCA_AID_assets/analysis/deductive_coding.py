@@ -249,52 +249,9 @@ class DeductiveCoder:
             print(f"⚠️ Fehler beim Update von Kodierer {self.coder_id}: {str(e)}")
             return False
         
-    async def code_chunk_with_context_switch(self, 
-                                         chunk: str, 
-                                         categories: Dict[str, CategoryDefinition],
-                                         use_context: bool = True,
-                                         context_data: Dict = None) -> Dict:
-        """
-        Wrapper-Methode, die basierend auf dem use_context Parameter
-        zwischen code_chunk und code_chunk_with_progressive_context wechselt.
-        
-        Args:
-            chunk: Zu kodierender Text
-            categories: Kategoriensystem
-            use_context: Ob Kontext verwendet werden soll
-            context_data: Kontextdaten (current_summary und segment_info)
-            
-        Returns:
-            Dict: Kodierungsergebnis (und ggf. aktualisiertes Summary)
-        """
-        if use_context and context_data:
-            # Mit progressivem Kontext kodieren
-            return await self.code_chunk_with_progressive_context(
-                chunk, 
-                categories, 
-                context_data.get('current_summary', ''),
-                context_data.get('segment_info', {})
-            )
-        else:
-            # Klassische Kodierung ohne Kontext
-            result = await self.code_chunk(chunk, categories)
-            
-            # Wandle CodingResult in Dictionary um, wenn nÖtig
-            if result and isinstance(result, CodingResult):
-                return {
-                    'coding_result': result.to_dict(),
-                    'updated_summary': context_data.get('current_summary', '') if context_data else ''
-                }
-            elif result and isinstance(result, dict):
-                return {
-                    'coding_result': result,
-                    'updated_summary': context_data.get('current_summary', '') if context_data else ''
-                }
-            else:
-                return None
-            
     async def code_chunk(self, chunk: str, categories: Optional[Dict[str, CategoryDefinition]] = None, 
-                        is_last_segment: bool = False, preferred_cats: Optional[List[str]] = None) -> Optional[CodingResult]:  # FIX: Neuer Parameter hinzugefÜgt
+                        is_last_segment: bool = False, preferred_cats: Optional[List[str]] = None,
+                        context_paraphrases: Optional[List[str]] = None) -> Optional[CodingResult]:
         """
         Kodiert einen Text-Chunk basierend auf dem aktuellen Kategoriensystem.
         
@@ -302,7 +259,8 @@ class DeductiveCoder:
             chunk: Zu kodierender Text
             categories: Kategoriensystem (optional, verwendet current_categories als Fallback)
             is_last_segment: Ob dies das letzte Segment ist
-            preferred_cats: Liste bevorzugter Kategorien fuer gefilterte Kodierung  # FIX: Neue FunktionalitÄt
+            preferred_cats: Liste bevorzugter Kategorien fuer gefilterte Kodierung
+            context_paraphrases: Liste von Paraphrasen vorheriger Chunks als Kontext
             
         Returns:
             Optional[CodingResult]: Kodierungsergebnis oder None bei Fehlern
@@ -352,10 +310,11 @@ class DeductiveCoder:
                     
                 categories_overview.append(category_info)
 
-            # Erstelle Prompt
+            # Erstelle Prompt (mit optionalem Kontext)
             prompt = self.prompt_handler.get_deductive_coding_prompt(
                 chunk=chunk,
-                categories_overview=categories_overview
+                categories_overview=categories_overview,
+                context_paraphrases=context_paraphrases if context_paraphrases else None
             )
             
             try:
@@ -422,232 +381,9 @@ class DeductiveCoder:
             print(f"Allgemeiner Fehler bei der Kodierung durch {self.coder_id}: {str(e)}")
             return None
     
-    async def code_chunk_with_progressive_context(self, 
-                                          chunk: str, 
-                                          categories: Dict[str, CategoryDefinition],
-                                          current_summary: str,
-                                          segment_info: Dict) -> Dict:
-        """
-        Kodiert einen Text-Chunk und aktualisiert gleichzeitig das Dokument-Summary
-        mit einem dreistufigen Reifungsmodell.
-        
-        Args:
-            chunk: Zu kodierender Text
-            categories: Kategoriensystem
-            current_summary: Aktuelles Dokument-Summary
-            segment_info: ZusÄtzliche Informationen Über das Segment
-            
-        Returns:
-            Dict: EnthÄlt sowohl Kodierungsergebnis als auch aktualisiertes Summary
-        """
-        try:
-            
-            current_categories = categories
-            
-            if not current_categories:
-                print(f"Fehler: Kein Kategoriensystem fuer Kodierer {self.coder_id} verfÜgbar")
-                return None
-
-            print(f"\nDeduktiver Kodierer 🤖 **{self.coder_id}** verarbeitet Chunk mit progressivem Kontext...")
-            
-            # Erstelle formatierte KategorienÜbersicht
-            categories_overview = []
-            for name, cat in current_categories.items():
-                category_info = {
-                    'name': name,
-                    'definition': cat.definition,
-                    'examples': list(cat.examples) if isinstance(cat.examples, set) else cat.examples,
-                    'rules': list(cat.rules) if isinstance(cat.rules, set) else cat.rules,
-                    'subcategories': {}
-                }
-                
-                # FÜge Subkategorien hinzu
-                for sub_name, sub_def in cat.subcategories.items():
-                    category_info['subcategories'][sub_name] = sub_def
-                    
-                categories_overview.append(category_info)
-            
-            # Position im Dokument und Fortschritt berechnen
-            position_info = f"Segment: {segment_info.get('position', '')}"
-            doc_name = segment_info.get('doc_name', 'Unbekanntes Dokument')
-            
-            # Berechne die relative Position im Dokument (fuer das Reifungsmodell)
-            chunk_id = 0
-            total_chunks = 1
-            if 'position' in segment_info:
-                try:
-                    # Extrahiere Chunk-Nummer aus "Chunk X"
-                    chunk_id = int(segment_info['position'].split()[-1])
-                    
-                    # SchÄtze Gesamtanzahl der Chunks (basierend auf bisherigen Chunks)
-                    # Alternative: TatsÄchliche Anzahl Übergeben, falls verfÜgbar
-                    total_chunks = max(chunk_id * 1.5, 20)  # SchÄtzung
-                    
-                    document_progress = chunk_id / total_chunks
-                    print(f"Dokumentfortschritt: ca. {document_progress:.1%}")
-                except (ValueError, IndexError):
-                    document_progress = 0.5  # Fallback
-            else:
-                document_progress = 0.5  # Fallback
-                
-            # Bestimme die aktuelle Reifephase basierend auf dem Fortschritt
-            if document_progress < 0.3:
-                reifephase = "PHASE 1 (Sammlung)"
-                max_aenderung = "50%"
-            elif document_progress < 0.7:
-                reifephase = "PHASE 2 (Konsolidierung)"
-                max_aenderung = "30%"
-            else:
-                reifephase = "PHASE 3 (PrÄzisierung)"
-                max_aenderung = "10%"
-                
-            print(f"Summary-Reifephase: {reifephase}, max. Änderung: {max_aenderung}")
-            
-            # Angepasster Prompt basierend auf dem dreistufigen Reifungsmodell
-            # Verbesserter summary_update_prompt fuer die _code_chunk_with_progressive_context Methode
-
-            summary_update_prompt = f"""
-            ## AUFGABE 2: SUMMARY-UPDATE ({reifephase}, {int(document_progress*100)}%)
-
-            """
-
-            # Robustere Phasen-spezifische Anweisungen
-            if document_progress < 0.3:
-                summary_update_prompt += """
-            SAMMLUNG (0-30%) - STRUKTURIERTER AUFBAU:
-            - SCHLÜSSELINFORMATIONEN: Beginne mit einer LISTE wichtigster Konzepte im Telegrammstil
-            - FORMAT: "Thema1: Kernaussage; Thema2: Kernaussage" 
-            - SPEICHERSTRUKTUR: Speichere alle Informationen in KATEGORIEN (z.B. Akteure, Prozesse, Faktoren)
-            - KEINE EINLEITUNGEN oder narrative Elemente, NUR Fakten und Verbindungen
-            - BEHALTE IMMER: Bereits dokumentierte SchlÜsselkonzepte mÜssen bestehen bleiben
-            """
-            elif document_progress < 0.7:
-                summary_update_prompt += """
-            KONSOLIDIERUNG (30-70%) - HIERARCHISCHE ORGANISATION:
-            - SCHLÜSSELINFORMATIONEN BEWAHREN: Alle bisherigen Hauptkategorien beibehalten
-            - NEUE STRUKTUR: Als hierarchische Liste mit Kategorien und Unterpunkten organisieren
-            - KOMPRIMIEREN: Details aus gleichen Themenbereichen zusammenfÜhren
-            - PRIORITÄTSFORMAT: "Kategorie: Hauptpunkt1; Hauptpunkt2 -> Detail"
-            - STATT LAe–SCHEN: Verwandte Inhalte zusammenfassen, aber KEINE Kategorien eliminieren
-            """
-            else:
-                summary_update_prompt += """
-            PRÄZISIERUNG (70-100%) - VERDICHTUNG MIT THESAURUS:
-            - THESAURUS-METHODE: Jede Kategorie braucht genau 1-2 SÄtze im Telegrammstil
-            - HAUPTKONZEPTE STABIL HALTEN: Alle identifizierten Kategorien mÜssen enthalten bleiben
-            - ABSTRAHIEREN: Einzelinformationen innerhalb einer Kategorie verdichten
-            - STABILITÄTSPRINZIP: Einmal erkannte wichtige ZusammenhÄnge dÜrfen nicht verloren gehen
-            - PRIORITÄTSORDNUNG: Wichtigste Informationen IMMER am Anfang jeder Kategorie
-            """
-
-            # Allgemeine Kriterien fuer StabilitÄt und Komprimierung
-            summary_update_prompt += """
-
-            INFORMATIONSERHALTUNGS-SYSTEM:
-            - MAXIMUM 80 WAe–RTER - Komprimiere alte statt neue Informationen zu verwerfen
-            - KATEGORIEBASIERT: Jedes Summary muss immer in 3-5 klare Themenkategorien strukturiert sein
-            - SCHLÜSSELPRINZIP: Bilde das Summary als INFORMATIONALE HIERARCHIE:
-            1. Stufe: Immer stabile Themenkategorien
-            2. Stufe: Zentrale Aussagen zu jeder Kategorie
-            3. Stufe: ErgÄnzende Details (diese kÖnnen komprimiert werden)
-            - STABILITÄTSGARANTIE: Neue Iteration darf niemals vorherige Kategorie-Level-1-Information verlieren
-            - KOMPRIMIERUNGSSTRATEGIE: Bei Platzmangel Details (Stufe 3) zusammenfassen statt zu entfernen
-            - FORMAT: "Kategorie1: Hauptpunkt; Hauptpunkt. Kategorie2: Hauptpunkt; Detail." (mit Doppelpunkten)
-            - GRUNDREGEL: Neue Informationen ergÄnzen bestehende Kategorien statt sie zu ersetzen
-            """
-            
-            # Prompt mit erweiterter Aufgabe fuer Summary-Update
-            prompt = self.prompt_handler.get_progressive_context_prompt(
-                chunk=chunk,
-                categories_overview=categories_overview,
-                current_summary=current_summary,
-                position_info=position_info,
-                summary_update_prompt=summary_update_prompt
-            )
-            
-            # API-Call
-            token_counter.start_request()
-
-            response = await self.llm_provider.create_completion(
-                model=self.model_name,
-                messages=[
-                    {"role": "system", "content": "Du bist ein Experte fuer qualitative Inhaltsanalyse. Du antwortest auf deutsch."},
-                    {"role": "user", "content": prompt}
-                ],
-                temperature=self.temperature,
-                response_format={"type": "json_object"}
-            )
-            
-            # Verarbeite Response mit Wrapper
-            llm_response = LLMResponse(response)
-            try:
-                result = json.loads(llm_response.content)
-            except json.JSONDecodeError as e:
-                print(f"[ERROR][{self.coder_id}] JSONDecodeError: {e}")
-                print(f"[ERROR][{self.coder_id}] Raw LLM response: {llm_response.content}")
-                token_counter.track_error(self.model_name)
-                return None # Or handle more gracefully
-            
-
-            
-            token_counter.track_response(response, self.model_name)
-            
-            # Extrahiere relevante Teile
-            if result and isinstance(result, dict):
-                coding_result = result.get('coding_result', {})
-                updated_summary = result.get('updated_summary', current_summary)
-                
-                # PrÜfe Wortlimit beim Summary
-                if len(updated_summary.split()) > 80:  # Etwas Spielraum Über 70
-                    words = updated_summary.split()
-                    updated_summary = ' '.join(words[:70])
-                    print(f"❌ Summary wurde gekÜrzt: {len(words)} -> 70 WÖrter")
-                
-                # Analyse der VerÄnderungen
-                if current_summary:
-                    # Berechne Prozent der Änderung
-                    old_words = set(current_summary.lower().split())
-                    new_words = set(updated_summary.lower().split())
-                    
-                    if old_words:
-                        # Jaccard-Distanz als Maẞ fuer VerÄnderung
-                        unchanged = len(old_words.intersection(new_words))
-                        total = len(old_words.union(new_words))
-                        change_percent = (1 - (unchanged / total)) * 100
-                        
-                        print(f"Summary Änderung: {change_percent:.1f}% (Ziel: max. {max_aenderung})")
-                
-                if coding_result:
-                    paraphrase = coding_result.get('paraphrase', '')
-                    if paraphrase:
-                        print(f"\n🧾  Paraphrase: {paraphrase}")
-                    print(f"  ✅ Kodierung von {self.coder_id}: 📝  {coding_result.get('category', '')}")
-                    print(f"  ✅ Subkategorien von {self.coder_id}: 📝  {', '.join(coding_result.get('subcategories', []))}")
-                    print(f"  ✅ Keywords von {self.coder_id}: 📝  {coding_result.get('keywords', '')}")
-                    print(f"\n🔀 Summary fuer {doc_name} aktualisiert ({len(updated_summary.split())} WÖrter):")
-                    print(f"{updated_summary[:1000]}..." if len(updated_summary) > 100 else f"ℹ️ {updated_summary}")
-                    
-                    # Kombiniertes Ergebnis zurÜckgeben
-                    return {
-                        'coding_result': coding_result,
-                        'updated_summary': updated_summary
-                    }
-                else:
-                    print(f"  âœ— Keine gÜltige Kodierung erhalten")
-                    return None
-            else:
-                print("  âœ— Keine gÜltige Antwort erhalten")
-                return None
-                
-        except Exception as e:
-            print(f"Fehler bei der Kodierung durch {self.coder_id}: {str(e)}")
-            print("Details:")
-            import traceback
-            traceback.print_exc()
-            return None
-
     async def code_chunk_with_focus(self, chunk: str, categories: Dict[str, CategoryDefinition], 
-                                focus_category: str, focus_context: Dict) -> Optional[CodingResult]:
+                                focus_category: str, focus_context: Dict,
+                                context_paraphrases: Optional[List[str]] = None) -> Optional[CodingResult]:
         """
         Kodiert einen Text-Chunk mit Fokus auf eine bestimmte Kategorie (fuer Mehrfachkodierung).
         
@@ -656,6 +392,7 @@ class DeductiveCoder:
             categories: Kategoriensystem  
             focus_category: Kategorie auf die fokussiert werden soll
             focus_context: Kontext zur fokussierten Kategorie mit 'justification', 'text_aspects', 'relevance_score'
+            context_paraphrases: Liste von Paraphrasen vorheriger Chunks als Kontext
             
         Returns:
             Optional[CodingResult]: Kodierungsergebnis mit Fokus-Kennzeichnung
@@ -690,12 +427,13 @@ class DeductiveCoder:
                     
                 categories_overview.append(category_info)
 
-            # Erstelle fokussierten Prompt
+            # Erstelle fokussierten Prompt (mit optionalem Kontext)
             prompt = self.prompt_handler.get_focus_coding_prompt(
                 chunk=chunk,
                 categories_overview=categories_overview,
                 focus_category=focus_category,
-                focus_context=focus_context
+                focus_context=focus_context,
+                context_paraphrases=context_paraphrases if context_paraphrases else None
             )
             
             try:
@@ -777,267 +515,6 @@ class DeductiveCoder:
             print(f"Fehler bei der fokussierten Kodierung durch {self.coder_id}: {str(e)}")
             return None
 
-    async def code_chunk_with_focus_and_context(self, 
-                                            chunk: str, 
-                                            categories: Dict[str, CategoryDefinition],
-                                            focus_category: str,
-                                            focus_context: Dict,
-                                            current_summary: str,
-                                            segment_info: Dict,
-                                            update_summary: bool = False) -> Dict:
-        """
-        Kodiert einen Text-Chunk mit Fokus auf eine Kategorie UND progressivem Kontext.
-        Kombiniert die FunktionalitÄt von code_chunk_with_focus und code_chunk_with_progressive_context.
-        
-        Args:
-            chunk: Zu kodierender Text
-            categories: Kategoriensystem
-            focus_category: Kategorie auf die fokussiert werden soll
-            focus_context: Kontext zur fokussierten Kategorie
-            current_summary: Aktuelles Dokument-Summary
-            segment_info: ZusÄtzliche Informationen Über das Segment
-            update_summary: Ob das Summary aktualisiert werden soll
-            
-        Returns:
-            Dict: EnthÄlt sowohl Kodierungsergebnis als auch aktualisiertes Summary
-        """
-        try:
-            if not categories:
-                print(f"Fehler: Kein Kategoriensystem fuer Kodierer {self.coder_id} verfÜgbar")
-                return None
-
-            print(f"    🎯 Fokuskodierung fuer Kategorie: {focus_category} (Relevanz: {focus_context.get('relevance_score', 0):.2f})")
-
-            # Erstelle formatierte KategorienÜbersicht mit Fokus-Hervorhebung
-            categories_overview = []
-            for name, cat in categories.items():  
-                # Hebe Fokus-Kategorie hervor
-                display_name = name
-                if name == focus_category:
-                    display_name = name
-                
-                category_info = {
-                    'name': display_name,
-                    'definition': cat.definition,
-                    'examples': list(cat.examples) if isinstance(cat.examples, set) else cat.examples,
-                    'rules': list(cat.rules) if isinstance(cat.rules, set) else cat.rules,
-                    'subcategories': {}
-                }
-                
-                # FÜge Subkategorien hinzu
-                for sub_name, sub_def in cat.subcategories.items():
-                    category_info['subcategories'][sub_name] = sub_def
-                    
-                categories_overview.append(category_info)
-
-            # FIX: DEBUG - PrÜfe ob gefilterte Kategorien wirklich im Prompt landen
-            # print(f"    🕵️ DEBUG: Categories Overview fuer Prompt:")
-            # for cat_info in categories_overview:
-            #     cat_name = cat_info['name']
-            #     subcats = list(cat_info['subcategories'].keys())
-            #     print(f"      - {cat_name}: {subcats}")
-
-            # Position im Dokument und Fortschritt berechnen
-            position_info = f"Segment: {segment_info.get('position', '')}"
-            doc_name = segment_info.get('doc_name', 'Unbekanntes Dokument')
-            
-            # FIX: Summary-Update-Anweisungen mit dreistufigem Reifungsmodell (gleiche Logik wie in code_chunk_with_progressive_context)
-            summary_update_prompt = ""
-            if update_summary:
-                # Berechne die relative Position im Dokument (fuer das Reifungsmodell)
-                chunk_id = 0
-                total_chunks = 1
-                if 'position' in segment_info:
-                    try:
-                        # Extrahiere Chunk-Nummer aus "Chunk X"
-                        chunk_id = int(segment_info['position'].split()[-1])
-                        
-                        # SchÄtze Gesamtanzahl der Chunks (basierend auf bisherigen Chunks)
-                        # Alternative: TatsÄchliche Anzahl Übergeben, falls verfÜgbar
-                        total_chunks = max(chunk_id * 1.5, 20)  # SchÄtzung
-                        
-                        document_progress = chunk_id / total_chunks
-                        print(f"        Dokumentfortschritt: ca. {document_progress:.1%}")
-                    except (ValueError, IndexError):
-                        document_progress = 0.5  # Fallback
-                else:
-                    document_progress = 0.5  # Fallback
-                    
-                # Bestimme die aktuelle Reifephase basierend auf dem Fortschritt
-                if document_progress < 0.3:
-                    reifephase = "PHASE 1 (Sammlung)"
-                    max_aenderung = "50%"
-                elif document_progress < 0.7:
-                    reifephase = "PHASE 2 (Konsolidierung)"
-                    max_aenderung = "30%"
-                else:
-                    reifephase = "PHASE 3 (PrÄzisierung)"
-                    max_aenderung = "10%"
-                    
-                print(f"        Summary-Reifephase: {reifephase}, max. Änderung: {max_aenderung}")
-                
-                # Angepasster Prompt basierend auf dem dreistufigen Reifungsmodell
-                summary_update_prompt = f"""
-                ## AUFGABE 2: SUMMARY-UPDATE ({reifephase}, {int(document_progress*100)}%)
-
-                """
-
-                # Robustere Phasen-spezifische Anweisungen
-                if document_progress < 0.3:
-                    summary_update_prompt += """
-                SAMMLUNG (0-30%) - STRUKTURIERTER AUFBAU:
-                - SCHLÜSSELINFORMATIONEN: Beginne mit einer LISTE wichtigster Konzepte im Telegrammstil
-                - FORMAT: "Thema1: Kernaussage; Thema2: Kernaussage" 
-                - SPEICHERSTRUKTUR: Speichere alle Informationen in KATEGORIEN (z.B. Akteure, Prozesse, Faktoren)
-                - KEINE EINLEITUNGEN oder narrative Elemente, NUR Fakten und Verbindungen
-                - BEHALTE IMMER: Bereits dokumentierte SchlÜsselkonzepte mÜssen bestehen bleiben
-                """
-                elif document_progress < 0.7:
-                    summary_update_prompt += """
-                KONSOLIDIERUNG (30-70%) - HIERARCHISCHE ORGANISATION:
-                - SCHLÜSSELINFORMATIONEN BEWAHREN: Alle bisherigen Hauptkategorien beibehalten
-                - NEUE STRUKTUR: Als hierarchische Liste mit Kategorien und Unterpunkten organisieren
-                - KOMPRIMIEREN: Details aus gleichen Themenbereichen zusammenfÜhren
-                - PRIORITÄTSFORMAT: "Kategorie: Hauptpunkt1; Hauptpunkt2 -> Detail"
-                - STATT LAe–SCHEN: Verwandte Inhalte zusammenfassen, aber KEINE Kategorien eliminieren
-                """
-                else:
-                    summary_update_prompt += """
-                PRÄZISIERUNG (70-100%) - VERDICHTUNG MIT THESAURUS:
-                - THESAURUS-METHODE: Jede Kategorie braucht genau 1-2 SÄtze im Telegrammstil
-                - HAUPTKONZEPTE STABIL HALTEN: Alle identifizierten Kategorien mÜssen enthalten bleiben
-                - ABSTRAHIEREN: Einzelinformationen innerhalb einer Kategorie verdichten
-                - STABILITÄTSPRINZIP: Einmal erkannte wichtige ZusammenhÄnge dÜrfen nicht verloren gehen
-                - PRIORITÄTSORDNUNG: Wichtigste Informationen IMMER am Anfang jeder Kategorie
-                """
-
-                # Allgemeine Kriterien fuer StabilitÄt und Komprimierung
-                summary_update_prompt += """
-
-                INFORMATIONSERHALTUNGS-SYSTEM:
-                - MAXIMUM 80 WAe–RTER - Komprimiere alte statt neue Informationen zu verwerfen
-                - KATEGORIEBASIERT: Jedes Summary muss immer in 3-5 klare Themenkategorien strukturiert sein
-                - SCHLÜSSELPRINZIP: Bilde das Summary als INFORMATIONALE HIERARCHIE:
-                1. Stufe: Immer stabile Themenkategorien
-                2. Stufe: Zentrale Aussagen zu jeder Kategorie
-                3. Stufe: ErgÄnzende Details (diese kÖnnen komprimiert werden)
-                - STABILITÄTSGARANTIE: Neue Iteration darf niemals vorherige Kategorie-Level-1-Information verlieren
-                - KOMPRIMIERUNGSSTRATEGIE: Bei Platzmangel Details (Stufe 3) zusammenfassen statt zu entfernen
-                - FORMAT: "Kategorie1: Hauptpunkt; Hauptpunkt. Kategorie2: Hauptpunkt; Detail." (mit Doppelpunkten)
-                - GRUNDREGEL: Neue Informationen ergÄnzen bestehende Kategorien statt sie zu ersetzen
-                """
-
-            # Erstelle fokussierten Prompt mit Kontext
-            prompt = self.prompt_handler.get_focus_context_coding_prompt(
-                chunk=chunk,
-                categories_overview=categories_overview,
-                focus_category=focus_category,
-                focus_context=focus_context,
-                current_summary=current_summary,
-                position_info=position_info,
-                summary_update_prompt=summary_update_prompt,
-                update_summary=update_summary
-            )
-            
-
-            # API-Call
-            token_counter.start_request()
-
-            response = await self.llm_provider.create_completion(
-                model=self.model_name,
-                messages=[
-                    {"role": "system", "content": "Du bist ein Experte fuer qualitative Inhaltsanalyse. Du antwortest auf deutsch."},
-                    {"role": "user", "content": prompt}
-                ],
-                temperature=self.temperature,
-                response_format={"type": "json_object"}
-            )
-            
-            # Verarbeite Response mit Wrapper
-            llm_response = LLMResponse(response)
-            try:
-                result = json.loads(llm_response.content)
-            except json.JSONDecodeError as e:
-                print(f"[ERROR][{self.coder_id}] JSONDecodeError: {e}")
-                print(f"[ERROR][{self.coder_id}] Raw LLM response: {llm_response.content}")
-                token_counter.track_error(self.model_name)
-                return None # Or handle more gracefully
-            
-
-            
-            token_counter.track_response(response, self.model_name)
-            
-            # Extrahiere relevante Teile
-            if result and isinstance(result, dict):
-                coding_result = result.get('coding_result', {})
-                
-                # Summary nur aktualisieren wenn angefordert
-                if update_summary:
-                    updated_summary = result.get('updated_summary', current_summary)
-                    
-                    # PrÜfe Wortlimit beim Summary
-                    if len(updated_summary.split()) > 80:
-                        words = updated_summary.split()
-                        updated_summary = ' '.join(words[:70])
-                        print(f"        ❌ Summary wurde gekÜrzt: {len(words)} -> 70 WÖrter")
-                    
-                    # FIX: Analyse der VerÄnderungen (gleich wie in code_chunk_with_progressive_context)
-                    if current_summary:
-                        # Berechne Prozent der Änderung
-                        old_words = set(current_summary.lower().split())
-                        new_words = set(updated_summary.lower().split())
-                        
-                        if old_words:
-                            # Jaccard-Distanz als Maẞ fuer VerÄnderung
-                            unchanged = len(old_words.intersection(new_words))
-                            total = len(old_words.union(new_words))
-                            change_percent = (1 - (unchanged / total)) * 100
-                            
-                            print(f"        Summary Änderung: {change_percent:.1f}% (Ziel: max. {max_aenderung})")
-                else:
-                    updated_summary = current_summary
-                
-                if coding_result:
-                    paraphrase = coding_result.get('paraphrase', '')
-                    if paraphrase:
-                        print(f"        🧾  Fokus-Kontext-Paraphrase: {paraphrase}")
-
-                    # Dokumentiere Fokus-Adherence
-                    focus_adherence = coding_result.get('focus_adherence', {})
-                    followed_focus = focus_adherence.get('followed_focus', True)
-                    focus_icon = "🎯" if followed_focus else "ℹ️"
-                    
-                    print(f"        {focus_icon} Fokus-Kontext-Kodierung von {self.coder_id}: 📝  {coding_result.get('category', '')}")
-                    print(f"        ✅ Subkategorien: 📝  {', '.join(coding_result.get('subcategories', []))}")
-                    print(f"        ✅ Keywords: 📝  {coding_result.get('keywords', '')}")
-                    
-                    if not followed_focus:
-                        deviation_reason = focus_adherence.get('deviation_reason', 'Nicht angegeben')
-                        print(f"        ❌ Fokus-Abweichung: {deviation_reason}")
-
-                    if update_summary:
-                        print(f"        🔀 Summary fuer {doc_name} aktualisiert ({len(updated_summary.split())} WÖrter):")
-                        print(f"        {updated_summary[:100]}..." if len(updated_summary) > 100 else f"        ℹ️ {updated_summary}")
-                    
-                    # Kombiniertes Ergebnis zurÜckgeben
-                    return {
-                        'coding_result': coding_result,
-                        'updated_summary': updated_summary
-                    }
-                else:
-                    print(f"        âœ— Keine gÜltige Kodierung erhalten")
-                    return None
-            else:
-                print("        âœ— Keine gÜltige Antwort erhalten")
-                return None
-                
-        except Exception as e:
-            print(f"Fehler bei der fokussierten Kontext-Kodierung durch {self.coder_id}: {str(e)}")
-            print("Details:")
-            import traceback
-            traceback.print_exc()
-            return None
-        
     async def _check_relevance(self, chunk: str) -> bool:
         """
         PrÜft die Relevanz eines Chunks fuer die Forschungsfrage.
