@@ -1,0 +1,144 @@
+{
+  "base_config": {
+    "provider": "openai",
+    "model": "gpt-4o-mini",
+    "temperature": "0.7",
+    "script_dir": "",
+    "output_dir": "output",
+    "explore_file": "QCA-AID_Analysis_inductive_20251126_082530.xlsx",
+    "clean_keywords": "True",
+    "similarity_threshold": "0.7"
+  },
+  "analysis_configs": [
+    {
+      "name": "Netzwerkanalyse1",
+      "filters": {
+        "Dokument": "",
+        "Hauptkategorie": "Motivationen zur Gründung privater Hochschulen",
+        "Subkategorien": "",
+        "Attribut_1": "",
+        "Attribut_2": ""
+      },
+      "params": {
+        "active": true,
+        "analysis_type": "netzwerk",
+        "node_size_factor": 10,
+        "layout_iterations": 150,
+        "gravity": "0.05",
+        "scaling": 10
+      }
+    },
+    {
+      "name": "Heatmap1",
+      "filters": {
+        "Dokument": "",
+        "Hauptkategorie": "Motivationen zur Gründung privater Hochschulen",
+        "Subkategorien": "",
+        "Attribut_1": "",
+        "Attribut_2": ""
+      },
+      "params": {
+        "active": true,
+        "analysis_type": "heatmap",
+        "x_attribute": "Dokument",
+        "y_attribute": "Hauptkategorie",
+        "z_attribute": "count",
+        "cmap": "YlGnBu",
+        "figsize": "14x10",
+        "annot": "True",
+        "fmt": ".0f"
+      }
+    },
+    {
+      "name": "Zusammenfassung1",
+      "filters": {
+        "Dokument": "",
+        "Hauptkategorie": "Motivationen zur Gründung privater Hochschulen",
+        "Subkategorien": "",
+        "Attribut_1": "",
+        "Attribut_2": ""
+      },
+      "params": {
+        "active": true,
+        "analysis_type": "summary_paraphrase",
+        "text_column": "Paraphrase",
+        "prompt_template": ""
+      }
+    },
+    {
+      "name": "Begründungsanalyse",
+      "filters": {
+        "Dokument": "",
+        "Hauptkategorie": "Motivationen zur Gründung privater Hochschulen",
+        "Subkategorien": "",
+        "Attribut_1": "",
+        "Attribut_2": ""
+      },
+      "params": {
+        "active": true,
+        "analysis_type": "summary_reasoning",
+        "text_column": "Begründung",
+        "prompt_template": ""
+      }
+    },
+    {
+      "name": "BenutzerdefinierteAnalyse",
+      "filters": {
+        "Dokument": "",
+        "Hauptkategorie": "Motivationen zur Gründung privater Hochschulen",
+        "Subkategorien": "",
+        "Attribut_1": "",
+        "Attribut_2": ""
+      },
+      "params": {
+        "active": true,
+        "analysis_type": "summary_paraphrase",
+        "text_column": "Paraphrase",
+        "prompt_template": "Bitte analysieren Sie die folgenden Texte und erstellen Sie eine umfassende Bewertung der methodischen Ansätze, die in den Interviews erkennbar sind: {text} Bitte strukturieren Sie Ihre Analyse nach: 1. Verwendete Methoden 2. Stärken und Schwächen dieser Methoden 3. Empfehlungen für zukünftige Forschung"
+      }
+    },
+    {
+      "name": "Sentiment1",
+      "filters": {
+        "Dokument": "",
+        "Hauptkategorie": "",
+        "Subkategorien": "",
+        "Attribut_1": "",
+        "Attribut_2": ""
+      },
+      "params": {
+        "active": true,
+        "analysis_type": "sentiment_analysis",
+        "text_column": "Text",
+        "sentiment_categories": "Positiv, Negativ, Neutral",
+        "color_mapping": "{\"Positiv\": \"#4CAF50\", \"Negativ\": \"#F44336\", \"Neutral\": \"#9E9E9E\"}",
+        "chart_title": "Sentiment-Analyse: Akteure (Positiv/Negativ)",
+        "temperature": "0.3",
+        "crosstab_dimensions": "Dokument, Hauptkategorie",
+        "figsize ": "12x8"
+      }
+    },
+    {
+      "name": "Sentiment2",
+      "filters": {
+        "Dokument": "",
+        "Hauptkategorie": "",
+        "Subkategorien": "",
+        "Attribut_1": "",
+        "Attribut_2": ""
+      },
+      "params": {
+        "active": true,
+        "analysis_type": "sentiment_analysis",
+        "text_column": "Text",
+        "sentiment_categories": "Kritisch, Befürwortend, Ambivalent, Neutral",
+        "color_mapping": "{\"Kritisch\": \"#FF5722\", \"Befürwortend\": \"#2196F3\", \"Ambivalent\": \"#9C27B0\", \"Neutral\": \"#9E9E9E\"}",
+        "chart_title": "Sentiment-Analyse: Rahmenbedingungen (Kritisch/Befürwortend)",
+        "temperature": "0.3",
+        "prompt_template": "Du bist ein Experte für qualitative Textanalyse.\n\nKlassifiziere den folgenden Text in Bezug auf Ressourcen anhand des Sentiments in eine der folgenden Kategorien: {sentiment_categories}\n\nBeachte bei deiner Analyse:\n1. Die Bewertung von Ressourcen im Text\n2. Die Tonalität gegenüber Ressourcenverfügbarkeit und -nutzung\n3. Die impliziten und expliziten Wertungen\n\nText:\n---\n{text}\n---\n\nAntworte mit einem JSON-Objekt im folgenden Format:\n{{\n    \"sentiment\": \"Kategorie\", // Eine der vorgegebenen Kategorien\n    \"keywords\": [\"wort1\", \"wort2\", \"wort3\"], // 3-5 Schlüsselwörter, die zur Bewertung von Ressourcen im Text entscheidend sind\n    \"explanation\": \"Kurze Begründung\" // Kurze Erklärung (1-2 Sätze)\n}}",
+        "crosstab_dimensions": "Dokument, Hauptkategorie",
+        "figsize ": "12x8"
+      }
+    }
+  ]
+}

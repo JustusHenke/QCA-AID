@@ -4,7 +4,7 @@ Validatoren für QCA-AID
 Enthält Klassen zur Validierung von Kategorien und Kodierungen.
 """
 
-from typing import Dict, List, Any, Set
+from typing import Dict, List, Any, Set, Tuple
 
 
 class CategoryValidator:
@@ -283,3 +283,233 @@ class CategoryValidator:
             conflicts['confidence_discrepancies'] = confidences
         
         return conflicts
+
+
+class ConfigValidator:
+    """
+    Validator für JSON-Konfigurationsdateien
+    
+    Validiert die Struktur und Datentypen von JSON-Konfigurationen
+    für QCA-AID Explorer.
+    """
+    
+    @staticmethod
+    def validate_json_config(config_data: Dict[str, Any]) -> Tuple[bool, List[str]]:
+        """
+        Validiert JSON-Konfigurationsstruktur und Datentypen
+        
+        Args:
+            config_data: Dictionary mit Konfigurationsdaten
+            
+        Returns:
+            Tuple[bool, List[str]]: (is_valid, error_messages)
+                - is_valid: True wenn Konfiguration gültig ist
+                - error_messages: Liste von Fehlermeldungen (leer wenn gültig)
+        """
+        errors = []
+        
+        # Prüfe erforderliche Top-Level Keys
+        if 'base_config' not in config_data:
+            errors.append("Erforderlicher Key 'base_config' fehlt")
+        
+        if 'analysis_configs' not in config_data:
+            errors.append("Erforderlicher Key 'analysis_configs' fehlt")
+        
+        # Wenn Top-Level Keys fehlen, können wir nicht weitermachen
+        if errors:
+            return False, errors
+        
+        # Validiere base_config
+        base_config = config_data['base_config']
+        if not isinstance(base_config, dict):
+            errors.append(f"'base_config' muss ein Dictionary sein, ist aber {type(base_config).__name__}")
+        else:
+            # Validiere Datentypen in base_config
+            base_config_errors = ConfigValidator._validate_base_config_types(base_config)
+            errors.extend(base_config_errors)
+        
+        # Validiere analysis_configs
+        analysis_configs = config_data['analysis_configs']
+        if not isinstance(analysis_configs, list):
+            errors.append(f"'analysis_configs' muss eine Liste sein, ist aber {type(analysis_configs).__name__}")
+        else:
+            # Validiere jede Analyse-Konfiguration
+            for idx, analysis_config in enumerate(analysis_configs):
+                analysis_errors = ConfigValidator._validate_analysis_config(analysis_config, idx)
+                errors.extend(analysis_errors)
+        
+        return len(errors) == 0, errors
+    
+    @staticmethod
+    def _validate_base_config_types(base_config: Dict[str, Any]) -> List[str]:
+        """
+        Validiert Datentypen in base_config
+        
+        Args:
+            base_config: Dictionary mit Basis-Konfiguration
+            
+        Returns:
+            Liste von Fehlermeldungen
+        """
+        errors = []
+        
+        # Definiere erwartete Typen für bekannte Parameter
+        expected_types = {
+            'provider': str,
+            'model': str,
+            'temperature': (int, float),
+            'script_dir': str,
+            'output_dir': str,
+            'explore_file': str,
+            'clean_keywords': bool,
+            'similarity_threshold': (int, float)
+        }
+        
+        for param_name, param_value in base_config.items():
+            if param_name in expected_types:
+                expected_type = expected_types[param_name]
+                
+                # Erlaube None oder leere Strings für String-Parameter
+                if expected_type == str and (param_value is None or param_value == ''):
+                    continue
+                
+                # Prüfe Typ
+                if not isinstance(param_value, expected_type):
+                    if isinstance(expected_type, tuple):
+                        type_names = ' oder '.join(t.__name__ for t in expected_type)
+                        errors.append(
+                            f"base_config['{param_name}'] sollte {type_names} sein, "
+                            f"ist aber {type(param_value).__name__}"
+                        )
+                    else:
+                        errors.append(
+                            f"base_config['{param_name}'] sollte {expected_type.__name__} sein, "
+                            f"ist aber {type(param_value).__name__}"
+                        )
+                
+                # Zusätzliche Bereichsprüfungen
+                if param_name == 'temperature' and isinstance(param_value, (int, float)):
+                    if param_value < 0.0 or param_value > 2.0:
+                        errors.append(
+                            f"base_config['temperature'] sollte zwischen 0.0 und 2.0 liegen, "
+                            f"ist aber {param_value}"
+                        )
+                
+                if param_name == 'similarity_threshold' and isinstance(param_value, (int, float)):
+                    if param_value < 0.0 or param_value > 1.0:
+                        errors.append(
+                            f"base_config['similarity_threshold'] sollte zwischen 0.0 und 1.0 liegen, "
+                            f"ist aber {param_value}"
+                        )
+        
+        return errors
+    
+    @staticmethod
+    def _validate_analysis_config(analysis_config: Dict[str, Any], index: int) -> List[str]:
+        """
+        Validiert eine einzelne Analyse-Konfiguration
+        
+        Args:
+            analysis_config: Dictionary mit Analyse-Konfiguration
+            index: Index in der analysis_configs Liste
+            
+        Returns:
+            Liste von Fehlermeldungen
+        """
+        errors = []
+        
+        if not isinstance(analysis_config, dict):
+            errors.append(
+                f"analysis_configs[{index}] muss ein Dictionary sein, "
+                f"ist aber {type(analysis_config).__name__}"
+            )
+            return errors
+        
+        # Prüfe erforderliche Keys
+        if 'name' not in analysis_config:
+            errors.append(f"analysis_configs[{index}] fehlt erforderlicher Key 'name'")
+        elif not isinstance(analysis_config['name'], str):
+            errors.append(
+                f"analysis_configs[{index}]['name'] sollte String sein, "
+                f"ist aber {type(analysis_config['name']).__name__}"
+            )
+        
+        # Prüfe filters (optional, aber wenn vorhanden muss es ein Dict sein)
+        if 'filters' in analysis_config:
+            if not isinstance(analysis_config['filters'], dict):
+                errors.append(
+                    f"analysis_configs[{index}]['filters'] sollte Dictionary sein, "
+                    f"ist aber {type(analysis_config['filters']).__name__}"
+                )
+        
+        # Prüfe params (optional, aber wenn vorhanden muss es ein Dict sein)
+        if 'params' in analysis_config:
+            if not isinstance(analysis_config['params'], dict):
+                errors.append(
+                    f"analysis_configs[{index}]['params'] sollte Dictionary sein, "
+                    f"ist aber {type(analysis_config['params']).__name__}"
+                )
+            else:
+                # Prüfe 'active' Parameter wenn vorhanden
+                params = analysis_config['params']
+                if 'active' in params and not isinstance(params['active'], bool):
+                    errors.append(
+                        f"analysis_configs[{index}]['params']['active'] sollte Boolean sein, "
+                        f"ist aber {type(params['active']).__name__}"
+                    )
+        
+        return errors
+    
+    @staticmethod
+    def validate_json_format(json_path: str) -> Tuple[bool, List[str]]:
+        """
+        Validiert JSON-Datei auf korrekte Formatierung
+        
+        Prüft:
+        - UTF-8 Encoding
+        - Einrückung (indent)
+        - Erforderliche Top-Level Keys
+        
+        Args:
+            json_path: Pfad zur JSON-Datei
+            
+        Returns:
+            Tuple[bool, List[str]]: (is_valid, error_messages)
+        """
+        import json
+        import os
+        
+        errors = []
+        
+        if not os.path.exists(json_path):
+            errors.append(f"JSON-Datei nicht gefunden: {json_path}")
+            return False, errors
+        
+        try:
+            # Prüfe UTF-8 Encoding
+            with open(json_path, 'r', encoding='utf-8') as f:
+                content = f.read()
+                data = json.loads(content)
+            
+            # Prüfe erforderliche Keys
+            if 'base_config' not in data:
+                errors.append("JSON fehlt erforderlicher Key 'base_config'")
+            
+            if 'analysis_configs' not in data:
+                errors.append("JSON fehlt erforderlicher Key 'analysis_configs'")
+            
+            # Prüfe Einrückung (indent)
+            # Wenn die Datei eingerückt ist, sollte sie Newlines und Spaces enthalten
+            if '\n' not in content:
+                errors.append("JSON ist nicht formatiert (keine Zeilenumbrüche)")
+            elif '  ' not in content and '\t' not in content:
+                errors.append("JSON ist nicht eingerückt")
+            
+        except UnicodeDecodeError:
+            errors.append("JSON-Datei verwendet nicht UTF-8 Encoding")
+        except json.JSONDecodeError as e:
+            errors.append(f"Ungültiges JSON-Format: {str(e)}")
+        except Exception as e:
+            errors.append(f"Fehler beim Lesen der JSON-Datei: {str(e)}")
+        
+        return len(errors) == 0, errors

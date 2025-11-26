@@ -1,30 +1,10 @@
 """
 QCA-AID Explorer 
 ========================================================================
-Version: 0.5.1
-Datum: 2025-05-15
+Version: 0.6.0
+Datum: 2025-11-26
 --------
 
-Neu in Version 0.5.1 (2025-05-15)
-- Robuste Filter-Logik: Automatisches Mapping von Attribut_1-3 zu tatsächlichen Spaltennamen in Positionen B-D
-- Selektive Keyword-Harmonisierung: Harmonisierung erfolgt nur noch für Analysetypen, die sie benötigen
-- Verbesserte Fehlerbehandlung: Filter für nicht existierende Spalten werden übersprungen statt Fehler zu werfen
-- Debug-Ausgaben: Detaillierte Informationen über angewendete Filter und Spalten-Mappings
-- Performance-Optimierung: Unnötige Keyword-Verarbeitung für nicht-keyword-basierte Analysen vermieden
-
-Neu in Version 0.5 (2025-04-10)
-- Neue Schlüsselwort-basierte Sentiment-Analyse: Visualisiert die wichtigsten Begriffe aus Textsegmenten als Bubbles, eingefärbt nach ihrem Sentiment (positiv/negativ oder benutzerdefinierte Kategorien).
-- Flexible Konfiguration: Anpassbare Sentiment-Kategorien, Farbschemata und Prompts über die Excel-Konfigurationsdatei für domänenspezifische Analysen.
-- Umfassende Ergebnisexporte: Detaillierte Excel-Tabellen mit Sentiment-Verteilungen, Kreuztabellen und Schlüsselwort-Rankings sowie PDF/PNG-Visualisierungen.
-- Deaktiviere einzelne Auswertungen temporär über active-Parameter = "false" (Sheet muss dann nicht gelöscht werden) 
-
-Neue features in version 0.4 (2025-04-07):
-- Konfiguration über Excel-Datei "QCA-AID-Explorer-Config.xlsx"
-- Heatmap-Visualisierung von Codes entlang von Dokumentattributen
-- Mehrere Analysetypen konfigurierbar (Netzwerk, Heatmap, verschiedene Zusammenfassungen)
-- Anpassbare Parameter für jede Analyse
-- Verbessertes ForceAtlas2-Layout für Netzwerkvisualisierungen
-- SVG-Export für bessere Editierbarkeit
 
 QCA-AID Explorer ist ein Tool zur Analyse von qualitativen Kodierungsdaten.
 Es ermöglicht die Visualisierung von Kodierungsnetzwerken mit Hauptkategorien,
@@ -65,117 +45,14 @@ import random
 import matplotlib.cm as cm
 from matplotlib.colors import LinearSegmentedColormap
 
-class LLMProvider(ABC):
-    """Abstrakte Basisklasse für LLM Provider"""
-    
-    @abstractmethod
-    async def create_completion(self, 
-                              messages: List[Dict[str, str]], 
-                              model: str,
-                              temperature: float = 0.7,
-                              response_format: Optional[Dict] = None) -> Any:
-        """Generiert eine Completion mit dem konfigurierten LLM"""
-        pass
+# Import config utilities
+import sys
+sys.path.insert(0, str(Path(__file__).parent))
+from QCA_AID_assets.utils.config.converter import ConfigConverter
+from QCA_AID_assets.utils.config.synchronizer import ConfigSynchronizer
+from QCA_AID_assets.utils.llm.base import LLMProvider
+from QCA_AID_assets.utils.llm.factory import LLMProviderFactory
 
-class OpenAIProvider(LLMProvider):
-    """OpenAI spezifische Implementation"""
-    
-    def __init__(self):
-        """Initialisiert den OpenAI Client"""
-        try:
-            api_key = os.getenv("OPENAI_API_KEY")
-            if not api_key:
-                raise ValueError("OpenAI API Key nicht gefunden")
-            
-            # Erstelle einen expliziten httpx Client ohne Proxy Konfiguration
-            http_client = httpx.AsyncClient(
-                follow_redirects=True,
-                timeout=60.0
-            )
-            
-            # Initialisiere den OpenAI Client mit unserem sauberen httpx Client
-            self.client = openai.AsyncOpenAI(
-                api_key=api_key,
-                http_client=http_client
-            )
-            
-            print("OpenAI Client erfolgreich initialisiert")
-            
-        except Exception as e:
-            print(f"Fehler bei OpenAI Client Initialisierung: {str(e)}")
-            raise
-
-    async def create_completion(self,
-                              messages: List[Dict[str, str]],
-                              model: str,
-                              temperature: float = 0.7, 
-                              response_format: Optional[Dict] = None) -> Any:
-        """Erzeugt eine Completion mit OpenAI"""
-        try:
-            # Direkter API-Aufruf ohne Context Manager
-            return await self.client.chat.completions.create(
-                model=model,
-                messages=messages,
-                temperature=temperature,
-                response_format=response_format
-            )
-        except Exception as e:
-            print(f"Fehler bei OpenAI API Call: {str(e)}")
-            raise
-
-class MistralProvider(LLMProvider):
-    """Mistral spezifische Implementation"""
-    
-    def __init__(self):
-        """Initialisiert den Mistral Client"""
-        self.api_key = os.getenv("MISTRAL_API_KEY")
-        if not self.api_key:
-            raise ValueError("Mistral API Key nicht gefunden")
-
-    async def create_completion(self,
-                              messages: List[Dict[str, str]],
-                              model: str,
-                              temperature: float = 0.7,
-                              response_format: Optional[Dict] = None) -> Any:
-        """Erzeugt eine Completion mit Mistral"""
-        try:
-            async with Mistral(api_key=self.api_key) as client:
-                return await client.chat.complete_async(
-                    model=model,
-                    messages=messages,
-                    temperature=temperature,
-                    response_format=response_format,
-                    stream=False
-                )
-        except Exception as e:
-            print(f"Fehler bei Mistral API Call: {str(e)}")
-            raise
-
-class LLMProviderFactory:
-    """Factory Klasse zur Erstellung des konfigurierten LLM Providers"""
-    
-    @staticmethod
-    def create_provider(provider_name: str) -> LLMProvider:
-        """Erstellt die passende Provider Instanz"""
-        try:
-            # Lade Environment Variablen
-            env_path = os.path.join(os.path.expanduser("~"), '.environ.env')
-            load_dotenv(env_path)
-            
-            print(f"\nInitialisiere LLM Provider: {provider_name}")
-            
-            if provider_name.lower() == "openai":
-                return OpenAIProvider()
-                
-            elif provider_name.lower() == "mistral":
-                return MistralProvider()
-                
-            else:
-                raise ValueError(f"Ungültiger Provider Name: {provider_name}")
-                
-        except Exception as e:
-            print(f"Fehler bei Provider-Erstellung: {str(e)}")
-            raise
 
 class LLMResponse:
     """Wrapper für Provider-spezifische Responses"""
@@ -198,109 +75,244 @@ class LLMResponse:
             return ""
 
 class ConfigLoader:
-    """Lädt die Konfiguration aus einer Excel-Datei"""
+    """Lädt die Konfiguration aus einer Excel-Datei oder JSON-Datei"""
     
     def __init__(self, config_path: str):
         """
         Initialisiert den ConfigLoader
         
         Args:
-            config_path: Pfad zur Excel-Konfigurationsdatei
+            config_path: Pfad zur Konfigurationsdatei (.xlsx oder .json)
         """
         self.config_path = config_path
         self.base_config = {}
         self.analysis_configs = []
-        self._load_config()
         
-    def _load_config(self):
-        """Lädt die Konfiguration aus der Excel-Datei"""
+        # Synchronisation vor dem Laden
+        self._sync_configs()
+        
+        # Lade Konfiguration
+        self._load_config()
+    
+    def _sync_configs(self) -> None:
+        """
+        Führt Synchronisation zwischen XLSX und JSON durch falls nötig
+        """
+        print("\n=== Konfigurationssynchronisation ===")
+        
+        # Bestimme Pfade basierend auf config_path
+        config_path = Path(self.config_path)
+        
+        # Wenn config_path auf .json zeigt, leite XLSX-Pfad ab
+        if config_path.suffix.lower() == '.json':
+            xlsx_path = config_path.with_suffix('.xlsx')
+            json_path = config_path
+        else:
+            # Ansonsten ist es XLSX, leite JSON-Pfad ab
+            xlsx_path = config_path
+            json_path = config_path.with_suffix('.json')
+        
+        print(f"XLSX-Pfad: {xlsx_path}")
+        print(f"JSON-Pfad: {json_path}")
+        
+        # Führe Synchronisation durch
         try:
-            print(f"\nLade Konfiguration aus: {self.config_path}")
+            print("Starte Synchronisationsprozess...")
+            synchronizer = ConfigSynchronizer(str(xlsx_path), str(json_path))
+            result = synchronizer.sync()
             
-            # Prüfe, ob die Datei existiert
-            if not os.path.exists(self.config_path):
-                raise FileNotFoundError(f"Konfigurationsdatei nicht gefunden: {self.config_path}")
+            print(f"Synchronisation abgeschlossen. Verwende: {result.upper()}")
             
-            # Lese das Basis-Sheet
-            base_df = pd.read_excel(self.config_path, sheet_name='Basis')
+            # Aktualisiere config_path basierend auf Synchronisationsergebnis
+            if result == 'json' and json_path.exists():
+                self.config_path = str(json_path)
+            elif xlsx_path.exists():
+                self.config_path = str(xlsx_path)
             
-            # Konvertiere zu Dictionary
-            self.base_config = {}
-            for _, row in base_df.iterrows():
-                param_name = str(row['Parameter'])
-                param_value = row['Wert']
+            print("=== Synchronisation erfolgreich ===\n")
                 
-                # Leere Werte als None behandeln
-                if pd.isna(param_value):
-                    param_value = None
-                    
-                self.base_config[param_name] = param_value
+        except FileNotFoundError as e:
+            # Wenn beide Dateien fehlen, wird der Fehler später beim Laden geworfen
+            print("Keine Konfigurationsdateien gefunden. Synchronisation übersprungen.\n")
+            pass
+        except Exception as e:
+            print(f"Warnung: Fehler bei Synchronisation: {str(e)}")
+            print("Fahre mit ursprünglichem Pfad fort.\n")
+            # Fahre mit ursprünglichem Pfad fort
+    
+    def _load_config(self):
+        """Lädt die Konfiguration aus JSON oder XLSX-Datei"""
+        try:
+            config_path = Path(self.config_path)
             
-            print("Basis-Konfiguration geladen:")
-            for key, value in self.base_config.items():
-                print(f"  {key}: {value}")
+            # Bestimme JSON-Pfad
+            if config_path.suffix.lower() == '.json':
+                json_path = config_path
+                xlsx_path = config_path.with_suffix('.xlsx')
+            else:
+                xlsx_path = config_path
+                json_path = config_path.with_suffix('.json')
             
-            # Lese alle anderen Sheets für Auswertungskonfigurationen
-            excel = pd.ExcelFile(self.config_path)
-            sheet_names = excel.sheet_names
+            # Bevorzuge JSON wenn vorhanden
+            if json_path.exists():
+                try:
+                    print(f"\nLade Konfiguration aus JSON: {json_path}")
+                    self._load_from_json(str(json_path))
+                    return
+                except Exception as e:
+                    print(f"Warnung: Fehler beim Laden der JSON-Datei: {str(e)}")
+                    print(f"Fallback auf XLSX-Datei...")
             
-            # Überspringe das Basis-Sheet
-            for sheet_name in sheet_names:
-                if sheet_name.lower() != 'basis':
-                    analysis_df = pd.read_excel(self.config_path, sheet_name=sheet_name)
-                    
-                    # Extrahiere die Parameter für diese Auswertung
-                    analysis_config = {'name': sheet_name}
-                    filter_params = {}
-                    other_params = {}
-                    
-                    for _, row in analysis_df.iterrows():
-                        param_name = str(row['Parameter'])
-                        param_value = row['Wert']
-
-                        # Spezielle Behandlung für active/enabled Parameter
-                        if param_name.lower() == 'active' or param_name.lower() == 'enabled':
-                            if pd.isna(param_value):
-                                # Wenn kein Wert angegeben, default auf True
-                                param_value = True
-                            elif isinstance(param_value, str):
-                                param_value = param_value.lower() in ('true', 'ja', 'yes', '1')
-                            else:
-                                param_value = bool(param_value)
-                                
-                            # Speichere standardisiert als 'active'
-                            other_params['active'] = param_value
-                            continue
-                        
-                        # Leere Werte als None behandeln
-                        if pd.isna(param_value):
-                            param_value = None
-                        
-                        # Unterscheide zwischen Filter-Parametern und anderen Parametern
-                        if param_name.startswith('filter_'):
-                            # Entferne 'filter_' Präfix und speichere als Filter
-                            filter_name = param_name[7:]  # Länge von 'filter_' ist 7
-                            filter_params[filter_name] = param_value
-                        else:
-                            other_params[param_name] = param_value
-                    
-                    # Stelle sicher, dass 'active' immer existiert
-                    if 'active' not in other_params:
-                        other_params['active'] = True  # Default: aktiviert
-                    
-                    analysis_config['filters'] = filter_params
-                    analysis_config['params'] = other_params
-                    self.analysis_configs.append(analysis_config)
+            # Fallback auf XLSX
+            if not xlsx_path.exists():
+                raise FileNotFoundError(
+                    f"Konfigurationsdatei nicht gefunden:\n"
+                    f"  JSON: {json_path}\n"
+                    f"  XLSX: {xlsx_path}"
+                )
             
-            print(f"\n{len(self.analysis_configs)} Auswertungskonfigurationen gefunden:")
-            for config in self.analysis_configs:
-                active_status = config['params'].get('active', True)
-                status_text = "aktiviert" if active_status else "deaktiviert"
-                print(f"  - {config['name']} ({status_text})")
+            print(f"\nLade Konfiguration aus XLSX: {xlsx_path}")
+            self._load_from_xlsx(str(xlsx_path))
                 
         except Exception as e:
             print(f"Fehler beim Laden der Konfiguration: {str(e)}")
             raise
+    
+    def _load_from_json(self, json_path: str) -> None:
+        """
+        Lädt Konfiguration aus JSON-Datei
+        
+        Args:
+            json_path: Pfad zur JSON-Datei
+            
+        Raises:
+            FileNotFoundError: Wenn JSON-Datei nicht existiert
+            ValueError: Wenn JSON-Struktur ungültig ist
+        """
+        from QCA_AID_assets.core.validators import ConfigValidator
+        
+        config_data = ConfigConverter.load_json(json_path)
+        
+        # Validiere JSON-Format (UTF-8, Einrückung, erforderliche Keys)
+        is_valid_format, format_errors = ConfigValidator.validate_json_format(json_path)
+        if not is_valid_format:
+            print(f"Warnung: JSON-Format-Probleme erkannt:")
+            for error in format_errors:
+                print(f"  - {error}")
+        
+        # Validiere Struktur und Datentypen
+        is_valid_structure, structure_errors = ConfigValidator.validate_json_config(config_data)
+        if not is_valid_structure:
+            error_msg = "JSON-Konfiguration ist ungültig:\n" + "\n".join(f"  - {e}" for e in structure_errors)
+            raise ValueError(error_msg)
+        
+        # Validiere Struktur (Backward-Kompatibilität)
+        if 'base_config' not in config_data or 'analysis_configs' not in config_data:
+            raise ValueError("JSON muss 'base_config' und 'analysis_configs' enthalten")
+        
+        # Lade base_config
+        self.base_config = config_data['base_config']
+        
+        print("Basis-Konfiguration geladen:")
+        for key, value in self.base_config.items():
+            print(f"  {key}: {value}")
+        
+        # Lade analysis_configs
+        self.analysis_configs = config_data['analysis_configs']
+        
+        print(f"\n{len(self.analysis_configs)} Auswertungskonfigurationen gefunden:")
+        for config in self.analysis_configs:
+            active_status = config['params'].get('active', True)
+            status_text = "aktiviert" if active_status else "deaktiviert"
+            print(f"  - {config['name']} ({status_text})")
+    
+    def _load_from_xlsx(self, xlsx_path: str) -> None:
+        """
+        Lädt Konfiguration aus XLSX-Datei
+        
+        Args:
+            xlsx_path: Pfad zur XLSX-Datei
+        """
+        # Prüfe, ob die Datei existiert
+        if not os.path.exists(xlsx_path):
+            raise FileNotFoundError(f"Konfigurationsdatei nicht gefunden: {xlsx_path}")
+        
+        # Lese das Basis-Sheet
+        base_df = pd.read_excel(xlsx_path, sheet_name='Basis')
+        
+        # Konvertiere zu Dictionary
+        self.base_config = {}
+        for _, row in base_df.iterrows():
+            param_name = str(row['Parameter'])
+            param_value = row['Wert']
+            
+            # Leere Werte als None behandeln
+            if pd.isna(param_value):
+                param_value = None
+                
+            self.base_config[param_name] = param_value
+        
+        print("Basis-Konfiguration geladen:")
+        for key, value in self.base_config.items():
+            print(f"  {key}: {value}")
+        
+        # Lese alle anderen Sheets für Auswertungskonfigurationen
+        excel = pd.ExcelFile(xlsx_path)
+        sheet_names = excel.sheet_names
+        
+        # Überspringe das Basis-Sheet
+        for sheet_name in sheet_names:
+            if sheet_name.lower() != 'basis':
+                analysis_df = pd.read_excel(xlsx_path, sheet_name=sheet_name)
+                
+                # Extrahiere die Parameter für diese Auswertung
+                analysis_config = {'name': sheet_name}
+                filter_params = {}
+                other_params = {}
+                
+                for _, row in analysis_df.iterrows():
+                    param_name = str(row['Parameter'])
+                    param_value = row['Wert']
+
+                    # Spezielle Behandlung für active/enabled Parameter
+                    if param_name.lower() == 'active' or param_name.lower() == 'enabled':
+                        if pd.isna(param_value):
+                            # Wenn kein Wert angegeben, default auf True
+                            param_value = True
+                        elif isinstance(param_value, str):
+                            param_value = param_value.lower() in ('true', 'ja', 'yes', '1')
+                        else:
+                            param_value = bool(param_value)
+                            
+                        # Speichere standardisiert als 'active'
+                        other_params['active'] = param_value
+                        continue
+                    
+                    # Leere Werte als None behandeln
+                    if pd.isna(param_value):
+                        param_value = None
+                    
+                    # Unterscheide zwischen Filter-Parametern und anderen Parametern
+                    if param_name.startswith('filter_'):
+                        # Entferne 'filter_' Präfix und speichere als Filter
+                        filter_name = param_name[7:]  # Länge von 'filter_' ist 7
+                        filter_params[filter_name] = param_value
+                    else:
+                        other_params[param_name] = param_value
+                
+                # Stelle sicher, dass 'active' immer existiert
+                if 'active' not in other_params:
+                    other_params['active'] = True  # Default: aktiviert
+                
+                analysis_config['filters'] = filter_params
+                analysis_config['params'] = other_params
+                self.analysis_configs.append(analysis_config)
+        
+        print(f"\n{len(self.analysis_configs)} Auswertungskonfigurationen gefunden:")
+        for config in self.analysis_configs:
+            active_status = config['params'].get('active', True)
+            status_text = "aktiviert" if active_status else "deaktiviert"
+            print(f"  - {config['name']} ({status_text})")
 
     def get_base_config(self) -> Dict[str, Any]:
         """Gibt die Basis-Konfiguration zurück"""
@@ -320,10 +332,25 @@ class QCAAnalyzer:
             llm_provider: Instance of LLMProvider
             config: Dictionary with base configuration
         """
-        # Read specifically from 'Kodierte_Segmente' sheet
-        self.df = pd.read_excel(excel_path, sheet_name='Kodierte_Segmente')
+        # Read specifically from 'Kodierungsergebnisse' sheet
+        self.df = pd.read_excel(excel_path, sheet_name='Kodierungsergebnisse')
         self.llm_provider = llm_provider
         self.keyword_mappings = {}
+        
+        # Normalize column names to handle encoding issues
+        # Map common variations to standard names
+        column_mapping = {}
+        for col in self.df.columns:
+            col_lower = col.lower()
+            if 'schlüssel' in col_lower or 'schlussel' in col_lower:
+                column_mapping[col] = 'Schlüsselwörter'
+            elif 'begründ' in col_lower or 'begrund' in col_lower:
+                column_mapping[col] = 'Begründung'
+        
+        # Rename columns if needed
+        if column_mapping:
+            self.df.rename(columns=column_mapping, inplace=True)
+            print(f"Spaltennamen normalisiert: {column_mapping}")
         
         # Get the input filename without extension
         input_filename = Path(excel_path).stem
@@ -757,6 +784,13 @@ class QCAAnalyzer:
         """Create network graph using harmonized keywords"""
         
         print("Erstelle Netzwerkgraph...")
+        
+        # Check if filtered_df is empty
+        if filtered_df.empty:
+            print("WARNUNG: Keine Daten nach Filterung vorhanden!")
+            print("Der Graph kann nicht erstellt werden.")
+            print("Bitte überprüfen Sie die Filter-Einstellungen in der Konfiguration.")
+            return
         
         # Verwende Parameter aus der Konfiguration oder Default-Werte
         if params is None:
@@ -2037,6 +2071,16 @@ def create_forceatlas_like_layout(G, iterations=100, gravity=0.01, scaling=10.0)
     
     print("Berechne ForceAtlas-ähnliches Layout...")
     
+    # Handle empty graph
+    if len(G.nodes()) == 0:
+        print("Warnung: Graph ist leer, gebe leeres Layout zurück")
+        return {}
+    
+    # Handle single node
+    if len(G.nodes()) == 1:
+        node = list(G.nodes())[0]
+        return {node: (0, 0)}
+    
     # Wichtig: Erstelle eine ungerichtete Kopie des Graphen für die Distanzberechnung
     # Dies stellt sicher, dass die Distanzmatrix symmetrisch ist
     G_undirected = G.to_undirected()
@@ -2163,6 +2207,16 @@ def create_forceatlas_like_layout(G, iterations=100, gravity=0.01, scaling=10.0)
         
         # Import auch hier für den Fallback benötigt
         import numpy as np
+        
+        # Handle empty graph in fallback
+        if len(G.nodes()) == 0:
+            print("Warnung: Graph ist leer im Fallback")
+            return {}
+        
+        # Handle single node in fallback
+        if len(G.nodes()) == 1:
+            node = list(G.nodes())[0]
+            return {node: (0, 0)}
         
         # Erstelle initiale Positionen für bessere Konvergenz
         initial_pos = {}
@@ -2328,6 +2382,16 @@ async def main():
         
         # Filtere die Daten
         filtered_df = analyzer.filter_data(filters)
+        
+        # Prüfe, ob nach dem Filtern Daten vorhanden sind
+        if filtered_df.empty:
+            print(f"⚠️  WARNUNG: Keine Daten nach Filterung für Analyse '{analysis_name}'")
+            print(f"   Angewendete Filter: {filters}")
+            print(f"   Diese Analyse wird übersprungen.")
+            print(f"   Bitte überprüfen Sie die Filter-Einstellungen.\n")
+            continue
+        
+        print(f"✓ {len(filtered_df)} Datensätze nach Filterung gefunden")
         
         # Erzeuge Filterstring für Dateinamen
         filter_str = create_filter_string(filters)

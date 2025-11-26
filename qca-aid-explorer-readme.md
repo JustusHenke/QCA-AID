@@ -3,9 +3,27 @@
 ## Überblick
 QCA-AID Explorer ist ein leistungsstarkes Tool zur Analyse qualitativer Kodierungsdaten. Es ermöglicht die Visualisierung von Kodiernetzwerken mit Hauptkategorien, Subkategorien und Schlüsselwörtern sowie die automatisierte Zusammenfassung von kodierten Textsegmenten mithilfe von Large Language Models (LLMs).
 
-**Version:** 0.5 (2025-04-10)
+**Version:** 0.6.0 (2025-11-26)
 
-**Neu in Version 0.5 (2025-04-10)**
+**Neu in Version 0.6.0 (2025-11-26)**
+- **JSON-Konfigurationsunterstützung**: Konfiguration kann jetzt wahlweise als JSON-Datei gespeichert werden
+- **Automatische Synchronisation**: Bidirektionale Synchronisation zwischen Excel- und JSON-Konfigurationsdateien
+- **Konfliktauflösung**: Bei Differenzen zwischen XLSX und JSON wird der Benutzer zur Auswahl der aktuelleren Version aufgefordert
+- **Automatische Migration**: Beim ersten Start wird automatisch eine JSON-Konfiguration aus der Excel-Datei erstellt
+- **Verbesserte Performance**: JSON-Laden ist schneller als Excel-Parsing
+- **Versionskontrollfreundlich**: JSON-Format ist besser für Git und andere Versionskontrollsysteme geeignet
+- **Vereinheitlichte LLM Provider**: Nutzt jetzt die ausgereiften LLM Provider aus QCA-AID mit Model Capability Detection und Retry-Logik
+- **Robuste Spaltennamenerkennung**: Automatische Normalisierung von Spaltennamen mit Encoding-Problemen
+- **Verbesserte Fehlerbehandlung**: Bessere Behandlung von leeren Graphen und fehlenden Daten
+
+**Neu in Version 0.5.1 (2025-05-15)**
+- Robuste Filter-Logik: Automatisches Mapping von Attribut_1-3 zu tatsächlichen Spaltennamen in Positionen B-D
+- Selektive Keyword-Harmonisierung: Harmonisierung erfolgt nur noch für Analysetypen, die sie benötigen
+- Verbesserte Fehlerbehandlung: Filter für nicht existierende Spalten werden übersprungen statt Fehler zu werfen
+- Debug-Ausgaben: Detaillierte Informationen über angewendete Filter und Spalten-Mappings
+- Performance-Optimierung: Unnötige Keyword-Verarbeitung für nicht-keyword-basierte Analysen vermieden
+
+**Neu in Version 0.5.0 (2025-04-10)**
 - Neue Schlüsselwort-basierte Sentiment-Analyse: Visualisiert die wichtigsten Begriffe aus Textsegmenten als Bubbles, eingefärbt nach ihrem Sentiment (positiv/negativ oder benutzerdefinierte Kategorien).
 - Flexible Konfiguration: Anpassbare Sentiment-Kategorien, Farbschemata und Prompts über die Excel-Konfigurationsdatei für domänenspezifische Analysen.
 - Umfassende Ergebnisexporte: Detaillierte Excel-Tabellen mit Sentiment-Verteilungen, Kreuztabellen und Schlüsselwort-Rankings sowie PDF/PNG-Visualisierungen.
@@ -59,7 +77,31 @@ MISTRAL_API_KEY=ihr_mistral_api_schlüssel
 
 ## Konfiguration
 
-Die Konfiguration erfolgt vollständig über die Excel-Datei "QCA-AID-Explorer-Config.xlsx", die aus folgenden Teilen besteht:
+Die Konfiguration erfolgt über eine Konfigurationsdatei, die entweder als Excel-Datei ("QCA-AID-Explorer-Config.xlsx") oder als JSON-Datei ("QCA-AID-Explorer-Config.json") vorliegen kann.
+
+### JSON vs. Excel Konfiguration
+
+**Neu in Version 0.6.0:** Das Tool unterstützt jetzt beide Formate:
+
+- **Excel-Format (.xlsx)**: Traditionelles Format, einfach zu bearbeiten mit Excel oder LibreOffice
+- **JSON-Format (.json)**: Maschinenlesbarer, versionskontrollfreundlicher, schneller zu laden
+
+**Automatische Synchronisation:**
+- Beim ersten Start wird automatisch eine JSON-Datei aus der Excel-Konfiguration erstellt
+- Bei jedem Start prüft das Tool auf Differenzen zwischen beiden Dateien
+- Wenn Unterschiede gefunden werden, werden Sie gefragt, welche Version aktueller ist
+- Die gewählte Version wird dann in beide Formate synchronisiert
+- JSON wird bevorzugt geladen, wenn beide Dateien vorhanden und identisch sind
+
+**Vorteile von JSON:**
+- Schnelleres Laden der Konfiguration
+- Bessere Unterstützung für Git und andere Versionskontrollsysteme
+- Einfachere programmatische Bearbeitung
+- UTF-8 Encoding ohne Probleme
+
+### Konfigurationsstruktur
+
+Die Konfiguration besteht aus folgenden Teilen:
 
 ### 1. Basis-Sheet
 Das Blatt "Basis" enthält globale Parameter für alle Analysen:
@@ -184,7 +226,9 @@ Bei benutzerdefinierten Zusammenfassungen können Sie Ihre eigenen Prompts erste
 
 ## Beispiel für eine Konfigurationsdatei
 
-### Basis-Sheet
+### Excel-Format
+
+#### Basis-Sheet
 | Parameter | Wert |
 |-----------|------|
 | provider | openai |
@@ -220,6 +264,72 @@ Bei benutzerdefinierten Zusammenfassungen können Sie Ihre eigenen Prompts erste
 | filter_Dokument | Interview_03 |
 | analysis_type | summary_paraphrase |
 | prompt_template | Bitte analysieren Sie die folgenden Texte und identifizieren Sie die Hauptthemen: {text} |
+
+### JSON-Format
+
+Die gleiche Konfiguration als JSON-Datei (`QCA-AID-Explorer-Config.json`):
+
+```json
+{
+  "base_config": {
+    "provider": "openai",
+    "model": "gpt-4o-mini",
+    "temperature": 0.7,
+    "script_dir": "C:/MeinProjekt",
+    "output_dir": "output",
+    "explore_file": "QCA-Analyse_2025.xlsx",
+    "clean_keywords": true,
+    "similarity_threshold": 0.7
+  },
+  "analysis_configs": [
+    {
+      "name": "Netzwerkanalyse1",
+      "filters": {
+        "Hauptkategorie": "Herausforderungen",
+        "Dokument": "Interview_01"
+      },
+      "params": {
+        "active": true,
+        "analysis_type": "netzwerk",
+        "node_size_factor": 1.2,
+        "gravity": 0.08
+      }
+    },
+    {
+      "name": "Heatmap1",
+      "filters": {
+        "Hauptkategorie": ""
+      },
+      "params": {
+        "active": true,
+        "analysis_type": "heatmap",
+        "x_attribute": "Dokument",
+        "y_attribute": "Hauptkategorie",
+        "cmap": "YlOrRd"
+      }
+    },
+    {
+      "name": "Zusammenfassung1",
+      "filters": {
+        "Dokument": "Interview_03"
+      },
+      "params": {
+        "active": true,
+        "analysis_type": "summary_paraphrase",
+        "prompt_template": "Bitte analysieren Sie die folgenden Texte und identifizieren Sie die Hauptthemen: {text}"
+      }
+    }
+  ]
+}
+```
+
+**Hinweise zum JSON-Format:**
+- Die Datei muss UTF-8 kodiert sein
+- Boolesche Werte werden als `true`/`false` geschrieben (nicht `True`/`False`)
+- Leere Filter-Werte können als leerer String `""` angegeben werden
+- Jede Analyse hat einen eindeutigen Namen im `name`-Feld
+- Filter werden im `filters`-Objekt definiert
+- Alle anderen Parameter kommen ins `params`-Objekt
 
 ## Kontakt und Unterstützung
 
