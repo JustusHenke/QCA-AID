@@ -1,0 +1,88 @@
+System:
+Sie sind ein hilfreicher Forschungsassistent, der sich mit der Analyse qualitativer Daten auskennt.
+
+User:
+Bitte analysieren Sie die folgenden Texte und erstellen Sie eine umfassende Bewertung der methodischen Ansätze, die in den Interviews erkennbar sind: [Hauptkategorie: Akteure | Subkategorien: Kollektive_Akteure | Schlüsselwörter: Enpal,Solarbranche,Hausbesitzer | Dokument: dummy_solar_media.txt]
+Enpal hat sich als führendes Unternehmen in der deutschen Solarbranche etabliert und zieht damit das Interesse von Hausbesitzern auf sich.
+
+[Hauptkategorie: Kontextfaktoren | Subkategorien: Strukturell | Schlüsselwörter: Solarbranche,Herausforderungen,Enpal | Dokument: dummy_solar_media.txt]
+Die Solarbranche in Deutschland boomt dank massiver Förderungen, was Enpal als Marktführer attraktiv macht.
+
+[Hauptkategorie: Akteure | Subkategorien: Kollektive_Akteure, Beziehungen | Schlüsselwörter: Bildungssystem,Akteure,private Hochschulen | Dokument: text_demo_wiss.pdf]
+In Deutschland ist das Bildungssystem öffentlich, wobei die Bundesländer und private Hochschulen als zentrale Akteure agieren.
+
+[Hauptkategorie: Kontextfaktoren | Subkategorien: Strukturell | Schlüsselwörter: Hochschulleitung,öffentliches Gut,Forschungsbedingungen | Dokument: text_demo_wiss.pdf]
+In Deutschland wird Hochschulbildung als öffentliches Gut betrachtet, was die Rahmenbedingungen für öffentliche und private Bildungseinrichtungen beeinflusst.
+
+[Hauptkategorie: Akteure | Subkategorien: Individuelle_Akteure, Kollektive_Akteure | Schlüsselwörter: private Hochschulen,Akteure,Akkreditierung | Dokument: text_demo_wiss.pdf]
+Private Hochschulen benötigen institutionelle Akkreditierungen und werden von verschiedenen Akteuren wie Individuen, Unternehmen und Stiftungen gegründet.
+
+[Hauptkategorie: Kontextfaktoren | Subkategorien: Strukturell, Kulturell | Schlüsselwörter: private Hochschulen,Akkreditierung,Akteure | Dokument: text_demo_wiss.pdf]
+Private Hochschulen in Deutschland benötigen institutionelle Akkreditierung und stehen in einem Kontext mit geringen öffentlichen Debatten und verschiedenen Akteuren, die ihre Gründung motivieren.
+
+[Hauptkategorie: Akteure | Subkategorien: Individuelle_Akteure, Kollektive_Akteure | Schlüsselwörter: Akteure,private Hochschulen,Motive | Dokument: text_demo_wiss.pdf]
+Die Akteure, die private Hochschulen gründen, handeln aus verschiedenen Motiven, wie dem Bedarf an qualifizierten Absolventen und dem Wunsch nach Prestige.
+
+[Hauptkategorie: Kontextfaktoren | Subkategorien: Strukturell | Schlüsselwörter: Bildungswahrnehmung,Studienplätze,private Hochschulen | Dokument: text_demo_wiss.pdf]
+Die Gründung privater Hochschulen wird durch strukturelle Faktoren wie Studienplatzmangel und veränderte Bildungswahrnehmung beeinflusst.
+
+[Hauptkategorie: Strategien | Subkategorien: Formell, Innovativ | Schlüsselwörter: private Hochschulen,Strategien,Wirtschaft | Dokument: text_demo_wiss.pdf]
+Die Gründung privater Hochschulen erfolgt als strategische Reaktion auf wirtschaftliche Anforderungen und das Streben nach Prestige.
+
+[Hauptkategorie: Akteure | Subkategorien: Kollektive_Akteure, Rollen | Schlüsselwörter: private Institutionen,Bildungssystem,Reformen | Dokument: text_demo_wiss.pdf]
+Private Institutionen im Bildungssystem bieten wirtschaftliche Vorteile und mehr Freiheit zur Reformgestaltung.
+
+[Hauptkategorie: Kontextfaktoren | Subkategorien: Strukturell | Schlüsselwörter: private Hochschulen,Bildungssystem,wirtschaftliche Aspekte | Dokument: text_demo_wiss.pdf]
+Das Segment thematisiert wirtschaftliche Aspekte und die strukturellen Vorteile privater Hochschulen im deutschen Bildungssystem.
+
+[Hauptkategorie: Prozesse | Subkategorien: Entwicklungsprozesse | Schlüsselwörter: Reformen,Bildungssystem,private Hochschulen | Dokument: text_demo_wiss.pdf]
+Das Segment thematisiert wirtschaftliche Gründe und Reformen im Bildungssystem, insbesondere die Vorteile privater Hochschulen.
+
+[Hauptkategorie: Akteure | Subkategorien: Individuelle_Akteure, Kollektive_Akteure | Schlüsselwörter: private Hochschulen,Motive,Akteure | Dokument: text_demo_wiss.pdf]
+Der Text behandelt die Motive für die Gründung privater Hochschulen und deren öffentliche Wahrnehmung, wobei die Akteure im Fokus stehen.
+
+[Hauptkategorie: Kontextfaktoren | Subkategorien: Strukturell | Schlüsselwörter: private Hochschulen,öffentliche Wahrnehmung,Sektorgröße | Dokument: text_demo_wiss.pdf]
+Der Text behandelt die Größe des privaten Bildungssektors im Vergleich zum öffentlichen Sektor und beleuchtet öffentliche Wahrnehmungen und Debatten.
+
+[Hauptkategorie: Outcomes | Subkategorien: Nicht_intendiert | Schlüsselwörter: private Hochschulen,öffentliche Wahrnehmung,Ergebnisse | Dokument: text_demo_wiss.pdf]
+Der Text behandelt die Wahrnehmung und öffentliche Debatte über private Hochschulen und deren vermeintliche Unzulänglichkeiten.
+
+[Hauptkategorie: Kontextfaktoren | Subkategorien: Strukturell | Schlüsselwörter: Forschungsbedingungen,Anreize,Boni | Dokument: trial_case_iv_2.pdf]
+Die Bedingungen für das Forschen und die Anreize für Kollegen werden thematisiert, insbesondere Boni und Überstunden.
+
+[Hauptkategorie: Prozesse | Subkategorien: Entwicklungsprozesse, Entscheidungsprozesse | Schlüsselwörter: Forschungsbedingungen,Boni,Überstunden | Dokument: trial_case_iv_2.pdf]
+Die Bedingungen für Forschungsprojekte werden diskutiert, insbesondere Anreize wie Boni und Überstunden, die die Arbeitsabläufe beeinflussen.
+
+[Hauptkategorie: Ressourcen | Subkategorien: Materiell, Immateriell | Schlüsselwörter: Boni,Anreize,Ressourcen | Dokument: trial_case_iv_2.pdf]
+Die Bedingungen für Forschung sind durch Boni und Anreize geprägt, die sowohl materielle als auch immaterielle Ressourcen darstellen.
+
+[Hauptkategorie: Herausforderungen | Subkategorien: Individuell, Strukturell | Schlüsselwörter: Burnout,Lehrqualität,Zusatzarbeit | Dokument: trial_case_iv_2.pdf]
+Die bezahlte Zusatzarbeit führt zu Herausforderungen wie Burnout und beeinträchtigt die Lehrqualität.
+
+[Hauptkategorie: Prozesse | Subkategorien: Entwicklungsprozesse | Schlüsselwörter: Lehre,Lehrqualität,Burnout | Dokument: trial_case_iv_2.pdf]
+Die Zusatzarbeit beeinträchtigt die Qualität der Lehre und kann zu Burnout führen, was die Abläufe in der Hochschullehre negativ beeinflusst.
+
+[Hauptkategorie: Akteure | Subkategorien: Individuelle_Akteure, Kollektive_Akteure | Schlüsselwörter: Akteure,Interaktion,Lehre | Dokument: trial_case_iv_2.pdf]
+Die Diskussion über die Übernahme von Projekten zeigt sowohl individuelle als auch kollektive Perspektiven im Lehrkontext.
+
+[Hauptkategorie: Prozesse | Subkategorien: Entwicklungsprozesse, Interaktionsprozesse | Schlüsselwörter: Lehrprozess,Projekte,Austausch | Dokument: trial_case_iv_2.pdf]
+Das Modell zur Übernahme von Projekten in der Lehre fördert den Austausch und das Lernen, wird jedoch auch als zusätzliche Belastung wahrgenommen.
+
+[Hauptkategorie: Akteure | Subkategorien: Kollektive_Akteure, Individuelle_Akteure | Schlüsselwörter: Hochschulleitung,Anreize,individuelle Motivation | Dokument: trial_case_iv_2.pdf]
+Die Diskussion thematisiert Anreize und Druck von Hochschulleitung und Prorektorat, um individuelle Motivation und Engagement in Forschungsprojekten zu fördern.
+
+[Hauptkategorie: Ressourcen | Subkategorien: Materiell, Immateriell | Schlüsselwörter: Anreize,Motivation,Ressourcen | Dokument: trial_case_iv_2.pdf]
+Die Diskussion zeigt, dass externe Anreize wie Unterrichtserlass und Mehrbezahlung als Ressourcen zur Motivation dienen.
+
+[Hauptkategorie: Strategien | Subkategorien: Formell, Informell | Schlüsselwörter: Anreize,Motivation,Expertenwissen | Dokument: trial_case_iv_2.pdf]
+Es werden Anreize wie weniger Unterricht oder höhere Bezahlung genannt, um die individuelle Motivation zu fördern und Expertenwissen im Bereich Nachhaltigkeit aufzubauen.
+
+[Hauptkategorie: Akteure | Subkategorien: Individuelle_Akteure, Kollektive_Akteure, Beziehungen | Schlüsselwörter: Akteure,Netzwerk,Nachhaltigkeit | Dokument: trial_case_iv_2.pdf]
+Der Austausch mit Nachhaltigkeitsmanagern und die Einladung zu Unternehmensbesuchen fördern die Netzwerkbildung und Interaktion zwischen Akteuren im Bereich Nachhaltigkeit.
+
+[Hauptkategorie: Herausforderungen | Subkategorien: Strukturell, Prozessual | Schlüsselwörter: Herausforderungen,Netzwerk,Output | Dokument: trial_case_iv_2.pdf]
+Der Austausch mit Nachhaltigkeitsmanagern ist positiv, jedoch gibt es Herausforderungen im Fachbereich Wirtschaft, insbesondere hinsichtlich des Outputs der Projekte.
+
+[Hauptkategorie: Prozesse | Subkategorien: Interaktionsprozesse, Entwicklungsprozesse | Schlüsselwörter: Austausch,Netzwerk,Output | Dokument: trial_case_iv_2.pdf]
+Der Austausch mit Nachhaltigkeitsmanagern und die Netzwerkaktivitäten fördern die Motivation und zeigen die Herausforderungen bei der Output-Diskussion in Projekten.
+ Bitte strukturieren Sie Ihre Analyse nach: 1. Verwendete Methoden 2. Stärken und Schwächen dieser Methoden 3. Empfehlungen für zukünftige Forschung

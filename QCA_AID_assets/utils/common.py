@@ -207,3 +207,27 @@ UTILS_VERSION = "2.0.0"
 REFACTORING_DATE = "2025-11-17"
 ORIGINAL_LINES = 3954
 TARGET_LINES = 2000  # Estimated after refactoring
+
+
+def create_filter_string(filters: Dict[str, str]) -> str:
+    """
+    Erstellt eine String-Repräsentation der Filter für Dateinamen.
+    
+    Diese Funktion wird verwendet, um aus einem Dictionary von Filtern
+    einen kompakten String zu erstellen, der in Dateinamen verwendet werden kann.
+    Leere Filter-Werte werden automatisch übersprungen.
+    
+    Args:
+        filters: Dictionary mit Filter-Parametern (z.B. {'Hauptkategorie': 'Kategorie1', 'Dokument': 'Doc1'})
+        
+    Returns:
+        String-Repräsentation der Filter im Format "key1-value1_key2-value2"
+        
+    Examples:
+        >>> create_filter_string({'Hauptkategorie': 'Kategorie1', 'Dokument': 'Doc1'})
+        'Hauptkategorie-Kategorie1_Dokument-Doc1'
+        
+        >>> create_filter_string({'Hauptkategorie': 'Kategorie1', 'Dokument': ''})
+        'Hauptkategorie-Kategorie1'
+    """
+    return '_'.join(f"{k}-{v}" for k, v in filters.items() if v)

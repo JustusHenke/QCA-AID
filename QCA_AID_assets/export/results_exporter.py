@@ -117,7 +117,7 @@ class ResultsExporter:
                 removed_subcats = set(original_subcats) - set(validated_subcats)
                 if removed_subcats:
                     print(f"   🔧 ENTFERNT: {removed_subcats}")
-                    # FIX: FÜge Validierungs-Info zur BegrÜndung hinzu
+                    # FIX: FÜge Validierungs-Info zur Begründung hinzu
                     original_justification = consensus_coding.get('justification', '')
                     consensus_coding['justification'] = f"{original_justification} [FIX: Subkategorien-Validierung entfernte: {list(removed_subcats)}]"
                 
@@ -160,7 +160,7 @@ class ResultsExporter:
 
     def _get_majority_coding(self, segment_codes: List[Dict]) -> Optional[Dict]:
         """
-        VEREINFACHT: Nutzt dieselbe Logik wie SchlÜsselwÖrter - nimmt aus bester Kodierung
+        VEREINFACHT: Nutzt dieselbe Logik wie Schlüsselwörter - nimmt aus bester Kodierung
         """
         if not segment_codes:
             return None
@@ -237,7 +237,7 @@ class ResultsExporter:
             )
         majority_coding['subcategories'] = validated_subcats
         
-        # Kombiniere BegrÜndungen (bleibt gleich)
+        # Kombiniere Begründungen (bleibt gleich)
         all_justifications = []
         for coding in matching_codings:
             justification = coding.get('justification', '')
@@ -404,7 +404,7 @@ class ResultsExporter:
                 removed_subcats = set(original_subcats) - set(validated_subcats)
                 print(f"🔧 FIX: Consensus-Validierung entfernte {len(removed_subcats)} Subkategorien: {removed_subcats}")
                 
-                # FIX: Dokumentiere Änderung in BegrÜndung
+                # FIX: Dokumentiere Änderung in Begründung
                 original_justification = consensus_coding.get('justification', '')
                 consensus_coding['justification'] = f"{original_justification} [FIX: Consensus-Validierung entfernte ungÜltige Subkategorien: {list(removed_subcats)}]"
                 
@@ -415,7 +415,7 @@ class ResultsExporter:
         
         consensus_coding['subcategories'] = validated_subcats
         
-        # Kombiniere nur BegrÜndungen der matching codings
+        # Kombiniere nur Begründungen der matching codings
         all_justifications = []
         for coding in matching_codings:
             justification = coding.get('justification', '')
@@ -503,7 +503,7 @@ class ResultsExporter:
             consolidated_coding['target_category'] = main_cat
             consolidated_coding['category_focus_used'] = True
             
-            # Erweiterte BegrÜndung
+            # Erweiterte Begründung
             original_justification = consolidated_coding.get('justification', '')
             consolidated_coding['justification'] = f"[Mehrfachkodierung - Kategorie {i}/{len(category_groups)}] {original_justification}"
             
@@ -661,7 +661,7 @@ class ResultsExporter:
                     # Setze konsolidierte Subkategorien
                     selected_coding['subcategories'] = consensus_subcats
                     
-                    # Kombiniere BegrÜndungen
+                    # Kombiniere Begründungen
                     manual_justifications = [c.get('justification', '')[:100] for c in manual_codings if c.get('justification', '')]
                     if manual_justifications:
                         selected_coding['justification'] = f"[Konsens aus {len(manual_codings)} manuellen Kodierungen] " + " | ".join(manual_justifications[:3])
@@ -730,7 +730,7 @@ class ResultsExporter:
         BerÜcksichtigt mehrere Faktoren:
         - Konfidenz der Kodierung
         - Übereinstimmung mit Konsens-Subkategorien
-        - QualitÄt der BegrÜndung
+        - QualitÄt der Begründung
 
         Args:
             coding: Einzelne Kodierung
@@ -754,18 +754,18 @@ class ResultsExporter:
             else:
                 subcat_overlap = 1.0  # Volle Punktzahl wenn keine Konsens-Subkategorien
 
-            # Bewerte QualitÄt der BegrÜndung
+            # Bewerte QualitÄt der Begründung
             justification = coding.get('justification', '')
             if isinstance(justification, str):
                 justification_score = min(len(justification.split()) / 20, 1.0)  # Max bei 20 WÖrtern
             else:
-                justification_score = 0.0  # Keine BegrÜndung vorhanden oder ungÜltiger Typ
+                justification_score = 0.0  # Keine Begründung vorhanden oder ungÜltiger Typ
 
             # Gewichtete Kombination der Faktoren
             quality_score = (
                 confidence * 0.5 +          # 50% Konfidenz
                 subcat_overlap * 0.3 +      # 30% Subkategorien-Übereinstimmung
-                justification_score * 0.2   # 20% BegrÜndungsqualitÄt
+                justification_score * 0.2   # 20% BegründungsqualitÄt
             )
 
             return quality_score
@@ -835,7 +835,7 @@ class ResultsExporter:
         required_columns = {
             'Dokument', 'Chunk_Nr', 'Text', 'Kodiert', 
             'Hauptkategorie', 'Kategorietyp', 'Subkategorien', 
-            'BegrÜndung', 'Konfidenz', 'Mehrfachkodierung'
+            'Begründung', 'Konfidenz', 'Mehrfachkodierung'
         }
         
         try:
@@ -1191,7 +1191,7 @@ class ResultsExporter:
                 formatted_keywords = [kw.strip() for kw in formatted_keywords if kw.strip()]
             keywords_text = ', '.join(formatted_keywords)
             
-            # FIX: VERBESSERTE BEGRÜNDUNGSVERARBEITUNG - KERNFIX
+            # FIX: VERBESSERTE BegründungSVERARBEITUNG - KERNFIX
             justification = ""
             
             # ✅ VEREINFACHTES PRIORITÄTSSYSTEMfuer Begründungen
@@ -1285,8 +1285,8 @@ class ResultsExporter:
                 'Hauptkategorie': sanitize_text_for_excel(display_category),  # FIX: Korrigiere Leerzeichen-Fehlern
                 'Kategorietyp': category_type,  # FIX: Verwende korrekten category_type
                 'Subkategorien': sanitize_text_for_excel(subcats_text),
-                'SchlÜsselwÖrter': sanitize_text_for_excel(keywords_text),
-                'BegrÜndung': sanitize_text_for_excel(justification),
+                'Schlüsselwörter': sanitize_text_for_excel(keywords_text),
+                'Begründung': sanitize_text_for_excel(justification),
                 'Konfidenz': f"{confidence_value:.2f}",  # FIX: Korrekte Konfidenz-Formatierung
                 'Original_Chunk_Nr': original_chunk_id,  # FIX: HinzugefÜgt
                 'Mehrfachkodierung': mehrfachkodierung_status,  # FIX: Korrekte Mehrfachkodierung-Logik
@@ -1709,8 +1709,8 @@ class ResultsExporter:
             8: 20,   # Hauptkategorie - WICHTIG
             9: 15,   # Kategorietyp
             10: 25,  # Subkategorien - WICHTIG
-            11: 20,  # SchlÜsselwÖrter - WICHTIG
-            12: 40,  # BegrÜndung - WICHTIG: Breit fuer BegrÜndung
+            11: 20,  # Schlüsselwörter - WICHTIG
+            12: 40,  # Begründung - WICHTIG: Breit fuer Begründung
             13: 10,  # Konfidenz - WICHTIG
             14: 15,  # Original_Chunk_Nr
             15: 12,  # Mehrfachkodierung
@@ -1730,7 +1730,7 @@ class ResultsExporter:
             worksheet.cell(row=row, column=5).alignment = Alignment(wrap_text=True, vertical='top')
             # Paraphrase-Spalte (6) 
             worksheet.cell(row=row, column=6).alignment = Alignment(wrap_text=True, vertical='top')
-            # BegrÜndung-Spalte (12)
+            # Begründung-Spalte (12)
             worksheet.cell(row=row, column=12).alignment = Alignment(wrap_text=True, vertical='top')
     
     def _create_reliability_sheet(self, workbook, reliability: float, export_mode: str):

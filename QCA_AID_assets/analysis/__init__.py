@@ -10,6 +10,7 @@ from .inductive_coding import InductiveCoder
 from .manual_coding import ManualCoder
 from .analysis_manager import IntegratedAnalysisManager
 from .saturation_controller import ImprovedSaturationController
+from .qca_analyzer import QCAAnalyzer
 
 __all__ = [
     'RelevanceChecker',
@@ -18,5 +19,6 @@ __all__ = [
     'InductiveCoder',
     'ManualCoder',
     'IntegratedAnalysisManager',
-    'ImprovedSaturationController'
+    'ImprovedSaturationController',
+    'QCAAnalyzer'
 ]

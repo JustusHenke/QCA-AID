@@ -1,0 +1,94 @@
+System:
+Sie sind ein hilfreicher Forschungsassistent, der sich mit der Analyse qualitativer Daten auskennt.
+
+User:
+
+    Bitte analysieren Sie die folgenden Textsegmente:
+
+    [Hauptkategorie: Akteure | Subkategorien: Kollektive_Akteure | Schlüsselwörter: Enpal,Solarbranche,Hausbesitzer | Dokument: dummy_solar_media.txt]
+[FOKUS: Akteure, Adherence: Ja] 1. Der Fokus liegt auf Enpal als zentralem Akteur in der Solarbranche. 2. Die Hauptkategorie 'Akteure' ist passend, da das Segment die Rolle eines Unternehmens beschreibt. 3. 'Kollektive_Akteure' ist korrekt, da Enpal als Organisation dargestellt wird.
+
+[Hauptkategorie: Kontextfaktoren | Subkategorien: Strukturell | Schlüsselwörter: Solarbranche,Herausforderungen,Enpal | Dokument: dummy_solar_media.txt]
+[FOKUS: Kontextfaktoren, Adherence: Ja] 1. Der Fokus auf Kontextfaktoren wird durch die Erwähnung der Förderungen und des Booms der Solarbranche unterstützt. 2. Die Hauptkategorie 'Kontextfaktoren' ist passend, da sie die Rahmenbedingungen des Phänomens beschreibt. 3. Die Subkategorie 'Strukturell' ist gewählt, da sie die organisatorischen und institutionellen Bedingungen der Solarbranche erfasst.
+
+[Hauptkategorie: Akteure | Subkategorien: Kollektive_Akteure, Beziehungen | Schlüsselwörter: Bildungssystem,Akteure,private Hochschulen | Dokument: text_demo_wiss.pdf]
+[FOKUS: Akteure, Adherence: Ja] 1. Der Fokus auf Akteure wird durch die Erwähnung der Bundesländer und privaten Hochschulen gestärkt. 2. Die Hauptkategorie 'Akteure' ist passend, da der Text die handelnden Institutionen im Bildungssystem beschreibt. 3. 'Kollektive_Akteure' ist relevant, da es um Institutionen geht, und 'Beziehungen' ist ebenfalls zutreffend, da die Interaktionen zwischen den Akteuren angesprochen werden.
+
+[Hauptkategorie: Kontextfaktoren | Subkategorien: Strukturell | Schlüsselwörter: Hochschulleitung,öffentliches Gut,Forschungsbedingungen | Dokument: text_demo_wiss.pdf]
+[FOKUS: Kontextfaktoren, Adherence: Ja] 1. Der Fokus auf die Rahmenbedingungen der Hochschulbildung wird durch die Beschreibung des Bildungssystems als öffentliches Gut beeinflusst. 2. Die Hauptkategorie 'Kontextfaktoren' ist passend, da der Text strukturelle Rahmenbedingungen behandelt. 3. 'Strukturell' ist die geeignete Subkategorie, da sie organisatorische und institutionelle Bedingungen erfasst.
+
+[Hauptkategorie: Akteure | Subkategorien: Individuelle_Akteure, Kollektive_Akteure | Schlüsselwörter: private Hochschulen,Akteure,Akkreditierung | Dokument: text_demo_wiss.pdf]
+[FOKUS: Akteure, Adherence: Ja] 1. Der Fokus liegt auf den Akteuren, die eine Rolle im Kontext der privaten Hochschulbildung spielen. 2. Die Hauptkategorie 'Akteure' ist passend, da der Text verschiedene Akteure und deren Einfluss beschreibt. 3. 'Individuelle_Akteure' und 'Kollektive_Akteure' sind relevant, da sowohl Einzelpersonen als auch Organisationen genannt werden.
+
+[Hauptkategorie: Kontextfaktoren | Subkategorien: Strukturell, Kulturell | Schlüsselwörter: private Hochschulen,Akkreditierung,Akteure | Dokument: text_demo_wiss.pdf]
+[FOKUS: Kontextfaktoren, Adherence: Ja] 1. Der Text beschreibt die strukturellen Rahmenbedingungen für private Hochschulen, insbesondere die Akkreditierung. 2. Die Hauptkategorie 'Kontextfaktoren' ist passend, da sie die Rahmenbedingungen des Phänomens erfasst. 3. Die Subkategorien 'Strukturell' und 'Kulturell' sind relevant, da sie die organisatorischen Bedingungen und die öffentliche Wahrnehmung abdecken.
+
+[Hauptkategorie: Akteure | Subkategorien: Individuelle_Akteure, Kollektive_Akteure | Schlüsselwörter: Akteure,private Hochschulen,Motive | Dokument: text_demo_wiss.pdf]
+[FOKUS: Akteure, Adherence: Ja] 1. Der Fokus liegt auf den Akteuren, die private Hochschulen gründen, was die Hauptkategorie 'Akteure' unterstützt. 2. Die Subkategorien 'Individuelle_Akteure' und 'Kollektive_Akteure' sind relevant, da sowohl Einzelpersonen als auch Gruppen (wie Städte) als Gründer erwähnt werden.
+
+[Hauptkategorie: Kontextfaktoren | Subkategorien: Strukturell | Schlüsselwörter: Bildungswahrnehmung,Studienplätze,private Hochschulen | Dokument: text_demo_wiss.pdf]
+[FOKUS: Kontextfaktoren, Adherence: Ja] 1. Der Fokus liegt auf den Kontextfaktoren, die die Gründung privater Hochschulen beeinflussen. 2. Die Hauptkategorie 'Kontextfaktoren' ist passend, da strukturelle Rahmenbedingungen thematisiert werden. 3. Die Subkategorie 'Strukturell' bezieht sich direkt auf organisatorische und institutionelle Bedingungen, die im Text angesprochen werden.
+
+[Hauptkategorie: Strategien | Subkategorien: Formell, Innovativ | Schlüsselwörter: private Hochschulen,Strategien,Wirtschaft | Dokument: text_demo_wiss.pdf]
+[FOKUS: Strategien, Adherence: Ja] 1. Der Fokus auf Strategien wird durch die Gründung privater Hochschulen als Antwort auf spezifische wirtschaftliche Bedürfnisse und Prestige verdeutlicht. 2. Die Hauptkategorie 'Strategien' ist passend, da es um Handlungsmuster zur Zielerreichung geht. 3. Die Subkategorien 'Formell' und 'Innovativ' sind relevant, da die Gründung als offizielle Strategie und neue Lösung betrachtet werden kann.
+
+[Hauptkategorie: Akteure | Subkategorien: Kollektive_Akteure, Rollen | Schlüsselwörter: private Institutionen,Bildungssystem,Reformen | Dokument: text_demo_wiss.pdf]
+[FOKUS: Akteure, Adherence: Ja] 1. Der Fokus liegt auf den Akteuren, insbesondere den privaten Institutionen im Bildungssystem. 2. Die Hauptkategorie 'Akteure' ist passend, da es um handelnde Institutionen geht. 3. 'Kollektive_Akteure' und 'Rollen' sind relevant, da private Institutionen als Gruppen agieren und spezifische Rollen im Bildungssystem einnehmen.
+
+[Hauptkategorie: Kontextfaktoren | Subkategorien: Strukturell | Schlüsselwörter: private Hochschulen,Bildungssystem,wirtschaftliche Aspekte | Dokument: text_demo_wiss.pdf]
+[FOKUS: Kontextfaktoren, Adherence: Ja] 1. Der Fokus auf wirtschaftliche Gründe und die Rolle privater Hochschulen zeigt, wie strukturelle Faktoren das Bildungssystem beeinflussen. 2. Die Hauptkategorie 'Kontextfaktoren' ist passend, da das Segment die Rahmenbedingungen des Bildungssystems beschreibt. 3. 'Strukturell' ist die geeignete Subkategorie, da sie organisatorische Bedingungen der privaten Hochschulen adressiert.
+
+[Hauptkategorie: Prozesse | Subkategorien: Entwicklungsprozesse | Schlüsselwörter: Reformen,Bildungssystem,private Hochschulen | Dokument: text_demo_wiss.pdf]
+[FOKUS: Prozesse, Adherence: Ja] 1. Der Fokus auf Prozesse wird durch die Diskussion über Reformen und Entwicklungen im Bildungssystem unterstützt. 2. Die Hauptkategorie 'Prozesse' ist passend, da das Segment Abläufe und Veränderungen beschreibt. 3. Die Subkategorie 'Entwicklungsprozesse' passt, da es um Veränderungen im Bildungssystem geht.
+
+[Hauptkategorie: Akteure | Subkategorien: Individuelle_Akteure, Kollektive_Akteure | Schlüsselwörter: private Hochschulen,Motive,Akteure | Dokument: text_demo_wiss.pdf]
+[FOKUS: Akteure, Adherence: Ja] 1. Der Fokus liegt auf den Akteuren, die private Hochschulen gründen und betreiben. 2. Die Hauptkategorie 'Akteure' ist passend, da der Text explizit auf handelnde Personen und Institutionen eingeht. 3. 'Individuelle_Akteure' und 'Kollektive_Akteure' sind relevant, da sowohl Einzelpersonen als auch Institutionen angesprochen werden.
+
+[Hauptkategorie: Kontextfaktoren | Subkategorien: Strukturell | Schlüsselwörter: private Hochschulen,öffentliche Wahrnehmung,Sektorgröße | Dokument: text_demo_wiss.pdf]
+[FOKUS: Kontextfaktoren, Adherence: Ja] 1. Der Fokus auf die Größe des Sektors zeigt strukturelle Rahmenbedingungen auf. 2. Die Hauptkategorie 'Kontextfaktoren' ist passend, da der Text die organisatorischen Bedingungen des Sektors thematisiert. 3. 'Strukturell' gehört zur gewählten Hauptkategorie und reflektiert die organisatorischen Aspekte.
+
+[Hauptkategorie: Outcomes | Subkategorien: Nicht_intendiert | Schlüsselwörter: private Hochschulen,öffentliche Wahrnehmung,Ergebnisse | Dokument: text_demo_wiss.pdf]
+[FOKUS: Outcomes, Adherence: Ja] 1. Der Fokus auf die Wahrnehmung und Debatte über private Hochschulen zeigt sowohl intendierte als auch nicht intendierte Ergebnisse dieser Institutionen. 2. Die Hauptkategorie 'Outcomes' ist passend, da es um die Wirkungen der Handlungen im privaten Bildungssektor geht. 3. Die Subkategorien 'Intendiert' und 'Nicht_intendiert' sind relevant, da sie die beabsichtigten und unbeabsichtigten Folgen der Wahrnehmung und Diskussion widerspiegeln.
+
+[Hauptkategorie: Kontextfaktoren | Subkategorien: Strukturell | Schlüsselwörter: Forschungsbedingungen,Anreize,Boni | Dokument: trial_case_iv_2.pdf]
+[FOKUS: Kontextfaktoren, Adherence: Ja] 1. Der Fokus auf Forschungsbedingungen zeigt, wie strukturelle Rahmenbedingungen das Phänomen beeinflussen. 2. Die Hauptkategorie 'Kontextfaktoren' ist passend, da es um organisatorische Rahmenbedingungen geht. 3. 'Strukturell' ist die geeignete Subkategorie, da sie die organisatorischen Bedingungen abdeckt.
+
+[Hauptkategorie: Prozesse | Subkategorien: Entwicklungsprozesse, Entscheidungsprozesse | Schlüsselwörter: Forschungsbedingungen,Boni,Überstunden | Dokument: trial_case_iv_2.pdf]
+[FOKUS: Prozesse, Adherence: Ja] 1. Der Fokus auf Prozesse wird durch die Diskussion über Abläufe und Anreize für Forschungsprojekte unterstützt. 2. Die Hauptkategorie 'Prozesse' ist passend, da es um Abläufe und Entwicklungen geht. 3. 'Entwicklungsprozesse' und 'Entscheidungsprozesse' sind relevant, da sie die Veränderungen und Entscheidungen in Bezug auf Forschungsprojekte beschreiben.
+
+[Hauptkategorie: Ressourcen | Subkategorien: Materiell, Immateriell | Schlüsselwörter: Boni,Anreize,Ressourcen | Dokument: trial_case_iv_2.pdf]
+[FOKUS: Ressourcen, Adherence: Ja] Die Erwähnung von Boni deutet auf materielle Ressourcen hin, während die Diskussion über Anreize auch immaterielle Aspekte wie Motivation und Engagement umfasst. Die Hauptkategorie 'Ressourcen' ist passend, da beide Subkategorien die im Text genannten Aspekte abdecken.
+
+[Hauptkategorie: Herausforderungen | Subkategorien: Individuell, Strukturell | Schlüsselwörter: Burnout,Lehrqualität,Zusatzarbeit | Dokument: trial_case_iv_2.pdf]
+[FOKUS: Herausforderungen, Adherence: Ja] 1. Der Fokus liegt auf den Herausforderungen, die durch Zusatzarbeit entstehen. 2. Die Hauptkategorie 'Herausforderungen' ist passend, da der Text Probleme und Spannungsfelder beschreibt. 3. 'Individuell' bezieht sich auf persönliche Herausforderungen wie Burnout, und 'Strukturell' auf systemische Barrieren in der Lehre.
+
+[Hauptkategorie: Prozesse | Subkategorien: Entwicklungsprozesse | Schlüsselwörter: Lehre,Lehrqualität,Burnout | Dokument: trial_case_iv_2.pdf]
+[FOKUS: Prozesse, Adherence: Ja] 1. Der Fokus liegt auf den Prozessen der Lehre und deren Qualität, insbesondere wie Zusatzarbeit die Abläufe beeinflusst. 2. Die Hauptkategorie 'Prozesse' ist passend, da der Text Abläufe und deren Auswirkungen thematisiert. 3. 'Entwicklungsprozesse' und 'Prozessual' sind relevant, da sie Veränderungen und Ablaufprobleme in der Lehre beschreiben.
+
+[Hauptkategorie: Akteure | Subkategorien: Individuelle_Akteure, Kollektive_Akteure | Schlüsselwörter: Akteure,Interaktion,Lehre | Dokument: trial_case_iv_2.pdf]
+[FOKUS: Akteure, Adherence: Ja] 1. Der Fokus liegt auf den Akteuren, da sowohl individuelle Meinungen als auch kollektive Erfahrungen von Kollegen erwähnt werden. 2. Die Hauptkategorie 'Akteure' ist passend, da der Text explizit auf handelnde Personen und deren Interaktionen eingeht. 3. Die Subkategorien 'Individuelle_Akteure' und 'Kollektive_Akteure' sind relevant, da sowohl Einzelpersonen als auch Gruppen (Kollegen) thematisiert werden.
+
+[Hauptkategorie: Prozesse | Subkategorien: Entwicklungsprozesse, Interaktionsprozesse | Schlüsselwörter: Lehrprozess,Projekte,Austausch | Dokument: trial_case_iv_2.pdf]
+[FOKUS: Prozesse, Adherence: Ja] 1. Der Fokus liegt auf den Prozessen der Projektintegration in die Lehre, was sowohl Entwicklungs- als auch Interaktionsprozesse umfasst. 2. Die Hauptkategorie 'Prozesse' ist passend, da es um Abläufe im Lehrkontext geht. 3. Die gewählten Subkategorien 'Entwicklungsprozesse' und 'Interaktionsprozesse' sind direkt mit den beschriebenen Abläufen und dem Austausch verbunden.
+
+[Hauptkategorie: Akteure | Subkategorien: Kollektive_Akteure, Individuelle_Akteure | Schlüsselwörter: Hochschulleitung,Anreize,individuelle Motivation | Dokument: trial_case_iv_2.pdf]
+[FOKUS: Akteure, Adherence: Ja] 1. Der Fokus auf Akteure wird durch die Erwähnung von Hochschulleitung und Prorektorat gestärkt. 2. Die Hauptkategorie 'Akteure' ist passend, da es um handelnde Personen und Institutionen geht. 3. 'Kollektive_Akteure' bezieht sich auf die Hochschulleitung, während 'Individuelle_Akteure' die Motivation einzelner Personen erfasst.
+
+[Hauptkategorie: Ressourcen | Subkategorien: Materiell, Immateriell | Schlüsselwörter: Anreize,Motivation,Ressourcen | Dokument: trial_case_iv_2.pdf]
+[FOKUS: Ressourcen, Adherence: Ja] 1. Der Fokus liegt auf Ressourcen, da Anreize als materielle und immaterielle Mittel zur Motivation betrachtet werden. 2. Die Hauptkategorie 'Ressourcen' ist passend, da der Text explizit auf Anreize eingeht. 3. Die Subkategorien 'Materiell' (Erlass der Unterrichtsstunden, Mehrbezahlung) und 'Immateriell' (Persönlichkeitsentwicklung als Experte) sind beide relevant.
+
+[Hauptkategorie: Strategien | Subkategorien: Formell, Informell | Schlüsselwörter: Anreize,Motivation,Expertenwissen | Dokument: trial_case_iv_2.pdf]
+[FOKUS: Strategien, Adherence: Ja] 1. Der Fokus auf Strategien wird durch die Nennung von Anreizen zur Motivation deutlich. 2. Die Hauptkategorie 'Strategien' ist passend, da es um Handlungsmuster zur Zielerreichung geht. 3. Die Subkategorien 'Formell' und 'Informell' sind relevant, da sowohl offizielle Anreize als auch ungeschriebene Praktiken angesprochen werden.
+
+[Hauptkategorie: Akteure | Subkategorien: Individuelle_Akteure, Kollektive_Akteure, Beziehungen | Schlüsselwörter: Akteure,Netzwerk,Nachhaltigkeit | Dokument: trial_case_iv_2.pdf]
+[FOKUS: Akteure, Adherence: Ja] 1. Der Fokus auf Akteure wird durch die Interaktion mit Nachhaltigkeitsmanagern und den Austausch in Netzwerken deutlich. 2. Die Hauptkategorie 'Akteure' ist passend, da der Text explizit über handelnde Personen und deren Beziehungen spricht. 3. Die gewählten Subkategorien 'Individuelle_Akteure' und 'Beziehungen' sind relevant, da Einzelpersonen und deren Interaktionen im Text hervorgehoben werden.
+
+[Hauptkategorie: Herausforderungen | Subkategorien: Strukturell, Prozessual | Schlüsselwörter: Herausforderungen,Netzwerk,Output | Dokument: trial_case_iv_2.pdf]
+[FOKUS: Herausforderungen, Adherence: Ja] 1. Der Fokus auf Herausforderungen wird durch die Erwähnung der großen Herausforderung und der nicht idealen Situation gestärkt. 2. Die Hauptkategorie 'Herausforderungen' ist passend, da der Text explizit Probleme anspricht. 3. Die Subkategorien 'Strukturell' und 'Prozessual' sind relevant, da sie systemische Barrieren und ablaufbezogene Schwierigkeiten im Kontext der Projektarbeit im Fachbereich Wirtschaft beschreiben.
+
+[Hauptkategorie: Prozesse | Subkategorien: Interaktionsprozesse, Entwicklungsprozesse | Schlüsselwörter: Austausch,Netzwerk,Output | Dokument: trial_case_iv_2.pdf]
+[FOKUS: Prozesse, Adherence: Ja] 1. Der Austausch und die Netzwerkaktivitäten zeigen, wie Prozesse gestaltet werden und welche Entwicklungen stattfinden. 2. Die Hauptkategorie 'Prozesse' ist passend, da der Text Abläufe und Entwicklungen beschreibt. 3. 'Interaktionsprozesse' und 'Entwicklungsprozesse' sind relevant, da sie den Austausch und die Veränderungen in den Projekten erfassen.
+
+
+    Erstellen Sie eine umfassende Zusammenfassung der Hauptthemen und Konzepte.
+            

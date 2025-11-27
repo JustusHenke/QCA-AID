@@ -5,9 +5,12 @@ Loads and manages QCA-AID configuration from Excel codebook files.
 Handles category definitions, coding rules, settings validation, and sanitization.
 """
 
+# Standard library imports
 import os
-import pandas as pd
 from typing import Dict, Optional, Any
+
+# Third-party imports
+import pandas as pd
 from openpyxl import load_workbook
 
 

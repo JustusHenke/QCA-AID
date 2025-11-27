@@ -2,6 +2,43 @@
 
 ## Versionen und Updates
 
+### Neu in 0.10.2 (2025-11-27)
+
+QCA-AID-EXPLORER REFACTORING: MODULARE ARCHITEKTUR & JSON-KONFIGURATION
+
+Explorer Verbesserungen:
+- ✨ Vollständiges Refactoring in modulare Struktur innerhalb von `QCA_AID_assets`
+  - Minimales Launcher-Skript `QCA-AID-Explorer.py` (< 50 Zeilen)
+  - Alle Funktionalitäten in logische Module organisiert
+  - Neue Module: `explorer.py`, `analysis/qca_analyzer.py`, `utils/config/loader.py`, `utils/config/converter.py`, `utils/config/synchronizer.py`, `utils/visualization/layout.py`
+- ✨ JSON-Konfigurationsunterstützung
+  - Neue Datei `QCA-AID-Explorer-Config.json` als alternatives Konfigurationsformat
+  - Excel-Konfiguration (`QCA-AID-Explorer-Config.xlsx`) weiterhin vollständig unterstützt
+  - Automatische bidirektionale Synchronisation zwischen Excel und JSON
+  - Konfliktauflösung bei Differenzen mit Benutzerabfrage
+  - Automatische Migration beim ersten Start
+- 🔧 Verbesserte Wartbarkeit und Testbarkeit
+  - Einzelne Komponenten können isoliert getestet werden
+  - Module können in anderen Projekten wiederverwendet werden
+  - Vollständige Dokumentation mit Docstrings
+  - JSON-Schema-basierte Validierung mit detaillierten Fehlermeldungen
+- 🔧 Performance und Versionskontrolle
+  - JSON-Laden schneller als Excel-Parsing
+  - Versionskontrollfreundlich (Git-Diffs lesbar)
+  - Programmatische Konfigurationsänderungen möglich
+- 🔧 Vereinheitlichte LLM Provider
+  - Nutzt ausgereiften LLM Provider aus QCA-AID mit Model Capability Detection
+  - Robuste Retry-Logik und Fehlerbehandlung
+- 🔧 Robuste Spaltennamenerkennung
+  - Automatische Normalisierung von Spaltennamen mit Encoding-Problemen
+  - Verbesserte Fehlerbehandlung bei leeren Graphen und fehlenden Daten
+
+Code Quality:
+- 📦 Neue Module: `config_loader.py`, `config_synchronizer.py`, `config_converter.py`
+- ✅ Umfassende Test-Suite für Konfigurationsmanagement
+- 📚 Aktualisierte Dokumentation in `qca-aid-explorer-readme.md`
+- ✅ Funktionalität bleibt vollständig erhalten - keine Breaking Changes
+
 ### Neu in 0.10.1
 
 PARAPHRASEN-BASIERTER BATCH-KONTEXT & BUGFIXES
@@ -18,7 +55,7 @@ Neue Features:
 Verbesserungen:
 - 🔧 Begründungen bei nicht-relevanten Segmenten
   - RelevanceChecker-Begründungen werden korrekt in Export-Tabelle übernommen
-  - Mit "[RelevanzprÜfung]" Präfix gekennzeichnet
+  - Mit "[Relevanzprüfung]" Präfix gekennzeichnet
   - Intelligente Fallback-Begründungen bei fehlenden Details
 - 🔧 Unified Timeout-Animation im UI
   - "Analysemodus ändern?" und "Gespeichertes Codesystem verwenden?" zeigen Countdown inline animiert
@@ -163,6 +200,13 @@ Neu in 0.9.15 (2025-06-02)
     Verbesserte Tie-Breaking-Mechanismen bei Gleichstand zwischen Kodierungen
     Erweiterte Dokumentation der Review-Modi im consensus_info Export-Feld
 
+QCA-AID-Explorer Verbesserungen:
+- 🔧 Robuste Filter-Logik mit automatischem Mapping von Attribut_1-3 zu tatsächlichen Spaltennamen
+- 🔧 Selektive Keyword-Harmonisierung nur für Analysetypen, die sie benötigen
+- 🔧 Verbesserte Fehlerbehandlung: Filter für nicht existierende Spalten werden übersprungen
+- 🔧 Performance-Optimierung: Unnötige Keyword-Verarbeitung vermieden
+- 📊 Detaillierte Debug-Ausgaben über angewendete Filter und Spalten-Mappings
+
 ### Neu in 0.9.12 (2025-05-10)
 
     Verbesserter manueller Kodierungsworkflow mit korrekter Handhabung des letzten Segments
@@ -186,14 +230,18 @@ Neu in 0.9.15 (2025-06-02)
     Verbesserte Fortschrittsvisualisierung während der Subcode-Erfassung
     Verbesserte Handhabung von Schlüsselwörtern mit direkter Verbindung zu Subcodes
 
-
-QCA-AID-Explorer.py Enhancements:
-- Excel-basierte Konfiguration (QCA-AID-Explorer-Config.xlsx)
-- Heatmap-Visualisierung von Codes entlang von Dokumentattributen
-- Mehrere Analysetypen konfigurierbar (Netzwerk, Heatmap, Zusammenfassungen)
-- Anpassbare Parameter für jede Analyse
-- Eindeutige Segment-IDs mit Präfix zur Chunk-Nummer
-- Prägnantere progressive Zusammenfassungen mit weniger Informationsverlust
+QCA-AID-Explorer Verbesserungen:
+- ✨ Neue Schlüsselwort-basierte Sentiment-Analyse
+  - Visualisiert wichtigste Begriffe aus Textsegmenten als Bubbles
+  - Eingefärbt nach Sentiment (positiv/negativ oder benutzerdefinierte Kategorien)
+  - Flexible Konfiguration: Anpassbare Sentiment-Kategorien, Farbschemata und Prompts
+  - Umfassende Ergebnisexporte: Excel-Tabellen mit Sentiment-Verteilungen, Kreuztabellen, Keyword-Rankings
+- 📊 Excel-basierte Konfiguration (QCA-AID-Explorer-Config.xlsx)
+- 📊 Heatmap-Visualisierung von Codes entlang von Dokumentattributen
+- 📊 Mehrere Analysetypen konfigurierbar (Netzwerk, Heatmap, Zusammenfassungen)
+- 📊 Anpassbare Parameter für jede Analyse
+- 🔧 Eindeutige Segment-IDs mit Präfix zur Chunk-Nummer
+- 🔧 Prägnantere progressive Zusammenfassungen mit weniger Informationsverlust
 
 ### Neu in 0.9.9
 

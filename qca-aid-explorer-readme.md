@@ -3,38 +3,105 @@
 ## Überblick
 QCA-AID Explorer ist ein leistungsstarkes Tool zur Analyse qualitativer Kodierungsdaten. Es ermöglicht die Visualisierung von Kodiernetzwerken mit Hauptkategorien, Subkategorien und Schlüsselwörtern sowie die automatisierte Zusammenfassung von kodierten Textsegmenten mithilfe von Large Language Models (LLMs).
 
-**Version:** 0.6.0 (2025-11-26)
+**Hinweis:** QCA-AID Explorer folgt der Versionierung von QCA-AID. Änderungen und Updates werden im Haupt-CHANGELOG dokumentiert.
 
-**Neu in Version 0.6.0 (2025-11-26)**
-- **JSON-Konfigurationsunterstützung**: Konfiguration kann jetzt wahlweise als JSON-Datei gespeichert werden
+## Hauptfunktionen
+
+- **Modulare Architektur**: Vollständiges Refactoring in eine modulare Struktur innerhalb von `QCA_AID_assets`
+- **Minimales Launcher-Skript**: Das Hauptskript `QCA-AID-Explorer.py` ist nur noch ein schlanker Launcher (< 50 Zeilen)
+- **JSON-Konfigurationsunterstützung**: Konfiguration wahlweise als JSON oder Excel-Datei
 - **Automatische Synchronisation**: Bidirektionale Synchronisation zwischen Excel- und JSON-Konfigurationsdateien
-- **Konfliktauflösung**: Bei Differenzen zwischen XLSX und JSON wird der Benutzer zur Auswahl der aktuelleren Version aufgefordert
-- **Automatische Migration**: Beim ersten Start wird automatisch eine JSON-Konfiguration aus der Excel-Datei erstellt
-- **Verbesserte Performance**: JSON-Laden ist schneller als Excel-Parsing
-- **Versionskontrollfreundlich**: JSON-Format ist besser für Git und andere Versionskontrollsysteme geeignet
-- **Vereinheitlichte LLM Provider**: Nutzt jetzt die ausgereiften LLM Provider aus QCA-AID mit Model Capability Detection und Retry-Logik
-- **Robuste Spaltennamenerkennung**: Automatische Normalisierung von Spaltennamen mit Encoding-Problemen
-- **Verbesserte Fehlerbehandlung**: Bessere Behandlung von leeren Graphen und fehlenden Daten
+- **Netzwerk-Visualisierung**: Visualisierung von Kodiernetzwerken mit ForceAtlas2-Layout
+- **Heatmap-Analyse**: Visualisierung von Code-Häufigkeiten entlang Dokumentattributen
+- **LLM-basierte Zusammenfassungen**: Automatisierte Zusammenfassungen von kodierten Textsegmenten
+- **Sentiment-Analyse**: Schlüsselwort-basierte Sentiment-Analyse mit Bubble-Visualisierung
+- **Vereinheitlichte LLM Provider**: Nutzt die ausgereiften LLM Provider aus QCA-AID mit Model Capability Detection
+- **Robuste Fehlerbehandlung**: Automatische Normalisierung von Spaltennamen, Behandlung leerer Graphen
+- **Keyword-Harmonisierung**: Automatische Vereinheitlichung ähnlicher Schlüsselwörter
 
-**Neu in Version 0.5.1 (2025-05-15)**
-- Robuste Filter-Logik: Automatisches Mapping von Attribut_1-3 zu tatsächlichen Spaltennamen in Positionen B-D
-- Selektive Keyword-Harmonisierung: Harmonisierung erfolgt nur noch für Analysetypen, die sie benötigen
-- Verbesserte Fehlerbehandlung: Filter für nicht existierende Spalten werden übersprungen statt Fehler zu werfen
-- Debug-Ausgaben: Detaillierte Informationen über angewendete Filter und Spalten-Mappings
-- Performance-Optimierung: Unnötige Keyword-Verarbeitung für nicht-keyword-basierte Analysen vermieden
+## Architektur
 
-**Neu in Version 0.5.0 (2025-04-10)**
-- Neue Schlüsselwort-basierte Sentiment-Analyse: Visualisiert die wichtigsten Begriffe aus Textsegmenten als Bubbles, eingefärbt nach ihrem Sentiment (positiv/negativ oder benutzerdefinierte Kategorien).
-- Flexible Konfiguration: Anpassbare Sentiment-Kategorien, Farbschemata und Prompts über die Excel-Konfigurationsdatei für domänenspezifische Analysen.
-- Umfassende Ergebnisexporte: Detaillierte Excel-Tabellen mit Sentiment-Verteilungen, Kreuztabellen und Schlüsselwort-Rankings sowie PDF/PNG-Visualisierungen.
+### Modulare Struktur
 
-**Neuerungen in Version 0.4:**
-- Konfiguration über Excel-Datei "QCA-AID-Explorer-Config.xlsx"
-- Heatmap-Visualisierung von Codes entlang Dokumentattributen
-- Mehrere Analysetypen konfigurierbar (Netzwerk, Heatmap, verschiedene Zusammenfassungen)
-- Anpassbare Parameter für jede Analyse
-- Verbessertes ForceAtlas2-Layout für Netzwerkvisualisierungen
-- SVG-Export für bessere Bearbeitbarkeit
+QCA-AID Explorer wurde vollständig refaktoriert und folgt einer modularen Architektur. Die gesamte Funktionalität ist in logische Module innerhalb des `QCA_AID_assets` Pakets organisiert.
+
+#### Projektstruktur
+
+```
+QCA-AID-Explorer.py              # Minimales Launcher-Skript (< 50 Zeilen)
+QCA_AID_assets/
+├── explorer.py                  # Hauptfunktion für QCA-AID Explorer
+├── analysis/
+│   ├── __init__.py
+│   └── qca_analyzer.py         # QCAAnalyzer Klasse mit allen Analysemethoden
+├── utils/
+│   ├── config/
+│   │   ├── __init__.py
+│   │   ├── loader.py           # ConfigLoader für Konfigurationsverwaltung
+│   │   ├── converter.py        # Konvertierung zwischen Excel und JSON
+│   │   └── synchronizer.py     # Synchronisation von Konfigurationsdateien
+│   ├── llm/
+│   │   ├── __init__.py
+│   │   ├── response.py         # LLMResponse Wrapper-Klasse
+│   │   ├── factory.py          # LLM Provider Factory
+│   │   ├── openai_provider.py  # OpenAI Provider
+│   │   └── mistral_provider.py # Mistral Provider
+│   ├── visualization/
+│   │   ├── __init__.py
+│   │   └── layout.py           # Layout-Algorithmen (ForceAtlas2)
+│   ├── prompts.py              # Standard-Prompts für Analysen
+│   └── common.py               # Allgemeine Hilfsfunktionen
+└── ...                         # Weitere QCA-AID Module
+```
+
+#### Vorteile der modularen Architektur
+
+1. **Wartbarkeit**: Jedes Modul hat eine klar definierte Verantwortlichkeit
+2. **Testbarkeit**: Einzelne Komponenten können isoliert getestet werden
+3. **Wiederverwendbarkeit**: Module können in anderen Projekten verwendet werden
+4. **Erweiterbarkeit**: Neue Funktionen können als separate Module hinzugefügt werden
+5. **Lesbarkeit**: Kleinere, fokussierte Dateien sind einfacher zu verstehen
+
+#### Verwendung der Module
+
+Die Module können direkt importiert und verwendet werden:
+
+```python
+# Konfiguration laden
+from QCA_AID_assets.utils.config.loader import ConfigLoader
+config_loader = ConfigLoader("QCA-AID-Explorer-Config.xlsx")
+base_config, analysis_configs = config_loader.load_config()
+
+# Analyzer initialisieren
+from QCA_AID_assets.analysis.qca_analyzer import QCAAnalyzer
+from QCA_AID_assets.utils.llm.factory import LLMProviderFactory
+
+llm_provider = LLMProviderFactory.create_provider(
+    provider_name="openai",
+    model="gpt-4o-mini"
+)
+analyzer = QCAAnalyzer(excel_path, llm_provider, base_config)
+
+# Analysen durchführen
+filtered_df = analyzer.filter_data(filters)
+analyzer.create_network_graph(filtered_df, "output.pdf")
+```
+
+#### Änderungen im Vergleich zur alten Struktur
+
+**Vorher:**
+- Monolithische Datei `QCA-AID-Explorer.py` mit ~2500 Zeilen
+- Alle Klassen und Funktionen in einer Datei
+- Schwierig zu testen und zu erweitern
+
+**Nachher:**
+- Minimales Launcher-Skript `QCA-AID-Explorer.py` mit < 50 Zeilen
+- Alle Funktionalitäten in logische Module aufgeteilt
+- Klare Trennung von Verantwortlichkeiten
+- Vollständige Dokumentation mit Docstrings
+- Einfach zu testen und zu erweitern
+
+**Wichtig:** Die Funktionalität bleibt vollständig erhalten. Alle Features sind weiterhin verfügbar und funktionieren identisch.
 
 ## Installation
 
@@ -46,7 +113,13 @@ QCA-AID Explorer ist ein leistungsstarkes Tool zur Analyse qualitativer Kodierun
 Führen Sie den folgenden Befehl aus, um alle erforderlichen Abhängigkeiten zu installieren:
 
 ```bash
-pip install networkx reportlab scikit-learn pandas openpyxl matplotlib seaborn httpx python-dotenv openai mistralai python-docx numpy
+pip install -r requirements.txt
+```
+
+Alternativ können Sie die Pakete einzeln installieren:
+
+```bash
+pip install networkx reportlab scikit-learn pandas openpyxl matplotlib seaborn httpx python-dotenv openai mistralai python-docx numpy circlify
 ```
 
 ### API-Schlüssel konfigurieren
@@ -81,7 +154,7 @@ Die Konfiguration erfolgt über eine Konfigurationsdatei, die entweder als Excel
 
 ### JSON vs. Excel Konfiguration
 
-**Neu in Version 0.6.0:** Das Tool unterstützt jetzt beide Formate:
+Das Tool unterstützt beide Formate:
 
 - **Excel-Format (.xlsx)**: Traditionelles Format, einfach zu bearbeiten mit Excel oder LibreOffice
 - **JSON-Format (.json)**: Maschinenlesbarer, versionskontrollfreundlicher, schneller zu laden
@@ -330,6 +403,196 @@ Die gleiche Konfiguration als JSON-Datei (`QCA-AID-Explorer-Config.json`):
 - Jede Analyse hat einen eindeutigen Namen im `name`-Feld
 - Filter werden im `filters`-Objekt definiert
 - Alle anderen Parameter kommen ins `params`-Objekt
+
+## Modulreferenz (für Entwickler)
+
+### QCA_AID_assets.explorer
+
+**Modul:** `QCA_AID_assets.explorer`
+
+**Hauptfunktion:** `main()`
+
+Die Hauptfunktion orchestriert die gesamte Analyse-Pipeline:
+1. Lädt die Konfiguration (Excel oder JSON)
+2. Initialisiert den LLM Provider
+3. Erstellt den QCAAnalyzer
+4. Führt alle konfigurierten Analysen durch
+
+**Verwendung:**
+```python
+import asyncio
+from QCA_AID_assets.explorer import main
+
+asyncio.run(main())
+```
+
+### QCA_AID_assets.analysis.qca_analyzer
+
+**Modul:** `QCA_AID_assets.analysis.qca_analyzer`
+
+**Klasse:** `QCAAnalyzer`
+
+Die zentrale Klasse für alle Analysen. Sie bietet Methoden für:
+- Datenfilterung
+- Keyword-Harmonisierung
+- Netzwerk-Visualisierung
+- Heatmap-Erstellung
+- Zusammenfassungen mit LLMs
+- Sentiment-Analyse
+
+**Wichtige Methoden:**
+- `filter_data(filters)`: Filtert Daten nach Kriterien
+- `harmonize_keywords(similarity_threshold)`: Vereinheitlicht ähnliche Keywords
+- `create_network_graph(filtered_df, output_filename, params)`: Erstellt Netzwerk-Visualisierung
+- `create_heatmap(filtered_df, output_filename, params)`: Erstellt Heatmap
+- `create_custom_summary(filtered_df, prompt_template, output_filename, ...)`: Erstellt LLM-Zusammenfassung
+- `create_sentiment_analysis(filtered_df, output_filename, params)`: Erstellt Sentiment-Analyse
+
+**Verwendung:**
+```python
+from QCA_AID_assets.analysis.qca_analyzer import QCAAnalyzer
+
+analyzer = QCAAnalyzer(excel_path, llm_provider, config)
+filtered_df = analyzer.filter_data({"Hauptkategorie": "Herausforderungen"})
+analyzer.create_network_graph(filtered_df, "netzwerk.pdf")
+```
+
+### QCA_AID_assets.utils.config.loader
+
+**Modul:** `QCA_AID_assets.utils.config.loader`
+
+**Klasse:** `ConfigLoader`
+
+Lädt und verwaltet Konfigurationsdateien (Excel und JSON).
+
+**Wichtige Methoden:**
+- `load_config()`: Lädt die Konfiguration und gibt (base_config, analysis_configs) zurück
+- `get_base_config()`: Gibt nur die Basis-Konfiguration zurück
+- `get_analysis_configs()`: Gibt nur die Analyse-Konfigurationen zurück
+
+**Verwendung:**
+```python
+from QCA_AID_assets.utils.config.loader import ConfigLoader
+
+loader = ConfigLoader("QCA-AID-Explorer-Config.xlsx")
+base_config, analysis_configs = loader.load_config()
+```
+
+### QCA_AID_assets.utils.llm.factory
+
+**Modul:** `QCA_AID_assets.utils.llm.factory`
+
+**Klasse:** `LLMProviderFactory`
+
+Factory-Klasse zur Erstellung von LLM Providern.
+
+**Wichtige Methoden:**
+- `create_provider(provider_name, model, **kwargs)`: Erstellt einen LLM Provider
+
+**Unterstützte Provider:**
+- `openai`: OpenAI GPT-Modelle
+- `mistral`: Mistral AI Modelle
+
+**Verwendung:**
+```python
+from QCA_AID_assets.utils.llm.factory import LLMProviderFactory
+
+provider = LLMProviderFactory.create_provider(
+    provider_name="openai",
+    model="gpt-4o-mini",
+    temperature=0.7
+)
+```
+
+### QCA_AID_assets.utils.visualization.layout
+
+**Modul:** `QCA_AID_assets.utils.visualization.layout`
+
+**Funktion:** `create_forceatlas_like_layout(G, iterations, gravity, scaling)`
+
+Erstellt ein ForceAtlas2-ähnliches Layout für Netzwerk-Visualisierungen.
+
+**Parameter:**
+- `G`: NetworkX Graph
+- `iterations`: Anzahl der Layout-Iterationen (Standard: 100)
+- `gravity`: Anziehungskraft zum Zentrum (Standard: 0.01)
+- `scaling`: Skalierungsfaktor für Abstände (Standard: 10.0)
+
+**Rückgabe:** Dictionary mit Knotenpositionen
+
+**Verwendung:**
+```python
+from QCA_AID_assets.utils.visualization.layout import create_forceatlas_like_layout
+import networkx as nx
+
+G = nx.Graph()
+# ... Graph aufbauen ...
+pos = create_forceatlas_like_layout(G, iterations=150, gravity=0.05)
+```
+
+### QCA_AID_assets.utils.prompts
+
+**Modul:** `QCA_AID_assets.utils.prompts`
+
+**Funktion:** `get_default_prompts()`
+
+Gibt Standard-Prompts für verschiedene Analysetypen zurück.
+
+**Rückgabe:** Dictionary mit Prompt-Templates für:
+- `summary_paraphrase`: Paraphrasierung von Textsegmenten
+- `summary_reasoning`: Begründungsanalyse
+- `sentiment_analysis`: Sentiment-Analyse
+
+**Verwendung:**
+```python
+from QCA_AID_assets.utils.prompts import get_default_prompts
+
+prompts = get_default_prompts()
+paraphrase_prompt = prompts["summary_paraphrase"]
+```
+
+### QCA_AID_assets.utils.common
+
+**Modul:** `QCA_AID_assets.utils.common`
+
+**Funktion:** `create_filter_string(filters)`
+
+Erstellt eine String-Repräsentation der Filter für Dateinamen.
+
+**Parameter:**
+- `filters`: Dictionary mit Filter-Parametern
+
+**Rückgabe:** String-Repräsentation der Filter
+
+**Verwendung:**
+```python
+from QCA_AID_assets.utils.common import create_filter_string
+
+filters = {"Hauptkategorie": "Herausforderungen", "Dokument": "Interview_01"}
+filter_str = create_filter_string(filters)
+# Ergebnis: "Hauptkategorie_Herausforderungen_Dokument_Interview_01"
+```
+
+## Verwendung der Module (für Entwickler)
+
+Wenn Sie den Code von QCA-AID Explorer in eigenen Projekten verwenden:
+
+**Modulare Imports:**
+```python
+# Neue modulare Struktur
+from QCA_AID_assets.analysis.qca_analyzer import QCAAnalyzer
+from QCA_AID_assets.utils.config.loader import ConfigLoader
+from QCA_AID_assets.utils.llm.factory import LLMProviderFactory
+from QCA_AID_assets.utils.visualization.layout import create_forceatlas_like_layout
+from QCA_AID_assets.utils.prompts import get_default_prompts
+from QCA_AID_assets.utils.common import create_filter_string
+```
+
+**Vorteile für Entwickler:**
+- Klare Import-Struktur
+- Bessere IDE-Unterstützung (Autocomplete, Type Hints)
+- Einfacheres Testen einzelner Komponenten
+- Wiederverwendung einzelner Module in anderen Projekten
 
 ## Kontakt und Unterstützung
 
