@@ -13,6 +13,10 @@ from typing import Dict, Optional, Any
 import pandas as pd
 from openpyxl import load_workbook
 
+# Local imports
+from .converter import ConfigConverter
+from .synchronizer import ConfigSynchronizer
+
 
 class ConfigLoader:
     """
@@ -41,22 +45,128 @@ class ConfigLoader:
         """
         self.script_dir = script_dir
         self.excel_path = os.path.join(script_dir, "QCA-AID-Codebook.xlsx")
+        self.json_path = os.path.join(script_dir, "QCA-AID-Codebook.json")
+        self.config_path = None  # Will be set by _sync_configs()
         self.global_config = global_config  # Reference zum globalen CONFIG-Objekt
+    
+    def _sync_configs(self) -> None:
+        """
+        Führt Synchronisation zwischen XLSX und JSON durch.
+        
+        Bestimmt Pfade für XLSX und JSON basierend auf config_path.
+        Prüft Existenz beider Dateien und ruft ConfigSynchronizer.sync() auf.
+        Behandelt FileNotFoundError wenn beide fehlen.
+        Aktualisiert config_path basierend auf Synchronisationsergebnis.
+        
+        Raises:
+            FileNotFoundError: Wenn weder XLSX noch JSON existiert
+        """
+        xlsx_exists = os.path.exists(self.excel_path)
+        json_exists = os.path.exists(self.json_path)
+        
+        # Fall 1: Beide Dateien fehlen
+        if not xlsx_exists and not json_exists:
+            raise FileNotFoundError(
+                f"Weder XLSX noch JSON gefunden:\n"
+                f"  XLSX: {self.excel_path}\n"
+                f"  JSON: {self.json_path}"
+            )
+        
+        # Fall 2: Nur eine Datei existiert - keine Synchronisation nötig
+        if xlsx_exists and not json_exists:
+            print(f"Nur XLSX gefunden: {self.excel_path}")
+            self.config_path = self.excel_path
+            return
+        
+        if json_exists and not xlsx_exists:
+            print(f"Nur JSON gefunden: {self.json_path}")
+            self.config_path = self.json_path
+            return
+        
+        # Fall 3: Beide existieren - Synchronisation durchführen
+        try:
+            print("Beide Konfigurationsdateien gefunden. Prüfe Zeitstempel...")
+            
+            # Vergleiche Änderungszeitpunkte
+            xlsx_mtime = os.path.getmtime(self.excel_path)
+            json_mtime = os.path.getmtime(self.json_path)
+            
+            # Wenn XLSX neuer ist, aktualisiere JSON
+            if xlsx_mtime > json_mtime:
+                print("Excel-Datei ist neuer. Aktualisiere JSON...")
+                json_data = ConfigConverter.qca_aid_xlsx_to_json(self.excel_path)
+                ConfigConverter.save_json(json_data, self.json_path)
+                print("✅ JSON-Datei aktualisiert")
+                self.config_path = self.json_path
+            
+            # Wenn JSON neuer ist, aktualisiere XLSX
+            elif json_mtime > xlsx_mtime:
+                print("JSON-Datei ist neuer. Aktualisiere Excel...")
+                json_data = ConfigConverter.load_json(self.json_path)
+                ConfigConverter.qca_aid_json_to_xlsx(json_data, self.excel_path)
+                print("✅ Excel-Datei aktualisiert")
+                self.config_path = self.json_path
+            
+            # Wenn gleich alt, verwende JSON
+            else:
+                print("Beide Dateien haben gleichen Zeitstempel. Verwende JSON.")
+                self.config_path = self.json_path
+                
+        except Exception as e:
+            print(f"⚠️ Warnung: Synchronisation fehlgeschlagen: {str(e)}")
+            print("Verwende JSON-Datei als Fallback.")
+            self.config_path = self.json_path
     
     def load_codebook(self) -> bool:
         """
-        Lädt die komplette Konfiguration aus dem Excel-Codebook.
+        Lädt die komplette Konfiguration aus dem Codebook (JSON oder Excel).
         
-        Attempts to load with read_only mode for better compatibility.
-        If Excel file is locked (PermissionError), tries alternative loading strategy.
+        Ruft _sync_configs() vor dem Laden auf.
+        Bestimmt JSON-Pfad basierend auf excel_path.
+        Prüft ob JSON existiert und bevorzugt JSON.
+        Falls JSON fehlt oder fehlschlägt, verwendet XLSX.
+        Erstellt automatisch fehlende Datei nach erfolgreichem Laden.
         
         Returns:
             bool: True if loading successful, False otherwise
         """
-        print(f"Versuche Konfiguration zu laden von: {self.excel_path}")
-        if not os.path.exists(self.excel_path):
+        # Synchronisiere Konfigurationsdateien
+        try:
+            self._sync_configs()
+        except FileNotFoundError as e:
+            print(f"❌ {str(e)}")
+            return False
+        
+        # Bestimme welche Datei geladen werden soll
+        json_exists = os.path.exists(self.json_path)
+        xlsx_exists = os.path.exists(self.excel_path)
+        
+        # Versuche JSON zu laden wenn vorhanden
+        if json_exists:
+            print(f"Versuche Konfiguration zu laden von: {self.json_path}")
+            success = self._load_from_json(self.json_path)
+            
+            if success:
+                # Erstelle XLSX wenn es fehlt
+                if not xlsx_exists:
+                    try:
+                        print(f"Erstelle Excel-Datei aus JSON: {self.excel_path}")
+                        json_data = ConfigConverter.load_json(self.json_path)
+                        ConfigConverter.qca_aid_json_to_xlsx(json_data, self.excel_path)
+                        print(f"✅ Excel-Datei erstellt: {self.excel_path}")
+                    except Exception as e:
+                        print(f"⚠️ Warnung: Konnte Excel-Datei nicht erstellen: {str(e)}")
+                
+                return True
+            else:
+                print("⚠️ JSON-Laden fehlgeschlagen, versuche Excel...")
+        
+        # Fallback zu Excel wenn JSON nicht existiert oder fehlgeschlagen ist
+        if not xlsx_exists:
             print(f"Excel-Datei nicht gefunden: {self.excel_path}")
             return False
+        
+        print(f"Versuche Konfiguration zu laden von: {self.excel_path}")
 
         try:
             # FIX: Erweiterte Optionen für das Öffnen der Excel-Datei
@@ -88,6 +198,17 @@ class ConfigLoader:
                 # Speichere in Config
                 self.global_config['DEDUKTIVE_KATEGORIEN'] = kategorien
                 print("\nKategorien erfolgreich in Config gespeichert")
+                
+                # Erstelle JSON wenn es fehlt
+                if not json_exists:
+                    try:
+                        print(f"Erstelle JSON-Datei aus Excel: {self.json_path}")
+                        json_data = ConfigConverter.qca_aid_xlsx_to_json(self.excel_path)
+                        ConfigConverter.save_json(json_data, self.json_path)
+                        print(f"✅ JSON-Datei erstellt: {self.json_path}")
+                    except Exception as e:
+                        print(f"⚠️ Warnung: Konnte JSON-Datei nicht erstellen: {str(e)}")
+                
                 return True
             else:
                 print("\nKeine Kategorien geladen!")
@@ -116,6 +237,17 @@ class ConfigLoader:
                 if kategorien:
                     self.global_config['DEDUKTIVE_KATEGORIEN'] = kategorien
                     print("\n✅ Konfiguration trotz geöffneter Datei erfolgreich geladen!")
+                    
+                    # Erstelle JSON wenn es fehlt
+                    if not json_exists:
+                        try:
+                            print(f"Erstelle JSON-Datei aus Excel: {self.json_path}")
+                            json_data = ConfigConverter.qca_aid_xlsx_to_json(self.excel_path)
+                            ConfigConverter.save_json(json_data, self.json_path)
+                            print(f"✅ JSON-Datei erstellt: {self.json_path}")
+                        except Exception as e:
+                            print(f"⚠️ Warnung: Konnte JSON-Datei nicht erstellen: {str(e)}")
+                    
                     return True
                 else:
                     print("\n[ERROR] Keine Kategorien geladen, auch bei alternativer Methode")
@@ -130,6 +262,104 @@ class ConfigLoader:
         except Exception as e:
             print(f"Fehler beim Lesen der Excel-Datei: {str(e)}")
             print("Details:")
+            import traceback
+            traceback.print_exc()
+            return False
+    
+    def _load_from_json(self, json_path: str) -> bool:
+        """
+        Lädt Konfiguration aus JSON-Datei.
+        
+        Liest JSON-Datei mit ConfigConverter.load_json() und extrahiert:
+        - forschungsfrage → global_config
+        - kodierregeln → global_config
+        - deduktive_kategorien → CategoryDefinition Objekte
+        - config-Parameter → global_config
+        
+        Ruft _sanitize_config() auf für Validierung.
+        
+        Args:
+            json_path: Pfad zur JSON-Datei
+            
+        Returns:
+            bool: True wenn erfolgreich geladen
+        """
+        print(f"Lade Konfiguration aus JSON: {json_path}")
+        
+        try:
+            # Lade JSON-Datei
+            json_data = ConfigConverter.load_json(json_path)
+            
+            # 1. Extrahiere forschungsfrage
+            if 'forschungsfrage' in json_data:
+                self.global_config['FORSCHUNGSFRAGE'] = json_data['forschungsfrage']
+                print(f"Forschungsfrage geladen: {json_data['forschungsfrage'][:50]}...")
+            
+            # 2. Extrahiere kodierregeln
+            if 'kodierregeln' in json_data:
+                self.global_config['KODIERREGELN'] = json_data['kodierregeln']
+                print(f"Kodierregeln geladen:")
+                print(f"  - Allgemeine Regeln: {len(json_data['kodierregeln'].get('general', []))}")
+                print(f"  - Formatregeln: {len(json_data['kodierregeln'].get('format', []))}")
+                print(f"  - Ausschlussregeln: {len(json_data['kodierregeln'].get('exclusion', []))}")
+            
+            # 3. Extrahiere deduktive_kategorien und konvertiere zu CategoryDefinition Objekten
+            if 'deduktive_kategorien' in json_data:
+                from datetime import datetime
+                from QCA_AID_assets.core.data_models import CategoryDefinition
+                
+                kategorien = {}
+                for key, kategorie_data in json_data['deduktive_kategorien'].items():
+                    # Erstelle CategoryDefinition Objekt
+                    kategorien[key] = CategoryDefinition(
+                        name=key,
+                        definition=kategorie_data.get('definition', ''),
+                        examples=kategorie_data.get('examples', []),
+                        rules=kategorie_data.get('rules', []),
+                        subcategories=kategorie_data.get('subcategories', {}),
+                        added_date=datetime.now().strftime("%Y-%m-%d"),
+                        modified_date=datetime.now().strftime("%Y-%m-%d")
+                    )
+                
+                self.global_config['DEDUKTIVE_KATEGORIEN'] = kategorien
+                print(f"✅ {len(kategorien)} Kategorien geladen")
+            
+            # 4. Extrahiere config-Parameter
+            if 'config' in json_data:
+                config = json_data['config']
+                
+                # Rufe _sanitize_config() auf für Validierung
+                self._sanitize_config(config)
+                
+                # Update global_config mit Werten die nicht speziell behandelt wurden
+                specially_handled_keys = {
+                    'DATA_DIR', 'OUTPUT_DIR', 'INPUT_DIR',
+                    'CHUNK_SIZE', 'CHUNK_OVERLAP',
+                    'CODER_SETTINGS',
+                    'CODE_WITH_CONTEXT',
+                    'MULTIPLE_CODINGS',
+                    'MULTIPLE_CODING_THRESHOLD',
+                    'SIMILARITY_THRESHOLD',
+                    'PDF_ANNOTATION_FUZZY_THRESHOLD',
+                    'BATCH_SIZE'
+                }
+                
+                for key, value in config.items():
+                    if key not in specially_handled_keys and key not in self.global_config:
+                        self.global_config[key] = value
+                
+                print("Konfigurationsparameter geladen und validiert")
+            
+            return True
+            
+        except FileNotFoundError as e:
+            print(f"❌ JSON-Datei nicht gefunden: {str(e)}")
+            return False
+        except ValueError as e:
+            print(f"❌ Ungültiges JSON-Format: {str(e)}")
+            return False
+        except Exception as e:
+            print(f"❌ Fehler beim Laden der JSON-Datei: {str(e)}")
             import traceback
             traceback.print_exc()
             return False
@@ -424,8 +654,9 @@ class ConfigLoader:
         Bereinigt und validiert Konfigurationswerte.
         
         Handles:
-        - Directory path resolution and creation
-        - Numeric value conversion and validation
+        - Directory path resolution and creation (Requirements 7.1, 7.2, 7.4, 7.5)
+        - Numeric value conversion and validation (Requirements 8.1, 8.2, 8.3, 8.4, 8.5)
+        - Enum parameter validation (Requirements 9.1, 9.2, 9.3, 9.4)
         - CODER_SETTINGS type conversion
         - Parameter constraint checking
         - Chunk size validation
@@ -438,49 +669,177 @@ class ConfigLoader:
             current_dir = os.path.dirname(os.path.abspath(__file__))  # utils/config
             root_dir = os.path.dirname(os.path.dirname(os.path.dirname(current_dir)))  # QCA-AID root
             
-            # FIX: Respektiere benutzerdefinierte Ordnernamen aus der Konfiguration
-            # Setze OUTPUT_DIR nur wenn nicht bereits aus loaded_config vorhanden
-            for key, value in loaded_config.items():
-                # Directory paths relative to root - FIRST pass to load user-defined directories
-                if key in ['DATA_DIR', 'OUTPUT_DIR', 'INPUT_DIR']:
-                    # Convert to absolute path if relative, otherwise use as-is
-                    path_value = str(value).strip()
+            # Default values for validation
+            DEFAULT_VALUES = {
+                'CHUNK_SIZE': 1200,
+                'CHUNK_OVERLAP': 50,
+                'BATCH_SIZE': 8,
+                'MULTIPLE_CODING_THRESHOLD': 0.85,
+                'SIMILARITY_THRESHOLD': 0.7,
+                'PDF_ANNOTATION_FUZZY_THRESHOLD': 0.85,
+                'ANALYSIS_MODE': 'deductive',
+                'REVIEW_MODE': 'consensus'
+            }
+            
+            # ===== SUBTASK 3.3: Pfadverwaltung =====
+            # Unterscheide zwischen relativen und absoluten Pfaden
+            # Löse relative Pfade relativ zum Projektverzeichnis auf
+            # Verwende absolute Pfade direkt
+            # Erstelle nicht-existierende Verzeichnisse
+            for key in ['DATA_DIR', 'OUTPUT_DIR', 'INPUT_DIR']:
+                if key in loaded_config:
+                    path_value = str(loaded_config[key]).strip()
+                    
                     if os.path.isabs(path_value):
                         # Absolute path - use directly
-                        self.global_config[key] = path_value
+                        resolved_path = path_value
                     else:
                         # Relative path - relative to root
-                        self.global_config[key] = os.path.join(root_dir, path_value.lstrip('/\\'))
+                        resolved_path = os.path.join(root_dir, path_value.lstrip('/\\'))
                     
-                    os.makedirs(self.global_config[key], exist_ok=True)
-                    print(f"[SANITIZE] Verzeichnis {key}: {self.global_config[key]}")
-                
-                # Numeric values for chunking
-                elif key in ['CHUNK_SIZE', 'CHUNK_OVERLAP']:
+                    # Erstelle Verzeichnis wenn nicht vorhanden
+                    os.makedirs(resolved_path, exist_ok=True)
+                    self.global_config[key] = resolved_path
+                    print(f"[SANITIZE] Verzeichnis {key}: {resolved_path}")
+            
+            # ===== SUBTASK 3.1: Numerische Validierung =====
+            
+            # CHUNK_SIZE: Prüfe >= 1, verwende Standard bei ungültig
+            if 'CHUNK_SIZE' in loaded_config:
+                try:
+                    chunk_size = int(loaded_config['CHUNK_SIZE'])
+                    if chunk_size < 1:
+                        print(f"⚠️ Warnung: CHUNK_SIZE muss >= 1 sein. Wert '{chunk_size}' ist ungültig.")
+                        print(f"   Verwende Standardwert: {DEFAULT_VALUES['CHUNK_SIZE']}")
+                        self.global_config['CHUNK_SIZE'] = DEFAULT_VALUES['CHUNK_SIZE']
+                    else:
+                        self.global_config['CHUNK_SIZE'] = chunk_size
+                        print(f"[SANITIZE] CHUNK_SIZE = {chunk_size}")
+                except (ValueError, TypeError) as e:
+                    print(f"⚠️ Warnung: Ungültiger CHUNK_SIZE Wert '{loaded_config['CHUNK_SIZE']}'.")
+                    print(f"   Verwende Standardwert: {DEFAULT_VALUES['CHUNK_SIZE']}")
+                    self.global_config['CHUNK_SIZE'] = DEFAULT_VALUES['CHUNK_SIZE']
+            else:
+                self.global_config['CHUNK_SIZE'] = DEFAULT_VALUES['CHUNK_SIZE']
+            
+            # CHUNK_OVERLAP: Prüfe < CHUNK_SIZE, korrigiere bei ungültig
+            if 'CHUNK_OVERLAP' in loaded_config:
+                try:
+                    chunk_overlap = int(loaded_config['CHUNK_OVERLAP'])
+                    if chunk_overlap < 0:
+                        print(f"⚠️ Warnung: CHUNK_OVERLAP muss >= 0 sein. Wert '{chunk_overlap}' ist ungültig.")
+                        print(f"   Verwende Standardwert: {DEFAULT_VALUES['CHUNK_OVERLAP']}")
+                        self.global_config['CHUNK_OVERLAP'] = DEFAULT_VALUES['CHUNK_OVERLAP']
+                    else:
+                        self.global_config['CHUNK_OVERLAP'] = chunk_overlap
+                        print(f"[SANITIZE] CHUNK_OVERLAP = {chunk_overlap}")
+                except (ValueError, TypeError):
+                    print(f"⚠️ Warnung: Ungültiger CHUNK_OVERLAP Wert '{loaded_config['CHUNK_OVERLAP']}'.")
+                    print(f"   Verwende Standardwert: {DEFAULT_VALUES['CHUNK_OVERLAP']}")
+                    self.global_config['CHUNK_OVERLAP'] = DEFAULT_VALUES['CHUNK_OVERLAP']
+            else:
+                self.global_config['CHUNK_OVERLAP'] = DEFAULT_VALUES['CHUNK_OVERLAP']
+            
+            # Stelle sicher dass CHUNK_OVERLAP < CHUNK_SIZE
+            if self.global_config['CHUNK_OVERLAP'] >= self.global_config['CHUNK_SIZE']:
+                print(f"⚠️ Warnung: CHUNK_OVERLAP ({self.global_config['CHUNK_OVERLAP']}) >= CHUNK_SIZE ({self.global_config['CHUNK_SIZE']}).")
+                corrected_overlap = max(1, self.global_config['CHUNK_SIZE'] // 10)
+                print(f"   Korrigiere CHUNK_OVERLAP auf: {corrected_overlap}")
+                self.global_config['CHUNK_OVERLAP'] = corrected_overlap
+            
+            # BATCH_SIZE: Prüfe zwischen 1-20, verwende Standard bei ungültig
+            if 'BATCH_SIZE' in loaded_config:
+                try:
+                    batch_size = int(loaded_config['BATCH_SIZE'])
+                    if batch_size < 1:
+                        print(f"⚠️ Warnung: BATCH_SIZE muss >= 1 sein. Wert '{batch_size}' ist ungültig.")
+                        print(f"   Verwende Standardwert: {DEFAULT_VALUES['BATCH_SIZE']}")
+                        self.global_config['BATCH_SIZE'] = DEFAULT_VALUES['BATCH_SIZE']
+                    elif batch_size > 20:
+                        print(f"⚠️ Warnung: BATCH_SIZE > 20 könnte Performance-Probleme verursachen. Wert '{batch_size}' ist zu hoch.")
+                        print(f"   Verwende Standardwert: {DEFAULT_VALUES['BATCH_SIZE']}")
+                        self.global_config['BATCH_SIZE'] = DEFAULT_VALUES['BATCH_SIZE']
+                    else:
+                        self.global_config['BATCH_SIZE'] = batch_size
+                        print(f"[SANITIZE] BATCH_SIZE = {batch_size}")
+                except (ValueError, TypeError):
+                    print(f"⚠️ Warnung: Ungültiger BATCH_SIZE Wert '{loaded_config['BATCH_SIZE']}'.")
+                    print(f"   Verwende Standardwert: {DEFAULT_VALUES['BATCH_SIZE']}")
+                    self.global_config['BATCH_SIZE'] = DEFAULT_VALUES['BATCH_SIZE']
+            else:
+                self.global_config['BATCH_SIZE'] = DEFAULT_VALUES['BATCH_SIZE']
+            
+            # Float-Thresholds: Prüfe zwischen 0.0-1.0, verwende Standard bei ungültig
+            float_thresholds = {
+                'MULTIPLE_CODING_THRESHOLD': DEFAULT_VALUES['MULTIPLE_CODING_THRESHOLD'],
+                'SIMILARITY_THRESHOLD': DEFAULT_VALUES['SIMILARITY_THRESHOLD'],
+                'PDF_ANNOTATION_FUZZY_THRESHOLD': DEFAULT_VALUES['PDF_ANNOTATION_FUZZY_THRESHOLD']
+            }
+            
+            for threshold_name, default_value in float_thresholds.items():
+                if threshold_name in loaded_config:
                     try:
-                        self.global_config[key] = max(1, int(value))
-                        print(f"[SANITIZE] {key} = {self.global_config[key]}")
+                        threshold = float(loaded_config[threshold_name])
+                        if threshold < 0.0 or threshold > 1.0:
+                            print(f"⚠️ Warnung: {threshold_name} muss zwischen 0.0 und 1.0 liegen. Wert '{threshold}' ist ungültig.")
+                            print(f"   Verwende Standardwert: {default_value}")
+                            self.global_config[threshold_name] = default_value
+                        else:
+                            self.global_config[threshold_name] = threshold
+                            print(f"[SANITIZE] {threshold_name} = {threshold}")
                     except (ValueError, TypeError):
-                        print(f"[SANITIZE] Ungültiger {key}, verwende Standard")
-                        # Use default from common.py constants
-                        self.global_config[key] = value
-                
-                # Coder settings with type conversion
-                elif key == 'CODER_SETTINGS':
-                    self.global_config[key] = [
-                        {
-                            'temperature': float(coder['temperature'])
-                                if isinstance(coder.get('temperature'), (int, float, str))
-                                else 0.3,
-                            'coder_id': str(coder.get('coder_id', f'auto_{i}'))
-                        }
-                        for i, coder in enumerate(value)
-                    ]
-                
-                # All other values pass through unchanged
+                        print(f"⚠️ Warnung: Ungültiger {threshold_name} Wert '{loaded_config[threshold_name]}'.")
+                        print(f"   Verwende Standardwert: {default_value}")
+                        self.global_config[threshold_name] = default_value
                 else:
-                    self.global_config[key] = value
-
+                    self.global_config[threshold_name] = default_value
+            
+            # ===== SUBTASK 3.2: Enum-Validierung =====
+            
+            # ANALYSIS_MODE: Prüfe gegen gültige Werte
+            valid_analysis_modes = {'full', 'abductive', 'deductive', 'inductive', 'grounded'}
+            if 'ANALYSIS_MODE' in loaded_config:
+                analysis_mode = loaded_config['ANALYSIS_MODE']
+                if analysis_mode not in valid_analysis_modes:
+                    print(f"⚠️ Warnung: Ungültiger ANALYSIS_MODE '{analysis_mode}'.")
+                    print(f"   Gültige Werte: {valid_analysis_modes}")
+                    print(f"   Verwende Standardwert: '{DEFAULT_VALUES['ANALYSIS_MODE']}'")
+                    self.global_config['ANALYSIS_MODE'] = DEFAULT_VALUES['ANALYSIS_MODE']
+                else:
+                    self.global_config['ANALYSIS_MODE'] = analysis_mode
+                    print(f"[SANITIZE] ANALYSIS_MODE = {analysis_mode}")
+            else:
+                self.global_config['ANALYSIS_MODE'] = DEFAULT_VALUES['ANALYSIS_MODE']
+            
+            # REVIEW_MODE: Prüfe gegen gültige Werte
+            valid_review_modes = {'auto', 'manual', 'consensus', 'majority'}
+            if 'REVIEW_MODE' in loaded_config:
+                review_mode = loaded_config['REVIEW_MODE']
+                if review_mode not in valid_review_modes:
+                    print(f"⚠️ Warnung: Ungültiger REVIEW_MODE '{review_mode}'.")
+                    print(f"   Gültige Werte: {valid_review_modes}")
+                    print(f"   Verwende Standardwert: '{DEFAULT_VALUES['REVIEW_MODE']}'")
+                    self.global_config['REVIEW_MODE'] = DEFAULT_VALUES['REVIEW_MODE']
+                else:
+                    self.global_config['REVIEW_MODE'] = review_mode
+                    print(f"[SANITIZE] REVIEW_MODE = {review_mode}")
+            else:
+                self.global_config['REVIEW_MODE'] = DEFAULT_VALUES['REVIEW_MODE']
+            
+            # ===== Weitere Validierungen =====
+            
+            # Coder settings with type conversion
+            if 'CODER_SETTINGS' in loaded_config:
+                self.global_config['CODER_SETTINGS'] = [
+                    {
+                        'temperature': float(coder['temperature'])
+                            if isinstance(coder.get('temperature'), (int, float, str))
+                            else 0.3,
+                        'coder_id': str(coder.get('coder_id', f'auto_{i}'))
+                    }
+                    for i, coder in enumerate(loaded_config['CODER_SETTINGS'])
+                ]
+            
             # CODE_WITH_CONTEXT handling
             if 'CODE_WITH_CONTEXT' in loaded_config:
                 value = loaded_config['CODE_WITH_CONTEXT']
@@ -503,44 +862,10 @@ class ConfigLoader:
             else:
                 self.global_config['MULTIPLE_CODINGS'] = True
             
-            # MULTIPLE_CODING_THRESHOLD handling
-            if 'MULTIPLE_CODING_THRESHOLD' in loaded_config:
-                try:
-                    threshold = float(loaded_config['MULTIPLE_CODING_THRESHOLD'])
-                    if 0.0 <= threshold <= 1.0:
-                        self.global_config['MULTIPLE_CODING_THRESHOLD'] = threshold
-                        print(f"[SANITIZE] MULTIPLE_CODING_THRESHOLD = {threshold}")
-                    else:
-                        print(f"[SANITIZE] Warnung: MULTIPLE_CODING_THRESHOLD außerhalb Bereich, verwende 0.6")
-                        self.global_config['MULTIPLE_CODING_THRESHOLD'] = 0.6
-                except (ValueError, TypeError):
-                    print(f"[SANITIZE] Ungültiger MULTIPLE_CODING_THRESHOLD, verwende 0.6")
-                    self.global_config['MULTIPLE_CODING_THRESHOLD'] = 0.6
-            else:
-                self.global_config['MULTIPLE_CODING_THRESHOLD'] = 0.6
-
-            # BATCH_SIZE handling
-            if 'BATCH_SIZE' in loaded_config:
-                try:
-                    batch_size = int(loaded_config['BATCH_SIZE'])
-                    if batch_size < 1:
-                        print("[SANITIZE] Warnung: BATCH_SIZE muss >= 1 sein")
-                        batch_size = 5
-                    elif batch_size > 20:
-                        print("[SANITIZE] Warnung: BATCH_SIZE > 20 könnte Performance-Probleme verursachen")
-                    self.global_config['BATCH_SIZE'] = batch_size
-                    print(f"[SANITIZE] BATCH_SIZE = {batch_size}")
-                except (ValueError, TypeError):
-                    print("[SANITIZE] Ungültiger BATCH_SIZE, verwende 5")
-                    self.global_config['BATCH_SIZE'] = 5
-            else:
-                self.global_config['BATCH_SIZE'] = 5
-
-            # Ensure CHUNK_OVERLAP < CHUNK_SIZE
-            if 'CHUNK_SIZE' in self.global_config and 'CHUNK_OVERLAP' in self.global_config:
-                if self.global_config['CHUNK_OVERLAP'] >= self.global_config['CHUNK_SIZE']:
-                    print(f"[SANITIZE] Warnung: CHUNK_OVERLAP >= CHUNK_SIZE")
-                    self.global_config['CHUNK_OVERLAP'] = max(1, self.global_config['CHUNK_SIZE'] // 10)
+            # Pass through all other values
+            for key, value in loaded_config.items():
+                if key not in self.global_config:
+                    self.global_config[key] = value
                     
         except Exception as e:
             print(f"[SANITIZE] Fehler: {str(e)}")

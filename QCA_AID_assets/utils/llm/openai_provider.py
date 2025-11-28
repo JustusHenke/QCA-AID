@@ -92,8 +92,9 @@ class OpenAIProvider(LLMProvider):
             Exception: If all retry attempts fail
         """
         try:
-            # Import token_counter from deductive_coding (global instance)
-            from ...analysis.deductive_coding import token_counter
+            # Import globale token_counter Instanz
+            from ..tracking.token_tracker import get_global_token_counter
+            token_counter = get_global_token_counter()
             
             # Erstelle Parameter-Dict
             params = {

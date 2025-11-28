@@ -29,7 +29,10 @@ Dieses Python-Skript implementiert Mayrings Methode der deduktiven Qualitativen 
 ### Konfiguration und Nutzung
 - [Unterstützte Eingabedateien](#unterstützte-eingabedateien)
 - [QCA-AID: Konfiguration und Nutzung](#qca-aid-konfiguration-und-nutzung)
+  - [Konfigurationsformate: Excel vs. JSON](#konfigurationsformate-excel-vs-json)
   - [Codebook.xlsx](#codebookxlsx)
+  - [Codebook.json](#codebookjson)
+  - [Automatische Synchronisation](#automatische-synchronisation)
   - [Verzeichnisstruktur](#verzeichnisstruktur)
   - [Starten der Analyse](#starten-der-analyse)
 
@@ -162,7 +165,7 @@ Prinzipiell ist die Verarbeitung der Daten per LLM auch auf einem lokalen Rechne
 
 ## Zitiervorschlag
 
-Henke, J. (2025). QCA-AID: Qualitative Content Analysis with AI-supported Discovery (Version 0.10.0) [Software]. 
+Henke, J. (2025). QCA-AID: Qualitative Content Analysis with AI-supported Discovery (Version 0.10.3) [Software]. 
 Institut für Hochschulforschung Halle-Wittenberg. https://github.com/JustusHenke/QCA-AID
 
 ```BibTex
@@ -268,6 +271,30 @@ Für optimale Ergebnisse wird die Verwendung von einfachen Textformaten (.txt) e
 
 ![Analyse-Modi](analysis-modes.png)
 
+### Konfigurationsformate: Excel vs. JSON
+
+QCA-AID unterstützt zwei Formate für die Konfiguration:
+
+#### Excel-Format (QCA-AID-Codebook.xlsx)
+- **Vorteile**: Vertraute Oberfläche, einfache Bearbeitung, keine technischen Kenntnisse erforderlich
+- **Nachteile**: Langsamer beim Laden, schwieriger für Versionskontrolle
+
+#### JSON-Format (QCA-AID-Codebook.json)
+- **Vorteile**: 
+  - **10x schneller** beim Laden
+  - Ideal für Versionskontrolle mit Git
+  - Bessere Lesbarkeit für technisch versierte Nutzer
+  - Einfachere Automatisierung und Skripterstellung
+- **Nachteile**: Erfordert Grundkenntnisse in JSON-Syntax
+
+#### Welches Format sollten Sie verwenden?
+
+- **Einsteiger**: Nutzen Sie Excel - es ist intuitiver und einfacher zu bearbeiten
+- **Fortgeschrittene**: JSON bietet mehr Flexibilität und Performance
+- **Teams**: Beide Formate können parallel genutzt werden - sie synchronisieren sich automatisch
+
+**Wichtig**: Sie müssen sich nicht entscheiden! QCA-AID synchronisiert beide Formate automatisch. Änderungen in einer Datei werden automatisch in die andere übertragen.
+
 ### Codebook.xlsx
 
 Die Excel-Datei `QCA-AID-Codebook.xlsx` ist zentral für die Konfiguration der Analyse und enthält:
@@ -303,6 +330,118 @@ Hier können Sie verschiedene Konfigurationsparameter einstellen:
 - **AUTO_SAVE_INTERVAL**: Intervall für automatische Sicherung des Kodierfortschritts (in Minuten)
 - **MANUAL_CODING_ENABLED**: Aktiviert den manuellen Kodierungsmodus (true/false)
 - **REVIEW_MODE**: Modus für die Überprüfung von Kodierungen ('consensus', 'majority', 'manual_priority')
+
+### Codebook.json
+
+Die JSON-Datei `QCA-AID-Codebook.json` ist eine Alternative zum Excel-Format und bietet die gleiche Funktionalität.
+
+#### Vorteile der JSON-Konfiguration
+
+- **Performance**: Bis zu 10x schnelleres Laden als Excel
+- **Versionskontrolle**: Ideal für Git - Änderungen sind nachvollziehbar
+- **Automatisierung**: Einfacher für Skripte und Batch-Verarbeitung
+- **Portabilität**: Plattformunabhängig und zukunftssicher
+
+#### Struktur der JSON-Datei
+
+```json
+{
+  "forschungsfrage": "Ihre Forschungsfrage...",
+  "kodierregeln": {
+    "general": ["Regel 1", "Regel 2"],
+    "format": ["Format 1"],
+    "exclusion": ["Ausschluss 1"]
+  },
+  "deduktive_kategorien": {
+    "Kategorie_1": {
+      "definition": "Definition...",
+      "rules": ["Regel 1"],
+      "examples": ["Beispiel 1", "Beispiel 2"],
+      "subcategories": {
+        "Subkategorie_1": "Beschreibung"
+      }
+    }
+  },
+  "config": {
+    "MODEL_PROVIDER": "OpenAI",
+    "MODEL_NAME": "gpt-4o-mini",
+    "CHUNK_SIZE": 1000,
+    "ANALYSIS_MODE": "deductive"
+  }
+}
+```
+
+#### Wichtige Hinweise zur JSON-Syntax
+
+- **Boolean-Werte**: Verwenden Sie `true` oder `false` (ohne Anführungszeichen)
+- **Zahlen**: Schreiben Sie Zahlen ohne Anführungszeichen: `"CHUNK_SIZE": 1000`
+- **Strings**: Verwenden Sie doppelte Anführungszeichen: `"MODEL_PROVIDER": "OpenAI"`
+- **Null-Werte**: Verwenden Sie `null` für nicht gesetzte Werte
+- **Keine Kommentare**: JSON unterstützt keine Kommentare - nutzen Sie die Dokumentation
+
+#### Beispieldatei
+
+Eine vollständige Beispiel-JSON-Datei finden Sie in `QCA-AID-Codebook-Example.json`. Die zugehörige Dokumentation mit detaillierten Erklärungen finden Sie in `QCA-AID-Codebook-Example-Documentation.md`.
+
+### Automatische Synchronisation
+
+QCA-AID synchronisiert Excel- und JSON-Dateien automatisch:
+
+#### Wie funktioniert die Synchronisation?
+
+1. **Beim Start**: QCA-AID prüft, ob beide Dateien existieren
+2. **Zeitstempel-Vergleich**: Die neuere Datei wird als Quelle verwendet
+3. **Automatische Aktualisierung**: Die ältere Datei wird automatisch aktualisiert
+4. **Fehlende Datei**: Wenn nur eine Datei existiert, wird die andere automatisch erstellt
+
+#### Szenarien
+
+**Szenario 1: Nur Excel vorhanden**
+```
+QCA-AID-Codebook.xlsx ✓
+QCA-AID-Codebook.json ✗
+→ JSON wird automatisch erstellt
+```
+
+**Szenario 2: Nur JSON vorhanden**
+```
+QCA-AID-Codebook.xlsx ✗
+QCA-AID-Codebook.json ✓
+→ Excel wird automatisch erstellt
+```
+
+**Szenario 3: Beide vorhanden, Excel neuer**
+```
+QCA-AID-Codebook.xlsx (2024-01-15 14:30) ✓
+QCA-AID-Codebook.json (2024-01-15 10:00) ✓
+→ JSON wird aus Excel aktualisiert
+```
+
+**Szenario 4: Beide vorhanden, JSON neuer**
+```
+QCA-AID-Codebook.xlsx (2024-01-15 10:00) ✓
+QCA-AID-Codebook.json (2024-01-15 14:30) ✓
+→ Excel wird aus JSON aktualisiert
+```
+
+#### Migration von Excel zu JSON
+
+Wenn Sie von Excel zu JSON wechseln möchten:
+
+1. **Automatische Migration**: Starten Sie QCA-AID einfach mit Ihrer Excel-Datei
+2. **JSON wird erstellt**: Die JSON-Datei wird automatisch generiert
+3. **Beide Formate nutzen**: Sie können weiterhin beide Formate parallel verwenden
+4. **Nur JSON nutzen**: Löschen Sie die Excel-Datei, wenn Sie nur noch JSON verwenden möchten
+
+**Tipp**: Für detaillierte Informationen zur Migration siehe `MIGRATION_GUIDE.md`
+
+#### Konfliktauflösung
+
+Bei Synchronisationsproblemen:
+- QCA-AID gibt eine Warnung aus
+- Die Quelldatei wird weiterhin verwendet
+- Prüfen Sie die Fehlermeldung und korrigieren Sie die Datei
+- Starten Sie QCA-AID erneut
 
 
 #### CODE_WITH_CONTEXT

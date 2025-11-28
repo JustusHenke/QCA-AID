@@ -1,0 +1,258 @@
+{
+  "forschungsfrage": "Wie gestaltet sich die digitale Transformation in deutschen Hochschulen und welche Herausforderungen und Chancen lassen sich dabei identifizieren?",
+  "kodierregeln": {
+    "general": [
+      "Kodiere nur explizite Aussagen, keine Interpretationen",
+      "Berücksichtige den Kontext der Aussage",
+      "Bei Unsicherheit dokumentiere die Gründe",
+      "Kodiere vollständige Sinneinheiten",
+      "Interviewerfragen ignorieren, es sei denn sie beziehen sich konkret auf Aussagen der befragten Person"
+    ],
+    "format": [
+      "Markiere relevante Textstellen vollständig",
+      "Dokumentiere Begründung der Zuordnung",
+      "Gib den Konfidenzwert an (0.0-1.0)"
+    ],
+    "exclusion": [
+      "Literaturverzeichnisse und Referenzlisten",
+      "Tabellarische Datenaufstellungen ohne Interpretation",
+      "Methodische Infoboxen",
+      "Fußnoten mit reinen Quellenangaben"
+    ]
+  },
+  "deduktive_kategorien": {
+    "Akteure": {
+      "definition": "Erfasst alle handelnden Personen, Gruppen oder Institutionen sowie deren Rollen, Beziehungen und Interaktionen im Kontext der digitalen Transformation",
+      "rules": [
+        "Codiere Aussagen zu: Individuen, Gruppen, Organisationen, Netzwerken",
+        "Berücksichtige sowohl formelle als auch informelle Akteure",
+        "Achte auf Machtbeziehungen und Hierarchien"
+      ],
+      "examples": [
+        "Die Projektleiterin hat die Entscheidung für das neue LMS eigenständig getroffen",
+        "Die Arbeitsgruppe Digitalisierung trifft sich wöchentlich zur Abstimmung",
+        "Als Vermittler zwischen IT-Abteilung und Fakultät konnte er den Konflikt lösen",
+        "Die beteiligten Hochschulen haben eine Kooperationsvereinbarung zur gemeinsamen Plattformentwicklung unterzeichnet"
+      ],
+      "subcategories": {
+        "Individuelle_Akteure": "Einzelpersonen wie Lehrende, Studierende, IT-Personal und deren spezifische Eigenschaften und Handlungen",
+        "Kollektive_Akteure": "Gruppen, Organisationen, Institutionen wie Fakultäten, Arbeitsgruppen, Hochschulleitungen",
+        "Beziehungen": "Interaktionen, Hierarchien, Netzwerke zwischen verschiedenen Akteuren",
+        "Rollen": "Formelle und informelle Positionen wie Innovationstreiber, Gatekeeper, Early Adopters"
+      }
+    },
+    "Technologien": {
+      "definition": "Umfasst alle digitalen Werkzeuge, Plattformen, Systeme und Infrastrukturen, die im Hochschulkontext eingesetzt werden",
+      "rules": [
+        "Codiere sowohl Hardware als auch Software",
+        "Berücksichtige auch geplante oder diskutierte Technologien",
+        "Achte auf Integrationsfragen zwischen verschiedenen Systemen"
+      ],
+      "examples": [
+        "Das neue Learning Management System Moodle wurde campusweit eingeführt",
+        "Die Videokonferenz-Software Zoom ermöglicht hybride Lehrveranstaltungen",
+        "Die veraltete IT-Infrastruktur verhindert den Einsatz moderner Tools",
+        "KI-gestützte Prüfungssysteme werden derzeit pilotiert"
+      ],
+      "subcategories": {
+        "Lernplattformen": "LMS, CMS, E-Learning-Systeme wie Moodle, ILIAS, Canvas",
+        "Kommunikationstools": "Videokonferenz, Chat, Kollaborationsplattformen",
+        "Infrastruktur": "Server, Netzwerke, Cloud-Dienste, Hardware",
+        "Spezialsoftware": "Fachspezifische Tools, Simulationen, Laborsoftware"
+      }
+    },
+    "Kontextfaktoren": {
+      "definition": "Umfasst die strukturellen, zeitlichen, räumlichen und kulturellen Rahmenbedingungen der digitalen Transformation",
+      "rules": [
+        "Codiere sowohl förderliche als auch hinderliche Faktoren",
+        "Berücksichtige historische Entwicklungen",
+        "Achte auf Wechselwirkungen zwischen verschiedenen Kontextebenen"
+      ],
+      "examples": [
+        "Die föderale Hochschulstruktur erschwert bundesweite Lösungen",
+        "Während der Pandemie beschleunigte sich die Digitalisierung erheblich",
+        "Die räumliche Verteilung der Standorte erfordert digitale Lösungen",
+        "Eine Kultur des Ausprobierens fördert innovative Ansätze"
+      ],
+      "subcategories": {
+        "Strukturell": "Organisatorische und institutionelle Bedingungen, Governance-Strukturen",
+        "Zeitlich": "Historische Entwicklung, Zeitpunkte, Perioden, Dringlichkeit",
+        "Räumlich": "Geografische Verteilung, Campus-Struktur, Raumkonzepte",
+        "Kulturell": "Normen, Werte, Traditionen, Innovationskultur"
+      }
+    },
+    "Prozesse": {
+      "definition": "Erfasst Abläufe, Entwicklungen und Veränderungen im Kontext der Digitalisierung über Zeit",
+      "rules": [
+        "Codiere sowohl geplante als auch emergente Prozesse",
+        "Achte auf Phasen und Meilensteine",
+        "Berücksichtige Feedbackschleifen und Iterationen"
+      ],
+      "examples": [
+        "Die Entscheidung für das neue System wurde in einem partizipativen Prozess getroffen",
+        "Die schrittweise Einführung ermöglichte kontinuierliches Lernen",
+        "Der regelmäßige Austausch zwischen Lehrenden verbesserte die Nutzung",
+        "Konflikte um Ressourcen verzögerten die Implementierung"
+      ],
+      "subcategories": {
+        "Entscheidungsprozesse": "Formelle und informelle Entscheidungsfindung, Governance",
+        "Entwicklungsprozesse": "Veränderungen, Transformationen, Reifegradentwicklung",
+        "Interaktionsprozesse": "Kommunikation, Austausch, Kollaboration",
+        "Konfliktprozesse": "Aushandlungen, Widerstände, Konfliktlösungen"
+      }
+    },
+    "Ressourcen": {
+      "definition": "Materielle und immaterielle Mittel und Kapazitäten für die digitale Transformation",
+      "rules": [
+        "Codiere sowohl vorhandene als auch fehlende Ressourcen",
+        "Berücksichtige Verteilungsfragen",
+        "Achte auf Ressourcenkonflikte"
+      ],
+      "examples": [
+        "Das Budget für Digitalisierung wurde um 30% erhöht",
+        "Fehlende Kompetenzen im IT-Support behindern die Nutzung",
+        "Die Lehrenden haben Zugang zu umfangreichen Schulungsangeboten",
+        "Zeitressourcen für die Umstellung sind knapp bemessen"
+      ],
+      "subcategories": {
+        "Materiell": "Finanzielle Mittel, Hardware, Räume, Infrastruktur",
+        "Immateriell": "Wissen, Kompetenzen, soziales Kapital, Reputation",
+        "Zugang": "Verfügbarkeit, Verteilung, Zugangsbedingungen",
+        "Nutzung": "Einsatz, Verwertung, Effizienz"
+      }
+    },
+    "Strategien": {
+      "definition": "Handlungsmuster, Konzepte und Ansätze zur Gestaltung der digitalen Transformation",
+      "rules": [
+        "Codiere sowohl Top-down als auch Bottom-up Strategien",
+        "Berücksichtige explizite und implizite Strategien",
+        "Achte auf Strategiewechsel und Anpassungen"
+      ],
+      "examples": [
+        "Die Hochschulleitung verabschiedete eine umfassende Digitalisierungsstrategie",
+        "Durch informelle Netzwerke verbreiten sich Best Practices",
+        "Pilotprojekte ermöglichen risikoarmes Experimentieren",
+        "Agile Methoden ersetzen klassische Projektplanung"
+      ],
+      "subcategories": {
+        "Formell": "Offizielle Strategien, Pläne, Policies, Leitlinien",
+        "Informell": "Ungeschriebene Praktiken, Workarounds, Gewohnheiten",
+        "Adaptiv": "Anpassungsstrategien, Flexibilität, Reaktionsfähigkeit",
+        "Innovativ": "Neue Lösungsansätze, Experimente, Pionierarbeit"
+      }
+    },
+    "Outcomes": {
+      "definition": "Ergebnisse, Wirkungen und Folgen der Digitalisierungsbemühungen",
+      "rules": [
+        "Codiere sowohl positive als auch negative Outcomes",
+        "Berücksichtige verschiedene Zeithorizonte",
+        "Achte auf unbeabsichtigte Nebeneffekte"
+      ],
+      "examples": [
+        "Die Studierendenzufriedenheit mit digitalen Angeboten stieg um 25%",
+        "Unerwartete technische Probleme führten zu Frustration",
+        "Kurzfristig erhöhte sich der Arbeitsaufwand erheblich",
+        "Langfristig verbesserte sich die Lehrqualität nachweislich"
+      ],
+      "subcategories": {
+        "Intendiert": "Beabsichtigte Wirkungen, geplante Erfolge",
+        "Nicht_intendiert": "Unbeabsichtigte Folgen, Nebeneffekte",
+        "Kurzfristig": "Unmittelbare Effekte, erste Reaktionen",
+        "Langfristig": "Nachhaltige Wirkungen, strukturelle Veränderungen"
+      }
+    },
+    "Herausforderungen": {
+      "definition": "Probleme, Hindernisse, Barrieren und Spannungsfelder bei der Digitalisierung",
+      "rules": [
+        "Codiere sowohl technische als auch soziale Herausforderungen",
+        "Berücksichtige verschiedene Ebenen (individuell, organisational, systemisch)",
+        "Achte auf Lösungsansätze für Herausforderungen"
+      ],
+      "examples": [
+        "Die heterogene IT-Landschaft erschwert Integration",
+        "Widerstände gegen Veränderungen verzögern Prozesse",
+        "Einzelne Lehrende fühlen sich mit der Technik überfordert",
+        "Datenschutzanforderungen begrenzen Gestaltungsspielräume"
+      ],
+      "subcategories": {
+        "Strukturell": "Systemische Barrieren, organisatorische Hindernisse",
+        "Prozessual": "Ablaufbezogene Schwierigkeiten, Koordinationsprobleme",
+        "Individuell": "Persönliche Herausforderungen, Kompetenzdefizite",
+        "Kontextuell": "Umfeldbezogene Probleme, externe Rahmenbedingungen"
+      }
+    },
+    "Legitimation": {
+      "definition": "Begründungen, Rechtfertigungen und Deutungsmuster für Digitalisierungsentscheidungen",
+      "rules": [
+        "Codiere explizite und implizite Legitimationsstrategien",
+        "Berücksichtige verschiedene Legitimationsquellen",
+        "Achte auf konkurrierende Deutungen"
+      ],
+      "examples": [
+        "Digitalisierung wird als Notwendigkeit für Wettbewerbsfähigkeit dargestellt",
+        "Praktische Vorteile wie Zeitersparnis überzeugen Skeptiker",
+        "Forschungsergebnisse belegen die Wirksamkeit digitaler Lehre",
+        "Emotionale Appelle betonen die Verantwortung gegenüber Studierenden"
+      ],
+      "subcategories": {
+        "Normativ": "Wertbasierte Begründungen, ethische Argumente",
+        "Pragmatisch": "Praktische Rechtfertigungen, Effizienzargumente",
+        "Kognitiv": "Wissensbasierte Erklärungen, Evidenz",
+        "Emotional": "Gefühlsbezogene Deutungen, Begeisterung, Ängste"
+      }
+    }
+  },
+  "config": {
+    "MODEL_PROVIDER": "OpenAI",
+    "MODEL_NAME": "gpt-4o-mini",
+    "DATA_DIR": "input",
+    "OUTPUT_DIR": "output",
+    "CHUNK_SIZE": 1000,
+    "CHUNK_OVERLAP": 40,
+    "BATCH_SIZE": 5,
+    "CODE_WITH_CONTEXT": true,
+    "MULTIPLE_CODINGS": true,
+    "MULTIPLE_CODING_THRESHOLD": 0.85,
+    "ANALYSIS_MODE": "deductive",
+    "REVIEW_MODE": "consensus",
+    "ATTRIBUTE_LABELS": {
+      "attribut1": "Hochschultyp",
+      "attribut2": "Position",
+      "attribut3": "Fachbereich"
+    },
+    "EXPORT_ANNOTATED_PDFS": true,
+    "PDF_ANNOTATION_FUZZY_THRESHOLD": 0.85,
+    "CODER_SETTINGS": [
+      {
+        "temperature": 0.3,
+        "coder_id": "auto_1"
+      },
+      {
+        "temperature": 0.5,
+        "coder_id": "auto_2"
+      }
+    ],
+    "VALIDATION": {
+      "MIN_DEFINITION_WORDS": 15,
+      "MIN_EXAMPLES": 2,
+      "SIMILARITY_THRESHOLD": 0.7,
+      "MIN_SUBCATEGORIES": 2,
+      "MAX_NAME_LENGTH": 50,
+      "MIN_NAME_LENGTH": 3,
+      "ENGLISH_WORDS": {
+        "research": true,
+        "development": true,
+        "management": true,
+        "system": true,
+        "process": true,
+        "analysis": true
+      },
+      "MESSAGES": {
+        "short_definition": "Definition zu kurz (min. {min_words} Wörter)",
+        "few_examples": "Zu wenige Beispiele (min. {min_examples})",
+        "english_terms": "Name enthält englische Begriffe",
+        "name_length": "Name muss zwischen {min_len} und {max_len} Zeichen sein"
+      }
+    }
+  }
+}

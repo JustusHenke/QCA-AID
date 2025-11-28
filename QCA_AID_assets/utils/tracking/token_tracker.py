@@ -11,6 +11,23 @@ from datetime import date
 from typing import Dict, Optional, Any
 
 
+# Globale Token-Counter Instanz (Singleton-Pattern)
+_global_token_counter = None
+
+
+def get_global_token_counter():
+    """
+    Gibt die globale Token-Counter Instanz zurück (Singleton).
+    
+    Returns:
+        TokenTracker: Die globale Token-Counter Instanz
+    """
+    global _global_token_counter
+    if _global_token_counter is None:
+        _global_token_counter = TokenTracker()
+    return _global_token_counter
+
+
 class TokenTracker:
     """
     Verfolgt Token-Verbrauch und LLM-Kosten mit persistenten Statistiken.

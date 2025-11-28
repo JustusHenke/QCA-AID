@@ -5,7 +5,7 @@ Automatisches deduktives Codieren von Text-Chunks anhand des Kodierleitfadens.
 """
 
 import json
-from ..utils.tracking.token_tracker import TokenTracker
+from ..utils.tracking.token_tracker import TokenTracker, get_global_token_counter
 from ..utils.llm.response import LLMResponse
 from ..utils.llm.factory import LLMProviderFactory
 from datetime import datetime
@@ -16,8 +16,8 @@ from ..core.data_models import CategoryDefinition, CodingResult
 from ..core.validators import CategoryValidator
 from ..QCA_Prompts import QCAPrompts
 
-# Globaler Token-Counter
-token_counter = TokenTracker()
+# Verwende globale Token-Counter Instanz
+token_counter = get_global_token_counter()
 
 
 class DeductiveCategoryBuilder:

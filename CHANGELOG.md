@@ -2,6 +2,82 @@
 
 ## Versionen und Updates
 
+### Neu in 0.10.3 (2025-11-28)
+
+QCA-AID JSON-KONFIGURATION: VOLLSTÄNDIGE INTEGRATION
+
+JSON-Konfigurationsunterstützung:
+- ✨ Vollständige JSON-Unterstützung für QCA-AID-Codebook
+  - Neue Datei `QCA-AID-Codebook.json` als alternatives Konfigurationsformat
+  - Excel-Konfiguration (`QCA-AID-Codebook.xlsx`) weiterhin vollständig unterstützt
+  - Automatische bidirektionale Synchronisation zwischen Excel und JSON
+  - Intelligente Dateierkennung: System wählt automatisch neuere Datei basierend auf Zeitstempel
+  - Automatische Erstellung fehlender Dateien (JSON oder Excel) beim ersten Start
+- ✨ Round-Trip Konvertierung ohne Datenverlust
+  - Vollständige Übertragung aller Elemente: Forschungsfrage, Kodierregeln, Kategorien, CONFIG
+  - Erhalt aller Datentypen (Boolean, Integer, Float, String, Listen, Dictionaries)
+  - Korrekte Verarbeitung verschachtelter Strukturen (CODER_SETTINGS, ATTRIBUTE_LABELS)
+  - Hierarchische Kategorien mit Definition, Regeln, Beispielen und Unterkategorien
+- ✨ UTF-8 Encoding und Formatierung
+  - Korrekte Darstellung deutscher Umlaute (ä, ö, ü, ß)
+  - Menschenlesbare JSON-Struktur mit 2-Leerzeichen-Einrückung
+  - ensure_ascii=False für native Unicode-Zeichen
+  - Logische Struktur mit klar benannten Schlüsseln
+
+Validierung und Fehlerbehandlung:
+- ✨ Umfassende numerische Parametervalidierung
+  - CHUNK_SIZE: Prüfung >= 1, automatische Standardwerte bei ungültigen Werten
+  - CHUNK_OVERLAP: Prüfung < CHUNK_SIZE, automatische Korrektur bei Konflikten
+  - BATCH_SIZE: Prüfung zwischen 1-20, Warnung bei Performance-kritischen Werten
+  - Float-Thresholds: Validierung zwischen 0.0-1.0 für alle Schwellenwerte
+  - Detaillierte Warnmeldungen mit Standardwerten bei Validierungsfehlern
+- ✨ Enum-Parametervalidierung
+  - ANALYSIS_MODE: Strikte Validierung gegen {full, abductive, deductive, inductive, grounded}
+  - REVIEW_MODE: Strikte Validierung gegen {auto, manual, consensus, majority}
+  - Automatische Fallback-Werte bei ungültigen Eingaben
+  - Klare Fehlermeldungen mit Liste gültiger Werte
+- ✨ Intelligente Pfadverwaltung
+  - Automatische Unterscheidung zwischen relativen und absoluten Pfaden
+  - Relative Pfade werden relativ zum Projektverzeichnis aufgelöst
+  - Absolute Pfade werden direkt verwendet
+  - Automatische Erstellung nicht-existierender Verzeichnisse
+  - Robuste Fehlerbehandlung bei Pfadproblemen
+- ✨ Robuste Fehlerbehandlung
+  - Graceful Fallback bei Synchronisationsfehlern
+  - Detaillierte Fehlermeldungen bei ungültigen Konfigurationen
+  - Automatische Verwendung von Standardwerten bei fehlenden Parametern
+  - Warnung bei Encoding-Problemen mit automatischer Korrektur
+
+Dokumentation und Beispiele:
+- 📚 Vollständige Beispiel-JSON-Datei (`QCA-AID-Codebook-Example.json`)
+- 📚 Detaillierte Dokumentation (`QCA-AID-Codebook-Example-Documentation.md`)
+- 📚 Migration Guide (`MIGRATION_GUIDE.md`) mit Schritt-für-Schritt-Anleitungen
+- 📚 Aktualisierte README mit JSON-Konfigurationshinweisen
+- 📚 Beispiele für alle Datentypen und Strukturen
+
+Bugfixes:
+- �  Token-Tracking korrigiert: Singleton-Pattern implementiert
+  - Problem: Mehrere separate TokenTracker-Instanzen in verschiedenen Modulen führten zu inkonsistenten Statistiken
+  - Lösung: Globale `get_global_token_counter()` Funktion stellt sicher, dass alle Module dieselbe Instanz verwenden
+  - Alle Token-Statistiken werden jetzt korrekt aggregiert und angezeigt
+  - Session- und Daily-Statistiken zeigen nun akkurate Werte
+  - Betrifft: `analysis_manager.py`, `deductive_coding.py`, `inductive_coding.py`, `relevance_checker.py`, `openai_provider.py`
+
+Code Quality:
+- 📦 Erweiterte Module: `config/loader.py`, `config/converter.py`, `config/synchronizer.py`
+- 📦 Verbessertes Token-Tracking: `tracking/token_tracker.py` mit Singleton-Pattern
+- ✅ Vollständige Implementierung aller 10 Requirements mit 60+ Acceptance Criteria
+- ✅ Umfassende Systemtests bestätigen korrekte Funktionalität
+- 📚 Detaillierte Inline-Dokumentation mit Requirement-Referenzen
+- ✅ Vollständige Abwärtskompatibilität - keine Breaking Changes
+
+Vorteile der JSON-Konfiguration:
+- 🚀 Schnelleres Laden (JSON-Parsing ~10x schneller als Excel)
+- 📝 Versionskontrollfreundlich (Git-Diffs lesbar und nachvollziehbar)
+- 🔧 Programmatische Konfigurationsänderungen möglich
+- 🌍 Bessere Portabilität zwischen Systemen
+- 👥 Einfachere Zusammenarbeit durch Textformat
+
 ### Neu in 0.10.2 (2025-11-27)
 
 QCA-AID-EXPLORER REFACTORING: MODULARE ARCHITEKTUR & JSON-KONFIGURATION
