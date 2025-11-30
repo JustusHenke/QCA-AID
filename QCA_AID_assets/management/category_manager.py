@@ -164,4 +164,4 @@ class CategoryManager:
 
 
 # --- Klasse: RelevanceChecker ---
-# Aufgabe: Zentrale Klasse fuer RelevanzprÜfungen mit Caching und Batch-Verarbeitung
+# Aufgabe: Zentrale Klasse fuer Relevanzprüfungen mit Caching und Batch-Verarbeitung

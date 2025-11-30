@@ -1,0 +1,65 @@
+{
+  "forschungsfrage": "Welche Phänomene und Muster lassen sich in den Daten identifizieren?",
+  "kodierregeln": {
+    "general": [
+      "Bleibe offen für emergente Kategorien",
+      "Kodiere datengetrieben, nicht theoriegeleitet",
+      "Achte auf wiederkehrende Muster und Konzepte",
+      "Dokumentiere Zusammenhänge zwischen Codes",
+      "Nutze In-vivo-Codes wo möglich"
+    ],
+    "format": [
+      "Verwende deskriptive, konzeptuelle Labels",
+      "Behalte aussagekräftige Originalformulierungen bei",
+      "Markiere besonders prägnante Stellen"
+    ],
+    "exclusion": [
+      "Ignoriere rein deskriptive Passagen ohne konzeptuelle Relevanz",
+      "Ignoriere bereits gesättigte Konzepte (nach mehrfacher Bestätigung)"
+    ]
+  },
+  "deduktive_kategorien": {
+    "Initiale_Sensibilisierende_Konzepte": {
+      "definition": "Breite, offene Kategorie für erste Beobachtungen und Muster. Diese Kategorie dient als Ausgangspunkt und wird durch induktive Subkategorien verfeinert.",
+      "rules": [
+        "Kodiere alle potenziell relevanten Phänomene",
+        "Achte auf Aktionen, Interaktionen, Prozesse",
+        "Identifiziere Bedingungen und Konsequenzen",
+        "Notiere Zusammenhänge und Beziehungen"
+      ],
+      "examples": [
+        "Beschreibungen von Handlungen und Strategien",
+        "Aussagen über Ursachen und Wirkungen",
+        "Schilderungen von Erfahrungen und Ereignissen"
+      ],
+      "subcategories": {}
+    }
+  },
+  "config": {
+    "MODEL_PROVIDER": "OpenAI",
+    "MODEL_NAME": "gpt-4o-mini",
+    "DATA_DIR": "input",
+    "OUTPUT_DIR": "output",
+    "CHUNK_SIZE": 1000,
+    "CHUNK_OVERLAP": 80,
+    "BATCH_SIZE": 5,
+    "CODE_WITH_CONTEXT": true,
+    "MULTIPLE_CODINGS": false,
+    "MULTIPLE_CODING_THRESHOLD": 0.5,
+    "ANALYSIS_MODE": "grounded",
+    "REVIEW_MODE": "manual_priority",
+    "ATTRIBUTE_LABELS": {
+      "attribut1": "Quelle",
+      "attribut2": "Kontext",
+      "attribut3": "Phase"
+    },
+    "CODER_SETTINGS": [
+      {
+        "temperature": 0.4,
+        "coder_id": "coder_creative"
+      }
+    ],
+    "EXPORT_ANNOTATED_PDFS": false,
+    "PDF_ANNOTATION_FUZZY_THRESHOLD": 0.8
+  }
+}

@@ -157,22 +157,22 @@ class OpenAIProvider(LLMProvider):
                                 response = await self.client.chat.completions.create(**params_minimal)
                                 return response
                             except Exception as minimal_error:
-                                print(f"❌ [ERROR] Auch minimal-Versuch fehlgeschlagen: {str(minimal_error)[:200]}")
+                                print(f"❌ ‼️ Auch minimal-Versuch fehlgeschlagen: {str(minimal_error)[:200]}")
                                 token_counter.track_error(self.model_name)
                                 raise
                         else:
                             # Anderer Fehler
-                            print(f"❌ [ERROR] Retry ohne temperature fehlgeschlagen: {retry_error_msg[:200]}")
+                            print(f"❌ ‼️ Retry ohne temperature fehlgeschlagen: {retry_error_msg[:200]}")
                             token_counter.track_error(self.model_name)
                             raise
                 else:
                     # Anderer Fehler - logge und rethrow
-                    print(f"❌ [ERROR] API-Fehler (nicht temperature-bezogen): {error_msg[:200]}")
+                    print(f"❌ ‼️ API-Fehler (nicht temperature-bezogen): {error_msg[:200]}")
                     token_counter.track_error(self.model_name)
                     raise
                     
         except Exception as e:
-            print(f"❌ [ERROR] Unerwarteter Fehler in create_completion: {str(e)[:200]}")
+            print(f"❌ ‼️ Unerwarteter Fehler in create_completion: {str(e)[:200]}")
             try:
                 from ...analysis.deductive_coding import token_counter
                 token_counter.track_error(self.model_name)

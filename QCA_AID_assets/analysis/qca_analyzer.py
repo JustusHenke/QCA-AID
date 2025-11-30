@@ -1101,8 +1101,8 @@ class QCAAnalyzer:
             print("Warnung: Keine Daten für die Zusammenfassung vorhanden!")
             return
         
-        # Check if prompt_template is None
-        if prompt_template is None:
+        # Check if prompt_template is None or empty
+        if not prompt_template or not prompt_template.strip():
             print("Warnung: Kein Prompt-Template angegeben! Verwende Standard-Prompt.")
             prompt_template = """
     Bitte analysieren Sie die folgenden Textsegmente:

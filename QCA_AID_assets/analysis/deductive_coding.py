@@ -146,7 +146,7 @@ class DeductiveCoder:
             bool: True wenn Update erfolgreich
         """
         try:
-            # FIX: PrÜfe Analysemodus vor Update
+            # FIX: Prüfe Analysemodus vor Update
             analysis_mode = CONFIG.get('ANALYSIS_MODE', 'deductive')
             
             if analysis_mode == 'grounded':
@@ -187,7 +187,7 @@ class DeductiveCoder:
                 
                 WICHTIGE REGELN FÜR GROUNDED KODIERUNG:
                 1. Verwende NUR die oben aufgefÜhrten induktiven Kategorien
-                2. KEINE deduktiven Kategorien aus dem ursprÜnglichen Codebook verwenden
+                2. KEINE deduktiven Kategorien aus dem ursprünglichen Codebook verwenden
                 3. Diese Kategorien wurden bottom-up aus den Texten entwickelt
                 4. Kodiere nur dann, wenn das Segment eindeutig zu einer dieser Kategorien passt
                 5. Bei Unsicherheit: "Nicht kodiert" verwenden
@@ -201,7 +201,7 @@ class DeductiveCoder:
                 
                 BerÜcksichtige bei der Kodierung:
                 1. Verwende alle verfÜgbaren Kategorien entsprechend ihrer Definitionen
-                2. PrÜfe auch Subkategorien bei der Zuordnung
+                2. Prüfe auch Subkategorien bei der Zuordnung
                 3. Kodiere nur bei eindeutiger Zuordnung
                 
                 Antworte einfach mit "Verstanden" wenn du die Anweisung erhalten hast.
@@ -283,7 +283,7 @@ class DeductiveCoder:
                 
                 if filtered_categories:
                     print(f"    🎯 Gefilterte Kodierung fuer {self.coder_id}: {len(filtered_categories)}/{len(current_categories)} Kategorien")
-                    print(f"    🔀‹ Fokus auf: {', '.join(preferred_cats)}")
+                    print(f"    🔀 Fokus auf: {', '.join(preferred_cats)}")
                     effective_categories = filtered_categories
                 else:
                     print(f"    ❌ Keine der bevorzugten Kategorien {preferred_cats} gefunden - nutze alle Kategorien")
@@ -333,10 +333,10 @@ class DeductiveCoder:
                 # Verarbeite Response
                 llm_response = LLMResponse(response)
                 try:
-                    result = json.loads(llm_response.content)
+                    result = json.loads(llm_response.extract_json())
                 except json.JSONDecodeError as e:
-                    print(f"[ERROR][{self.coder_id}] JSONDecodeError in code_chunk: {e}")
-                    print(f"[ERROR][{self.coder_id}] Raw LLM response: {llm_response.content}")
+                    print(f"‼️[{self.coder_id}] JSONDecodeError in code_chunk: {e}")
+                    print(f"‼️[{self.coder_id}] Raw LLM response: {llm_response.content}")
                     token_counter.track_error(self.model_name)
                     return None
                 
@@ -452,10 +452,10 @@ class DeductiveCoder:
                 # Verarbeite Response mit Wrapper
                 llm_response = LLMResponse(response)
                 try:
-                    result = json.loads(llm_response.content)
+                    result = json.loads(llm_response.extract_json())
                 except json.JSONDecodeError as e:
-                    print(f"[ERROR][{self.coder_id}] JSONDecodeError in code_chunk_with_progressive_context: {e}")
-                    print(f"[ERROR][{self.coder_id}] Raw LLM response: {llm_response.content}")
+                    print(f"‼️[{self.coder_id}] JSONDecodeError in code_chunk_with_progressive_context: {e}")
+                    print(f"‼️[{self.coder_id}] Raw LLM response: {llm_response.content}")
                     token_counter.track_error(self.model_name)
                     return None
 
@@ -467,7 +467,7 @@ class DeductiveCoder:
                         # Verarbeite Paraphrase
                         paraphrase = result.get('paraphrase', '')
                         if paraphrase:
-                            print(f"      🧾  Fokus-Paraphrase: {paraphrase}")
+                            print(f"      🧾 Fokus-Paraphrase: {paraphrase}")
 
                         # Dokumentiere Fokus-Adherence
                         focus_adherence = result.get('focus_adherence', {})
@@ -543,10 +543,10 @@ class DeductiveCoder:
             # Verarbeite Response mit Wrapper
             llm_response = LLMResponse(response)
             try:
-                result = json.loads(llm_response.content)
+                result = json.loads(llm_response.extract_json())
             except json.JSONDecodeError as e:
-                print(f"[ERROR][{self.coder_id}] JSONDecodeError: {e}")
-                print(f"[ERROR][{self.coder_id}] Raw LLM response: {llm_response.content}")
+                print(f"‼️[{self.coder_id}] JSONDecodeError: {e}")
+                print(f"‼️[{self.coder_id}] Raw LLM response: {llm_response.content}")
                 token_counter.track_error(self.model_name)
                 return None # Or handle more gracefully
             
@@ -554,7 +554,7 @@ class DeductiveCoder:
             
             token_counter.track_response(response, self.model_name)
 
-            # Detaillierte Ausgabe der RelevanzprÜfung
+            # Detaillierte Ausgabe der Relevanzprüfung
             if result.get('is_relevant'):
                 print(f"✅ Relevanz bestÄtigt (Konfidenz: {result.get('confidence', 0):.2f})")
                 if result.get('key_aspects'):
@@ -568,7 +568,7 @@ class DeductiveCoder:
             return result.get('is_relevant', False)
 
         except Exception as e:
-            print(f"Fehler bei der RelevanzprÜfung: {str(e)}")
+            print(f"Fehler bei der Relevanzprüfung: {str(e)}")
             return True  # Im Zweifelsfall als relevant markieren
 
     

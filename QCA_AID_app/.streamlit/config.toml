@@ -1,0 +1,19 @@
+[server]
+# Bind only to localhost for security
+address = "127.0.0.1"
+port = 8501
+enableCORS = false
+enableXsrfProtection = true
+maxUploadSize = 200
+
+[browser]
+# Disable usage statistics collection
+gatherUsageStats = false
+
+[theme]
+# Microsoft Fluent UI Design System
+primaryColor = "#0078D4"  # Fluent Blue
+backgroundColor = "#FFFFFF"  # Neutral Background
+secondaryBackgroundColor = "#F5F5F5"  # Neutral Background Secondary
+textColor = "#242424"  # Neutral Foreground
+font = "sans serif"  # Will be overridden by Segoe UI in CSS

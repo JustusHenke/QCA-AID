@@ -54,7 +54,7 @@ class IntegratedAnalysisManager:
 
         )
         
-        # Zentrale RelevanzprÜfung
+        # Zentrale Relevanzprüfung
         self.relevance_checker = RelevanceChecker(
             model_name=self.model_name,
             batch_size=self.batch_size,
@@ -164,7 +164,7 @@ class IntegratedAnalysisManager:
                                     batch: List[Tuple[str, str]], 
                                     current_categories: Dict[str, CategoryDefinition]) -> Dict[str, CategoryDefinition]:
         """
-        VEREINFACHT: Keine weitere RelevanzprÜfung mehr nÖtig
+        VEREINFACHT: Keine weitere Relevanzprüfung mehr nÖtig
         """
         # Die Segmente sind bereits in analyze_material gefiltert worden
         relevant_segments = [text for _, text in batch]  # Einfach die Texte extrahieren
@@ -358,7 +358,7 @@ class IntegratedAnalysisManager:
             )
             
             llm_response = LLMResponse(response)
-            result = json.loads(llm_response.content)
+            result = json.loads(llm_response.extract_json())
             
             
             token_counter.track_response(response, self.model_name)
@@ -400,7 +400,7 @@ class IntegratedAnalysisManager:
         Kodiert einen Batch parallel mit optionalem Paraphrasen-Kontext.
         FIX: Erweitert um Kategorie-Vorauswahl fuer deduktiven Modus
         FIX: Nutzt Paraphrasen vorheriger Chunks als Kontext
-        BUGFIX: Verwendet separate, lockere RelevanzprÜfung fuer Kodierung.
+        BUGFIX: Verwendet separate, lockere Relevanzprüfung fuer Kodierung.
         """
         print(f"\n🚀 PARALLEL-KODIERUNG: {len(batch)} Segmente gleichzeitig")
         start_time = time.time()
@@ -427,9 +427,9 @@ class IntegratedAnalysisManager:
         # FIX: Zeige Kategorie-Vorauswahl-Informationen
         if category_preselections:
             preselected_count = len([s for s in batch if s[0] in category_preselections])
-            print(f"🎯 {preselected_count} Segmente haben Kategorie-PrÄferenzen")
+            print(f"🎯 {preselected_count} Segmente haben Kategorie-Präferenzen")
             
-            # Statistik der Kategorie-PrÄferenzen
+            # Statistik der Kategorie-Präferenzen
             all_preferred = []
             for prefs in category_preselections.values():
                 all_preferred.extend(prefs.get('preferred_categories', []))
@@ -437,13 +437,13 @@ class IntegratedAnalysisManager:
             if all_preferred:
                 from collections import Counter
                 pref_stats = Counter(all_preferred)
-                print(f"🎯 HÄufigste PrÄferenzen: {dict(pref_stats.most_common(3))}")
+                print(f"🎯 Häufigste Präferenzen: {dict(pref_stats.most_common(3))}")
         
-        print(f"\n🕵️ PrÜfe Kodierungs-Relevanz...")
+        print(f"\n🕵️ Prüfe Kodierungs-Relevanz...")
         coding_relevance_results = await self.relevance_checker.check_relevance_batch(batch)
         
         # Debug-Ausgaben
-        print(f"\n🕵️ Kodierungs-RelevanzprÜfung Ergebnisse:")
+        print(f"\n🕵️ Kodierungs-Relevanzprüfung Ergebnisse:")
         relevant_count = sum(1 for is_relevant in coding_relevance_results.values() if is_relevant)
         print(f"   - Segmente geprÜft: {len(coding_relevance_results)}")
         print(f"   - Als kodierungsrelevant eingestuft: {relevant_count}")
@@ -458,7 +458,7 @@ class IntegratedAnalysisManager:
             ]
             
             if coding_relevant_segments:
-                print(f"  ℹ️ PrÜfe {len(coding_relevant_segments)} kodierungsrelevante Segmente auf Mehrfachkodierung...")
+                print(f"  ℹ️ Prüfe {len(coding_relevant_segments)} kodierungsrelevante Segmente auf Mehrfachkodierung...")
                 multiple_coding_results = await self.relevance_checker.check_multiple_category_relevance(
                     coding_relevant_segments, categories
                 )
@@ -660,7 +660,7 @@ class IntegratedAnalysisManager:
                             'segment_id': segment_id,
                             'coder_id': coder.coder_id,
                             'category': coding.category,
-                            'subcategories': validated_subcats,  # FIX: Immer validierte oder ursprÜngliche Subkategorien
+                            'subcategories': validated_subcats,  # FIX: Immer validierte oder ursprüngliche Subkategorien
                             'confidence': coding.confidence,
                             'justification': coding.justification,
                             'text': text,
@@ -1001,7 +1001,7 @@ class IntegratedAnalysisManager:
                     chunks, initial_categories, all_segments, skip_inductive, batch_size, analysis_mode
                 )
             
-            # KORRIGIERT: PrÜfe ob result ein Tupel ist
+            # KORRIGIERT: Prüfe ob result ein Tupel ist
             if result is None:
                 print("❌ Warnung: Analyse-Methode gab None zurÜck")
                 return initial_categories, []
@@ -1087,29 +1087,29 @@ class IntegratedAnalysisManager:
             
             try:
                 # 1. ALLGEMEINE RELEVANZPRÜFUNG
-                print(f"\n🕵️ Schritt 1: Erweiterte RelevanzprÜfung fuer Forschungsfrage...")
+                print(f"\n🕵️ Schritt 1: Erweiterte Relevanzprüfung fuer Forschungsfrage...")
 
-                # FIX: Escape-PrÜfung vor RelevanzprÜfung
+                # FIX: Escape-PrÜfung vor Relevanzprüfung
                 if self.check_escape_abort():
-                    print("\n🏁 Abbruch vor RelevanzprÜfung erkannt...")
+                    print("\n🏁 Abbruch vor Relevanzprüfung erkannt...")
                     await self._export_intermediate_results(chunks, current_categories, deductive_categories, initial_categories)
                     return current_categories, self.coding_results
                 
                 if analysis_mode == 'deductive':
-                    # FIX: Erweiterte RelevanzprÜfung fuer deduktiven Modus
+                    # FIX: Erweiterte Relevanzprüfung fuer deduktiven Modus
                     extended_relevance_results = await self.relevance_checker.check_relevance_with_category_preselection(
                         batch, current_categories, analysis_mode
                     )
                     
-                    # Filtere relevante Segmente und sammle Kategorie-PrÄferenzen
+                    # Filtere relevante Segmente und sammle Kategorie-Präferenzen
                     generally_relevant_batch = []
-                    category_preselections = {}  # FIX: Neue Variable fuer Kategorie-PrÄferenzen
+                    category_preselections = {}  # FIX: Neue Variable fuer Kategorie-Präferenzen
                     
                     for segment_id, text in batch:
                         result = extended_relevance_results.get(segment_id, {})
                         if result.get('is_relevant', False):
                             generally_relevant_batch.append((segment_id, text))
-                            # FIX: Speichere Kategorie-PrÄferenzen fuer spaeteren Gebrauch
+                            # FIX: Speichere Kategorie-Präferenzen fuer spaeteren Gebrauch
                             category_preselections[segment_id] = {
                                 'preferred_categories': result.get('preferred_categories', []),
                                 'relevance_scores': result.get('relevance_scores', {}),
@@ -1122,10 +1122,10 @@ class IntegratedAnalysisManager:
                         for prefs in category_preselections.values():
                             for cat in prefs['preferred_categories']:
                                 preselection_stats[cat] = preselection_stats.get(cat, 0) + 1
-                        print(f"🎯 Kategorie-PrÄferenzen: {preselection_stats}")
+                        print(f"🎯 Kategorie-Präferenzen: {preselection_stats}")
                         
                 else:
-                    # FIX: Standard-RelevanzprÜfung fuer andere Modi (unverÄndert)
+                    # FIX: Standard-Relevanzprüfung fuer andere Modi (unverÄndert)
                     general_relevance_results = await self.relevance_checker.check_relevance_batch(batch)
                     generally_relevant_batch = [
                         (segment_id, text) for segment_id, text in batch 
@@ -1137,9 +1137,9 @@ class IntegratedAnalysisManager:
                 # Markiere alle Segmente als verarbeitet
                 self.processed_segments.update(sid for sid, _ in batch)
 
-                # FIX: Escape-PrÜfung nach RelevanzprÜfung
+                # FIX: Escape-PrÜfung nach Relevanzprüfung
                 if self.check_escape_abort():
-                    print("\n🏁 Abbruch nach RelevanzprÜfung erkannt...")
+                    print("\n🏁 Abbruch nach Relevanzprüfung erkannt...")
                     await self._export_intermediate_results(chunks, current_categories, deductive_categories, initial_categories)
                     return current_categories, self.coding_results
                 
@@ -1338,7 +1338,7 @@ class IntegratedAnalysisManager:
             print(f"ℹ️ Material verarbeitet: {material_percentage:.1f}%")
             print(f"{'='*60}")
             
-            # 1. RelevanzprÜfung
+            # 1. Relevanzprüfung
             general_relevance_results = await self.relevance_checker.check_relevance_batch(batch)
             generally_relevant_batch = [
                 (segment_id, text) for segment_id, text in batch 
@@ -1422,7 +1422,7 @@ class IntegratedAnalysisManager:
                 for subcode in subcodes:
                     subcode_name = subcode.get('name', '').strip()
                     if subcode_name:
-                        # PrÜfe auf Duplikate
+                        # Prüfe auf Duplikate
                         existing_names = [sc['name'] for sc in self.grounded_subcodes_collection]
                         
                         if subcode_name not in existing_names:
@@ -1713,7 +1713,7 @@ class IntegratedAnalysisManager:
                     config=CONFIG
                 )
                 
-                # Berechne eine grobe ReliabilitÄt fuer Zwischenergebnisse
+                # Berechne eine grobe Reliabilität fuer Zwischenergebnisse
                 reliability = 0.8  # Placeholder
                 
                 await exporter.export_results(
@@ -1771,7 +1771,7 @@ class IntegratedAnalysisManager:
                 # Sammle Änderungen fuer Debug-Ausgabe
                 changes = []
                 
-                # PrÜfe auf neue/geÄnderte Definition
+                # Prüfe auf neue/geÄnderte Definition
                 new_definition = category.definition
                 if len(new_definition) > len(existing.definition):
                     changes.append("Definition aktualisiert")

@@ -2,7 +2,58 @@
 
 # QCA-AID: Qualitative Content Analysis - with AI-supported Discovery
 
-Dieses Python-Skript implementiert Mayrings Methode der deduktiven Qualitativen Inhaltsanalyse mit induktiver Erweiterung mit KI-Unterstützung durch die OpenAI API. Es kombiniert traditionelle qualitative Forschungsmethoden mit modernen KI-Fähigkeiten, um Forschende bei der Analyse von Dokumenten- und Interviewdaten zu unterstützen. Das Ziel dieses Tools ist nicht, die menschliche Arbeit der Inhaltsanalyse zu ersetzen, sondern neue Möglichkeiten zu eröffnen, mehr Zeit für die Analyse und Reflexion bereits vorstrukturierter Textdaten zu gewinnen. 
+Dieses Python-Skript implementiert Mayrings Methode der deduktiven Qualitativen Inhaltsanalyse mit induktiver Erweiterung mit KI-Unterstützung. Es kombiniert traditionelle qualitative Forschungsmethoden mit modernen KI-Fähigkeiten, um Forschende bei der Analyse von Dokumenten- und Interviewdaten zu unterstützen. Das Ziel dieses Tools ist nicht, die menschliche Arbeit der Inhaltsanalyse zu ersetzen, sondern neue Möglichkeiten zu eröffnen, mehr Zeit für die Analyse und Reflexion bereits vorstrukturierter Textdaten zu gewinnen.
+
+**🔒 Datenschutz-Hinweis:** QCA-AID unterstützt **lokale LLM-Modelle** (LM Studio, Ollama) für maximalen Datenschutz. Ihre Daten bleiben zu 100% auf Ihrem Computer - ideal für sensible Forschungsdaten und DSGVO-konforme Analysen. Siehe [Lokale Modelle](#lokale-modelle-lm-studio--ollama--empfohlen-für-datenschutz) für Details. 
+
+## Anwendungsmöglichkeiten von QCA-AID
+
+- Es ermöglicht mehr Dokumente in einer Untersuchung zu berücksichtigen als in herkömmlichen Verfahren, bei denen Personalkapazitäten stark begrenzt sind.    
+- Es ermöglicht die Umsetzung von Intercoder-Vergleichen mittels zugeschalteten KI-Coder, wo sonst nur ein menschlicher Coder pro Dokument arbeiten würde, und kann damit zur Qualitätsverbesserung beitragen
+- QCA-AID kann auch ganz ohne KI-Coder genutzt werden, als Alternative zu kostenpflichtigen Programmen.
+- Es ermöglicht zusätzliche explorative Dokumentenanalysen, die sonst aus pragmatischen Gründen mit einfacheren Verfahren umgesetzt würden
+
+**Zu beachten**
+
+- Gefahr der Überkonfidenz in eine automatisiert ermittelte Struktur der Daten 
+- Bei geringer Anzahl von Dokumenten überwiegen weiterhin die Vorteile menschlicher Kodierung (Close-reading, Kontextverständnis, Erfahrung)
+
+__ACHTUNG!__
+Bitte beachten Sie, dass sich dieses Skript noch in der Entwicklung befindet und möglicherweise noch nicht alle Funktionen optimal arbeiten. Es wird aktuell eine Nutzung zu Testzwecken empfohlen, wenn die Ergebnisse einer manuellen Prüfung des Outputs reliabel und valide sind, kann eine weiterführende Nutzung in Betracht gezogen werden. Am besten kodieren Sie dafür einen Teil der Dokumente (z.B. 10%) manuell und nutzen sie die integrierte Intercoderanalyse.
+
+Prüfen Sie regelmäßig, ob eine neue Version hier bereitgestellt ist und verfolgen sie die Änderungen.
+Beachten Sie auch, dass KI-Ergebnisse nicht perfekt sind und die Ergebnisse von der Qualität der Eingabedaten (Forschungsfrage, Codesystem, Text-Material) abhängen.
+Sie verwenden das Skript auf eigene Verantwortung, ohne jegliche Gewährleistung.  
+
+__TIPP: Achten Sie darauf, Ihre Kategorien im Codebook sehr präzise zu formulieren, da die Kodierung sehr sensibel darauf reagiert. Unscharfe Definitionen und Kriterien führen mitunter zu übermäßig freizügiger Kodierung. Textnahe Codes sind meist besser als welche mit hohem Abstraktionsgrad (die benötigen mehr definitorische Erläuterung).__
+
+--> Feedback ist willkommen! <--
+Kontakt: justus.henke@hof.uni-halle.de
+
+__Hinweis zum Datenschutz__
+
+Die KI-gestützte Datenverarbeitung kann auf zwei Arten erfolgen:
+
+### Option 1: Cloud-basierte Modelle (OpenAI, Anthropic, Mistral)
+- **Vorteile:** Höchste Qualität, schnelle Verarbeitung, einfache Einrichtung
+- **Datenschutz:** Daten werden an externe Anbieter übermittelt
+- **Empfehlung:** Prüfen Sie, ob Ihre Dokumente dafür freigegeben sind und entfernen Sie ggf. sensible Informationen
+- **Hinweis:** Auch wenn diese Anfragen offiziell nicht für das Training von Modellen genutzt werden, stellt dies eine Verarbeitung durch Dritte dar
+
+### Option 2: Lokale Modelle (LM Studio, Ollama) ⭐ **Empfohlen für sensible Daten**
+- **Vorteile:** 
+  - ✅ **100% Datenschutz** - Alle Daten bleiben auf Ihrem Computer
+  - ✅ **Kostenlos** - Keine API-Gebühren
+  - ✅ **Offline-fähig** - Keine Internetverbindung erforderlich
+  - ✅ **DSGVO-konform** - Keine Datenübermittlung an Dritte
+- **Einrichtung:** 
+  - LM Studio: [https://lmstudio.ai/](https://lmstudio.ai/)
+  - Ollama: [https://ollama.ai/](https://ollama.ai/)
+  - Siehe [LOCAL_MODELS_GUIDE.md](LOCAL_MODELS_GUIDE.md) für detaillierte Anleitung
+- **Webapp-Integration:** Wählen Sie "Local (LM Studio/Ollama)" als Modell-Anbieter
+
+**Für hochsensible Daten wird die Nutzung lokaler Modelle ausdrücklich empfohlen!**
+
 
 ## Inhaltsverzeichnis
 
@@ -22,6 +73,13 @@ Dieses Python-Skript implementiert Mayrings Methode der deduktiven Qualitativen 
 - [Empfehlungen für die Installation](#empfehlungen-für-die-installation)
 - [Installation](#installation)
 - [Speichern des API-Schlüssels](#speichern-des-api-schlüssels)
+
+### QCA-AID Webapp (NEU!)
+- [Webapp-Übersicht](#qca-aid-webapp)
+- [Webapp-Schnellstart](WEBAPP_QUICKSTART.md)
+- [Webapp-Benutzerhandbuch](WEBAPP_README.md)
+- [Webapp-Fehlerbehebung](WEBAPP_TROUBLESHOOTING.md)
+- [Webapp-API-Dokumentation](WEBAPP_API.md)
 
 
 ### Systemarchitektur
@@ -90,35 +148,63 @@ Dieses Python-Skript implementiert Mayrings Methode der deduktiven Qualitativen 
 | `io/` | Dokumentenladung (.pdf/.docx/.txt) | PyPDF2, python-docx, spacy |
 | `analysis/` | Hilfsreiches für Kodierungslogik | (keine externen Dependencies) |
 
-## Anwendungsmöglichkeiten
+## QCA-AID Webapp
 
-- Es ermöglicht mehr Dokumente in einer Untersuchung zu berücksichtigen als in herkömmlichen Verfahren, bei denen Personalkapazitäten stark begrenzt sind.    
-- Es ermöglicht die Umsetzung von Intercoder-Vergleichen mittels zugeschalteten KI-Coder, wo sonst nur ein menschlicher Coder pro Dokument arbeiten würde, und kann damit zur Qualitätsverbesserung beitragen
-- QCA-AID kann auch ganz ohne KI-Coder genutzt werden, als Alternative zu kostenpflichtigen Programmen.
-- Es ermöglicht zusätzliche explorative Dokumentenanalysen, die sonst aus pragmatischen Gründen mit einfacheren Verfahren umgesetzt würden
+**NEU in Version 0.11.0**: QCA-AID bietet jetzt eine vollständige webbasierte Benutzeroberfläche!
 
-**Zu beachten**
+Die QCA-AID Webapp ist eine lokale, webbasierte Anwendung, die eine intuitive Alternative zur Kommandozeile und direkten Bearbeitung von Konfigurationsdateien bietet.
 
-- Gefahr der Überkonfidenz in eine automatisiert ermittelte Struktur der Daten 
-- Bei geringer Anzahl von Dokumenten überwiegen weiterhin die Vorteile menschlicher Kodierung (Close-reading, Kontextverständnis, Erfahrung)
+### Hauptfunktionen
 
-__ACHTUNG!__
-Bitte beachten Sie, dass sich dieses Skript noch in der Entwicklung befindet und möglicherweise noch nicht alle Funktionen optimal arbeiten. Es wird aktuell eine Nutzung zu Testzwecken empfohlen, wenn die Ergebnisse einer manuellen Prüfung des Outputs reliabel und valide sind, kann eine weiterführende Nutzung in Betracht gezogen werden. Am besten kodieren Sie dafür einen Teil der Dokumente (z.B. 10%) manuell und nutzen sie die integrierte Intercoderanalyse.
+- **Grafische Konfigurationsverwaltung**: Alle Einstellungen über eine intuitive Oberfläche
+- **Visueller Codebook-Editor**: Kategorien, Definitionen und Regeln strukturiert bearbeiten
+- **Integrierte Analyse-Steuerung**: Analysen direkt aus der Webapp starten und überwachen
+- **Echtzeit-Fortschrittsanzeige**: Live-Updates während der Analyse
+- **Explorer-Integration**: Ergebnisse direkt in der Webapp verwalten
+- **Localhost-Only**: Alle Daten bleiben sicher auf Ihrem Computer
 
-Prüfen Sie regelmäßig, ob eine neue Version hier bereitgestellt ist und verfolgen sie die Änderungen.
-Beachten Sie auch, dass KI-Ergebnisse nicht perfekt sind und die Ergebnisse von der Qualität der Eingabedaten (Forschungsfrage, Codesystem, Text-Material) abhängen.
-Sie verwenden das Skript auf eigene Verantwortung, ohne jegliche Gewährleistung.  
+### Schnellstart
 
-__TIPP: Achten Sie darauf, Ihre Kategorien im Codebook sehr präzise zu formulieren, da die Kodierung sehr sensibel darauf reagiert. Unscharfe Definitionen und Kriterien führen mitunter zu übermäßig freizügiger Kodierung. Textnahe Codes sind meist besser als welche mit hohem Abstraktionsgrad (die benötigen mehr definitorische Erläuterung).__
 
---> Feedback ist willkommen! <--
-Kontakt: justus.henke@hof.uni-halle.de
+```bash
+# Webapp starten
+python start_webapp.py
 
-__Hinweis zum Datenschutz__
+# Öffnet automatisch im Browser: http://127.0.0.1:8501
+```
 
-Die KI-gestützte Datenverarbeitung nutzt die Schnittstelle von OpenAI bzw. Mistral. Auch wenn diese Anfragen offiziell nicht für das Training von Modellen genutzt werden, stellt diese eine Verarbeitung durch Dritte dar. Prüfen Sie, ob Ihre Dokumente dafür freigegeben sind und entfernen Sie ggf. sensible Informationen. Eine Nutzung mit hochsensiblen Daten wird ausdrücklich nicht empfohlen. 
+### Dokumentation
 
-Prinzipiell ist die Verarbeitung der Daten per LLM auch auf einem lokalen Rechner möglich. Dafür kann OLLAMA oder LMSTUDIO genutzt werden und das Setup im Client muss etwas angepasst werden. Mehr dazu hier: https://ollama.com/blog/openai-compatibility oder https://lmstudio.ai/docs/api/endpoints/openai
+- **[Schnellstart-Anleitung](WEBAPP_QUICKSTART.md)**: In 5 Minuten loslegen
+- **[Vollständiges Benutzerhandbuch](WEBAPP_README.md)**: Detaillierte Anleitung
+- **[Fehlerbehebung](WEBAPP_TROUBLESHOOTING.md)**: Lösungen für häufige Probleme
+- **[API-Dokumentation](WEBAPP_API.md)**: Für Entwickler und Erweiterungen
+- **[Beispielkonfigurationen](examples/)**: Vorkonfigurierte Templates
+
+### Vorteile der Webapp
+
+| Aspekt | Kommandozeile | Webapp |
+|--------|---------------|--------|
+| **Einstieg** | Technisches Wissen erforderlich | Intuitiv, keine Vorkenntnisse |
+| **Konfiguration** | Excel/JSON direkt bearbeiten | Grafische Oberfläche mit Validierung |
+| **Fehlerprüfung** | Manuell | Automatische Inline-Validierung |
+| **Fortschritt** | Terminal-Ausgabe | Visueller Fortschrittsbalken |
+| **Dateiverwaltung** | Dateisystem | Integrierte Dateiübersicht |
+
+### Wann welche Version nutzen?
+
+**Nutzen Sie die Webapp wenn:**
+- Sie eine grafische Oberfläche bevorzugen
+- Sie häufig Konfigurationen anpassen
+- Sie Analysen interaktiv überwachen möchten
+- Sie neu bei QCA-AID sind
+
+**Nutzen Sie die Kommandozeile wenn:**
+- Sie Batch-Verarbeitung automatisieren möchten
+- Sie Skripte für wiederholte Analysen schreiben
+- Sie auf einem Server ohne GUI arbeiten
+- Sie maximale Performance benötigen
+
 
 ### Merkmale von QCA-AID
 
@@ -153,19 +239,115 @@ Prinzipiell ist die Verarbeitung der Daten per LLM auch auf einem lokalen Rechne
 - **Token-Tracking**: Schätzung und Dokumentation der verwendeten API-Tokens
 
 #### Konfiguration und Anpassbarkeit
-- **Flexible Modellwahl**: Unterstützung verschiedener KI-Anbieter (OpenAI und Mistral)
+- **Flexible Modellwahl**: Unterstützung verschiedener KI-Anbieter (OpenAI, Anthropic, Mistral, OpenRouter, lokale Modelle)
+- **Dynamisches Modell-Management**: Automatisches Laden aktueller Modelle von allen Providern
 - **Konfigurierbare Parameter**: Anpassung von Chunk-Größe, Überlappung, Batch-Größe und weiteren Einstellungen
 - **Temperaturstufen**: Steuerung der "Kreativität" bei der induktiven Kategorienentwicklung
 - **Anpassbarer Analysemodus**: Wahl zwischen vollständiger, abduktiver, deduktiver oder grounded Theory Analyse
 - **Excel-basierte Konfiguration**: Einfache Anpassung aller Einstellungen über Excel-Dateien
 - **Erweiterte Visualisierungsoptionen**: Konfigurierbare Diagramme und Analysen im QCA-AID-Explorer
 
+## LLM-Provider und API-Keys
+
+### Unterstützte Provider
+
+QCA-AID unterstützt ab Version 0.10.4 mehrere LLM-Provider:
+
+| Provider | Modelle | API-Key Variable | Datenschutz |
+|----------|---------|------------------|-------------|
+| **OpenAI** | GPT-4o, GPT-4o-mini, GPT-4-turbo, GPT-4, GPT-3.5-turbo | `OPENAI_API_KEY` | ⚠️ Cloud |
+| **Anthropic** | Claude Sonnet 4.5, Claude 3.5 Sonnet, Claude 3 Opus | `ANTHROPIC_API_KEY` | ⚠️ Cloud |
+| **Mistral** | Mistral Large, Mistral Medium, Mistral Small | `MISTRAL_API_KEY` | ⚠️ Cloud |
+| **OpenRouter** | Verschiedene Modelle über eine API | `OPENROUTER_API_KEY` | ⚠️ Cloud |
+| **Lokal** ⭐ | LM Studio, Ollama | Kein API-Key erforderlich | ✅ **100% Lokal** |
+
+**Für sensible Daten empfehlen wir lokale Modelle!**
+
+### API-Keys einrichten
+
+#### Empfohlene Methode: .env Datei
+
+1. Erstellen Sie eine Datei namens `.env` im QCA-AID-Projektverzeichnis
+2. Fügen Sie Ihre API-Keys hinzu:
+
+```bash
+# OpenAI
+OPENAI_API_KEY=sk-proj-...
+
+# Anthropic
+ANTHROPIC_API_KEY=sk-ant-...
+
+# Mistral
+MISTRAL_API_KEY=...
+
+# OpenRouter
+OPENROUTER_API_KEY=sk-or-...
+```
+
+3. Die `.env` Datei wird automatisch beim Start geladen
+4. **Wichtig**: Fügen Sie `.env` zu Ihrer `.gitignore` hinzu, um API-Keys nicht versehentlich zu veröffentlichen
+
+#### Alternative: Systemumgebungsvariablen
+
+**Windows:**
+```cmd
+setx OPENAI_API_KEY "sk-proj-..."
+setx ANTHROPIC_API_KEY "sk-ant-..."
+```
+
+**Linux/Mac:**
+```bash
+export OPENAI_API_KEY="sk-proj-..."
+export ANTHROPIC_API_KEY="sk-ant-..."
+```
+
+### Modellauswahl in der Webapp
+
+Die Webapp zeigt automatisch alle verfügbaren Modelle für den gewählten Provider an:
+
+1. Öffnen Sie den **Konfiguration**-Tab
+2. Wählen Sie unter **Modell-Anbieter** Ihren gewünschten Provider
+3. Das **Modell-Name** Dropdown zeigt alle verfügbaren Modelle
+4. Die Modelliste wird automatisch aktualisiert (24h Cache)
+
+### Lokale Modelle (LM Studio / Ollama) ⭐ **Empfohlen für Datenschutz**
+
+Für lokale Modelle:
+
+1. **Installation:**
+   - LM Studio: [https://lmstudio.ai/](https://lmstudio.ai/) (Empfohlen für Einsteiger)
+   - Ollama: [https://ollama.ai/](https://ollama.ai/) (Für fortgeschrittene Nutzer)
+
+2. **Modell laden:**
+   - LM Studio: Modell herunterladen und Server starten (Port 1234)
+   - Ollama: `ollama pull llama3.1:8b` (Port 11434)
+
+3. **In der Webapp:**
+   - Wählen Sie "Local (LM Studio/Ollama)" als Provider
+   - Klicken Sie auf "🔄 Erkennen"
+   - Wählen Sie ein erkanntes Modell aus
+
+4. **Vorteile:**
+   - ✅ **100% Datenschutz** - Keine Datenübermittlung
+   - ✅ **Kostenlos** - Keine API-Gebühren
+   - ✅ **Offline** - Keine Internetverbindung erforderlich
+   - ✅ **DSGVO-konform** - Ideal für sensible Forschungsdaten
+
+**Detaillierte Anleitung:** Siehe [LOCAL_MODELS_GUIDE.md](LOCAL_MODELS_GUIDE.md)
+
+### Kosten und Pricing
+
+- Modellkosten werden automatisch aus den Provider-Metadaten geladen
+- Anzeige der Kosten pro 1M Input/Output-Tokens
+- Eigene Preise können über `pricing_overrides.json` definiert werden
+- Token-Tracking dokumentiert die Nutzung für Kostenschätzung
+
 
 
 
 ## Zitiervorschlag
 
-Henke, J. (2025). QCA-AID: Qualitative Content Analysis with AI-supported Discovery (Version 0.10.3) [Software]. 
+Henke, J. (2025). QCA-AID: Qualitative Content Analysis with AI-supported Discovery (Version 0.11.0) [Software]. 
 Institut für Hochschulforschung Halle-Wittenberg. https://github.com/JustusHenke/QCA-AID
 
 ```BibTex
@@ -175,7 +357,7 @@ Institut für Hochschulforschung Halle-Wittenberg. https://github.com/JustusHenk
   month        = december,
   year         = {2025},
   publisher    = {Institut für Hochschulforschung Halle-Wittenberg},
-  version      = {0.10.1},
+  version      = {0.11.0},
   url          = {https://github.com/JustusHenke/QCA-AID}
 }
 ```

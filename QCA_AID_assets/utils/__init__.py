@@ -18,7 +18,7 @@ Common Utilities:
   - common: Shared constants, enums, and helper functions
 """
 
-__version__ = "0.10.1"
+__version__ = "0.11.0"
 __author__ = "QCA-AID Team"
 
 # Import system utilities for convenient access

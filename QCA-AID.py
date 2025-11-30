@@ -1,7 +1,6 @@
 """
 QCA-AID: Qualitative Content Analysis with AI Support
 ======================================================
-Version: 0.10.3
 
 Launcher-Skript für QCA-AID.
 Alle Funktionalität ist in QCA-AID-assets/ organisiert.

@@ -1,0 +1,174 @@
+{
+  "forschungsfrage": "Wie gestaltet sich [Phänomen] im Kontext von [Setting] und welche [Aspekt] lassen sich dabei identifizieren?",
+  "kodierregeln": {
+    "general": [
+      "Kodiere nur explizite Aussagen,",
+      "Berücksichtige den Kontext der Aussage,",
+      "Bei Unsicherheit dokumentiere die Gründe,",
+      "Kodiere vollständige Sinneinheiten,",
+      "Interviewerfragen ignorieren, es sein sie beziehen sich konkret auf Aussagen der befragten Person"
+    ],
+    "format": [
+      "Markiere relevante Textstellen,",
+      "Dokumentiere Begründung der Zuordnung,",
+      "Gib den Konfidenzwert an"
+    ],
+    "exclusion": [
+      "Literaturverzeichnisse und Referenzlisten",
+      "Tabellarische Datenaufstellungen",
+      "Methodische Infoboxen"
+    ]
+  },
+  "deduktive_kategorien": {
+    "Akteure": {
+      "name": "Akteure",
+      "definition": "Erfasst alle handelnden Personen, Gruppen oder Institutionen sowie deren Rollen, Beziehungen und Interaktionen",
+      "rules": [
+        "Codiere Aussagen zu: Individuen, Gruppen, Organisationen, Netzwerken"
+      ],
+      "examples": [
+        "Die Projektleiterin hat die Entscheidung eigenständig getroffen",
+        "Die Arbeitsgruppe trifft sich wöchentlich zur Abstimmung",
+        "Als Vermittler zwischen den Parteien konnte er den Konflikt lösen",
+        "Die beteiligten Organisationen haben eine Kooperationsvereinbarung unterzeichnet"
+      ],
+      "subcategories": {
+        "Individuelle_Akteure": "Einzelpersonen und deren Eigenschaften",
+        "Kollektive_Akteure": "Gruppen, Organisationen, Institutionen",
+        "Beziehungen": "Interaktionen, Hierarchien, Netzwerke",
+        "Rollen": "Formelle und informelle Positionen"
+      },
+      "added_date": "2025-11-29",
+      "modified_date": "2025-11-29"
+    },
+    "Kontextfaktoren": {
+      "name": "Kontextfaktoren",
+      "definition": "Umfasst die strukturellen, zeitlichen und räumlichen Rahmenbedingungen des untersuchten Phänomens",
+      "rules": [],
+      "examples": [],
+      "subcategories": {
+        "Strukturell": "Organisatorische und institutionelle Bedingungen",
+        "Zeitlich": "Historische Entwicklung, Zeitpunkte, Perioden",
+        "Räumlich": "Geografische und sozialräumliche Aspekte",
+        "Kulturell": "Normen, Werte, Traditionen"
+      },
+      "added_date": "2025-11-29",
+      "modified_date": "2025-11-29"
+    },
+    "Prozesse": {
+      "name": "Prozesse",
+      "definition": "Erfasst Abläufe, Entwicklungen und Veränderungen über Zeit",
+      "rules": [],
+      "examples": [],
+      "subcategories": {
+        "Entscheidungsprozesse": "Formelle und informelle Entscheidungsfindung",
+        "Entwicklungsprozesse": "Veränderungen und Transformationen",
+        "Interaktionsprozesse": "Kommunikation und Austausch",
+        "Konfliktprozesse": "Aushandlungen und Konflikte"
+      },
+      "added_date": "2025-11-29",
+      "modified_date": "2025-11-29"
+    },
+    "Ressourcen": {
+      "name": "Ressourcen",
+      "definition": "Materielle und immaterielle Mittel und Kapazitäten",
+      "rules": [],
+      "examples": [],
+      "subcategories": {
+        "Materiell": "Finanzielle und physische Ressourcen",
+        "Immateriell": "Wissen, Kompetenzen, soziales Kapital",
+        "Zugang": "Verfügbarkeit und Verteilung",
+        "Nutzung": "Einsatz und Verwertung"
+      },
+      "added_date": "2025-11-29",
+      "modified_date": "2025-11-29"
+    },
+    "Strategien": {
+      "name": "Strategien",
+      "definition": "Handlungsmuster und -konzepte zur Zielerreichung",
+      "rules": [],
+      "examples": [],
+      "subcategories": {
+        "Formell": "Offizielle Strategien und Pläne",
+        "Informell": "Ungeschriebene Praktiken",
+        "Adaptiv": "Anpassungsstrategien",
+        "Innovativ": "Neue Lösungsansätze"
+      },
+      "added_date": "2025-11-29",
+      "modified_date": "2025-11-29"
+    },
+    "Outcomes": {
+      "name": "Outcomes",
+      "definition": "Ergebnisse, Wirkungen und Folgen von Handlungen und Prozessen",
+      "rules": [],
+      "examples": [],
+      "subcategories": {
+        "Intendiert": "Beabsichtigte Wirkungen",
+        "Nicht_intendiert": "Unbeabsichtigte Folgen",
+        "Kurzfristig": "Unmittelbare Effekte",
+        "Langfristig": "Nachhaltige Wirkungen"
+      },
+      "added_date": "2025-11-29",
+      "modified_date": "2025-11-29"
+    },
+    "Herausforderungen": {
+      "name": "Herausforderungen",
+      "definition": "Probleme, Hindernisse und Spannungsfelder",
+      "rules": [],
+      "examples": [],
+      "subcategories": {
+        "Strukturell": "Systemische Barrieren",
+        "Prozessual": "Ablaufbezogene Schwierigkeiten",
+        "Individuell": "Persönliche Herausforderungen",
+        "Kontextuell": "Umfeldbezogene Probleme"
+      },
+      "added_date": "2025-11-29",
+      "modified_date": "2025-11-29"
+    },
+    "Legitimation": {
+      "name": "Legitimation",
+      "definition": "Begründungen, Rechtfertigungen und Deutungsmuster",
+      "rules": [],
+      "examples": [],
+      "subcategories": {
+        "Normativ": "Wertbasierte Begründungen",
+        "Pragmatisch": "Praktische Rechtfertigungen",
+        "Kognitiv": "Wissensbasierte Erklärungen",
+        "Emotional": "Gefühlsbezogene Deutungen"
+      },
+      "added_date": "2025-11-29",
+      "modified_date": "2025-11-29"
+    }
+  },
+  "config": {
+    "model_provider": "openai",
+    "model_name": "gpt-5-nano",
+    "data_dir": "input",
+    "output_dir": "output",
+    "chunk_size": 1200,
+    "chunk_overlap": 50,
+    "batch_size": 8,
+    "code_with_context": true,
+    "multiple_codings": true,
+    "multiple_coding_threshold": 0.85,
+    "analysis_mode": "deductive",
+    "review_mode": "auto",
+    "attribute_labels": {
+      "attribut1": "Fall",
+      "attribut2": "Typ"
+    },
+    "coder_settings": [
+      {
+        "temperature": 0.3,
+        "coder_id": "auto_1"
+      },
+      {
+        "temperature": 0.5,
+        "coder_id": "auto_2"
+      }
+    ],
+    "manual_coding_enabled": false,
+    "export_annotated_pdfs": true,
+    "pdf_annotation_fuzzy_threshold": 0.85
+  }
+}

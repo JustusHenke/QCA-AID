@@ -14,7 +14,7 @@ from ..core.data_models import CodingResult
 class ReliabilityCalculator:
     """
     FIX: Einheitliche Krippendorff's Alpha Berechnung nach Krippendorff (2011)
-    Alle ReliabilitÄts-Berechnungen laufen Über diese Klasse
+    Alle Reliabilitäts-Berechnungen laufen Über diese Klasse
     """
     
     def __init__(self):
@@ -30,7 +30,7 @@ class ReliabilityCalculator:
         # Entferne Mehrfachkodierungs-Suffixe
         # Format kann sein: "doc_chunk_5" oder "doc_chunk_5-1" fuer Mehrfachkodierung
         if '-' in segment_id:
-            # PrÜfe ob es ein Mehrfachkodierungs-Suffix ist (endet mit -Zahl)
+            # Prüfe ob es ein Mehrfachkodierungs-Suffix ist (endet mit -Zahl)
             parts = segment_id.rsplit('-', 1)
             if len(parts) == 2 and parts[1].isdigit():
                 base_id = parts[0]
@@ -52,7 +52,7 @@ class ReliabilityCalculator:
         original_codings = self._filter_original_codings(codings)
         
         if len(original_codings) < 2:
-            print("❌ Zu wenige ursprÜngliche Kodierungen fuer ReliabilitÄtsanalyse")
+            print("❌ Zu wenige ursprüngliche Kodierungen fuer Reliabilitätsanalyse")
             return self._create_empty_reliability_report()
         
         # Basis-Statistiken (mit Fallback)
@@ -95,7 +95,7 @@ class ReliabilityCalculator:
     
     def _filter_original_codings(self, codings: List[Dict]) -> List[Dict]:
         """
-        FIX: Robusterer Filter fuer ursprÜngliche Kodierungen
+        FIX: Robusterer Filter fuer ursprüngliche Kodierungen
         FÜr ReliabilityCalculator Klasse
         """
         original_codings = []
@@ -124,7 +124,7 @@ class ReliabilityCalculator:
             elif i < 3:
                 print(f"    -> Ausgeschlossen")
         
-        print(f"🕵️ Gefilterte ursprÜngliche Kodierungen: {len(original_codings)}")
+        print(f"🕵️ Gefilterte ursprüngliche Kodierungen: {len(original_codings)}")
         
         # FIX: Falls zu wenige gefunden, weniger streng filtern
         if len(original_codings) < 2:
@@ -505,14 +505,14 @@ class ReliabilityCalculator:
     
     def _group_by_original_segments(self, codings: List[Dict]) -> dict:
         """
-        FIX: Gruppiert Kodierungen nach ursprÜnglicher Segment-ID fuer ReliabilityCalculator
+        FIX: Gruppiert Kodierungen nach ursprünglicher Segment-ID fuer ReliabilityCalculator
         RÜckgabe: {segment_id: {coder_id: [codings]}}
         FÜr ReliabilityCalculator Klasse
         """
         segment_data = {}
         
         for coding in codings:
-            # Extrahiere ursprÜngliche Segment-ID
+            # Extrahiere ursprüngliche Segment-ID
             original_id = self._extract_base_segment_id(coding)
             
             if original_id not in segment_data:
@@ -581,7 +581,7 @@ class ReliabilityCalculator:
     
     def _extract_original_segment_id(self, coding: Dict) -> str:
         """
-        FIX: Extrahiert ursprÜngliche Segment-ID
+        FIX: Extrahiert ursprüngliche Segment-ID
         """
         # Erst consensus_info prÜfen
         consensus_info = coding.get('consensus_info', {})
@@ -809,7 +809,7 @@ class ReliabilityCalculator:
         FIX: Erweiterte Zusammenfassung mit Konsistenz-PrÜfung
         FÜr ReliabilityCalculator Klasse
         """
-        print(f"\nℹ️ Krippendorff's Alpha ReliabilitÄts-Analyse:")
+        print(f"\nℹ️ Krippendorff's Alpha Reliabilitäts-Analyse:")
         print(f"=" * 60)
         print(f"Overall Alpha (Jaccard-basiert):       {report['overall_alpha']:.3f}")
         print(f"Hauptkategorien Alpha (Jaccard):       {report['main_categories_alpha']:.3f}")
@@ -842,7 +842,7 @@ class ReliabilityCalculator:
         print(f"\nBewertung Overall Alpha:               {rating}")
         
         if overall < 0.667:
-            print(f"❌  ReliabilitÄt unter Schwellenwert - Kategoriensystem Überarbeiten")
+            print(f"❌  Reliabilität unter Schwellenwert - Kategoriensystem Überarbeiten")
 
 
 # --- Klasse: ResultsExporter ---

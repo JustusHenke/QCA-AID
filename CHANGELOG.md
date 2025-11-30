@@ -2,6 +2,163 @@
 
 ## Versionen und Updates
 
+### Neu in 0.11.0 (2025-11-30)
+
+QCA-AID WEBAPP: VOLLSTÄNDIGE WEBBASIERTE BENUTZEROBERFLÄCHE
+
+**WICHTIG: Lokale Modelle für Datenschutz**
+- ✨ **Vollständige Integration lokaler LLM-Modelle**
+  - LM Studio und Ollama Unterstützung in der Webapp
+  - Automatische Erkennung laufender lokaler Server
+  - 100% Datenschutz - Alle Daten bleiben auf Ihrem Computer
+  - Kostenlos - Keine API-Gebühren
+  - DSGVO-konform - Ideal für sensible Forschungsdaten
+  - Einfache Bedienung: "Local (LM Studio/Ollama)" auswählen und auf "Erkennen" klicken
+  - Siehe [LOCAL_MODELS_GUIDE.md](LOCAL_MODELS_GUIDE.md) für detaillierte Anleitung
+
+Webapp-Features:
+- ✨ **Vollständige Weboberfläche** für QCA-AID
+  - Intuitive grafische Benutzeroberfläche für alle Funktionen
+  - Keine Kommandozeilen-Kenntnisse erforderlich
+  - Lokale Ausführung - alle Daten bleiben auf Ihrem Computer
+  - Streamlit-basierte moderne Web-UI
+- ✨ **Grafischer Konfigurationseditor**
+  - Visuelle Bearbeitung aller CONFIG-Parameter
+  - Dropdown-Menüs für Modellauswahl mit Live-Updates
+  - Inline-Validierung mit sofortigen Fehlermeldungen
+  - Automatische Synchronisation mit Excel/JSON-Codebook
+- ✨ **Visueller Codebook-Editor**
+  - Strukturierte Bearbeitung von Kategorien und Subkategorien
+  - Drag-and-Drop für Beispiele und Regeln
+  - Live-Vorschau der Kategorienhierarchie
+  - Import/Export von Kategoriensystemen
+- ✨ **Integrierte Analyse-Steuerung**
+  - Analysen direkt aus der Webapp starten
+  - Echtzeit-Fortschrittsanzeige mit Prozentangaben
+  - Live-Log-Ausgabe während der Analyse
+  - Abbruch-Funktion für laufende Analysen
+- ✨ **Dateimanagement**
+  - Übersicht aller Input-Dateien mit Metadaten
+  - Upload-Funktion für neue Dokumente
+  - Vorschau von Textinhalten
+  - Batch-Upload für mehrere Dateien
+- ✨ **Ergebnisvisualisierung**
+  - Interaktive Tabellen mit Kodierungsergebnissen
+  - Filterfunktionen nach Kategorien und Attributen
+  - Export-Funktionen für verschiedene Formate
+  - Statistik-Dashboard mit Diagrammen
+- ✨ **Explorer-Integration**
+  - QCA-AID-Explorer direkt in der Webapp
+  - Konfiguration von Analysetypen über GUI
+  - Visualisierungen (Netzwerk, Heatmap, Sentiment)
+  - Export von Explorer-Ergebnissen
+
+Technische Verbesserungen:
+- ✨ **Modulare Webapp-Architektur**
+  - Komponenten-basierte Struktur in `QCA_AID_app/`
+  - Wiederverwendbare UI-Komponenten
+  - Klare Trennung von UI und Logik
+  - Erweiterbar für neue Features
+- ✨ **Session-Management**
+  - Persistente Einstellungen über Sessions
+  - Automatische Wiederherstellung bei Neustart
+  - Multi-User-fähig (verschiedene Browser-Tabs)
+- ✨ **Robuste Fehlerbehandlung**
+  - Benutzerfreundliche Fehlermeldungen
+  - Automatische Wiederherstellung bei Problemen
+  - Detaillierte Logs für Debugging
+- ✨ **Performance-Optimierung**
+  - Caching für schnellere Ladezeiten
+  - Asynchrone Verarbeitung für UI-Responsiveness
+  - Effiziente Datenübertragung
+
+Benutzerfreundlichkeit:
+- 📚 **Beispielkonfigurationen**
+  - Vorkonfigurierte Templates in `QCA_AID_assets/examples/`
+  - Best-Practice-Beispiele für verschiedene Szenarien
+  - Schritt-für-Schritt-Tutorials
+- 🚀 **Ein-Klick-Setup**
+  - Windows: `setup.bat`
+  - Richtet Python und benötigte Pakete ein
+  - Erstellt Desktop Icon
+- ✨ **Modellkosten-Anzeige**
+  - Dezente Anzeige der Input/Output-Token-Kosten bei Modellauswahl
+  - Automatische Anzeige für alle kommerziellen Modelle
+  - "Kostenlos"-Hinweis für lokale Modelle
+  - Hilft bei kostenbasierter Modellauswahl
+
+Datenschutz und Sicherheit:
+- 🔒 **Lokale Modelle für maximalen Datenschutz**
+  - Vollständige Integration von LM Studio und Ollama
+  - Keine Datenübermittlung an externe Server
+  - DSGVO-konform für sensible Forschungsdaten
+  - Automatische Erkennung und Filterung von Chat-Modellen
+  - Embedding-Modelle werden automatisch ausgeblendet
+
+Bugfixes:
+- 🐛 Console-Logging verbessert
+  - Line-Buffering für vollständige Log-Erfassung
+  - Korrekte Zeitstempel für alle Ausgaben
+  - Keine verlorenen Log-Einträge mehr
+  - Robuste Flush-Mechanismen
+- 🐛 Doppelte Kostenanzeige bei lokalen Modellen behoben
+- 🐛 LaTeX-Rendering von Dollar-Zeichen in Preisanzeige behoben
+
+Code Quality:
+- 📦 Neue Module: `webapp.py`, `start_webapp.py`, `webapp_components/`, `webapp_logic/`, `webapp_models/`
+- ✅ Vollständige Integration mit bestehendem QCA-AID-System
+- 📚 Umfassende Inline-Dokumentation
+- ✅ Keine Breaking Changes - CLI bleibt vollständig funktional
+
+### Neu in 0.10.4 (2025-11-30)
+
+ERWEITERTE LLM-PROVIDER-UNTERSTÜTZUNG
+
+Multi-Provider-System:
+- ✨ Unterstützung für mehrere LLM-Provider
+  - **OpenAI**: GPT-4o, GPT-4o-mini, GPT-4-turbo und weitere Modelle
+  - **Anthropic**: Claude Sonnet 4.5, Claude 3.5 Sonnet, Claude 3 Opus
+  - **Mistral**: Mistral Large, Mistral Medium, Mistral Small
+  - **OpenRouter**: Zugriff auf Modelle verschiedener Anbieter über eine API
+  - **Lokale Modelle**: LM Studio und Ollama Integration
+- ✨ Dynamisches Modell-Management
+  - Automatisches Laden von Modell-Metadaten von GitHub (Catwalk)
+  - Lokale Fallback-Konfigurationen für Offline-Betrieb
+  - 24-Stunden Cache für schnellere Ladezeiten
+  - Einheitliches Format für alle Provider (Normalisierung)
+- ✨ Erweiterte Modell-Informationen
+  - Context Window (Token-Limits)
+  - Kosten pro 1M Input/Output-Tokens
+  - Modell-Capabilities (Reasoning, Attachments, etc.)
+  - Anpassbare Pricing-Overrides via `pricing_overrides.json`
+
+Webapp-Integration:
+- ✨ Dynamische Modellauswahl in der Webapp
+  - Dropdown-Menüs zeigen alle verfügbaren Provider
+  - Modellauswahl passt sich automatisch an gewählten Provider an
+  - Anzeige aktueller Modelle aus allen Providern
+  - Nahtlose Integration in bestehende Konfiguration
+
+Technische Verbesserungen:
+- ✨ LLMProviderManager für zentrale Verwaltung
+  - Automatische Provider-Erkennung und -Initialisierung
+  - Filter-Funktionen (nach Provider, Kosten, Context Window)
+  - Robuste Fehlerbehandlung mit Fallback-Mechanismen
+  - Erweiterbar für neue Provider ohne Code-Änderungen
+- ✨ Lokale Modell-Erkennung
+  - Automatische Erkennung von LM Studio (Port 1234)
+  - Automatische Erkennung von Ollama (Port 11434)
+  - Graceful Degradation wenn lokale Server offline sind
+
+API-Key-Verwaltung:
+- ℹ️ API-Keys werden über Umgebungsvariablen verwaltet
+  - `OPENAI_API_KEY` für OpenAI-Modelle
+  - `ANTHROPIC_API_KEY` für Anthropic-Modelle
+  - `MISTRAL_API_KEY` für Mistral-Modelle
+  - `OPENROUTER_API_KEY` für OpenRouter-Modelle
+- ℹ️ Empfohlene Speicherung in `.env` Datei im Projektverzeichnis
+- ℹ️ Siehe README.md für detaillierte Anleitung
+
 ### Neu in 0.10.3 (2025-11-28)
 
 QCA-AID JSON-KONFIGURATION: VOLLSTÄNDIGE INTEGRATION

@@ -1,0 +1,120 @@
+{
+  "forschungsfrage": "Welche Faktoren beeinflussen die Akzeptanz und Nutzung digitaler Lernplattformen in der Hochschulbildung?",
+  "kodierregeln": {
+    "general": [
+      "Kodiere nur eindeutig zuordenbare Aussagen",
+      "Bei Unsicherheit: nicht kodieren",
+      "Berücksichtige den gesamten Kontext des Dokuments",
+      "Achte auf Nuancen und Differenzierungen",
+      "Dokumentiere Grenzfälle in Kommentaren"
+    ],
+    "format": [
+      "Verwende vollständige Sätze mit Kontext",
+      "Behalte wichtige Qualifizierer bei (z.B. 'manchmal', 'häufig')",
+      "Markiere direkte Zitate deutlich"
+    ],
+    "exclusion": [
+      "Ignoriere spekulative Aussagen ohne Evidenz",
+      "Ignoriere rein rhetorische Fragen",
+      "Ignoriere Wiederholungen bereits kodierter Inhalte",
+      "Ignoriere Metakommentare über den Text selbst"
+    ]
+  },
+  "deduktive_kategorien": {
+    "Akzeptanzfaktoren": {
+      "definition": "Erfasst alle Aussagen über Faktoren, die die Bereitschaft zur Nutzung digitaler Lernplattformen beeinflussen, einschließlich individueller, sozialer und organisationaler Aspekte.",
+      "rules": [
+        "Kodiere explizite Nennungen von Einflussfaktoren",
+        "Kodiere kausale Zusammenhänge zwischen Faktoren und Akzeptanz",
+        "Unterscheide zwischen fördernden und hemmenden Faktoren",
+        "Berücksichtige die Perspektive der Akteure"
+      ],
+      "examples": [
+        "Die einfache Bedienung erhöht die Akzeptanz bei den Studierenden",
+        "Fehlende Schulungen führen zu Vorbehalten gegenüber der Plattform",
+        "Die Unterstützung durch Kolleg:innen motiviert zur Nutzung"
+      ],
+      "subcategories": {
+        "Benutzerfreundlichkeit": "Aspekte der Usability und User Experience",
+        "Technische_Kompetenz": "Fähigkeiten und Selbstwirksamkeit der Nutzenden",
+        "Soziale_Einflüsse": "Einfluss von Peers, Vorgesetzten, Kultur",
+        "Organisationale_Unterstützung": "Support, Ressourcen, Infrastruktur"
+      }
+    },
+    "Nutzungsmuster": {
+      "definition": "Erfasst alle Aussagen über die Art und Weise, wie digitale Lernplattformen tatsächlich genutzt werden, einschließlich Häufigkeit, Intensität und Zweck der Nutzung.",
+      "rules": [
+        "Kodiere konkrete Beschreibungen von Nutzungsverhalten",
+        "Kodiere Häufigkeitsangaben und zeitliche Muster",
+        "Unterscheide zwischen verschiedenen Nutzungsarten",
+        "Berücksichtige Veränderungen im Nutzungsverhalten"
+      ],
+      "examples": [
+        "Die Plattform wird hauptsächlich für den Materialaustausch genutzt",
+        "Studierende loggen sich durchschnittlich dreimal pro Woche ein",
+        "Die Nutzung der Diskussionsforen ist gering"
+      ],
+      "subcategories": {
+        "Häufigkeit": "Wie oft wird die Plattform genutzt",
+        "Funktionsnutzung": "Welche Features werden verwendet",
+        "Zeitliche_Muster": "Wann wird die Plattform genutzt",
+        "Nutzungsintensität": "Wie intensiv ist die Nutzung"
+      }
+    },
+    "Barrieren": {
+      "definition": "Erfasst alle Aussagen über Hindernisse und Schwierigkeiten, die die Nutzung digitaler Lernplattformen erschweren oder verhindern.",
+      "rules": [
+        "Kodiere explizite Problembeschreibungen",
+        "Kodiere implizite Barrieren aus Kontext",
+        "Unterscheide zwischen verschiedenen Arten von Barrieren",
+        "Berücksichtige die Schwere der Barriere"
+      ],
+      "examples": [
+        "Die komplexe Navigation erschwert den Zugang zu Materialien",
+        "Fehlende mobile Optimierung verhindert Nutzung unterwegs",
+        "Datenschutzbedenken halten von der Nutzung ab"
+      ],
+      "subcategories": {
+        "Technische_Barrieren": "Infrastruktur, Kompatibilität, Performance",
+        "Kognitive_Barrieren": "Komplexität, Überforderung, Lernkurve",
+        "Motivationale_Barrieren": "Fehlende Anreize, Relevanz, Nutzen",
+        "Organisationale_Barrieren": "Policies, Ressourcen, Support"
+      }
+    }
+  },
+  "config": {
+    "MODEL_PROVIDER": "OpenAI",
+    "MODEL_NAME": "gpt-4o",
+    "DATA_DIR": "input",
+    "OUTPUT_DIR": "output",
+    "CHUNK_SIZE": 1200,
+    "CHUNK_OVERLAP": 100,
+    "BATCH_SIZE": 3,
+    "CODE_WITH_CONTEXT": true,
+    "MULTIPLE_CODINGS": true,
+    "MULTIPLE_CODING_THRESHOLD": 0.7,
+    "ANALYSIS_MODE": "abductive",
+    "REVIEW_MODE": "consensus",
+    "ATTRIBUTE_LABELS": {
+      "attribut1": "Institution",
+      "attribut2": "Rolle",
+      "attribut3": "Erfahrung"
+    },
+    "CODER_SETTINGS": [
+      {
+        "temperature": 0.1,
+        "coder_id": "coder_conservative"
+      },
+      {
+        "temperature": 0.3,
+        "coder_id": "coder_moderate"
+      },
+      {
+        "temperature": 0.2,
+        "coder_id": "coder_balanced"
+      }
+    ],
+    "EXPORT_ANNOTATED_PDFS": true,
+    "PDF_ANNOTATION_FUZZY_THRESHOLD": 0.9
+  }
+}

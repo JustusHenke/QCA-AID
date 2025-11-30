@@ -195,7 +195,7 @@ class TokenTracker:
         today = str(date.today())
         try:
             if os.path.exists('token_stats.json'):
-                with open('token_stats.json', 'r') as f:
+                with open('token_stats.json', 'r', encoding='utf-8') as f:
                     data = json.load(f)
                     if data.get('date') == today:
                         return data.get('stats', {'input': 0, 'output': 0, 'requests': 0, 'cost': 0.0})
@@ -210,7 +210,7 @@ class TokenTracker:
             'stats': self.daily_stats
         }
         try:
-            with open('token_stats.json', 'w') as f:
+            with open('token_stats.json', 'w', encoding='utf-8') as f:
                 json.dump(data, f)
         except Exception:
             pass
@@ -315,7 +315,7 @@ class TokenTracker:
                 self.check_rate_limits(input_tokens, output_tokens)
                     
         except Exception as e:
-            print(f"[ERROR] Token-Tracking: {e}")
+            print(f"‼️ Token-Tracking: {e}")
     
     def track_error(self, model: Optional[str] = None) -> None:
         """

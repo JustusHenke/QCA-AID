@@ -484,7 +484,7 @@ class ManualCoder:
             )
             
             if main_cat_input:
-                # PrÜfe ob Eingabe eine gÜltige Nummer ist
+                # Prüfe ob Eingabe eine gÜltige Nummer ist
                 main_cat_info = self.number_to_category_map.get(main_cat_input.strip())
                 
                 if main_cat_info and main_cat_info['type'] == 'main':
@@ -615,7 +615,7 @@ class ManualCoder:
             self.window_closed_event.wait(timeout=600)  # Max 10 Minuten warten
             print(f"Fenster für Segment geschlossen, Kodierung erhalten: {self.current_coding is not None}")
             
-            # KORRIGIERT: PrÜfe auf ABORT_ALL BEVOR weitere Verarbeitung
+            # KORRIGIERT: Prüfe auf ABORT_ALL BEVOR weitere Verarbeitung
             if self.current_coding == "ABORT_ALL":
                 return "ABORT_ALL"
             
@@ -704,10 +704,10 @@ class ManualCoder:
         """
         try:
             if hasattr(self, 'root') and self.root:
-                # PrÜfe ob wir im Hauptthread sind
+                # Prüfe ob wir im Hauptthread sind
                 if threading.current_thread() is threading.main_thread():
                     try:
-                        # PrÜfe ob das Fenster noch existiert
+                        # Prüfe ob das Fenster noch existiert
                         if self.root.winfo_exists():
                             self.root.quit()
                             self.root.destroy()

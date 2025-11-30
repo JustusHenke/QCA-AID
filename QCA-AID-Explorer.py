@@ -1,8 +1,6 @@
 """
 QCA-AID Explorer
 ================
-Version: 0.6.0
-Datum: 2025-11-26
 
 QCA-AID Explorer ist ein Tool zur Analyse von qualitativen Kodierungsdaten.
 Es ermöglicht die Visualisierung von Kodierungsnetzwerken mit Hauptkategorien,

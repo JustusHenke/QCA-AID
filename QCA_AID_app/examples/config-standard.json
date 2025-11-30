@@ -1,0 +1,86 @@
+{
+  "forschungsfrage": "Wie werden digitale Technologien in der Hochschullehre eingesetzt und welche Herausforderungen ergeben sich dabei?",
+  "kodierregeln": {
+    "general": [
+      "Kodiere nur explizite Aussagen über Technologieeinsatz",
+      "Unterscheide zwischen geplanter und tatsächlicher Nutzung",
+      "Berücksichtige den didaktischen Kontext",
+      "Achte auf Perspektive der Sprechenden (Lehrende, Studierende, Administration)"
+    ],
+    "format": [
+      "Verwende vollständige Sätze oder Satzfragmente",
+      "Behalte wichtige Kontextinformationen bei",
+      "Markiere Zitate mit Anführungszeichen"
+    ],
+    "exclusion": [
+      "Ignoriere Literaturverzeichnisse und Quellenangaben",
+      "Ignoriere rein technische Beschreibungen ohne didaktischen Bezug",
+      "Ignoriere allgemeine Aussagen ohne konkreten Bezug zur Hochschullehre"
+    ]
+  },
+  "deduktive_kategorien": {
+    "Technologieeinsatz": {
+      "definition": "Erfasst alle Aussagen über den konkreten Einsatz digitaler Technologien in Lehrveranstaltungen, einschließlich Tools, Plattformen und deren didaktischer Integration.",
+      "rules": [
+        "Kodiere explizite Nennungen von Tools und Plattformen",
+        "Kodiere Beschreibungen von Einsatzszenarien",
+        "Unterscheide zwischen synchroner und asynchroner Nutzung"
+      ],
+      "examples": [
+        "Wir nutzen Moodle für die Bereitstellung von Lernmaterialien",
+        "Die Studierenden arbeiten mit kollaborativen Tools wie Padlet",
+        "In der Vorlesung setzen wir Audience Response Systeme ein"
+      ],
+      "subcategories": {
+        "Lernmanagementsysteme": "Plattformen wie Moodle, ILIAS, Canvas",
+        "Kollaborationstools": "Tools für gemeinsames Arbeiten",
+        "Kommunikationstools": "Tools für Austausch und Diskussion"
+      }
+    },
+    "Herausforderungen": {
+      "definition": "Erfasst alle Aussagen über Schwierigkeiten, Probleme und Hindernisse beim Einsatz digitaler Technologien in der Lehre.",
+      "rules": [
+        "Kodiere explizite Problembeschreibungen",
+        "Kodiere implizite Herausforderungen aus Kontext",
+        "Unterscheide zwischen technischen und didaktischen Herausforderungen"
+      ],
+      "examples": [
+        "Die Studierenden haben Schwierigkeiten mit der Bedienung",
+        "Es fehlt an technischer Unterstützung",
+        "Die Integration in bestehende Lehrkonzepte ist schwierig"
+      ],
+      "subcategories": {
+        "Technische_Probleme": "Infrastruktur, Zugang, Bedienung",
+        "Didaktische_Herausforderungen": "Integration, Methodik, Lernziele",
+        "Organisatorische_Hürden": "Ressourcen, Zeit, Support"
+      }
+    }
+  },
+  "config": {
+    "MODEL_PROVIDER": "OpenAI",
+    "MODEL_NAME": "gpt-4o-mini",
+    "DATA_DIR": "input",
+    "OUTPUT_DIR": "output",
+    "CHUNK_SIZE": 1000,
+    "CHUNK_OVERLAP": 50,
+    "BATCH_SIZE": 5,
+    "CODE_WITH_CONTEXT": true,
+    "MULTIPLE_CODINGS": false,
+    "MULTIPLE_CODING_THRESHOLD": 0.5,
+    "ANALYSIS_MODE": "abductive",
+    "REVIEW_MODE": "consensus",
+    "ATTRIBUTE_LABELS": {
+      "attribut1": "Hochschultyp",
+      "attribut2": "Position",
+      "attribut3": "Fachbereich"
+    },
+    "CODER_SETTINGS": [
+      {
+        "temperature": 0.3,
+        "coder_id": "coder_1"
+      }
+    ],
+    "EXPORT_ANNOTATED_PDFS": false,
+    "PDF_ANNOTATION_FUZZY_THRESHOLD": 0.8
+  }
+}

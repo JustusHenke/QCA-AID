@@ -451,12 +451,26 @@ class ConfigValidator:
                 )
             else:
                 # Prüfe 'active' Parameter wenn vorhanden
+                # Backward compatibility: Allow strings that can be converted to boolean
                 params = analysis_config['params']
-                if 'active' in params and not isinstance(params['active'], bool):
-                    errors.append(
-                        f"analysis_configs[{index}]['params']['active'] sollte Boolean sein, "
-                        f"ist aber {type(params['active']).__name__}"
-                    )
+                if 'active' in params:
+                    active_value = params['active']
+                    # Allow boolean or string values that can be converted
+                    if not isinstance(active_value, bool):
+                        if isinstance(active_value, str):
+                            # Allow string boolean values for backward compatibility
+                            valid_string_values = ['true', 'false', 'ja', 'nein', 'yes', 'no', '1', '0']
+                            if active_value.lower() not in valid_string_values:
+                                errors.append(
+                                    f"analysis_configs[{index}]['params']['active'] sollte Boolean oder "
+                                    f"gültiger String-Wert sein (true/false/ja/nein/yes/no/1/0), "
+                                    f"ist aber '{active_value}'"
+                                )
+                        else:
+                            errors.append(
+                                f"analysis_configs[{index}]['params']['active'] sollte Boolean oder String sein, "
+                                f"ist aber {type(active_value).__name__}"
+                            )
         
         return errors
     

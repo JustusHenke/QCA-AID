@@ -1,0 +1,59 @@
+{
+  "forschungsfrage": "Ihre Forschungsfrage hier eintragen",
+  "kodierregeln": {
+    "general": [
+      "Kodiere nur explizite Aussagen",
+      "Berücksichtige den Kontext"
+    ],
+    "format": [
+      "Verwende vollständige Sätze"
+    ],
+    "exclusion": [
+      "Ignoriere Literaturverzeichnisse",
+      "Ignoriere Fußnoten"
+    ]
+  },
+  "deduktive_kategorien": {
+    "Beispiel_Kategorie": {
+      "definition": "Beschreibung der Kategorie",
+      "rules": [
+        "Kodiere wenn...",
+        "Berücksichtige..."
+      ],
+      "examples": [
+        "Beispieltext 1",
+        "Beispieltext 2"
+      ],
+      "subcategories": {
+        "Subkategorie_1": "Beschreibung der Subkategorie"
+      }
+    }
+  },
+  "config": {
+    "MODEL_PROVIDER": "OpenAI",
+    "MODEL_NAME": "gpt-4o-mini",
+    "DATA_DIR": "input",
+    "OUTPUT_DIR": "output",
+    "CHUNK_SIZE": 800,
+    "CHUNK_OVERLAP": 30,
+    "BATCH_SIZE": 3,
+    "CODE_WITH_CONTEXT": false,
+    "MULTIPLE_CODINGS": false,
+    "MULTIPLE_CODING_THRESHOLD": 0.5,
+    "ANALYSIS_MODE": "deductive",
+    "REVIEW_MODE": "consensus",
+    "ATTRIBUTE_LABELS": {
+      "attribut1": "Attribut 1",
+      "attribut2": "Attribut 2",
+      "attribut3": "Attribut 3"
+    },
+    "CODER_SETTINGS": [
+      {
+        "temperature": 0.1,
+        "coder_id": "coder_1"
+      }
+    ],
+    "EXPORT_ANNOTATED_PDFS": false,
+    "PDF_ANNOTATION_FUZZY_THRESHOLD": 0.8
+  }
+}

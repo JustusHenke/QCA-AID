@@ -32,6 +32,7 @@ env/
 *.swo
 *~
 .DS_Store
+.crush/
 
 .CRUSH.md
 CRUSH.md
@@ -43,12 +44,16 @@ CRUSH.md
 output/
 *.log
 token_stats.json
+.qca-aid-project.json
+tests/
 
 # Temporary files
 *.tmp
 *.bak
 *.backup
 .cache/
+.pytest_cache
+
 
 # OS
 Thumbs.db

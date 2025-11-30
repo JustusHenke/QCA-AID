@@ -24,7 +24,7 @@ class ReviewManager:
         Hauptfunktion fuer alle Review-Modi mit korrekter Mehrfachkodierungs-Behandlung
         
         Args:
-            all_codings: Alle ursprÜnglichen Kodierungen
+            all_codings: Alle ursprünglichen Kodierungen
             export_mode: 'consensus', 'majority', 'manual', etc.
             
         Returns:
@@ -60,12 +60,12 @@ class ReviewManager:
         """
         print("ℹ️ Erstelle kategorie-spezifische Segmente...")
         
-        # Gruppiere nach ursprÜnglicher Segment-ID
+        # Gruppiere nach ursprünglicher Segment-ID
         original_segments = defaultdict(list)
         for coding in all_codings:
             segment_id = coding.get('segment_id', '')
             if segment_id:
-                # Extrahiere ursprÜngliche Segment-ID (falls bereits erweitert)
+                # Extrahiere ursprüngliche Segment-ID (falls bereits erweitert)
                 original_id = self._extract_original_segment_id(segment_id)
                 original_segments[original_id].append(coding)
         
@@ -92,7 +92,7 @@ class ReviewManager:
                         'instance_info': {'instance_number': 1, 'total_instances': 1}
                     })
                 else:
-                    # Keine gÜltigen Kategorien - behalte ursprÜngliches Segment
+                    # Keine gÜltigen Kategorien - behalte ursprüngliches Segment
                     category_segments.append({
                         'segment_id': original_id,
                         'original_segment_id': original_id,
@@ -137,14 +137,14 @@ class ReviewManager:
     
     def _extract_original_segment_id(self, segment_id: str) -> str:
         """
-        Extrahiert die ursprÜngliche Segment-ID (entfernt Mehrfachkodierungs-Suffixe)
+        Extrahiert die ursprüngliche Segment-ID (entfernt Mehrfachkodierungs-Suffixe)
         
         Beispiele:
         - "TEDFWI-1-01" -> "TEDFWI-1"
         - "TEDFWI-1" -> "TEDFWI-1"
         - "doc_chunk_5-02" -> "doc_chunk_5"
         """
-        # PrÜfe auf Mehrfachkodierungs-Suffix (Format: -XX wo XX eine Zahl ist)
+        # Prüfe auf Mehrfachkodierungs-Suffix (Format: -XX wo XX eine Zahl ist)
         if '-' in segment_id:
             parts = segment_id.rsplit('-', 1)
             if len(parts) == 2 and parts[1].isdigit() and len(parts[1]) <= 2:
@@ -218,7 +218,7 @@ class ReviewManager:
         for segment in segments_needing_review:
             category = segment.get('category', 'Unbekannt')
             segment_id = segment['segment_id']
-            print(f"  🔀‹ {segment_id}: {category} (Teil {segment_id.split('-')[-1]} von {segment_id.rsplit('-', 1)[0]})")
+            print(f"   {segment_id}: {category} (Teil {segment_id.split('-')[-1]} von {segment_id.rsplit('-', 1)[0]})")
         
         # FIX: Verwende asyncio.create_task() statt loop.run_until_complete()
         print("🕵️ Starte GUI-basiertes manuelles Review...")
@@ -272,7 +272,7 @@ class ReviewManager:
             
         except Exception as e:
             print(f"⚠️ Fehler beim GUI-Review: {e}")
-            print("🔀 Verwende automatischen Consensus als Fallback")
+            print("🔀 Verwende automatischen Consensus als Fallback")
             import traceback
             traceback.print_exc()
             
@@ -283,7 +283,7 @@ class ReviewManager:
         reviewed_codings = []
         review_decisions_dict = {decision['segment_id']: decision for decision in review_decisions}
         
-        # Durchlaufe category_segments in ursprÜnglicher Reihenfolge
+        # Durchlaufe category_segments in ursprünglicher Reihenfolge
         for segment in category_segments:
             segment_id = segment['segment_id']
             
@@ -319,7 +319,7 @@ class ReviewManager:
             subcats = set(coding.get('subcategories', []))
             subcategory_sets.append(subcats)
         
-        # PrÜfe auf Unterschiede in Subkategorien
+        # Prüfe auf Unterschiede in Subkategorien
         if len(set(frozenset(s) for s in subcategory_sets)) > 1:
             return True
         

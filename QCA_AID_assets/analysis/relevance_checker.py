@@ -151,10 +151,11 @@ class RelevanceChecker:
                     
                     llm_response = LLMResponse(response)
                     try:
-                        result = json.loads(llm_response.content)
+                        result = json.loads(llm_response.extract_json())
                     except json.JSONDecodeError as e:
-                        print(f"[ERROR] JSONDecodeError in check_multiple_category_relevance for segment {segment_id}: {e}")
-                        print(f"[ERROR] Raw LLM response: {llm_response.content}")
+                        print(f"‼️ JSONDecodeError in check_multiple_category_relevance for segment {segment_id}: {e}")
+                        print(f"‼️ Raw LLM response: {llm_response.content}")
+                        print(f"‼️ Extracted JSON attempt: {llm_response.extract_json()}")
                         raise
                     
                     
@@ -252,7 +253,7 @@ class RelevanceChecker:
             return {sid: self.relevance_cache[sid] for sid, _ in segments}
 
         try:
-            print(f"🔍 Relevanzpruefung: {len(uncached_segments)} neue Segmente")
+            print(f"🔍 Relevanzprüfung: {len(uncached_segments)} neue Segmente")
             
             # STRATEGIE: Kleine Batches (≤5) → bewährte Batch-Methode
             #           Große Batches (>5) → Parallelisierung in Sub-Batches
@@ -288,10 +289,10 @@ class RelevanceChecker:
                 
                 llm_response = LLMResponse(response)
                 try:
-                    results = json.loads(llm_response.content)
+                    results = json.loads(llm_response.extract_json())
                 except json.JSONDecodeError as e:
-                    print(f"[ERROR] JSONDecodeError in check_relevance_batch: {e}")
-                    print(f"[ERROR] Raw LLM response: {llm_response.content}")
+                    print(f"‼️ JSONDecodeError in check_relevance_batch: {e}")
+                    print(f"‼️ Raw LLM response: {llm_response.content}")
                     raise
                 
                 
@@ -374,10 +375,10 @@ class RelevanceChecker:
                         
                         llm_response = LLMResponse(response)
                         try:
-                            results = json.loads(llm_response.content)
+                            results = json.loads(llm_response.extract_json())
                         except json.JSONDecodeError as e:
-                            print(f"[ERROR] JSONDecodeError in process_sub_batch: {e}")
-                            print(f"[ERROR] Raw LLM response: {llm_response.content}")
+                            print(f"‼️ JSONDecodeError in process_sub_batch: {e}")
+                            print(f"‼️ Raw LLM response: {llm_response.content}")
                             raise
                         
                         
@@ -485,7 +486,7 @@ class RelevanceChecker:
                 for sid, is_relevant in standard_results.items()
             }
         
-        print(f"[REVIEW] Erweiterte Relevanzpruefung mit Kategorie-Vorauswahl fuer {len(segments)} Segmente...")
+        print(f"🧫 Erweiterte Relevanzprüfung mit Kategorie-Vorauswahl fuer {len(segments)} Segmente...")
         
         # Cache-Key für erweiterte Relevanzprüfung
         cache_key_base = "extended_relevance"
@@ -524,7 +525,7 @@ class RelevanceChecker:
             )
             
             llm_response = LLMResponse(response)
-            batch_results = json.loads(llm_response.content)
+            batch_results = json.loads(llm_response.extract_json())
             
             # Verarbeite Batch-Ergebnisse
             segment_results = batch_results.get('segment_results', [])
@@ -554,7 +555,7 @@ class RelevanceChecker:
                         'reasoning': 'Unvollständiges Batch-Ergebnis'
                     }
             
-            print(f"✅ Erweiterte Relevanzpruefung abgeschlossen: {len([r for r in results.values() if r['is_relevant']])} relevante Segmente")
+            print(f"✅ Erweiterte Relevanzprüfung abgeschlossen: {len([r for r in results.values() if r['is_relevant']])} relevante Segmente")
             
         except Exception as e:
             print(f"Fehler bei erweiterter Relevanzprüfung: {str(e)}")

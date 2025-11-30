@@ -48,7 +48,7 @@ class ImprovedSaturationController:
         # Berechne KategorienqualitÄt
         category_quality = self._assess_category_quality(current_categories)
         
-        # PrÜfe alle Kriterien
+        # Prüfe alle Kriterien
         criteria = {
             'min_batches': batch_count >= self.min_batches,
             'material_coverage': material_percentage >= (self.min_material * 100),

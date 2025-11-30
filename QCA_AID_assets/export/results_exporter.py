@@ -5,11 +5,26 @@ Exportiert Analyseergebnisse in verschiedene Formate (Excel, PDF, etc.).
 """
 
 import os
+import sys
 import json
 import pandas as pd
 from datetime import datetime
 from typing import Dict, List, Optional, Any, Tuple
 from collections import defaultdict, Counter
+
+# Fix für Unicode-Encoding auf Windows-Konsolen
+if sys.platform == 'win32':
+    try:
+        # Setze stdout und stderr auf UTF-8
+        if hasattr(sys.stdout, 'reconfigure'):
+            sys.stdout.reconfigure(encoding='utf-8')
+        if hasattr(sys.stderr, 'reconfigure'):
+            sys.stderr.reconfigure(encoding='utf-8')
+    except Exception:
+        # Fallback für ältere Python-Versionen
+        import codecs
+        sys.stdout = codecs.getwriter('utf-8')(sys.stdout.buffer, 'strict')
+        sys.stderr = codecs.getwriter('utf-8')(sys.stderr.buffer, 'strict')
 
 from openpyxl import Workbook
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
@@ -88,7 +103,7 @@ class ResultsExporter:
             subcats = coding.get('subcategories', [])
             confidence = self._extract_confidence_value(coding)
             
-            print(f"   PrÜfe Kodierung: {category} (Subkat: {len(subcats)}, Konfidenz: {confidence:.2f})")
+            print(f"   Prüfe Kodierung: {category} (Subkat: {len(subcats)}, Konfidenz: {confidence:.2f})")
                                    
             # Globale beste Kodierung
             if confidence > highest_confidence:
@@ -125,7 +140,7 @@ class ResultsExporter:
                 
             except Exception as e:
                 print(f"❌ FEHLER bei Subkategorien-Validierung: {str(e)}")
-                print(f"   Fallback: Verwende ursprÜngliche Subkategorien ohne Validierung")
+                print(f"   Fallback: Verwende ursprüngliche Subkategorien ohne Validierung")
                 consensus_coding['subcategories'] = original_subcats
             
             # FIX: FÜge Validierungs-Metadaten hinzu
@@ -179,7 +194,7 @@ class ResultsExporter:
         ]
         
         print(f"  Kategorieverteilung: {dict(category_counts)}")
-        print(f"  HÄufigste Kategorie(n): {majority_categories} ({max_count}/{total_coders})")
+        print(f"  Häufigste Kategorie(n): {majority_categories} ({max_count}/{total_coders})")
         
         # 2. Bei eindeutiger Mehrheit
         if len(majority_categories) == 1:
@@ -282,7 +297,7 @@ class ResultsExporter:
             if count == max_count
         ]
         
-        # PrÜfe ob es eine klare Mehrheit gibt (>50%)
+        # Prüfe ob es eine klare Mehrheit gibt (>50%)
         if max_count <= total_coders / 2:
             print(f"Keine Mehrheit fuer Hauptkategorie gefunden: {dict(category_counts)}")
             
@@ -391,7 +406,7 @@ class ResultsExporter:
         consensus_coding = base_coding.copy()
         main_category = consensus_coding.get('category', '')
         original_subcats = base_coding.get('subcategories', [])
-        # FIX: PrÜfe ob wir Zugriff auf das vollstÄndige Kategoriensystem haben
+        # FIX: Prüfe ob wir Zugriff auf das vollstÄndige Kategoriensystem haben
         categories_for_validation = getattr(self, 'current_categories', {})
         
         if categories_for_validation and main_category in categories_for_validation:
@@ -410,7 +425,7 @@ class ResultsExporter:
                 
         else:
             # FIX: Fallback ohne Validierung
-            print(f"❌ WARNUNG: Keine Kategorie-Validierung mÖglich fuer '{main_category}' - verwende ursprÜngliche Subkategorien")
+            print(f"❌ WARNUNG: Keine Kategorie-Validierung mÖglich fuer '{main_category}' - verwende ursprüngliche Subkategorien")
             validated_subcats = original_subcats
         
         consensus_coding['subcategories'] = validated_subcats
@@ -465,9 +480,9 @@ class ResultsExporter:
             relevant_subcats = []
             
             for coding in codings_for_cat:
-                # PrÜfe ob diese Kodierung wirklich fuer die aktuelle Hauptkategorie ist
+                # Prüfe ob diese Kodierung wirklich fuer die aktuelle Hauptkategorie ist
                 if coding.get('category') == main_cat:
-                    # PrÜfe ob es eine fokussierte Kodierung war
+                    # Prüfe ob es eine fokussierte Kodierung war
                     target_category = coding.get('target_category', '')
                     
                     if target_category == main_cat or not target_category:
@@ -530,7 +545,7 @@ class ResultsExporter:
             category = coding.get('category', '')
             subcats = coding.get('subcategories', [])
             
-            # PrÜfe auf leere Subkategorien bei kategorisierten Segmenten
+            # Prüfe auf leere Subkategorien bei kategorisierten Segmenten
             if category and category not in ['Nicht kodiert', 'Kein Kodierkonsens']:
                 if not subcats or (isinstance(subcats, list) and len(subcats) == 0):
                     segments_with_issues.append({
@@ -628,7 +643,7 @@ class ResultsExporter:
                 # Mehrere manuelle Kodierungen - suche Konsens unter diesen
                 print(f"    Suche Konsens unter {len(manual_codings)} manuellen Kodierungen")
                 
-                # PrÜfe ob alle dieselbe Hauptkategorie haben
+                # Prüfe ob alle dieselbe Hauptkategorie haben
                 manual_categories = [c['category'] for c in manual_codings]
                 if len(set(manual_categories)) == 1:
                     # Alle haben dieselbe Hauptkategorie - konsolidiere Subkategorien
@@ -843,14 +858,14 @@ class ResultsExporter:
                 print("Warnung: Keine Daten zum Exportieren vorhanden")
                 return False
                 
-            # PrÜfe ob alle erforderlichen Spalten vorhanden sind
+            # Prüfe ob alle erforderlichen Spalten vorhanden sind
             for entry in export_data:
                 missing_columns = required_columns - set(entry.keys())
                 if missing_columns:
                     print(f"Warnung: Fehlende Spalten in Eintrag: {missing_columns}")
                     return False
                     
-                # PrÜfe Kodiert-Status
+                # Prüfe Kodiert-Status
                 if entry['Kodiert'] not in {'Ja', 'Nein'}:
                     print(f"Warnung: Ungueltiger Kodiert-Status: {entry['Kodiert']}")
                     return False
@@ -913,7 +928,7 @@ class ResultsExporter:
                             document_summaries: Dict[str, str] = None,
                             is_intermediate_export: bool = False) -> None: 
         """
-        FIX: Exportiert mit korrekten ursprÜnglichen Kodierungen fuer ReliabilitÄt
+        FIX: Exportiert mit korrekten ursprünglichen Kodierungen fuer Reliabilität
         FÜr ResultsExporter Klasse
         
         Args:
@@ -922,9 +937,9 @@ class ResultsExporter:
             original_categories: UrsprÜngliche Kategorien
             document_summaries: Document Summaries
             revision_manager: Revision Manager
-            original_codings: FIX: UrsprÜngliche Kodierungen fuer ReliabilitÄtsberechnung
+            original_codings: FIX: UrsprÜngliche Kodierungen fuer Reliabilitätsberechnung
             export_mode: Export-Modus
-            reliability: FIX: Bereits berechnete ReliabilitÄt aus main()
+            reliability: FIX: Bereits berechnete Reliabilität aus main()
         """
         try:
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -943,7 +958,7 @@ class ResultsExporter:
                 print(f"🧾 Exportiere umfassende Ergebnisse mit {export_mode}-Modus...")
                 
                 # 1. HAUPT-SHEET: Kodierungsergebnisse (finale Kodierungen)
-                print("🔀‹ Exportiere Hauptergebnisse...")
+                print("🔀 Exportiere Hauptergebnisse...")
                 self._export_main_results(writer, codings, original_categories)
                 
                 # 2. FIX: HÄUFIGKEITEN-SHEET (finale Kodierungen)
@@ -954,14 +969,14 @@ class ResultsExporter:
                     attribut2_label = self.attribute_labels.get('attribut2', 'Attribut2')
                     self._export_frequency_analysis(writer, df_coded, attribut1_label, attribut2_label)
                 
-                # 3. FIX: INTERCODER-BERICHT mit ursprÜnglichen Kodierungen
+                # 3. FIX: INTERCODER-BERICHT mit ursprünglichen Kodierungen
                 print("🧾 Exportiere IntercoderBericht...")
                 if original_codings and reliability is not None:
-                    # FIX: Verwende bereits berechnete ReliabilitÄt und ursprÜngliche Kodierungen
+                    # FIX: Verwende bereits berechnete Reliabilität und ursprüngliche Kodierungen
                     self._export_intercoder_bericht(writer, original_codings, reliability)
                     print(f"✅ IntercoderBericht mit Alpha={reliability:.3f} erstellt")
                 else:
-                    print("❌ Keine ursprÜnglichen Kodierungen oder ReliabilitÄt verfÜgbar")
+                    print("❌ Keine ursprünglichen Kodierungen oder Reliabilität verfÜgbar")
                     self._create_empty_intercoder_sheet(writer)
                 
                 # 4. KATEGORIEN-ÜBERSICHT
@@ -1217,7 +1232,7 @@ class ResultsExporter:
                         relevance_details = self.analysis_manager.relevance_checker.get_relevance_details(segment_id)
                     
                     if relevance_details and relevance_details.get('reasoning') and relevance_details['reasoning'] != 'Keine Begründung verfügbar':
-                        justification = f"[RelevanzprÜfung] {relevance_details['reasoning']}"
+                        justification = f"[Relevanzprüfung] {relevance_details['reasoning']}"
                     else:
                         # Priorität 2: Intelligente Fallback-Begründungen basierend auf Textanalyse
                         text_content = text.lower() if text else ""
@@ -1377,7 +1392,7 @@ class ResultsExporter:
         # Basis-PrÄfix
         prefix = f"{aa}{bb}{cc}".upper()
         
-        # Segment-Nummer aus ursprÜnglicher segment_id extrahieren
+        # Segment-Nummer aus ursprünglicher segment_id extrahieren
         segment_id = coding.get('segment_id', '')
         original_segment_id = coding.get('consensus_info', {}).get('original_segment_id', segment_id)
         
@@ -1735,12 +1750,12 @@ class ResultsExporter:
     
     def _create_reliability_sheet(self, workbook, reliability: float, export_mode: str):
         """
-        ERWEITERTE METHODE: Erstellt ReliabilitÄts-Sheet mit Mehrfachkodierungs-Hinweisen
+        ERWEITERTE METHODE: Erstellt Reliabilitäts-Sheet mit Mehrfachkodierungs-Hinweisen
         """
-        ws = workbook.create_sheet("ReliabilitÄt")
+        ws = workbook.create_sheet("Reliabilität")
         
         # Header
-        ws.cell(row=1, column=1, value="Intercoder-ReliabilitÄt").font = Font(bold=True, size=14)
+        ws.cell(row=1, column=1, value="Intercoder-Reliabilität").font = Font(bold=True, size=14)
         
         # Krippendorff's Alpha
         ws.cell(row=3, column=1, value="Krippendorff's Alpha:")
@@ -1766,7 +1781,7 @@ class ResultsExporter:
         
         # NEUE INFORMATION: Mehrfachkodierungs-Behandlung
         ws.cell(row=6, column=1, value="Mehrfachkodierungs-Behandlung:").font = Font(bold=True)
-        ws.cell(row=7, column=1, value="- ReliabilitÄt basiert auf ursprÜnglichen Segment-IDs")
+        ws.cell(row=7, column=1, value="- Reliabilität basiert auf ursprünglichen Segment-IDs")
         ws.cell(row=8, column=1, value="- Mehrfachkodierungen werden als Set-Variable behandelt")
         ws.cell(row=9, column=1, value="- Kategorie-spezifische Segmentierung fuer Review")
         ws.cell(row=10, column=1, value=f"- Review-Modus: {export_mode}")
@@ -1919,9 +1934,9 @@ class ResultsExporter:
     
     def _export_reliability_sheet(self, writer, reliability: float, export_mode: str):
         """
-        PUNKT 7: Formatiertes ReliabilitÄts-Sheet
+        PUNKT 7: Formatiertes Reliabilitäts-Sheet
         """
-        # Erstelle formatierte ReliabilitÄtsdaten
+        # Erstelle formatierte Reliabilitätsdaten
         reliability_data = [
             ['Metrik', 'Wert', 'Bewertung'],
             ['Krippendorff\'s Alpha', f'{reliability:.3f}', self._get_reliability_rating(reliability)],
@@ -1932,10 +1947,10 @@ class ResultsExporter:
         
         # Als DataFrame exportieren
         df_rel = pd.DataFrame(reliability_data[1:], columns=reliability_data[0])
-        df_rel.to_excel(writer, sheet_name='ReliabilitÄt', index=False)
+        df_rel.to_excel(writer, sheet_name='Reliabilität', index=False)
         
         # Formatierung anwenden
-        worksheet = writer.sheets['ReliabilitÄt']
+        worksheet = writer.sheets['Reliabilität']
         self._apply_professional_formatting(worksheet, df_rel)
         
         # Spezielle Farbkodierung fuer Alpha-Wert
@@ -1948,7 +1963,7 @@ class ResultsExporter:
             alpha_cell.fill = PatternFill(start_color='FFB6C1', end_color='FFB6C1', fill_type='solid')
     
     def _get_reliability_rating(self, reliability: float) -> str:
-        """Bestimmt ReliabilitÄts-Bewertung"""
+        """Bestimmt Reliabilitäts-Bewertung"""
         if reliability > 0.8:
             return "Exzellent"
         elif reliability > 0.667:
@@ -2005,7 +2020,7 @@ class ResultsExporter:
                 writer.book.create_sheet('Häufigkeitsanalysen')
             
             worksheet = writer.sheets['Häufigkeitsanalysen']
-            worksheet.delete_rows(1, worksheet.max_row)  # Bestehende Daten lÖschen
+            worksheet.delete_rows(1, worksheet.max_row)  # Bestehende Daten löschen
 
             current_row = 1
             
@@ -2364,7 +2379,7 @@ class ResultsExporter:
         Args:
             codings: Liste der finalen Kodierungen nach Review
             export_mode: Verwendeter Review-Modus
-            original_codings: Liste der ursprÜnglichen Kodierungen vor Review (optional)
+            original_codings: Liste der ursprünglichen Kodierungen vor Review (optional)
             
         Returns:
             Dict[str, int]: Erweiterte Statistiken des Review-Prozesses
@@ -2385,11 +2400,11 @@ class ResultsExporter:
             'categories_involved': 0
         }
         
-        # FIX: Analysiere ursprÜngliche Kodierungen vor Review
+        # FIX: Analysiere ursprüngliche Kodierungen vor Review
         if original_codings:
             stats['total_original_codings'] = len(original_codings)
             
-            # Gruppiere ursprÜngliche Kodierungen nach Segmenten
+            # Gruppiere ursprüngliche Kodierungen nach Segmenten
             from collections import defaultdict
             original_segments = defaultdict(list)
             all_categories = set()
@@ -2422,10 +2437,10 @@ class ResultsExporter:
                 stats['multiple_coding_consolidated'] += 1
             elif coding.get('consensus_info', {}).get('selection_type') == 'consensus':
                 stats['consensus_found'] += 1
-                stats['segments_resolved'] += 1  # FIX: ZÄhle als aufgelÖst
+                stats['segments_resolved'] += 1  # FIX: ZÄhle als aufgelöst
             elif coding.get('consensus_info', {}).get('selection_type') == 'majority':
                 stats['majority_found'] += 1
-                stats['segments_resolved'] += 1  # FIX: ZÄhle als aufgelÖst
+                stats['segments_resolved'] += 1  # FIX: ZÄhle als aufgelöst
             elif coding.get('consensus_info', {}).get('selection_type') == 'no_consensus':
                 stats['no_consensus'] += 1
             elif coding.get('category') == 'Kein Kodierkonsens':
@@ -2468,7 +2483,7 @@ class ResultsExporter:
                 ("Segmente vor Review", review_stats.get('segments_before_review', 0)),
                 ("Segmente nach Review", review_stats.get('segments_after_review', 0)),
                 ("Segmente mit Konflikten", review_stats.get('segments_with_conflicts', 0)),
-                ("Segmente aufgelÖst", review_stats.get('segments_resolved', 0)),
+                ("Segmente aufgelöst", review_stats.get('segments_resolved', 0)),
                 ("Involvierte Kategorien", review_stats.get('categories_involved', 0))
             ]
             
@@ -2549,7 +2564,7 @@ class ResultsExporter:
             
             if conflicts > 0:
                 resolution_rate = (resolved / conflicts) * 100
-                worksheet.cell(row=current_row, column=1, value="Konflikt-AuflÖsungsrate")
+                worksheet.cell(row=current_row, column=1, value="Konflikt-Auflösungsrate")
                 worksheet.cell(row=current_row, column=2, value=f"{resolution_rate:.1f}%")
                 current_row += 1
             
@@ -2584,12 +2599,12 @@ class ResultsExporter:
         try:
             print("ðŸ‘¥ Erstelle detaillierte Intercoder-Analyse...")
             
-            # Gruppiere Kodierungen nach ursprÜnglicher Segment-ID
+            # Gruppiere Kodierungen nach ursprünglicher Segment-ID
             from collections import defaultdict
             
             original_segments = defaultdict(list)
             for coding in codings:
-                # Extrahiere ursprÜngliche Segment-ID
+                # Extrahiere ursprüngliche Segment-ID
                 consensus_info = coding.get('consensus_info', {})
                 original_id = consensus_info.get('original_segment_id', coding.get('segment_id', ''))
                 if original_id:
@@ -2630,7 +2645,7 @@ class ResultsExporter:
                             'confidence': self._extract_confidence_from_coding(coding)
                         })
                     
-                    # PrÜfe auf Subkategorien-Unstimmigkeiten
+                    # Prüfe auf Subkategorien-Unstimmigkeiten
                     all_subcats_identical = all(s == subcat_sets[0] for s in subcat_sets)
                     
                     if not all_subcats_identical or len(unique_main_cats) > 1:
@@ -2729,22 +2744,22 @@ class ResultsExporter:
     
     def _export_intercoder_bericht(self, writer, original_codings: List[Dict], reliability: float):
         """
-        FIX: Intercoder-Bericht mit bereits berechneter ReliabilitÄt
+        FIX: Intercoder-Bericht mit bereits berechneter Reliabilität
         FÜr ResultsExporter Klasse
         """
         try:
-            print("🧾 Erstelle IntercoderBericht mit ursprÜnglichen Daten...")
+            print("🧾 Erstelle IntercoderBericht mit ursprünglichen Daten...")
             
             worksheet = writer.book.create_sheet("IntercoderBericht")
             current_row = 1
             
             # Titel
-            title_cell = worksheet.cell(row=current_row, column=1, value="Intercoder-ReliabilitÄts-Bericht")
+            title_cell = worksheet.cell(row=current_row, column=1, value="Intercoder-Reliabilitäts-Bericht")
             title_cell.font = Font(bold=True, size=14)
             current_row += 2
             
-            # FIX: Verwende bereits berechnete ReliabilitÄt (aus main())
-            print(f"🧾 Verwende bereits berechnete ReliabilitÄt: {reliability:.3f}")
+            # FIX: Verwende bereits berechnete Reliabilität (aus main())
+            print(f"🧾 Verwende bereits berechnete Reliabilität: {reliability:.3f}")
             
             # FIX: Berechne zusÄtzliche Statistiken nur fuer Display
             reliability_calc = ReliabilityCalculator()
@@ -2755,8 +2770,8 @@ class ResultsExporter:
             statistics = reliability_calc._calculate_basic_statistics(original_codings)
             agreement_analysis = reliability_calc._calculate_detailed_agreement_analysis(original_codings)
             
-            # 1. ReliabilitÄts-Übersicht
-            worksheet.cell(row=current_row, column=1, value="1. ReliabilitÄts-Übersicht")
+            # 1. Reliabilitäts-Übersicht
+            worksheet.cell(row=current_row, column=1, value="1. Reliabilitäts-Übersicht")
             worksheet.cell(row=current_row, column=1).font = Font(bold=True)
             current_row += 1
             
@@ -2820,7 +2835,7 @@ class ResultsExporter:
             worksheet.column_dimensions['A'].width = 35
             worksheet.column_dimensions['B'].width = 20
             
-            print("✅ IntercoderBericht mit ursprÜnglichen Daten erstellt")
+            print("✅ IntercoderBericht mit ursprünglichen Daten erstellt")
             
         except Exception as e:
             print(f"⚠️ Fehler beim IntercoderBericht: {str(e)}")
@@ -2829,14 +2844,14 @@ class ResultsExporter:
 
     def _create_empty_intercoder_sheet(self, writer):
         """
-        FIX: Erstellt Info-Sheet wenn keine ReliabilitÄtsdaten verfÜgbar
+        FIX: Erstellt Info-Sheet wenn keine Reliabilitätsdaten verfÜgbar
         FÜr ResultsExporter Klasse
         """
         worksheet = writer.book.create_sheet("IntercoderBericht")
         
-        worksheet.cell(row=1, column=1, value="Intercoder-ReliabilitÄts-Bericht").font = Font(bold=True, size=14)
-        worksheet.cell(row=3, column=1, value="❌ Keine ursprÜnglichen Kodierungen fuer ReliabilitÄtsberechnung verfÜgbar")
-        worksheet.cell(row=4, column=1, value="ReliabilitÄt muss vor dem Review-Prozess berechnet werden")
+        worksheet.cell(row=1, column=1, value="Intercoder-Reliabilitäts-Bericht").font = Font(bold=True, size=14)
+        worksheet.cell(row=3, column=1, value="❌ Keine ursprünglichen Kodierungen fuer Reliabilitätsberechnung verfÜgbar")
+        worksheet.cell(row=4, column=1, value="Reliabilität muss vor dem Review-Prozess berechnet werden")
         
         worksheet.column_dimensions['A'].width = 60
 
@@ -2849,15 +2864,15 @@ class ResultsExporter:
         try:
             print("🧾 Erstelle erweiterte Intercoder-Übersicht...")
             
-            # FIX: Berechne detaillierte ReliabilitÄtsinformationen
+            # FIX: Berechne detaillierte Reliabilitätsinformationen
             reliability_calc = ReliabilityCalculator()
             
-            # Extrahiere ursprÜngliche Kodierungen aus den Segment-Daten
+            # Extrahiere ursprüngliche Kodierungen aus den Segment-Daten
             original_codings = []
             for segment_codings in original_segments.values():
                 original_codings.extend(segment_codings)
             
-            # FIX: Berechne umfassende ReliabilitÄt mit Details
+            # FIX: Berechne umfassende Reliabilität mit Details
             if original_codings:
                 comprehensive_report = reliability_calc.calculate_comprehensive_reliability(original_codings)
                 overall_alpha = comprehensive_report['overall_alpha']
@@ -3032,7 +3047,7 @@ class ResultsExporter:
         
         Args:
             category: Name der Kategorie
-            original_categories: Dictionary der ursprÜnglichen Kategorien mit CategoryDefinition-Objekten
+            original_categories: Dictionary der ursprünglichen Kategorien mit CategoryDefinition-Objekten
             
         Returns:
             str: 'Deduktiv', 'Induktiv', 'Grounded' oder '' (fuer nicht kodiert)
@@ -3040,16 +3055,16 @@ class ResultsExporter:
         if not category or category in ['Nicht kodiert', 'Kein Kodierkonsens']:
             return ''
         
-        # FIX: PrÜfe zuerst ob es eine deduktive Kategorie ist
+        # FIX: Prüfe zuerst ob es eine deduktive Kategorie ist
         if category in original_categories:
             return 'Deduktiv'
         
-        # FIX: PrÜfe ob die Analyse im grounded mode durchgefÜhrt wurde
+        # FIX: Prüfe ob die Analyse im grounded mode durchgefÜhrt wurde
         analysis_mode = CONFIG.get('ANALYSIS_MODE', 'deductive')
         if analysis_mode == 'grounded':
             return 'Grounded'
         
-        # FIX: Alternative: PrÜfe ob in der CategoryDefinition ein development_type gespeichert ist
+        # FIX: Alternative: Prüfe ob in der CategoryDefinition ein development_type gespeichert ist
         if original_categories and category in original_categories:
             category_obj = original_categories[category]
             if hasattr(category_obj, 'development_type'):
@@ -3178,7 +3193,7 @@ class ResultsExporter:
                     len([c for c in codings if c.get('segment_id') == coding.get('segment_id')]) == 1  # Einzige Kodierung fuer Segment
                 )
                 
-                # FIX: PrÜfe ob Kodierung zu dieser Datei gehÖrt
+                # FIX: Prüfe ob Kodierung zu dieser Datei gehÖrt
                 matches_file = (
                     file_stem in coding.get('document', '') or 
                     file_stem in coding.get('segment_id', '')
@@ -3187,7 +3202,7 @@ class ResultsExporter:
                 if is_review_coding and matches_file:
                     file_codings.append(coding)
                     
-            print(f"      🔀‹ {len(file_codings)} Review-Kodierungen fuer {filename} gefunden")
+            print(f"      🔀 {len(file_codings)} Review-Kodierungen fuer {filename} gefunden")
             
             if not file_codings:
                 print(f"      ❌ Keine Kodierungen fuer {filename} gefunden")
@@ -3301,7 +3316,7 @@ class ResultsExporter:
                     len([c for c in codings if c.get('segment_id') == coding.get('segment_id')]) == 1  
                 )
                 
-                # FIX: PrÜfe ob Kodierung zu dieser Datei gehÖrt
+                # FIX: Prüfe ob Kodierung zu dieser Datei gehÖrt
                 matches_file = (
                     file_stem in coding.get('document', '') or 
                     file_stem in coding.get('segment_id', '')
@@ -3314,7 +3329,7 @@ class ResultsExporter:
                 print(f"      ❌ Keine Review-Kodierungen fuer {filename} gefunden")
                 continue
             
-            print(f"      🔀‹ {len(file_codings)} Review-Kodierungen gefunden")
+            print(f"      🔀 {len(file_codings)} Review-Kodierungen gefunden")
             
             # FIX: Konvertiere zu PDF falls nÖtig
             if file_ext == '.pdf':
@@ -3394,8 +3409,17 @@ class ResultsExporter:
             worksheet.cell(row=current_row, column=2).fill = PatternFill(start_color='D3D3D3', end_color='D3D3D3', fill_type='solid')
             current_row += 1
             
+            # Import version information
+            try:
+                from ..__version__ import __version__, __version_date__
+            except ImportError:
+                __version__ = "0.11.0"
+                __version_date__ = "2025-11-30"
+            
             # FIX: Alle wichtigen Konfigurationsparameter exportieren
             config_params = [
+                ('QCA-AID_VERSION', __version__),
+                ('VERSION_DATE', __version_date__),
                 ('MODEL_PROVIDER', CONFIG.get('MODEL_PROVIDER', 'OpenAI')),
                 ('MODEL_NAME', CONFIG.get('MODEL_NAME', 'gpt-4o-mini')),
                 ('CHUNK_SIZE', CONFIG.get('CHUNK_SIZE', 2000)),

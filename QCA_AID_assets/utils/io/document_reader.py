@@ -70,7 +70,7 @@ class DocumentReader:
             
             print(f"\nGefundene Dateien:")
             for file in all_files:
-                status = "✅" if is_supported_file(file) else "[ERROR]"
+                status = "✅" if is_supported_file(file) else "‼️"
                 print(f"{status} {file}")
             
             print(f"\nVerarbeite Dateien:")
@@ -98,7 +98,7 @@ class DocumentReader:
                         print(f"⚠ Keine Textinhalte gefunden")
                 
                 except Exception as e:
-                    print(f"[ERROR] Fehler bei {filename}: {str(e)}")
+                    print(f"‼️ Fehler bei {filename}: {str(e)}")
                     print("Details:")
                     import traceback
                     traceback.print_exc()
@@ -190,16 +190,16 @@ class DocumentReader:
                 print(f"  ✅ Gesamtlänge: {len(full_text)} Zeichen")
                 return full_text
                 
-            print("\n[ERROR] Keine Textinhalte im Dokument gefunden")
+            print("\n‼️ Keine Textinhalte im Dokument gefunden")
             return ""
                 
         except ImportError:
-            print("\n[ERROR] python-docx nicht installiert.")
+            print("\n‼️ python-docx nicht installiert.")
             print("  Bitte installieren Sie das Paket mit:")
             print("  pip install python-docx")
             raise
         except Exception as e:
-            print(f"\n[ERROR] Unerwarteter Fehler beim DOCX-Lesen:")
+            print(f"\n‼️ Unerwarteter Fehler beim DOCX-Lesen:")
             print(f"  {str(e)}")
             import traceback
             traceback.print_exc()
@@ -296,7 +296,7 @@ class DocumentReader:
                 print(f"  ✅ Gesamtlänge: {len(full_text)} Zeichen")
                 return full_text
             else:
-                print("\n[ERROR] Kein Text aus PDF extrahiert")
+                print("\n‼️ Kein Text aus PDF extrahiert")
                 return ""
                 
         except ImportError:

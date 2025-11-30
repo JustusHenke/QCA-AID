@@ -250,11 +250,11 @@ class ConfigLoader:
                     
                     return True
                 else:
-                    print("\n[ERROR] Keine Kategorien geladen, auch bei alternativer Methode")
+                    print("\n‼️ Keine Kategorien geladen, auch bei alternativer Methode")
                     return False
                     
             except Exception as alt_e:
-                print(f"\n[ERROR] Auch alternative Lademethode fehlgeschlagen: {str(alt_e)}")
+                print(f"\n‼️ Auch alternative Lademethode fehlgeschlagen: {str(alt_e)}")
                 print("\nLösung: Schließen Sie die Excel-Datei und versuchen Sie erneut,")
                 print("oder deaktivieren Sie das automatische Speichern in OneDrive.")
                 return False
@@ -328,8 +328,15 @@ class ConfigLoader:
             if 'config' in json_data:
                 config = json_data['config']
                 
+                # Konvertiere snake_case Keys zu UPPER_CASE für Kompatibilität
+                config_normalized = {}
+                for key, value in config.items():
+                    # Konvertiere z.B. "manual_coding_enabled" zu "MANUAL_CODING_ENABLED"
+                    normalized_key = key.upper()
+                    config_normalized[normalized_key] = value
+                
                 # Rufe _sanitize_config() auf für Validierung
-                self._sanitize_config(config)
+                self._sanitize_config(config_normalized)
                 
                 # Update global_config mit Werten die nicht speziell behandelt wurden
                 specially_handled_keys = {
@@ -341,12 +348,18 @@ class ConfigLoader:
                     'MULTIPLE_CODING_THRESHOLD',
                     'SIMILARITY_THRESHOLD',
                     'PDF_ANNOTATION_FUZZY_THRESHOLD',
-                    'BATCH_SIZE'
+                    'BATCH_SIZE',
+                    'MANUAL_CODING_ENABLED'
                 }
                 
-                for key, value in config.items():
-                    if key not in specially_handled_keys and key not in self.global_config:
+                for key, value in config_normalized.items():
+                    if key not in specially_handled_keys:
                         self.global_config[key] = value
+                
+                # Explizit MANUAL_CODING_ENABLED setzen
+                if 'MANUAL_CODING_ENABLED' in config_normalized:
+                    self.global_config['MANUAL_CODING_ENABLED'] = bool(config_normalized['MANUAL_CODING_ENABLED'])
+                    print(f"[CONFIG] MANUAL_CODING_ENABLED geladen: {self.global_config['MANUAL_CODING_ENABLED']}")
                 
                 print("Konfigurationsparameter geladen und validiert")
             
@@ -543,7 +556,7 @@ class ConfigLoader:
                         config[key] = {}
                     if pd.isna(sub_sub_key):
                         # Extended Boolean handling für alle relevanten Parameter
-                        if sub_key in ['EXPORT_ANNOTATED_PDFS', 'CODE_WITH_CONTEXT', 'SAVE_PROGRESS', 'PARALLEL_PROCESSING', 'MULTIPLE_CODINGS']:
+                        if sub_key in ['EXPORT_ANNOTATED_PDFS', 'CODE_WITH_CONTEXT', 'SAVE_PROGRESS', 'PARALLEL_PROCESSING', 'MULTIPLE_CODINGS', 'MANUAL_CODING_ENABLED']:
                             if isinstance(value, str):
                                 config[key][sub_key] = value.lower() in ['true', '1', 'yes', 'ja', 'on', 'wahr']
                             elif isinstance(value, (int, float)):
@@ -617,7 +630,7 @@ class ConfigLoader:
         # Extract top-level booleans from nested structure
         for key in ['SETTINGS', 'OPTIONS', 'GENERAL']:
             if key in config and isinstance(config[key], dict):
-                for param_name in ['CODE_WITH_CONTEXT', 'MULTIPLE_CODINGS', 'PARALLEL_PROCESSING', 'SAVE_PROGRESS']:
+                for param_name in ['CODE_WITH_CONTEXT', 'MULTIPLE_CODINGS', 'PARALLEL_PROCESSING', 'SAVE_PROGRESS', 'MANUAL_CODING_ENABLED']:
                     if param_name in config[key]:
                         config[param_name] = config[key][param_name]
                         print(f"[CONFIG] Extrahierte {param_name} aus {key}: {config[param_name]}")
@@ -700,7 +713,7 @@ class ConfigLoader:
                     # Erstelle Verzeichnis wenn nicht vorhanden
                     os.makedirs(resolved_path, exist_ok=True)
                     self.global_config[key] = resolved_path
-                    print(f"[SANITIZE] Verzeichnis {key}: {resolved_path}")
+                    print(f"🩹 Verzeichnis {key}: {resolved_path}")
             
             # ===== SUBTASK 3.1: Numerische Validierung =====
             
@@ -714,7 +727,7 @@ class ConfigLoader:
                         self.global_config['CHUNK_SIZE'] = DEFAULT_VALUES['CHUNK_SIZE']
                     else:
                         self.global_config['CHUNK_SIZE'] = chunk_size
-                        print(f"[SANITIZE] CHUNK_SIZE = {chunk_size}")
+                        print(f"🩹 CHUNK_SIZE = {chunk_size}")
                 except (ValueError, TypeError) as e:
                     print(f"⚠️ Warnung: Ungültiger CHUNK_SIZE Wert '{loaded_config['CHUNK_SIZE']}'.")
                     print(f"   Verwende Standardwert: {DEFAULT_VALUES['CHUNK_SIZE']}")
@@ -732,7 +745,7 @@ class ConfigLoader:
                         self.global_config['CHUNK_OVERLAP'] = DEFAULT_VALUES['CHUNK_OVERLAP']
                     else:
                         self.global_config['CHUNK_OVERLAP'] = chunk_overlap
-                        print(f"[SANITIZE] CHUNK_OVERLAP = {chunk_overlap}")
+                        print(f"🩹 CHUNK_OVERLAP = {chunk_overlap}")
                 except (ValueError, TypeError):
                     print(f"⚠️ Warnung: Ungültiger CHUNK_OVERLAP Wert '{loaded_config['CHUNK_OVERLAP']}'.")
                     print(f"   Verwende Standardwert: {DEFAULT_VALUES['CHUNK_OVERLAP']}")
@@ -761,7 +774,7 @@ class ConfigLoader:
                         self.global_config['BATCH_SIZE'] = DEFAULT_VALUES['BATCH_SIZE']
                     else:
                         self.global_config['BATCH_SIZE'] = batch_size
-                        print(f"[SANITIZE] BATCH_SIZE = {batch_size}")
+                        print(f"🩹 BATCH_SIZE = {batch_size}")
                 except (ValueError, TypeError):
                     print(f"⚠️ Warnung: Ungültiger BATCH_SIZE Wert '{loaded_config['BATCH_SIZE']}'.")
                     print(f"   Verwende Standardwert: {DEFAULT_VALUES['BATCH_SIZE']}")
@@ -786,7 +799,7 @@ class ConfigLoader:
                             self.global_config[threshold_name] = default_value
                         else:
                             self.global_config[threshold_name] = threshold
-                            print(f"[SANITIZE] {threshold_name} = {threshold}")
+                            print(f"🩹 {threshold_name} = {threshold}")
                     except (ValueError, TypeError):
                         print(f"⚠️ Warnung: Ungültiger {threshold_name} Wert '{loaded_config[threshold_name]}'.")
                         print(f"   Verwende Standardwert: {default_value}")
@@ -807,7 +820,7 @@ class ConfigLoader:
                     self.global_config['ANALYSIS_MODE'] = DEFAULT_VALUES['ANALYSIS_MODE']
                 else:
                     self.global_config['ANALYSIS_MODE'] = analysis_mode
-                    print(f"[SANITIZE] ANALYSIS_MODE = {analysis_mode}")
+                    print(f"🩹 ANALYSIS_MODE = {analysis_mode}")
             else:
                 self.global_config['ANALYSIS_MODE'] = DEFAULT_VALUES['ANALYSIS_MODE']
             
@@ -822,7 +835,7 @@ class ConfigLoader:
                     self.global_config['REVIEW_MODE'] = DEFAULT_VALUES['REVIEW_MODE']
                 else:
                     self.global_config['REVIEW_MODE'] = review_mode
-                    print(f"[SANITIZE] REVIEW_MODE = {review_mode}")
+                    print(f"🩹 REVIEW_MODE = {review_mode}")
             else:
                 self.global_config['REVIEW_MODE'] = DEFAULT_VALUES['REVIEW_MODE']
             
@@ -847,7 +860,7 @@ class ConfigLoader:
                     self.global_config['CODE_WITH_CONTEXT'] = value.lower() in ('true', 'ja', 'yes', '1')
                 else:
                     self.global_config['CODE_WITH_CONTEXT'] = bool(value)
-                print(f"[SANITIZE] CODE_WITH_CONTEXT = {self.global_config['CODE_WITH_CONTEXT']}")
+                print(f"🩹 CODE_WITH_CONTEXT = {self.global_config['CODE_WITH_CONTEXT']}")
             else:
                 self.global_config['CODE_WITH_CONTEXT'] = False
 
@@ -858,9 +871,20 @@ class ConfigLoader:
                     self.global_config['MULTIPLE_CODINGS'] = value.lower() in ('true', 'ja', 'yes', '1')
                 else:
                     self.global_config['MULTIPLE_CODINGS'] = bool(value)
-                print(f"[SANITIZE] MULTIPLE_CODINGS = {self.global_config['MULTIPLE_CODINGS']}")
+                print(f"🩹 MULTIPLE_CODINGS = {self.global_config['MULTIPLE_CODINGS']}")
             else:
                 self.global_config['MULTIPLE_CODINGS'] = True
+            
+            # MANUAL_CODING_ENABLED handling
+            if 'MANUAL_CODING_ENABLED' in loaded_config:
+                value = loaded_config['MANUAL_CODING_ENABLED']
+                if isinstance(value, str):
+                    self.global_config['MANUAL_CODING_ENABLED'] = value.lower() in ('true', 'ja', 'yes', '1')
+                else:
+                    self.global_config['MANUAL_CODING_ENABLED'] = bool(value)
+                print(f"🩹 MANUAL_CODING_ENABLED = {self.global_config['MANUAL_CODING_ENABLED']}")
+            else:
+                self.global_config['MANUAL_CODING_ENABLED'] = False
             
             # Pass through all other values
             for key, value in loaded_config.items():
@@ -868,7 +892,7 @@ class ConfigLoader:
                     self.global_config[key] = value
                     
         except Exception as e:
-            print(f"[SANITIZE] Fehler: {str(e)}")
+            print(f"🩹 Fehler: {str(e)}")
             import traceback
             traceback.print_exc()
 

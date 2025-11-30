@@ -10,6 +10,20 @@ import asyncio
 from datetime import datetime
 from typing import Dict, List
 
+# Fix für Unicode-Encoding auf Windows-Konsolen
+if sys.platform == 'win32':
+    try:
+        # Setze stdout und stderr auf UTF-8
+        if hasattr(sys.stdout, 'reconfigure'):
+            sys.stdout.reconfigure(encoding='utf-8')
+        if hasattr(sys.stderr, 'reconfigure'):
+            sys.stderr.reconfigure(encoding='utf-8')
+    except Exception:
+        # Fallback für ältere Python-Versionen
+        import codecs
+        sys.stdout = codecs.getwriter('utf-8')(sys.stdout.buffer, 'strict')
+        sys.stderr = codecs.getwriter('utf-8')(sys.stderr.buffer, 'strict')
+
 from .core.config import CONFIG, FORSCHUNGSFRAGE
 from .core.data_models import CategoryDefinition, CategoryChange
 from .preprocessing.material_loader import MaterialLoader
@@ -65,7 +79,7 @@ async def perform_manual_coding(chunks, categories, manual_coders):
                   f"Chunk {chunk_id + 1}/{len(chunks[document_name])} "
                   f"(Gesamt: {processed_segments}/{total_segments}, {progress_percentage:.1f}%)")
             
-            # PrÜfe, ob es das letzte Segment ist
+            # Prüfe, ob es das letzte Segment ist
             last_segment = (processed_segments == total_segments)
             
             for coder_idx, manual_coder in enumerate(manual_coders):
@@ -77,7 +91,7 @@ async def perform_manual_coding(chunks, categories, manual_coders):
                     # Übergabe des last_segment Parameters an die code_chunk Methode
                     coding_result = await manual_coder.code_chunk(chunk, categories, is_last_segment=last_segment)
                     
-                    # KORRIGIERT: PrÜfe auf ABORT_ALL
+                    # KORRIGIERT: Prüfe auf ABORT_ALL
                     if coding_result == "ABORT_ALL":
                         print("Manuelles Kodieren wurde vom Benutzer abgebrochen.")
                         
@@ -361,7 +375,11 @@ async def main() -> None:
         console_logger = ConsoleLogger(CONFIG['OUTPUT_DIR'])
         console_logger.start_logging()
 
+        # Import version information
+        from .__version__ import __version__, __version_date__
+        
         print("=== Qualitative Inhaltsanalyse nach Mayring ===")
+        print(f"QCA-AID Version {__version__} ({__version_date__})")
 
         config_loader = ConfigLoader(script_dir, CONFIG)
         
@@ -391,7 +409,7 @@ async def main() -> None:
                 change_type='add',
                 description="Initiale deduktive Kategorie",
                 timestamp=datetime.now().isoformat(),
-                justification="Teil des ursprÜnglichen deduktiven Kategoriensystems"
+                justification="Teil des ursprünglichen deduktiven Kategoriensystems"
             ))
 
         # 4. Dokumente einlesen
@@ -407,7 +425,22 @@ async def main() -> None:
         print("\n📌 ANALYSE-KONFIGURATION")
         codebook_path = os.path.join(CONFIG['OUTPUT_DIR'], "codebook_inductive.json")
         
-        config_result = await configure_analysis_start(CONFIG, codebook_path)
+        # Check if running from webapp - skip interactive prompts
+        is_webapp_mode = os.environ.get('QCA_AID_WEBAPP_MODE') == '1'
+        
+        if is_webapp_mode:
+            print("ℹ️ Webapp-Modus erkannt - verwende Konfiguration aus JSON")
+            # Use config from loaded JSON file
+            config_result = {
+                'analysis_mode': CONFIG.get('ANALYSIS_MODE', 'deductive'),
+                'use_saved_codebook': False,
+                'enable_manual_coding': CONFIG.get('MANUAL_CODING_ENABLED', False),
+                'skip_inductive': CONFIG.get('ANALYSIS_MODE', 'deductive') == 'deductive'
+            }
+            display_config_parameters()
+        else:
+            # Interactive mode for command-line usage
+            config_result = await configure_analysis_start(CONFIG, codebook_path)
         
         # Wende die gewählte Konfiguration an
         CONFIG['ANALYSIS_MODE'] = config_result['analysis_mode']
@@ -547,12 +580,12 @@ async def main() -> None:
             print(f"\nGesamtzahl Kodierungen: {len(all_codings)}")
 
 
-            # 8.  Intercoder-ReliabilitÄt mit kategorie-spezifischer Berechnung
+            # 8.  Intercoder-Reliabilität mit kategorie-spezifischer Berechnung
             if all_codings:
-                print("\n8. Berechne korrekte Intercoder-ReliabilitÄt...")
+                print("\n8. Berechne korrekte Intercoder-Reliabilität...")
                 
-                # FIX: SICHER ursprÜngliche Kodierungen BEVOR Review-Prozess
-                original_codings_for_reliability = all_codings.copy()  # Kopie der ursprÜnglichen Kodierungen
+                # FIX: SICHER ursprüngliche Kodierungen BEVOR Review-Prozess
+                original_codings_for_reliability = all_codings.copy()  # Kopie der ursprünglichen Kodierungen
                 
                 # NEUE LOGIK: Verwende korrigierte ReliabilityCalculator
                 reliability_calculator = ReliabilityCalculator()
@@ -560,7 +593,7 @@ async def main() -> None:
                 
                 print(f"📈 Krippendorff's Alpha (korrigiert fuer Mehrfachkodierungen): {reliability:.3f}")
             else:
-                print("\nKeine Kodierungen fuer ReliabilitÄtsberechnung")
+                print("\nKeine Kodierungen fuer Reliabilitätsberechnung")
                 reliability = 0.0
                 original_codings_for_reliability = []
 
@@ -596,8 +629,8 @@ async def main() -> None:
                 if review_mode == 'manual':
                     print("   Manueller Review-Modus aus CONFIG aktiviert (auch ohne manuelle Kodierer)")
             
-            print(f"🔀‹ Review-Modus: {review_mode}")
-            print(f"📈 Eingabe: {len(all_codings)} ursprÜngliche Kodierungen")
+            print(f"🔀 Review-Modus: {review_mode}")
+            print(f"📈 Eingabe: {len(all_codings)} ursprüngliche Kodierungen")
             
             review_manager = ReviewManager(CONFIG['OUTPUT_DIR'])
             
@@ -613,18 +646,13 @@ async def main() -> None:
                 # Setze Export-Modus
                 export_mode = review_mode
 
-                if 'console_logger' in locals():
-                    console_logger.stop_logging()    
-
             except Exception as e:
                 print(f"❌ Fehler beim Review-Prozess: {str(e)}")
-                print("📝 Verwende ursprÜngliche Kodierungen ohne Review")
+                print("📝 Verwende ursprüngliche Kodierungen ohne Review")
                 # all_codings bleibt unverÄndert
                 export_mode = review_mode
                 import traceback
-                traceback.print_exc()
-                if 'console_logger' in locals():
-                    console_logger.stop_logging() 
+                traceback.print_exc() 
             
 
             # 10. Speichere induktiv erweitertes Codebook
@@ -684,7 +712,7 @@ async def main() -> None:
 
                 await exporter.export_results(
                     codings=all_codings,  # Review-Ergebnisse fuer Export  
-                    reliability=reliability,  # Bereits berechnete ReliabilitÄt
+                    reliability=reliability,  # Bereits berechnete Reliabilität
                     categories=final_categories,
                     chunks=chunks,  
                     revision_manager=revision_manager,
@@ -745,7 +773,7 @@ async def main() -> None:
             print(analysis_manager.get_analysis_report())
 
             if CONFIG.get('MULTIPLE_CODINGS', True):
-                # Verwende die ursprÜnglichen Kodierungen fuer Mehrfachkodierungs-Statistiken
+                # Verwende die ursprünglichen Kodierungen fuer Mehrfachkodierungs-Statistiken
                 codings_for_stats = original_codings_for_reliability if original_codings_for_reliability else all_codings
                 
                 if codings_for_stats:

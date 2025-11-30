@@ -24,6 +24,7 @@ class TeeWriter:
         """
         self.stream1 = stream1
         self.stream2 = stream2
+        self.line_buffer = ""  # Buffer for incomplete lines
     
     def write(self, data: str) -> None:
         """Schreibt Daten in beide Streams"""
@@ -39,17 +40,22 @@ class TeeWriter:
             
             # Write to log file (with timestamp for each line)
             if self.stream2 and not self.stream2.closed:
-                if data.strip() and not data.startswith('==='):
-                    timestamp = datetime.now().strftime("%H:%M:%S")
-                    # Only add timestamp for new lines
-                    if data.endswith('\n'):
-                        timestamped_data = f"[{timestamp}] {data}"
-                    else:
-                        timestamped_data = data
-                else:
-                    timestamped_data = data
+                # Add data to buffer
+                self.line_buffer += data
+                
+                # Process complete lines (those ending with \n)
+                while '\n' in self.line_buffer:
+                    line, self.line_buffer = self.line_buffer.split('\n', 1)
                     
-                self.stream2.write(timestamped_data)
+                    # Add timestamp to non-empty lines that don't start with ===
+                    if line.strip() and not line.startswith('==='):
+                        timestamp = datetime.now().strftime("%H:%M:%S")
+                        timestamped_line = f"[{timestamp}] {line}\n"
+                    else:
+                        timestamped_line = f"{line}\n"
+                    
+                    self.stream2.write(timestamped_line)
+                
                 self.stream2.flush()
                 
         except Exception as e:
@@ -63,6 +69,16 @@ class TeeWriter:
     def flush(self) -> None:
         """Flush beide Streams"""
         try:
+            # Write any remaining buffered data to log file
+            if self.stream2 and not self.stream2.closed and self.line_buffer:
+                if self.line_buffer.strip() and not self.line_buffer.startswith('==='):
+                    timestamp = datetime.now().strftime("%H:%M:%S")
+                    timestamped_line = f"[{timestamp}] {self.line_buffer}"
+                else:
+                    timestamped_line = self.line_buffer
+                self.stream2.write(timestamped_line)
+                self.line_buffer = ""
+            
             self.stream1.flush()
             if self.stream2 and not self.stream2.closed:
                 self.stream2.flush()
@@ -112,7 +128,7 @@ class ConsoleLogger:
             os.makedirs(self.output_dir, exist_ok=True)
             print(f"[DIR] Output-Verzeichnis: {self.output_dir}")
         except Exception as e:
-            print(f"[ERROR] Fehler beim Erstellen des Output-Verzeichnisses: {e}")
+            print(f"‼️ Fehler beim Erstellen des Output-Verzeichnisses: {e}")
             
         self.log_file: Optional[TextIO] = None
         self.is_active = False
@@ -140,7 +156,7 @@ class ConsoleLogger:
             print("=" * 60)
             
         except Exception as e:
-            print(f"[ERROR] Fehler beim Starten des Console Loggers: {e}")
+            print(f"‼️ Fehler beim Starten des Console Loggers: {e}")
             self.stop_logging()
     
     def stop_logging(self) -> None:
@@ -154,6 +170,11 @@ class ConsoleLogger:
                 print("=" * 60)
                 print(f"=== QCA-AID Console Log beendet: {current_time} ===")
                 
+                # Show full absolute path (before closing log file)
+                abs_path = os.path.abspath(self.log_path)
+                print(f"[SUCCESS] Console Log gespeichert: {abs_path}")
+                print("")  # Leere Zeile für bessere Lesbarkeit
+                
                 # Restore original stdout/stderr
                 sys.stdout = self.original_stdout
                 sys.stderr = self.original_stderr
@@ -165,12 +186,8 @@ class ConsoleLogger:
                 
                 self.is_active = False
                 
-                # Show full absolute path
-                abs_path = os.path.abspath(self.log_path)
-                print(f"[SUCCESS] Console Log gespeichert: {abs_path}")
-                
             except Exception as e:
-                print(f"[ERROR] Fehler beim Stoppen des Console Loggers: {e}")
+                print(f"‼️ Fehler beim Stoppen des Console Loggers: {e}")
                 # Emergency restoration
                 sys.stdout = self.original_stdout
                 sys.stderr = self.original_stderr

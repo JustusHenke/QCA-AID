@@ -72,13 +72,29 @@ class MistralProvider(LLMProvider):
         Raises:
             Exception: If API call fails
         """
+        from ..tracking.token_tracker import get_global_token_counter
+        token_counter = get_global_token_counter()
+        
         try:
+            # Prüfe Capability-Cache für dieses Model
+            supports_temperature = token_counter.model_capabilities.get(model, None)
+            
             # Erstelle Parameter-Dict
             params = {
                 'model': model,
-                'messages': messages,
-                'temperature': temperature
+                'messages': messages
             }
+            
+            # Temperature handling mit Capability-Check
+            if supports_temperature is None:
+                # Keine Information vorhanden - versuche mit temperature
+                if temperature is not None:
+                    params['temperature'] = temperature
+            elif supports_temperature:
+                # Model unterstützt temperature - nutze es
+                if temperature is not None:
+                    params['temperature'] = temperature
+            # else: Model unterstützt temperature nicht - füge es nicht hinzu
             
             # Füge optionale Parameter hinzu
             if max_tokens:
@@ -89,11 +105,37 @@ class MistralProvider(LLMProvider):
                 print("⚠️  Warnung: response_format wird von Mistral möglicherweise nicht unterstützt")
             
             # API Call wrapped in async executor (Mistral client ist synchron)
-            response = await self._make_async_call(params)
-            return response
+            try:
+                response = await self._make_async_call(params)
+                # Wenn erfolgreich und temperature war im Request und noch nicht getestet
+                if 'temperature' in params and supports_temperature is None:
+                    token_counter.model_capabilities[model] = True
+                    print(f"✅ Model {model} unterstützt temperature-Parameter")
+                return response
+                
+            except Exception as api_error:
+                # Prüfe ob der Fehler temperature-bezogen ist
+                error_msg = str(api_error)
+                
+                if 'temperature' in error_msg.lower() and 'temperature' in params:
+                    # Markiere Model als nicht-unterstützt
+                    token_counter.model_capabilities[model] = False
+                    print(f"⚠️  Model {model} unterstützt temperature-Parameter NICHT. Retry ohne...")
+                    
+                    # Versuche erneut ohne temperature
+                    params_without_temp = {k: v for k, v in params.items() if k != 'temperature'}
+                    try:
+                        response = await self._make_async_call(params_without_temp)
+                        return response
+                    except Exception as retry_error:
+                        print(f"❌ ‼️ Auch Retry ohne temperature fehlgeschlagen: {str(retry_error)}")
+                        raise retry_error
+                else:
+                    # Anderer Fehler - weiterleiten
+                    raise api_error
             
         except Exception as e:
-            print(f"❌ [ERROR] Fehler bei Mistral API Call: {str(e)}")
+            print(f"❌ ‼️ Fehler bei Mistral API Call: {str(e)}")
             raise
     
     async def _make_async_call(self, params: Dict) -> Any:
@@ -121,5 +163,5 @@ class MistralProvider(LLMProvider):
             )
             return response
         except Exception as e:
-            print(f"❌ [ERROR] Fehler bei async Mistral Call: {str(e)}")
+            print(f"❌ ‼️ Fehler bei async Mistral Call: {str(e)}")
             raise

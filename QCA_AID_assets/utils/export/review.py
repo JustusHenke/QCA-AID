@@ -29,7 +29,7 @@ class ManualReviewGUI:
         review_decisions = []
         
         for i, segment in enumerate(segments_needing_review, 1):
-            print(f"\n[REVIEW] Review {i}/{len(segments_needing_review)}: {segment['segment_id']}")
+            print(f"\n🧫 Review {i}/{len(segments_needing_review)}: {segment['segment_id']}")
             print(f"   Kategorie: {segment['target_category']}")
             
             if segment['is_multiple_coding']:

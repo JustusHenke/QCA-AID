@@ -1,0 +1,65 @@
+{
+  "forschungsfrage": "Welche Themen werden in den Dokumenten diskutiert?",
+  "kodierregeln": {
+    "general": [
+      "Kodiere Hauptthemen und zentrale Aussagen",
+      "Fokus auf Kernaussagen, Details können vernachlässigt werden"
+    ],
+    "format": [
+      "Kurze, prägnante Kodierungen"
+    ],
+    "exclusion": [
+      "Ignoriere Nebensächlichkeiten",
+      "Ignoriere redundante Informationen"
+    ]
+  },
+  "deduktive_kategorien": {
+    "Thema_A": {
+      "definition": "Hauptthema A",
+      "rules": [
+        "Kodiere wenn Thema A erwähnt wird"
+      ],
+      "examples": [
+        "Beispiel für Thema A"
+      ],
+      "subcategories": {}
+    },
+    "Thema_B": {
+      "definition": "Hauptthema B",
+      "rules": [
+        "Kodiere wenn Thema B erwähnt wird"
+      ],
+      "examples": [
+        "Beispiel für Thema B"
+      ],
+      "subcategories": {}
+    }
+  },
+  "config": {
+    "MODEL_PROVIDER": "OpenAI",
+    "MODEL_NAME": "gpt-4o-mini",
+    "DATA_DIR": "input",
+    "OUTPUT_DIR": "output",
+    "CHUNK_SIZE": 1500,
+    "CHUNK_OVERLAP": 50,
+    "BATCH_SIZE": 12,
+    "CODE_WITH_CONTEXT": false,
+    "MULTIPLE_CODINGS": false,
+    "MULTIPLE_CODING_THRESHOLD": 0.5,
+    "ANALYSIS_MODE": "deductive",
+    "REVIEW_MODE": "majority",
+    "ATTRIBUTE_LABELS": {
+      "attribut1": "Quelle",
+      "attribut2": "Datum",
+      "attribut3": "Typ"
+    },
+    "CODER_SETTINGS": [
+      {
+        "temperature": 0.2,
+        "coder_id": "coder_fast"
+      }
+    ],
+    "EXPORT_ANNOTATED_PDFS": false,
+    "PDF_ANNOTATION_FUZZY_THRESHOLD": 0.7
+  }
+}

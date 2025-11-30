@@ -46,7 +46,15 @@ async def main():
         FileNotFoundError: Wenn die Konfigurationsdatei nicht gefunden wird
         ValueError: Wenn keine Explorationsdatei in der Konfiguration angegeben ist
     """
-    print("\n=== QCA-AID Explorer v0.5 Start ===")
+    # Import version information
+    try:
+        from .__version__ import __version__, __version_date__
+    except ImportError:
+        __version__ = "0.11.0"
+        __version_date__ = "2025-11-30"
+    
+    print(f"\n=== QCA-AID Explorer ===")
+    print(f"Version {__version__} ({__version_date__})")
     print("Konfiguration über Excel-Datei")
     
     # Pfad zur Konfigurations-Excel-Datei

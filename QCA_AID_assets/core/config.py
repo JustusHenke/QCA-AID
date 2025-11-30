@@ -145,8 +145,8 @@ SCRIPT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))  # Gehe
 CONFIG = {
     'MODEL_PROVIDER': 'OpenAI',
     'MODEL_NAME': 'gpt-4o-mini',
-    'DATA_DIR': os.path.join(SCRIPT_DIR, 'input'),
-    'OUTPUT_DIR': os.path.join(SCRIPT_DIR, 'output'),
+    'DATA_DIR': 'input',  # Relativ zum Projektverzeichnis
+    'OUTPUT_DIR': 'output',  # Relativ zum Projektverzeichnis
     'CHUNK_SIZE': 1200,
     'CHUNK_OVERLAP': 50,
     'BATCH_SIZE': 8,
@@ -166,7 +166,7 @@ CONFIG = {
     'PDF_SIDEBAR_BAR_WIDTH': 8,  # Breite der Sidebar-Marker in Pixeln
     'PDF_SIDEBAR_SPACING': 2,  # Abstand zwischen Sidebar-Markern
     'INDUCTIVE_CODER_TEMPERATURE': 0.2,  # Temperature für den InductiveCoder
-    'RELEVANCE_CHECK_TEMPERATURE': 0.3,  # Temperature für die RelevanzprÜfung
+    'RELEVANCE_CHECK_TEMPERATURE': 0.3,  # Temperature für die Relevanzprüfung
     'CODER_SETTINGS': [
         {
             'temperature': 0.3,
@@ -176,13 +176,161 @@ CONFIG = {
             'temperature': 0.5,
             'coder_id': 'auto_2'
         }
-    ]
+    ],
+    
+    # ============================
+    # LLM PROVIDER MANAGER KONFIGURATION
+    # ============================
+    # Konfiguration für den erweiterten LLM Provider Manager
+    # Der Provider Manager lädt automatisch Modell-Metadaten von mehreren
+    # Providern (OpenAI, Anthropic, Mistral, OpenRouter, lokale Modelle)
+    
+    'PROVIDER_MANAGER': {
+        # Cache-Verzeichnis für Provider- und Modell-Informationen
+        # Modell-Metadaten werden hier gecacht um wiederholte Netzwerk-Anfragen zu vermeiden
+        # Cache ist 24 Stunden gültig
+        'CACHE_DIR': os.path.join(os.path.expanduser("~"), '.llm_cache'),
+        
+        # Verzeichnis für lokale Fallback-Konfigurationen
+        # Wenn Catwalk GitHub nicht erreichbar ist, werden Provider-Configs aus diesem
+        # Verzeichnis geladen. Standard: QCA_AID_assets/utils/llm/configs/
+        'FALLBACK_DIR': os.path.join(SCRIPT_DIR, 'utils', 'llm', 'configs'),
+        
+        # Pfad zur pricing_overrides.json Datei
+        # Ermöglicht das Überschreiben von Modell-Kosten mit eigenen Werten
+        # Format: {"model_id": {"cost_in": 1.0, "cost_out": 2.0}}
+        'CONFIG_DIR': os.path.join(SCRIPT_DIR, 'utils', 'llm'),
+        
+        # Automatische Initialisierung beim Import
+        # Wenn True, wird der Provider Manager automatisch beim ersten Zugriff initialisiert
+        # Wenn False, muss initialize() manuell aufgerufen werden
+        'AUTO_INITIALIZE': False,
+        
+        # Erzwingt Neuladen von Provider-Daten beim Start
+        # Wenn True, wird Cache ignoriert und Daten werden neu von externen Quellen geladen
+        # Nützlich für Entwicklung oder wenn aktuelle Modell-Informationen benötigt werden
+        'FORCE_REFRESH': False,
+    }
 }
 
-# Stelle sicher, dass die Verzeichnisse existieren
-os.makedirs(CONFIG['DATA_DIR'], exist_ok=True)
-os.makedirs(CONFIG['OUTPUT_DIR'], exist_ok=True)
+# Verzeichnisse werden bei Bedarf von der Webapp erstellt
+# (nicht beim Import, da Pfade relativ zum Projektverzeichnis sind)
 
 # Lade Umgebungsvariablen
 env_path = os.path.join(os.path.expanduser("~"), '.environ.env')
 load_dotenv(env_path)
+
+
+# ============================
+# PROVIDER MANAGER HILFSFUNKTIONEN
+# ============================
+
+def get_provider_manager_config():
+    """
+    Gibt die Provider Manager Konfiguration zurück.
+    
+    Diese Funktion bietet Zugriff auf die Provider Manager Einstellungen
+    und stellt Backward-Compatibility sicher.
+    
+    Returns:
+        dict: Provider Manager Konfiguration mit folgenden Keys:
+            - cache_dir: Verzeichnis für Cache-Dateien
+            - fallback_dir: Verzeichnis für lokale Fallback-Configs
+            - config_dir: Verzeichnis für pricing_overrides.json
+            - auto_initialize: Ob automatische Initialisierung aktiviert ist
+            - force_refresh: Ob Cache beim Start ignoriert werden soll
+    
+    Example:
+        >>> config = get_provider_manager_config()
+        >>> print(config['cache_dir'])
+        ~/.llm_cache
+    """
+    return CONFIG.get('PROVIDER_MANAGER', {
+        'CACHE_DIR': os.path.join(os.path.expanduser("~"), '.llm_cache'),
+        'FALLBACK_DIR': os.path.join(SCRIPT_DIR, 'utils', 'llm', 'configs'),
+        'CONFIG_DIR': os.path.join(SCRIPT_DIR, 'utils', 'llm'),
+        'AUTO_INITIALIZE': False,
+        'FORCE_REFRESH': False,
+    })
+
+
+async def create_provider_manager():
+    """
+    Erstellt und initialisiert einen LLMProviderManager mit den Einstellungen aus CONFIG.
+    
+    Diese Convenience-Funktion erstellt einen Provider Manager mit den
+    Konfigurationseinstellungen aus CONFIG['PROVIDER_MANAGER'] und initialisiert
+    ihn optional automatisch.
+    
+    Returns:
+        LLMProviderManager: Initialisierter Provider Manager
+    
+    Raises:
+        ImportError: Wenn LLMProviderManager nicht importiert werden kann
+        ProviderLoadError: Wenn keine Provider geladen werden konnten
+    
+    Example:
+        >>> import asyncio
+        >>> manager = asyncio.run(create_provider_manager())
+        >>> all_models = manager.get_all_models()
+        >>> print(f"Loaded {len(all_models)} models")
+    
+    Note:
+        Diese Funktion ist async und muss mit await oder asyncio.run() aufgerufen werden.
+        Der Provider Manager wird automatisch initialisiert wenn AUTO_INITIALIZE=True.
+    """
+    try:
+        # Versuche relativen Import (wenn als Modul verwendet)
+        try:
+            from ..utils.llm.provider_manager import LLMProviderManager
+        except (ImportError, ValueError):
+            # Fallback auf absoluten Import (wenn direkt ausgeführt)
+            from QCA_AID_assets.utils.llm.provider_manager import LLMProviderManager
+    except ImportError as e:
+        raise ImportError(
+            f"Failed to import LLMProviderManager: {e}. "
+            "Ensure the provider_manager module is available."
+        )
+    
+    pm_config = get_provider_manager_config()
+    
+    # Erstelle Provider Manager mit Konfiguration
+    manager = LLMProviderManager(
+        cache_dir=pm_config['CACHE_DIR'],
+        fallback_dir=pm_config['FALLBACK_DIR'],
+        config_dir=pm_config['CONFIG_DIR']
+    )
+    
+    # Initialisiere automatisch wenn konfiguriert
+    if pm_config.get('AUTO_INITIALIZE', False):
+        force_refresh = pm_config.get('FORCE_REFRESH', False)
+        await manager.initialize(force_refresh=force_refresh)
+    
+    return manager
+
+
+def get_legacy_provider_config():
+    """
+    Gibt die Legacy-Provider-Konfiguration zurück (Backward-Compatibility).
+    
+    Diese Funktion extrahiert die traditionellen Provider-Einstellungen
+    aus CONFIG für bestehenden Code, der noch nicht auf den Provider Manager
+    migriert wurde.
+    
+    Returns:
+        dict: Legacy-Konfiguration mit Keys:
+            - provider: Provider-Name (z.B. 'OpenAI', 'Anthropic')
+            - model_name: Modell-Name (z.B. 'gpt-4o-mini')
+    
+    Example:
+        >>> legacy_config = get_legacy_provider_config()
+        >>> print(f"Using {legacy_config['provider']} with {legacy_config['model_name']}")
+    
+    Note:
+        Diese Funktion ist für Backward-Compatibility gedacht.
+        Neuer Code sollte den LLMProviderManager verwenden.
+    """
+    return {
+        'provider': CONFIG.get('MODEL_PROVIDER', 'OpenAI'),
+        'model_name': CONFIG.get('MODEL_NAME', 'gpt-4o-mini')
+    }

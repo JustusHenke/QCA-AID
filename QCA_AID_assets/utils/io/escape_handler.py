@@ -54,7 +54,7 @@ class EscapeHandler:
         self.escape_pressed = False
         self.user_wants_to_abort = False
         
-        print("\n[TIP] Tipp: Druecken Sie ESC um die Kodierung sicher zu unterbrechen und Zwischenergebnisse zu speichern")
+        print("\nℹ️ Tipp: Druecken Sie ESC um die Kodierung sicher zu unterbrechen und Zwischenergebnisse zu speichern")
         
         # FIX: Bereinige alten Thread falls vorhanden
         if self.keyboard_thread and self.keyboard_thread.is_alive():

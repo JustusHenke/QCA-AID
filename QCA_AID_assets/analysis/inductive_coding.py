@@ -366,7 +366,7 @@ class InductiveCoder:
             # Speichere SÄttigungshistorie
             self.theoretical_saturation_history.append(saturation_metrics)
             
-            # PrÜfe ALLE SÄttigungskriterien
+            # Prüfe ALLE SÄttigungskriterien
             if self._check_comprehensive_saturation(saturation_metrics, batch_idx + 1, len(batches)):
                 print(f"\n🏁 VOLLSTÄNDIGE SÄTTIGUNG erreicht nach Batch {batch_idx + 1}")
                 print(f"🧾 SÄttigungsgrund:")
@@ -531,7 +531,7 @@ class InductiveCoder:
         min_material = self.MIN_MATERIAL_COVERAGE
         min_stability = self.STABILITY_THRESHOLD
         
-        # PrÜfe alle Kriterien
+        # Prüfe alle Kriterien
         criteria_met = {
             'min_batches': current_batch >= min_batches,
             'material_coverage': saturation_metrics['material_coverage'] >= min_material,
@@ -645,7 +645,7 @@ class InductiveCoder:
         - Subkategorien mÜssen neue, relevante Themenaspekte abbilden
         - Mindestens {self.MIN_EXAMPLES} Textbelege pro Subkategorie
         - Konfidenz mindestens {self.MIN_CONFIDENCE}
-        - PrÜfe JEDE bestehende Hauptkategorie auf mÖgliche neue Subkategorien
+        - Prüfe JEDE bestehende Hauptkategorie auf mÖgliche neue Subkategorien
         
         TEXTSEGMENTE:
         {segments_text}
@@ -748,7 +748,7 @@ class InductiveCoder:
             )
             
             llm_response = LLMResponse(response)
-            result = json.loads(llm_response.content)
+            result = json.loads(llm_response.extract_json())
             
             
             token_counter.track_response(response, self.model_name)
@@ -925,7 +925,7 @@ class InductiveCoder:
                 'grounded'
             )
             
-            # PrÜfe Cache
+            # Prüfe Cache
             if cache_key in self.analysis_cache:
                 print("Nutze gecachte Analyse")
                 return self.analysis_cache[cache_key]
@@ -985,7 +985,7 @@ class InductiveCoder:
                 
             # Verarbeite Response mit Wrapper
             llm_response = LLMResponse(response)
-            result = json.loads(llm_response.content)
+            result = json.loads(llm_response.extract_json())
             
             
             token_counter.track_response(response, self.model_name)
@@ -1064,7 +1064,7 @@ class InductiveCoder:
             self.category_cache[cache_key] = relevance
             return segment, relevance
         
-        # Parallele RelevanzprÜfung
+        # Parallele Relevanzprüfung
         tasks = [check_segment(seg) for seg in segments]
         results = await asyncio.gather(*tasks)
         
@@ -1092,7 +1092,7 @@ class InductiveCoder:
                 
             # Verarbeite Response mit Wrapper
             llm_response = LLMResponse(response)
-            result = json.loads(llm_response.content)
+            result = json.loads(llm_response.extract_json())
 
             
             token_counter.track_response(response, self.model_name)
@@ -1197,7 +1197,7 @@ class InductiveCoder:
             )
             
             llm_response = LLMResponse(response)
-            result = json.loads(llm_response.content)
+            result = json.loads(llm_response.extract_json())
             
             
             token_counter.track_response(response, self.model_name)
@@ -1250,7 +1250,7 @@ class InductiveCoder:
                 print(f"   - Theoretische SÄttigung: {meta.get('theoretical_saturation', 0):.2f}")
                 print(f"   - Subcode-Abdeckung: {meta.get('coverage', 0):.2f}")
             
-            # PrÜfe Subcode-Zuordnung
+            # Prüfe Subcode-Zuordnung
             mapped_subcodes = set(subcode_mapping.values()) if subcode_mapping else set()
             all_subcode_names = set(s['name'] for s in subcodes_data)
             unmapped_subcodes = all_subcode_names - mapped_subcodes
@@ -1339,7 +1339,7 @@ class InductiveCoder:
 
     def _extract_base_segment_id(self, coding: Dict) -> str:
         """
-        Extrahiert die Basis-Segment-ID fuer ReliabilitÄtsberechnung.
+        Extrahiert die Basis-Segment-ID fuer Reliabilitätsberechnung.
         Behandelt Mehrfachkodierung korrekt.
         
         Args:
@@ -1353,7 +1353,7 @@ class InductiveCoder:
         # Entferne Mehrfachkodierungs-Suffixe
         # Format kann sein: "doc_chunk_5" oder "doc_chunk_5-1" fuer Mehrfachkodierung
         if '-' in segment_id:
-            # PrÜfe ob es ein Mehrfachkodierungs-Suffix ist (endet mit -Zahl)
+            # Prüfe ob es ein Mehrfachkodierungs-Suffix ist (endet mit -Zahl)
             parts = segment_id.rsplit('-', 1)
             if len(parts) == 2 and parts[1].isdigit():
                 base_id = parts[0]
@@ -1372,7 +1372,7 @@ class InductiveCoder:
         category_frequencies: dict
     ) -> str:
         """
-        Generiert einen detaillierten Bericht Über die Intercoder-ReliabilitÄt.
+        Generiert einen detaillierten Bericht Über die Intercoder-Reliabilität.
 
         Args:
             alpha: Krippendorffs Alpha Koeffizient
@@ -1384,7 +1384,7 @@ class InductiveCoder:
             str: Formatierter Bericht als Markdown-Text
         """
         try:
-            # Bestimme das ReliabilitÄtsniveau basierend auf Alpha
+            # Bestimme das Reliabilitätsniveau basierend auf Alpha
             reliability_level = (
                 "Excellent" if alpha > 0.8 else
                 "Acceptable" if alpha > 0.667 else
