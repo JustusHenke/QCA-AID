@@ -697,7 +697,7 @@ Bei Fragen oder Problemen:
 - GitHub Issues: https://github.com/JustusHenke/QCA-AID/issues
 - E-Mail: justus.henke@hof.uni-halle.de
 
-## Neue Features in Version 0.11.0+
+## Neue Features in Version 0.11.x
 
 ### Projekt-Management
 - Projekt-Root-Verzeichnis festlegen und verwalten
@@ -724,5 +724,5 @@ Bei Fragen oder Problemen:
 - Erfolgsbestätigungen mit Dateiinformationen
 - Verbesserte Fehlerbehandlung und Benutzerführung
 
-**Version:** 0.11.0+  
-**Letzte Aktualisierung:** November 2024
+**Version:** 0.11.1  
+**Letzte Aktualisierung:** Dezember 2024

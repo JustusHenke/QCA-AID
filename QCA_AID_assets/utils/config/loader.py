@@ -43,9 +43,9 @@ class ConfigLoader:
             script_dir: Directory where QCA-AID-Codebook.xlsx is located
             global_config: Dictionary to store loaded configuration (passed by reference)
         """
-        self.script_dir = script_dir
-        self.excel_path = os.path.join(script_dir, "QCA-AID-Codebook.xlsx")
-        self.json_path = os.path.join(script_dir, "QCA-AID-Codebook.json")
+        self.script_dir = os.path.abspath(script_dir)
+        self.excel_path = os.path.join(self.script_dir, "QCA-AID-Codebook.xlsx")
+        self.json_path = os.path.join(self.script_dir, "QCA-AID-Codebook.json")
         self.config_path = None  # Will be set by _sync_configs()
         self.global_config = global_config  # Reference zum globalen CONFIG-Objekt
     
@@ -678,9 +678,8 @@ class ConfigLoader:
             loaded_config: Dictionary with raw configuration values from codebook
         """
         try:
-            # Navigate to root directory
-            current_dir = os.path.dirname(os.path.abspath(__file__))  # utils/config
-            root_dir = os.path.dirname(os.path.dirname(os.path.dirname(current_dir)))  # QCA-AID root
+            # Use the directory containing the configuration files as project root
+            project_root = self.script_dir
             
             # Default values for validation
             DEFAULT_VALUES = {
@@ -707,8 +706,8 @@ class ConfigLoader:
                         # Absolute path - use directly
                         resolved_path = path_value
                     else:
-                        # Relative path - relative to root
-                        resolved_path = os.path.join(root_dir, path_value.lstrip('/\\'))
+                        # Relative path - relative to selected project root
+                        resolved_path = os.path.join(project_root, path_value.lstrip('/\\'))
                     
                     # Erstelle Verzeichnis wenn nicht vorhanden
                     os.makedirs(resolved_path, exist_ok=True)

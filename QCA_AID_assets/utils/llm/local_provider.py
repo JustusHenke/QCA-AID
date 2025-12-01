@@ -112,10 +112,24 @@ class LocalProvider(LLMProvider):
             if max_tokens:
                 params['max_tokens'] = max_tokens
             
-            # Füge response_format nur hinzu wenn explizit übergeben
-            # Note: Not all local models support this
+            # Füge response_format nur hinzu wenn explizit übergeben.
+            # Viele lokalen Server implementieren bereits den neueren 'json_schema'-Standard
+            # und lehnen das ältere 'json_object' Format ab. Wir konvertieren daher
+            # automatisch zu einem kompatiblen Schema, das beliebige JSON-Objekte erlaubt.
             if response_format is not None:
-                params['response_format'] = response_format
+                rf = dict(response_format)
+                if rf.get('type') == 'json_object':
+                    rf = {
+                        "type": "json_schema",
+                        "json_schema": {
+                            "name": "generic_json_response",
+                            "schema": {
+                                "type": "object",
+                                "additionalProperties": True
+                            }
+                        }
+                    }
+                params['response_format'] = rf
             
             # API Call mit Fehlerbehandlung
             try:

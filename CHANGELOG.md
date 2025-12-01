@@ -2,6 +2,20 @@
 
 ## Versionen und Updates
 
+### Neu in 0.11.1 (2025-12-01)
+
+**Bugfixes:**
+- 🐛 **Setup.bat**: Desktop-Icon wird nun korrekt erstellt
+- 🐛 **Local LLM**: Response-Format wird jetzt korrekt erkannt
+- 🐛 **TokenTracker**: Kostenberechnung wurde korrigiert (Preise waren um Faktor 10 zu hoch)
+- 🐛 **Projektordner**: Manuell gesetzter Projektordner wird nun korrekt in der Analyse übernommen (nicht nur in der App)
+
+**Verbesserungen:**
+- ✨ **Automatisches Config-Update**: LLM-Provider-Configs werden automatisch aktualisiert, wenn sie älter als 7 Tage sind
+  - Neue Modelle werden automatisch erkannt
+  - Preise bleiben aktuell
+  - Fallback auf lokale Configs bei Netzwerkproblemen
+
 ### Neu in 0.11.0 (2025-11-30)
 
 QCA-AID WEBAPP: VOLLSTÄNDIGE WEBBASIERTE BENUTZEROBERFLÄCHE

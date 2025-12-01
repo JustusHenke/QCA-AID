@@ -7,7 +7,9 @@ Koordiniert den gesamten Analyse-Workflow.
 import os
 import sys
 import asyncio
+import json
 from datetime import datetime
+from pathlib import Path
 from typing import Dict, List
 
 # Fix für Unicode-Encoding auf Windows-Konsolen
@@ -51,6 +53,44 @@ try:
     pdf_annotation_available = True
 except ImportError:
     pdf_annotation_available = False
+
+
+def _resolve_project_root() -> Path:
+    """
+    Resolve the effective project root directory.
+    
+    Priority:
+    1. Environment variable QCA_AID_PROJECT_ROOT (used by the webapp)
+    2. .qca-aid-project.json stored in the application root
+    3. Repository root (fallback)
+    """
+    repo_root = Path(__file__).resolve().parent.parent
+    
+    env_root = os.environ.get('QCA_AID_PROJECT_ROOT')
+    if env_root:
+        candidate = Path(env_root).expanduser()
+        if candidate.exists():
+            return candidate
+        else:
+            print(f"⚠️ Angegebenes Projekt-Verzeichnis nicht gefunden: {candidate}")
+    
+    settings_path = repo_root / ".qca-aid-project.json"
+    if settings_path.exists():
+        try:
+            with open(settings_path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            
+            project_root_value = data.get("project_root")
+            if project_root_value:
+                candidate = Path(project_root_value).expanduser()
+                if candidate.exists():
+                    return candidate
+                else:
+                    print(f"⚠️ Gespeichertes Projekt-Verzeichnis nicht gefunden: {candidate}")
+        except Exception as e:
+            print(f"⚠️ Konnte .qca-aid-project.json nicht lesen: {e}")
+    
+    return repo_root
 
 
 async def perform_manual_coding(chunks, categories, manual_coders):
@@ -360,7 +400,8 @@ async def configure_analysis_start(CONFIG: Dict, codebook_path: str) -> Dict:
 async def main() -> None:
     try:
         # 1. Konfiguration laden - ZUERST damit INPUT/OUTPUT_DIR gesetzt sind
-        script_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))  # Go up one level to root
+        project_root = _resolve_project_root()
+        script_dir = str(project_root)  # Project-specific root for configs and IO
         
         # Setze Input/Output Verzeichnisse mit Defaults, bevor ConfigLoader verwendet wird
         CONFIG['OUTPUT_DIR'] = os.path.join(script_dir, 'output')

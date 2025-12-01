@@ -108,6 +108,11 @@ class AnalysisRunner:
             # Set flag to skip interactive prompts when running from webapp
             env['QCA_AID_WEBAPP_MODE'] = '1'
             
+            # Pass project root to subprocess so CLI respects selected directory
+            project_root = config.get('PROJECT_ROOT')
+            if project_root:
+                env['QCA_AID_PROJECT_ROOT'] = str(project_root)
+            
             # Start subprocess
             self.status.add_log(f"Starte Subprocess: {' '.join(cmd)}")
             

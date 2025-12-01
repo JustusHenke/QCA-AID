@@ -6,7 +6,6 @@ Manages project root directory and relative paths.
 
 from pathlib import Path
 from typing import Optional, List
-import json
 
 from webapp_models.project_data import ProjectSettings
 from webapp_logic.path_resolver import PathResolver
@@ -23,9 +22,12 @@ class ProjectManager:
         Initialize with optional root directory
         
         Args:
-            root_dir: Project root directory (defaults to current working directory)
+            root_dir: Project root directory (defaults to application root)
         """
-        self.root_dir = Path(root_dir).resolve() if root_dir else Path.cwd()
+        self.app_root = Path(__file__).resolve().parents[2]
+        self.global_settings_path = self.app_root / self.SETTINGS_FILE
+        default_root = Path(root_dir).resolve() if root_dir else self.app_root
+        self.root_dir = default_root
         self.settings = ProjectSettings(project_root=self.root_dir)
         self.path_resolver = PathResolver(self.root_dir)
         
@@ -173,8 +175,13 @@ class ProjectManager:
             True if successful, False otherwise
         """
         try:
-            settings_path = self.root_dir / self.SETTINGS_FILE
-            return self.settings.save(settings_path)
+            saved_global = self.settings.save(self.global_settings_path)
+            
+            # Also store alongside the project so users can copy settings with their data
+            project_settings_path = self.root_dir / self.SETTINGS_FILE
+            saved_project = self.settings.save(project_settings_path)
+            
+            return saved_global and saved_project
         except Exception as e:
             print(f"Error saving settings: {e}")
             return False
@@ -187,27 +194,35 @@ class ProjectManager:
             True if successful, False otherwise
         """
         try:
-            settings_path = self.root_dir / self.SETTINGS_FILE
+            candidate_paths = [
+                self.global_settings_path,
+                self.root_dir / self.SETTINGS_FILE
+            ]
             
-            if not settings_path.exists():
-                # No settings file, use defaults
-                return False
-            
-            loaded_settings = ProjectSettings.load(settings_path)
-            
-            if loaded_settings:
-                # Only use loaded settings if they match the current root directory
-                # This prevents overriding the explicitly set root directory
-                if loaded_settings.project_root == self.root_dir:
+            for settings_path in candidate_paths:
+                if not settings_path.exists():
+                    continue
+                
+                loaded_settings = ProjectSettings.load(settings_path)
+                
+                if not loaded_settings:
+                    continue
+                
+                project_root = loaded_settings.project_root
+                if project_root and project_root.exists():
                     self.settings = loaded_settings
+                    self.root_dir = project_root
+                    self.path_resolver = PathResolver(self.root_dir)
                     return True
                 else:
-                    # Settings file is for a different root directory
-                    # Keep current settings and update the file
-                    self.settings.project_root = self.root_dir
-                    self.save_settings()
-                    return False
+                    # Stored project root no longer exists - fall back to app root
+                    print(f"Stored project root not found: {project_root}")
+                    break
             
+            # If no valid settings found, ensure defaults point to app root
+            self.root_dir = self.app_root
+            self.settings.project_root = self.root_dir
+            self.path_resolver = PathResolver(self.root_dir)
             return False
             
         except Exception as e:

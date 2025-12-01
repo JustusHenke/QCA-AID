@@ -344,18 +344,18 @@ def main():
     # Sidebar
     with st.sidebar:
         # Custom styled logo
-        st.markdown("""
-        <div style='text-align: center; margin-bottom: 10px;'>
-            <span style='font-family: Arial, sans-serif; font-size: 2.5em; font-weight: 900;'>QCA</span><span style='font-family: Arial, sans-serif; font-size: 2.5em; font-weight: 600; font-style: italic;'>-AID</span>
-        </div>
-        """, unsafe_allow_html=True)
-        st.markdown("<p style='text-align: center; font-size: 0.9em; margin-top: -10px;'><strong>Qualitative Content Analysis with AI</strong></p>", unsafe_allow_html=True)
-        st.markdown("---")
+        # st.markdown("""
+        # <div style='text-align: center; margin-bottom: 10px;'>
+        #     <span style='font-family: Arial, sans-serif; font-size: 2.5em; font-weight: 900;'>QCA</span><span style='font-family: Arial, sans-serif; font-size: 2.5em; font-weight: 600; font-style: italic;'>-AID</span>
+        # </div>
+        # """, unsafe_allow_html=True)
+        # st.markdown("<p style='text-align: center; font-size: 0.9em; margin-top: -10px;'><strong>Qualitative Content Analysis with AI</strong></p>", unsafe_allow_html=True)
+        # st.markdown("---")
         
         st.markdown("""
         ### Willkommen!
         
-        Diese Webapp ermöglicht die Verwaltung von:
+        QCA-AID Webapp ermöglicht die Verwaltung von:
         - ⚙️ Konfigurationseinstellungen
         - 📚 Codebook und Kategorien
         - 🔬 Analysen und Fortschritt

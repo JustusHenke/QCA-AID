@@ -150,7 +150,7 @@ Die KI-gestützte Datenverarbeitung kann auf zwei Arten erfolgen:
 
 ## QCA-AID Webapp
 
-**NEU in Version 0.11.0**: QCA-AID bietet jetzt eine vollständige webbasierte Benutzeroberfläche!
+**NEU in Version 0.11.x**: QCA-AID bietet jetzt eine vollständige webbasierte Benutzeroberfläche!
 
 Die QCA-AID Webapp ist eine lokale, webbasierte Anwendung, die eine intuitive Alternative zur Kommandozeile und direkten Bearbeitung von Konfigurationsdateien bietet.
 
@@ -347,7 +347,7 @@ Für lokale Modelle:
 
 ## Zitiervorschlag
 
-Henke, J. (2025). QCA-AID: Qualitative Content Analysis with AI-supported Discovery (Version 0.11.0) [Software]. 
+Henke, J. (2025). QCA-AID: Qualitative Content Analysis with AI-supported Discovery (Version 0.11.1) [Software]. 
 Institut für Hochschulforschung Halle-Wittenberg. https://github.com/JustusHenke/QCA-AID
 
 ```BibTex
@@ -357,7 +357,7 @@ Institut für Hochschulforschung Halle-Wittenberg. https://github.com/JustusHenk
   month        = december,
   year         = {2025},
   publisher    = {Institut für Hochschulforschung Halle-Wittenberg},
-  version      = {0.11.0},
+  version      = {0.11.1},
   url          = {https://github.com/JustusHenke/QCA-AID}
 }
 ```

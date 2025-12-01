@@ -47,6 +47,9 @@ token_stats.json
 .qca-aid-project.json
 tests/
 
+# Config metadata (auto-generated)
+.config_metadata.json
+
 # Temporary files
 *.tmp
 *.bak

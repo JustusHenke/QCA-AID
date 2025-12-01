@@ -17,18 +17,23 @@ https://raw.githubusercontent.com/charmbracelet/catwalk/main/internal/providers/
 
 If the GitHub URL is unreachable (due to network issues, rate limiting, or offline development), the system automatically falls back to these local configuration files.
 
-## Updating Configurations
+## Automatic Updates
 
-To update the fallback configurations with the latest data from Catwalk, run:
+The system automatically checks if configs are older than 7 days and updates them when needed. This happens automatically when the TokenTracker is initialized.
+
+## Manual Update
+
+To manually update the configurations with the latest data from Catwalk, run:
 
 ```bash
-python download_fallback_configs.py
+python QCA_AID_assets/utils/llm/update_configs.py
 ```
 
 This script will:
 1. Download the latest configurations from Catwalk
 2. Save them to this directory
 3. Overwrite existing files
+4. Update the metadata file with current timestamp
 
 ## Configuration Format
 
@@ -62,9 +67,13 @@ Each configuration file follows the Catwalk provider schema:
 These fallback configurations satisfy **Requirement 2.2**:
 > WHEN the GitHub-URL is not reachable THEN the system SHALL fall back to local copies of provider configurations
 
-## Last Updated
+## Update Metadata
 
-These configurations were last downloaded from Catwalk on: **2024-11-30**
+The `.config_metadata.json` file tracks when configs were last updated. The system uses this to determine if an automatic update is needed (configs older than 7 days).
+
+## Last Manual Update
+
+These configurations were last manually downloaded from Catwalk on: **2024-11-30**
 
 To check the current version in Catwalk, visit:
 - [OpenAI Config](https://github.com/charmbracelet/catwalk/blob/main/internal/providers/configs/openai.json)

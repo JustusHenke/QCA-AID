@@ -50,8 +50,8 @@ async def main():
     try:
         from .__version__ import __version__, __version_date__
     except ImportError:
-        __version__ = "0.11.0"
-        __version_date__ = "2025-11-30"
+        __version__ = "0.11.1"
+        __version_date__ = "2025-12-01"
     
     print(f"\n=== QCA-AID Explorer ===")
     print(f"Version {__version__} ({__version_date__})")

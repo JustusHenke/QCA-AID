@@ -54,28 +54,74 @@ class TokenTracker:
         # None = not yet tested, True = supports temperature, False = doesn't support
         self.model_capabilities = {}
         
-        # Umfassende Model-Preisliste für alle unterstützten Provider
-        self.model_prices = {
-            # === CLAUDE MODELLE ===
+        # Lade Preise dynamisch aus Provider-Configs
+        self.model_prices = self._load_prices_from_configs()
+        
+        self.request_start_time = None
+        self.debug_calls = []
+    
+    def _load_prices_from_configs(self) -> Dict[str, Dict[str, float]]:
+        """
+        Lädt Model-Preise dynamisch aus Provider-Config-Dateien.
+        
+        Prüft zuerst ob Configs älter als 7 Tage sind und aktualisiert sie bei Bedarf.
+        Liest dann die JSON-Configs aus QCA_AID_assets/utils/llm/configs/ und
+        extrahiert die Preisinformationen (cost_per_1m_in/out).
+        
+        Returns:
+            Dict mit Model-IDs als Keys und {'input': float, 'output': float} als Values.
+            Preise sind pro Token (nicht pro 1M Tokens).
+        """
+        from pathlib import Path
+        
+        # Prüfe und aktualisiere Configs falls nötig (max 7 Tage alt)
+        try:
+            from ..llm.config_updater import check_and_update_configs
+            updated = check_and_update_configs(max_age_days=7)
+            if updated:
+                print("✓ Provider-Configs wurden aktualisiert")
+        except Exception as e:
+            # Bei Fehler: Logge und fahre mit lokalen Configs fort
+            print(f"⚠️  Config-Update fehlgeschlagen, verwende lokale Configs: {e}")
+        
+        prices = {}
+        
+        # Pfad zum configs Verzeichnis
+        config_dir = Path(__file__).parent.parent / 'llm' / 'configs'
+        
+        # Lade alle JSON-Dateien im configs Verzeichnis
+        for config_file in config_dir.glob('*.json'):
+            try:
+                with open(config_file, 'r', encoding='utf-8') as f:
+                    config = json.load(f)
+                
+                # Extrahiere Modelle aus der Config
+                models = config.get('models', [])
+                
+                for model in models:
+                    model_id = model.get('id')
+                    cost_in = model.get('cost_per_1m_in')
+                    cost_out = model.get('cost_per_1m_out')
+                    
+                    if model_id and cost_in is not None and cost_out is not None:
+                        # Konvertiere von "pro 1M Tokens" zu "pro Token"
+                        prices[model_id] = {
+                            'input': cost_in / 1_000_000,
+                            'output': cost_out / 1_000_000
+                        }
+                        
+            except Exception as e:
+                # Bei Fehler: Logge und fahre fort
+                print(f"⚠️  Fehler beim Laden von {config_file.name}: {e}")
+                continue
+        
+        # Fallback-Preise für Legacy-Modelle die nicht in Configs sind
+        legacy_prices = {
+            # === CLAUDE MODELLE (Legacy - falls nicht in Config) ===
             'claude-sonnet-4-20250514': {'input': 0.000015, 'output': 0.000075},
             'claude-opus-4-20241022': {'input': 0.000075, 'output': 0.000375},
             'claude-3-5-sonnet-20241022': {'input': 0.000003, 'output': 0.000015},
             'claude-3-5-haiku-20241022': {'input': 0.00000025, 'output': 0.00000125},
-            
-            # === OPENAI GPT-4.1 SERIE ===
-            'gpt-4.1': {'input': 0.000003, 'output': 0.000015},
-            'gpt-4.1-mini': {'input': 0.000001, 'output': 0.000004},
-            'gpt-4.1-nano': {'input': 0.0000001, 'output': 0.0000004},
-            
-            # === OPENAI GPT-4O SERIE ===
-            'gpt-4o': {'input': 0.000003, 'output': 0.00001},
-            'gpt-4o-2024-11-20': {'input': 0.000003, 'output': 0.00001},
-            'gpt-4o-mini': {'input': 0.00000015, 'output': 0.0000006},
-            'gpt-4o-mini-2024-07-18': {'input': 0.00000015, 'output': 0.0000006},
-            
-            # === GPT-4O AUDIO/REALTIME ===
-            'gpt-4o-realtime-preview': {'input': 0.000005, 'output': 0.00002},
-            'gpt-4o-audio-preview': {'input': 0.000005, 'output': 0.00002},
             
             # === LEGACY GPT-4 MODELLE ===
             'gpt-4': {'input': 0.00003, 'output': 0.00006},
@@ -83,6 +129,12 @@ class TokenTracker:
             'gpt-4-turbo-2024-04-09': {'input': 0.00001, 'output': 0.00003},
             'gpt-4-1106-preview': {'input': 0.00001, 'output': 0.00003},
             'gpt-4-vision-preview': {'input': 0.00001, 'output': 0.00003},
+            'gpt-4o-2024-11-20': {'input': 0.0000025, 'output': 0.00001},
+            'gpt-4o-mini-2024-07-18': {'input': 0.00000015, 'output': 0.0000006},
+            
+            # === GPT-4O AUDIO/REALTIME ===
+            'gpt-4o-realtime-preview': {'input': 0.000005, 'output': 0.00002},
+            'gpt-4o-audio-preview': {'input': 0.000005, 'output': 0.00002},
             
             # === GPT-3.5 TURBO ===
             'gpt-3.5-turbo': {'input': 0.000001, 'output': 0.000002},
@@ -95,8 +147,10 @@ class TokenTracker:
             'gpt-4-turbo-batch': {'input': 0.000005, 'output': 0.000015},
         }
         
-        self.request_start_time = None
-        self.debug_calls = []
+        # Merge: Config-Preise überschreiben Legacy-Preise
+        prices.update(legacy_prices)
+        
+        return prices
     
     def get_model_price(self, model_name: str) -> Dict[str, float]:
         """
@@ -118,8 +172,35 @@ class TokenTracker:
         # Fallback-Logik für ähnliche Modelle
         model_lower = model_name.lower()
         
+        # GPT-5.1 Familie (höchste Priorität)
+        if 'gpt-5.1' in model_lower or 'gpt-5-1' in model_lower:
+            if 'codex' in model_lower and 'mini' in model_lower:
+                return self.model_prices['gpt-5.1-codex-mini']
+            elif 'codex' in model_lower:
+                return self.model_prices['gpt-5.1-codex']
+            else:
+                return self.model_prices['gpt-5.1']
+        
+        # GPT-5 Familie
+        elif 'gpt-5' in model_lower:
+            if 'nano' in model_lower:
+                return self.model_prices['gpt-5-nano']
+            elif 'mini' in model_lower:
+                return self.model_prices['gpt-5-mini']
+            elif 'codex' in model_lower:
+                return self.model_prices['gpt-5-codex']
+            else:
+                return self.model_prices['gpt-5']
+        
+        # O3/O4 Familie
+        elif 'o3' in model_lower or 'o4' in model_lower:
+            if 'mini' in model_lower:
+                return self.model_prices['o3-mini']
+            else:
+                return self.model_prices['o3']
+        
         # GPT-4.1 Familie
-        if 'gpt-4.1' in model_lower:
+        elif 'gpt-4.1' in model_lower or 'gpt-4-1' in model_lower:
             if 'nano' in model_lower:
                 return self.model_prices['gpt-4.1-nano']
             elif 'mini' in model_lower:
@@ -155,15 +236,6 @@ class TokenTracker:
                 return self.model_prices['claude-opus-4-20241022']
             else:
                 return self.model_prices['claude-3-5-sonnet-20241022']
-        
-        # GPT-5 Familie (neue Modelle)
-        elif 'gpt-5' in model_lower:
-            if 'nano' in model_lower:
-                return {'input': 0.000001, 'output': 0.000004}
-            elif 'mini' in model_lower:
-                return {'input': 0.000002, 'output': 0.000008}
-            else:
-                return {'input': 0.000005, 'output': 0.000020}
         
         # Mistral Familie
         elif 'mistral' in model_lower:

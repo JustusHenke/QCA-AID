@@ -385,6 +385,7 @@ def render_analysis_controls():
                     'MODEL_NAME': config.model_name,
                     'DATA_DIR': data_dir,
                     'OUTPUT_DIR': output_dir,
+            'PROJECT_ROOT': str(project_root),
                     'CHUNK_SIZE': config.chunk_size,
                     'CHUNK_OVERLAP': config.chunk_overlap,
                     'BATCH_SIZE': config.batch_size,
