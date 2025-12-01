@@ -7,7 +7,7 @@ echo QCA-AID Setup für Windows
 echo ========================================
 echo.
 
-REM Prüfe ob Python installiert ist
+REM --- 1. Python-Installation prüfen ---
 echo [1/4] Prüfe Python-Installation...
 python --version >nul 2>&1
 if errorlevel 1 (
@@ -23,16 +23,17 @@ if errorlevel 1 (
     exit /b 1
 )
 
-REM Hole Python-Version
+REM --- 2. Python-Version prüfen ---
 for /f "tokens=2" %%i in ('python --version 2^>^&1') do set PYTHON_VERSION=%%i
 echo Python gefunden: Version %PYTHON_VERSION%
 
-REM Prüfe Python-Version (muss zwischen 3.8 und 3.12 sein)
+REM Python-Version parsen
 for /f "tokens=1,2 delims=." %%a in ("%PYTHON_VERSION%") do (
     set MAJOR=%%a
     set MINOR=%%b
 )
 
+REM Version prüfen
 if %MAJOR% LSS 3 (
     echo.
     echo [WARNUNG] Python Version zu alt! Mindestens Python 3.8 erforderlich.
@@ -41,7 +42,6 @@ if %MAJOR% LSS 3 (
     pause
     exit /b 1
 )
-
 if %MAJOR% EQU 3 if %MINOR% LSS 8 (
     echo.
     echo [WARNUNG] Python Version zu alt! Mindestens Python 3.8 erforderlich.
@@ -50,7 +50,6 @@ if %MAJOR% EQU 3 if %MINOR% LSS 8 (
     pause
     exit /b 1
 )
-
 if %MAJOR% EQU 3 if %MINOR% GTR 12 (
     echo.
     echo [WARNUNG] Python Version zu neu! Maximal Python 3.12 empfohlen ^(wegen spaCy^).
@@ -64,11 +63,10 @@ if %MAJOR% EQU 3 if %MINOR% GTR 12 (
         exit /b 1
     )
 )
-
 echo Python-Version OK: %PYTHON_VERSION%
 echo.
 
-REM Prüfe pip
+REM --- 3. pip prüfen und aktualisieren ---
 echo [2/4] Prüfe pip-Installation...
 python -m pip --version >nul 2>&1
 if errorlevel 1 (
@@ -84,13 +82,25 @@ if errorlevel 1 (
 )
 echo pip gefunden und bereit.
 echo.
-
-REM Upgrade pip
 echo Aktualisiere pip...
 python -m pip install --upgrade pip --quiet
 echo.
 
-REM Installiere Requirements
+REM --- 4. Python-Pfad ermitteln ---
+REM Versuche, den Python-Pfad aus der Registry zu lesen
+for /f "tokens=2,*" %%a in ('reg query "HKLM\SOFTWARE\Python\PythonCore\%MAJOR%.%MINOR%\InstallPath" /ve 2^>nul') do set PYTHON_PATH=%%b\python.exe
+REM Falls nicht gefunden, versuche es mit 'where'
+if not exist "!PYTHON_PATH!" (
+    for /f "delims=" %%i in ('where python 2^>nul') do set PYTHON_PATH=%%i
+)
+if "!PYTHON_PATH!"=="" (
+    echo [FEHLER] Python-Pfad konnte nicht ermittelt werden.
+    pause
+    exit /b 1
+)
+echo Python-Pfad: !PYTHON_PATH!
+echo.
+
 echo [3/4] Installiere Python-Pakete aus requirements.txt...
 echo Dies kann einige Minuten dauern...
 echo.
@@ -101,7 +111,18 @@ if not exist requirements.txt (
     exit /b 1
 )
 
-python -m pip install -r requirements.txt
+REM Prüfe, ob requirements.txt gültige Pakete enthält
+findstr /r /c:"^[^#][^ ]" "requirements.txt" >nul
+if errorlevel 1 (
+    echo [WARNUNG] requirements.txt ist leer oder enthält keine gültigen Pakete.
+    echo           Bitte stellen Sie sicher, dass die Datei Paketnamen enthält ^(z. B. "numpy==1.21.0"^).
+    pause
+    exit /b 1
+)
+
+echo Starte Installation der Pakete...
+"!PYTHON_PATH!" -m pip install --user --no-warn-script-location -r requirements.txt
+
 if errorlevel 1 (
     echo.
     echo [FEHLER] Installation der Pakete fehlgeschlagen!
@@ -109,58 +130,82 @@ if errorlevel 1 (
     echo.
     pause
     exit /b 1
+) else (
+    echo.
+    echo [ERFOLG] Alle Pakete erfolgreich installiert!
+    echo.
 )
 
-echo.
-echo Alle Pakete erfolgreich installiert!
-echo.
 
-REM Installiere spaCy Sprachmodell (optional, aber empfohlen)
+REM --- 6. spaCy-Modell installieren (optional) ---
 echo Möchten Sie das deutsche spaCy-Sprachmodell installieren? ^(empfohlen^) ^(J/N^)
 set /p INSTALL_SPACY=
 if /i "!INSTALL_SPACY!"=="J" (
     echo Installiere spaCy Deutsch-Modell...
-    python -m spacy download de_core_news_sm
+    "!PYTHON_PATH!" -m spacy download de_core_news_sm
+    if errorlevel 1 (
+        echo [WARNUNG] Installation des spaCy-Modells fehlgeschlagen.
+        echo           Sie können es später manuell installieren mit:
+        echo             python -m spacy download de_core_news_sm
+    )
     echo.
 )
 
-REM Erstelle Desktop-Verknüpfung
+REM --- 7. Desktop-Verknüpfung erstellen ---
 echo [4/4] Erstelle Desktop-Verknüpfung...
-
 set SCRIPT_DIR=%~dp0
 set SCRIPT_PATH=%SCRIPT_DIR%start_QCA-AID-app.py
-set DESKTOP=%USERPROFILE%\Desktop
-set SHORTCUT_PATH=%DESKTOP%\QCA-AID.lnk
 
-REM Erstelle VBScript für Verknüpfung
-set VBS_PATH=%TEMP%\create_shortcut.vbs
-echo Set oWS = WScript.CreateObject("WScript.Shell") > "%VBS_PATH%"
-echo sLinkFile = "%SHORTCUT_PATH%" >> "%VBS_PATH%"
-echo Set oLink = oWS.CreateShortcut(sLinkFile) >> "%VBS_PATH%"
-echo oLink.TargetPath = "pythonw.exe" >> "%VBS_PATH%"
-echo oLink.Arguments = """%SCRIPT_PATH%""" >> "%VBS_PATH%"
-echo oLink.WorkingDirectory = "%SCRIPT_DIR%" >> "%VBS_PATH%"
-echo oLink.Description = "QCA-AID Webapp starten" >> "%VBS_PATH%"
-echo oLink.Save >> "%VBS_PATH%"
+REM Prüfe beide mögliche Desktop-Pfade (lokal und OneDrive)
+set DESKTOP1=%USERPROFILE%\Desktop
+set DESKTOP2=%USERPROFILE%\OneDrive\Desktop
 
-cscript //nologo "%VBS_PATH%"
-del "%VBS_PATH%"
-
-if exist "%SHORTCUT_PATH%" (
-    echo Desktop-Verknüpfung erstellt: %SHORTCUT_PATH%
+REM Prüfe, welcher Desktop-Pfad existiert
+if exist "!DESKTOP2!" (
+    set DESKTOP=!DESKTOP2!
+) else if exist "!DESKTOP1!" (
+    set DESKTOP=!DESKTOP1!
 ) else (
-    echo [WARNUNG] Desktop-Verknüpfung konnte nicht erstellt werden.
-    echo Sie können die Anwendung manuell starten mit: python start_QCA-AID-app.py
+    echo [FEHLER] Kein Desktop-Pfad gefunden ^(weder %USERPROFILE%\Desktop noch %USERPROFILE%\OneDrive\Desktop^).
+    pause
+    exit /b 1
 )
 
+set SHORTCUT_PATH=!DESKTOP!\QCA-AID.lnk
+
+REM Erstelle VBScript für Verknüpfung - OHNE Delayed Expansion in den Werten
+set VBS_PATH=%TEMP%\create_shortcut.vbs
+(
+    echo Set oWS = WScript.CreateObject^("WScript.Shell"^)
+    echo sLinkFile = "%DESKTOP%\QCA-AID.lnk"
+    echo Set oLink = oWS.CreateShortcut^(sLinkFile^)
+    echo oLink.TargetPath = "!PYTHON_PATH!"
+    echo oLink.Arguments = """!SCRIPT_PATH!"""
+    echo oLink.WorkingDirectory = "!SCRIPT_DIR!"
+    echo oLink.Description = "QCA-AID Webapp starten"
+    echo oLink.Save
+) > "!VBS_PATH!"
+
+REM Führe das VBScript aus
+cscript //nologo "!VBS_PATH!"
+del "!VBS_PATH!"
+
+if exist "!SHORTCUT_PATH!" (
+    echo Desktop-Verknüpfung erstellt: !SHORTCUT_PATH!
+) else (
+    echo [WARNUNG] Desktop-Verknüpfung konnte nicht erstellt werden.
+    echo Sie können die Anwendung manuell starten mit: "!PYTHON_PATH!" "!SCRIPT_PATH!"
+)
 echo.
+
+REM --- 8. Abschluss ---
 echo ========================================
 echo Setup erfolgreich abgeschlossen!
 echo ========================================
 echo.
 echo Sie können QCA-AID jetzt starten:
 echo   - Doppelklick auf die Desktop-Verknüpfung "QCA-AID"
-echo   - Oder: python start_QCA-AID-app.py
+echo   - Oder: "!PYTHON_PATH!" "!SCRIPT_PATH!"
 echo.
 echo Viel Erfolg mit QCA-AID!
 echo.
