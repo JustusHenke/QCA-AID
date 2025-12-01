@@ -15,7 +15,7 @@ class VersionChecker:
     """Prüft GitHub Releases auf neue Versionen."""
     
     GITHUB_API_URL = "https://api.github.com/repos/JustusHenke/QCA-AID/releases/latest"
-    CURRENT_VERSION = "0.10.4"
+    CURRENT_VERSION = "0.11.1"
     CACHE_KEY = "version_check_result"
     CACHE_DURATION = 3600  # 1 Stunde in Sekunden
     
