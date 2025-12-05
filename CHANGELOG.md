@@ -2,6 +2,39 @@
 
 ## Versionen und Updates
 
+### Neu in 0.11.2 (2025-12-05)
+
+**Bugfixes:**
+- 🐛 **Projekt- vs. Programmverzeichnis**: Korrekte Trennung zwischen Benutzer-Projektverzeichnis und QCA-AID-Installationsverzeichnis
+  - Preisinformationen werden jetzt korrekt aus dem Installationsverzeichnis geladen
+  - Eingabe- und Ausgabeverzeichnisse werden relativ zum Projektverzeichnis validiert
+- 🐛 **Preisauskunft**: Token-Kosten werden jetzt korrekt für alle Provider angezeigt
+  - Fuzzy-Matching für OpenRouter-Modelle (z.B. deepseek/deepseek-v3.2)
+  - Korrekte Pfadauflösung zu den Preis-Konfigurationsdateien
+  - Dezente Anzeige als Caption statt Info-Box
+- 🐛 **Kategorie-Erstellung**: Fehler beim Hinzufügen neuer Kategorien behoben
+  - Import-Konflikt bei CategoryData-Klasse gelöst
+  - Automatische Konvertierung von Dictionary zu CategoryData-Instanzen
+  - Typ-Check verwendet jetzt Klassennamen statt isinstance()
+- 🐛 **Subcategories**: Korrekte Struktur für Subkategorien
+  - Format geändert von "Schlüssel:Bezeichnung" zu "Name:Definition"
+  - Definition ist jetzt optional
+  - Unterstützung für Subkategorien ohne Definition
+
+**Verbesserungen:**
+- ✨ **Vereinfachtes Speichern**: Codebook-Tab speichert jetzt direkt in die aktuelle Datei
+  - Kein zusätzlicher Datei-Dialog mehr im Codebook-Tab
+  - Dateiauswahl erfolgt nur noch im Config-Tab
+  - Ein-Klick-Speichern für schnelleren Workflow
+- ✨ **Neue Visualisierungen**: Sunburst und Treemap für hierarchische Daten
+  - Interaktive HTML-Visualisierungen
+  - Zwei Versionen: Standard und mit Werten in Beschriftungen
+  - Automatische Keyword-Harmonisierung
+- ✨ **Verbesserte Verzeichnisvalidierung**: 
+  - Visuelle Rückmeldung (✅/⚠️/❌) für Verzeichnispfade
+  - Anzeige des vollständigen aufgelösten Pfads
+  - Unterstützung für relative und absolute Pfade
+
 ### Neu in 0.11.1 (2025-12-01)
 
 **Bugfixes:**

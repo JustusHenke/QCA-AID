@@ -22,6 +22,87 @@ from webapp_logic.ui_helpers import (
 )
 
 
+def ensure_categories_are_instances(codebook):
+    """
+    Stellt sicher, dass alle Kategorien CategoryData-Instanzen sind.
+    Konvertiert Dictionaries zurück zu CategoryData-Instanzen.
+    """
+    for cat_name, category in list(codebook.deduktive_kategorien.items()):
+        if not isinstance(category, CategoryData):
+            # Convert dict to CategoryData
+            if isinstance(category, dict):
+                if 'name' not in category:
+                    category['name'] = cat_name
+                codebook.deduktive_kategorien[cat_name] = CategoryData.from_dict(category)
+
+
+def save_codebook_to_current_file():
+    """
+    Speichert das Codebook direkt in die aktuell in der Config UI geladene Datei.
+    Verwendet die gleiche Datei und das gleiche Format wie in der Config UI.
+    """
+    from webapp_logic.codebook_manager import CodebookManager
+    
+    # Get project manager
+    project_manager = st.session_state.project_manager
+    project_root = Path(project_manager.get_root_directory())
+    
+    # Determine the current file path and format
+    # Check for standard files (prefer JSON, then XLSX)
+    json_path = project_root / "QCA-AID-Codebook.json"
+    xlsx_path = project_root / "QCA-AID-Codebook.xlsx"
+    
+    # Determine which file to use based on what exists or was last loaded
+    if json_path.exists():
+        save_path = json_path
+        save_format = 'json'
+    elif xlsx_path.exists():
+        save_path = xlsx_path
+        save_format = 'xlsx'
+    else:
+        # No file exists yet - use default JSON
+        save_path = json_path
+        save_format = 'json'
+        st.info(f"ℹ️ Erstelle neue Datei: {save_path.name}")
+    
+    # Get the codebook data
+    codebook = st.session_state.codebook_data
+    
+    # Ensure all categories are CategoryData instances
+    ensure_categories_are_instances(codebook)
+    
+    # Save using codebook_manager
+    manager = CodebookManager(project_root)
+    success, errors = manager.save_codebook(
+        codebook=codebook,
+        file_path=str(save_path),
+        format=save_format
+    )
+    
+    if success:
+        st.session_state.codebook_modified = False
+        
+        # Also mark config as not modified since they're in the same file
+        st.session_state.config_modified = False
+        
+        # Show success message
+        additional_info = {
+            "Kategorien": len(codebook.deduktive_kategorien),
+            "Kodierregeln": sum(len(rules) for rules in codebook.kodierregeln.values())
+        }
+        show_file_operation_success("gespeichert", save_path, additional_info)
+        
+        st.rerun()
+    else:
+        # Show error
+        show_file_operation_error(
+            "Speichern",
+            save_path,
+            "\n".join(errors),
+            ["Überprüfen Sie die Schreibrechte", "Stellen Sie sicher, dass das Verzeichnis existiert"]
+        )
+
+
 def render_codebook_tab():
     """
     Rendert Codebook-Reiter als Hauptlayout.
@@ -62,6 +143,9 @@ def render_codebook_tab():
         st.session_state.codebook_modified = False
     
     codebook = st.session_state.codebook_data
+    
+    # Ensure all categories are CategoryData instances (fix for dict conversion issues)
+    ensure_categories_are_instances(codebook)
     
     # Check for inductive codes on tab open (Requirements 4.1, 4.2)
     check_inductive_codes_available()
@@ -138,7 +222,8 @@ def render_file_operations():
         # Save button - highlight if modified
         button_type = "primary" if st.session_state.get('codebook_modified', False) else "secondary"
         if st.button("💾 Speichern", use_container_width=True, key="codebook_save_main_btn", type=button_type):
-            st.session_state.show_codebook_save_dialog = True
+            # Save directly to the currently loaded config file (no dialog)
+            save_codebook_to_current_file()
     
     with col4:
         # Remove codebook button
@@ -303,115 +388,8 @@ def render_file_operations():
                     st.session_state.show_codebook_load_dialog = False
                     st.rerun()
     
-    # Save dialog
-    if st.session_state.get('show_codebook_save_dialog', False):
-        with st.expander("💾 Codebook speichern", expanded=True):
-            save_format = st.radio(
-                "Format wählen:",
-                options=['json', 'xlsx'],
-                format_func=lambda x: 'JSON (empfohlen)' if x == 'json' else 'Excel (XLSX)',
-                horizontal=True,
-                help="JSON ist das empfohlene Format",
-                key='codebook_save_format'
-            )
-            
-            # Get project manager for default path
-            project_manager = st.session_state.project_manager
-            default_filename = f"QCA-AID-Codebook.{save_format}"
-            default_path = project_manager.get_codebook_path(default_filename)
-            
-            # Display current file path with default (Requirements 3.1, 3.2)
-            col_path, col_browse = st.columns([4, 1])
-            
-            with col_path:
-                # Initialize session state for save path if not exists
-                if 'codebook_save_path_input' not in st.session_state:
-                    st.session_state.codebook_save_path_input = str(default_path)
-                
-                # Requirement 8.3: Truncate long paths with ellipsis
-                help_text = "Dateipfad zum Speichern (Standard wird angezeigt)"
-                current_path = st.session_state.codebook_save_path_input
-                if current_path and len(current_path) > 50:
-                    # Show full path in tooltip
-                    help_text = f"Vollständiger Pfad: {current_path}\n\n{help_text}"
-                
-                # Use session state key directly for two-way binding
-                file_path = st.text_input(
-                    "Dateipfad:",
-                    value=st.session_state.codebook_save_path_input,
-                    help=help_text,
-                    key='codebook_save_path_widget',
-                    placeholder=str(default_path)
-                )
-                
-                # Update session state when user types
-                if file_path != st.session_state.codebook_save_path_input:
-                    st.session_state.codebook_save_path_input = file_path
-                
-                # Requirement 8.4: Real-time path validation
-                if file_path and file_path.strip():
-                    path_resolver = project_manager.path_resolver
-                    show_real_time_path_validation(file_path, path_resolver, check_writable=True)
-            
-            with col_browse:
-                # File browser button for save (Requirement 3.5, 8.1, 8.2)
-                st.markdown("<br>", unsafe_allow_html=True)  # Align with input
-                if st.button("📁", key='codebook_save_browse_btn', help="Speicherort wählen"):
-                    # Open save dialog with suggested filename
-                    selected_path = FileBrowserService.save_codebook_file_dialog(
-                        initial_dir=project_manager.get_root_directory(),
-                        default_filename=default_filename
-                    )
-                    
-                    if selected_path:
-                        # Update path input (Requirement 3.4)
-                        st.session_state.codebook_save_path_input = str(selected_path)
-                        st.rerun()
-            
-            col_save1, col_save2 = st.columns(2)
-            
-            with col_save1:
-                if st.button("Speichern", use_container_width=True, key='codebook_save_btn'):
-                    from webapp_logic.codebook_manager import CodebookManager
-                    manager = CodebookManager(project_manager.get_root_directory())
-                    codebook = st.session_state.codebook_data
-                    
-                    # Use file path from input or default
-                    save_path = file_path.strip() if file_path.strip() else str(default_path)
-                    
-                    # Save codebook
-                    success, errors = manager.save_codebook(
-                        codebook=codebook,
-                        file_path=save_path,
-                        format=save_format
-                    )
-                    
-                    if success:
-                        st.session_state.codebook_modified = False
-                        project_manager.update_last_codebook_file(Path(save_path))
-                        
-                        # Requirement 8.5: Success confirmation with file info
-                        additional_info = {
-                            "Kategorien": len(codebook.deduktive_kategorien),
-                            "Kodierregeln": sum(len(rules) for rules in codebook.kodierregeln.values())
-                        }
-                        show_file_operation_success("gespeichert", Path(save_path), additional_info)
-                        
-                        st.session_state.show_codebook_save_dialog = False
-                        st.rerun()
-                    else:
-                        # Enhanced error display
-                        show_file_operation_error(
-                            "Speichern",
-                            Path(save_path),
-                            "\n".join(errors),
-                            ["Überprüfen Sie die Schreibrechte", "Stellen Sie sicher, dass das Verzeichnis existiert"]
-                        )
-            
-            with col_save2:
-                if st.button("Abbrechen", use_container_width=True, key='codebook_save_cancel'):
-                    st.session_state.show_codebook_save_dialog = False
-                    st.rerun()
+    # Note: Save dialog removed - saving now happens directly to the current config file
+    # The save button in the UI calls save_codebook_to_current_file() instead
     
     # Inductive code import dialog (Requirement 4.4)
     if st.session_state.get('show_inductive_import_dialog', False):
@@ -675,46 +653,48 @@ def render_category_editor(cat_name: str, category: CategoryData):
     
     # Display existing subcategories
     subcats_to_remove = []
-    for subcat_key, subcat_label in list(category.subcategories.items()):
+    for subcat_name, subcat_definition in list(category.subcategories.items()):
         col1, col2, col3 = st.columns([2, 3, 1])
         
         with col1:
-            new_key = st.text_input(
-                "Schlüssel",
-                value=subcat_key,
-                key=f"subcat_key_{cat_name}_{subcat_key}",
-                label_visibility="collapsed"
+            new_name = st.text_input(
+                "Name",
+                value=subcat_name,
+                key=f"subcat_name_{cat_name}_{subcat_name}",
+                label_visibility="collapsed",
+                help="Name der Subkategorie"
             )
         
         with col2:
-            new_label = st.text_input(
-                "Bezeichnung",
-                value=subcat_label,
-                key=f"subcat_label_{cat_name}_{subcat_key}",
-                label_visibility="collapsed"
+            new_definition = st.text_input(
+                "Definition (optional)",
+                value=subcat_definition or "",
+                key=f"subcat_def_{cat_name}_{subcat_name}",
+                label_visibility="collapsed",
+                help="Definition der Subkategorie (optional)"
             )
             
             # Update if changed
-            if new_label != subcat_label:
-                category.subcategories[subcat_key] = new_label
+            if new_definition != subcat_definition:
+                category.subcategories[subcat_name] = new_definition
                 category.modified_date = datetime.now().strftime("%Y-%m-%d")
                 st.session_state.codebook_modified = True
         
         with col3:
-            if st.button("🗑️", key=f"remove_subcat_{cat_name}_{subcat_key}", help="Subkategorie entfernen"):
-                subcats_to_remove.append(subcat_key)
+            if st.button("🗑️", key=f"remove_subcat_{cat_name}_{subcat_name}", help="Subkategorie entfernen"):
+                subcats_to_remove.append(subcat_name)
         
-        # Handle key change
-        if new_key != subcat_key and new_key not in category.subcategories:
-            category.subcategories[new_key] = category.subcategories.pop(subcat_key)
+        # Handle name change
+        if new_name != subcat_name and new_name not in category.subcategories:
+            category.subcategories[new_name] = category.subcategories.pop(subcat_name)
             category.modified_date = datetime.now().strftime("%Y-%m-%d")
             st.session_state.codebook_modified = True
             st.rerun()
     
     # Process removals
-    for key in subcats_to_remove:
-        if key in category.subcategories:
-            del category.subcategories[key]
+    for name in subcats_to_remove:
+        if name in category.subcategories:
+            del category.subcategories[name]
             category.modified_date = datetime.now().strftime("%Y-%m-%d")
             st.session_state.codebook_modified = True
             st.rerun()
@@ -724,33 +704,34 @@ def render_category_editor(cat_name: str, category: CategoryData):
         col1, col2 = st.columns(2)
         
         with col1:
-            new_subcat_key = st.text_input(
-                "Neuer Schlüssel",
+            new_subcat_name = st.text_input(
+                "Name",
                 value="",
-                key=f"new_subcat_key_{cat_name}",
-                help="z.B. 'positiv', 'negativ'"
+                key=f"new_subcat_name_{cat_name}",
+                help="z.B. 'Positive Wirkungen', 'Negative Wirkungen'"
             )
         
         with col2:
-            new_subcat_label = st.text_input(
-                "Neue Bezeichnung",
+            new_subcat_definition = st.text_input(
+                "Definition (optional)",
                 value="",
-                key=f"new_subcat_label_{cat_name}",
-                help="z.B. 'Positiv', 'Negativ'"
+                key=f"new_subcat_definition_{cat_name}",
+                help="Optionale Definition der Subkategorie"
             )
         
         if st.button("Subkategorie hinzufügen", key=f"add_subcat_btn_{cat_name}"):
-            if new_subcat_key and new_subcat_label:
-                if new_subcat_key not in category.subcategories:
-                    category.subcategories[new_subcat_key] = new_subcat_label
+            if new_subcat_name:
+                if new_subcat_name not in category.subcategories:
+                    # Definition is optional - use empty string if not provided
+                    category.subcategories[new_subcat_name] = new_subcat_definition or ""
                     category.modified_date = datetime.now().strftime("%Y-%m-%d")
                     st.session_state.codebook_modified = True
-                    st.success(f"✅ Subkategorie '{new_subcat_key}' hinzugefügt")
+                    st.success(f"✅ Subkategorie '{new_subcat_name}' hinzugefügt")
                     st.rerun()
                 else:
-                    st.error(f"❌ Subkategorie '{new_subcat_key}' existiert bereits")
+                    st.error(f"❌ Subkategorie '{new_subcat_name}' existiert bereits")
             else:
-                st.error("❌ Bitte beide Felder ausfüllen")
+                st.error("❌ Bitte mindestens den Namen eingeben")
     
     # Remove category button
     st.markdown("---")
@@ -805,12 +786,12 @@ def render_add_category_form():
     
     # Subcategories
     st.markdown("**Subkategorien** (optional)")
-    st.caption("Format: schlüssel:Bezeichnung (eine pro Zeile)")
+    st.caption("Format: Name:Definition (eine pro Zeile, Definition ist optional)")
     new_cat_subcats = st.text_area(
         "Subkategorien",
         value="",
         height=80,
-        placeholder="z.B.\npositiv:Positiv\nnegativ:Negativ\nneutral:Neutral",
+        placeholder="z.B.\nPositive Wirkungen:Alle positiven Effekte des Programms\nNegative Wirkungen:Unerwünschte Nebenwirkungen\nNeutrale Beobachtungen",
         key="new_cat_subcats",
         label_visibility="collapsed"
     )
@@ -839,12 +820,18 @@ def render_add_category_form():
             examples = [line.strip() for line in new_cat_examples.split('\n') if line.strip()]
             
             # Parse subcategories (optional)
+            # Format: Name:Definition (Definition is optional)
             subcats = {}
             for line in new_cat_subcats.split('\n'):
                 line = line.strip()
-                if line and ':' in line:
-                    key, label = line.split(':', 1)
-                    subcats[key.strip()] = label.strip()
+                if line:
+                    if ':' in line:
+                        # Has definition
+                        name, definition = line.split(':', 1)
+                        subcats[name.strip()] = definition.strip()
+                    else:
+                        # No definition - use empty string
+                        subcats[line] = ""
             
             if errors:
                 for error in errors:
@@ -903,6 +890,9 @@ def render_validation_status():
     Zeigt Validierungsstatus des Codebooks an.
     """
     codebook = st.session_state.codebook_data
+    
+    # Ensure all categories are CategoryData instances before validation
+    ensure_categories_are_instances(codebook)
     
     # Validate codebook
     is_valid, errors = codebook.validate()

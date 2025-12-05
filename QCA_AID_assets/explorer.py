@@ -176,6 +176,24 @@ async def main():
                 params
             )
             
+        elif analysis_type == 'sunburst':
+            # Sunburst-Visualisierung erstellen
+            print("\nErstelle Sunburst-Visualisierung...")
+            analyzer.create_sunburst(
+                filtered_df,
+                f"Sunburst_{output_prefix}",
+                params
+            )
+            
+        elif analysis_type == 'treemap':
+            # Treemap-Visualisierung erstellen
+            print("\nErstelle Treemap-Visualisierung...")
+            analyzer.create_treemap(
+                filtered_df,
+                f"Treemap_{output_prefix}",
+                params
+            )
+            
         elif analysis_type == 'summary_paraphrase':
             # Paraphrasenzusammenfassung erstellen
             print("\nErstelle Paraphrasen-Zusammenfassung...")

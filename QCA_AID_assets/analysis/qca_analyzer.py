@@ -1068,6 +1068,251 @@ class QCAAnalyzer:
         print(f"Heatmap erfolgreich erstellt und gespeichert unter: {output_path}")
         print(f"Daten exportiert nach: {excel_output_path}")
 
+    def create_sunburst(self, filtered_df: pd.DataFrame, output_filename: str, params: Dict[str, Any] = None):
+        """
+        Create a sunburst chart visualization showing hierarchical relationships.
+        
+        Creates two versions:
+        1. Standard version without values in labels
+        2. Version with values in labels (filename_with_values)
+        
+        Args:
+            filtered_df: Filtered DataFrame to visualize
+            output_filename: Base name for output files
+            params: Optional parameters for customization
+        """
+        try:
+            import plotly.express as px
+            import plotly.graph_objects as go
+        except ImportError:
+            print("❌ Plotly ist nicht installiert. Bitte installieren Sie es mit: pip install plotly")
+            return
+        
+        print("Erstelle Sunburst-Visualisierung...")
+        
+        if filtered_df.empty:
+            print("WARNUNG: Keine Daten nach Filterung vorhanden!")
+            return
+        
+        # Use parameters from configuration or default values
+        if params is None:
+            params = {}
+        
+        # Prepare data for sunburst
+        # Create hierarchical structure: Hauptkategorie -> Subkategorien -> Schlüsselwörter
+        sunburst_data = []
+        
+        for _, row in filtered_df.iterrows():
+            if pd.isna(row['Hauptkategorie']):
+                continue
+            
+            main_cat = str(row['Hauptkategorie'])
+            
+            # Add main category
+            sunburst_data.append({
+                'labels': main_cat,
+                'parents': '',
+                'values': 1
+            })
+            
+            # Handle subcategories
+            if pd.notna(row['Subkategorien']):
+                sub_cats = [cat.strip() for cat in str(row['Subkategorien']).split(',') if cat.strip()]
+                
+                for sub_cat in sub_cats:
+                    sunburst_data.append({
+                        'labels': sub_cat,
+                        'parents': main_cat,
+                        'values': 1
+                    })
+                    
+                    # Handle keywords
+                    if pd.notna(row['Schlüsselwörter']):
+                        keywords = [kw.strip() for kw in str(row['Schlüsselwörter']).split(',') if kw.strip()]
+                        
+                        for keyword in keywords:
+                            # Use harmonized version if available
+                            harmonized_keyword = self.keyword_mappings.get(keyword, keyword)
+                            
+                            sunburst_data.append({
+                                'labels': harmonized_keyword,
+                                'parents': sub_cat,
+                                'values': 1
+                            })
+        
+        # Convert to DataFrame and aggregate
+        sunburst_df = pd.DataFrame(sunburst_data)
+        sunburst_df = sunburst_df.groupby(['labels', 'parents'], as_index=False).sum()
+        
+        # Create standard sunburst (without values in labels)
+        fig = px.sunburst(
+            sunburst_df,
+            names='labels',
+            parents='parents',
+            values='values',
+            title='Hierarchische Code-Struktur (Sunburst)'
+        )
+        
+        fig.update_traces(textinfo='label')
+        fig.update_layout(
+            width=1000,
+            height=1000,
+            font=dict(size=12)
+        )
+        
+        # Save standard version
+        output_path = self.output_dir / f"{output_filename}.html"
+        fig.write_html(str(output_path))
+        print(f"✅ Sunburst-Visualisierung gespeichert: {output_path}")
+        
+        # Create version with values in labels
+        fig_with_values = px.sunburst(
+            sunburst_df,
+            names='labels',
+            parents='parents',
+            values='values',
+            title='Hierarchische Code-Struktur mit Werten (Sunburst)'
+        )
+        
+        fig_with_values.update_traces(textinfo='label+value')
+        fig_with_values.update_layout(
+            width=1000,
+            height=1000,
+            font=dict(size=12)
+        )
+        
+        # Save version with values
+        output_path_with_values = self.output_dir / f"{output_filename}_with_values.html"
+        fig_with_values.write_html(str(output_path_with_values))
+        print(f"✅ Sunburst-Visualisierung mit Werten gespeichert: {output_path_with_values}")
+        
+        # Export data
+        excel_output_path = self.output_dir / f"{output_filename}_data.xlsx"
+        sunburst_df.to_excel(excel_output_path, index=False)
+        print(f"✅ Daten exportiert: {excel_output_path}")
+
+    def create_treemap(self, filtered_df: pd.DataFrame, output_filename: str, params: Dict[str, Any] = None):
+        """
+        Create a treemap visualization showing hierarchical relationships.
+        
+        Creates two versions:
+        1. Standard version without values in labels
+        2. Version with values in labels (filename_with_values)
+        
+        Args:
+            filtered_df: Filtered DataFrame to visualize
+            output_filename: Base name for output files
+            params: Optional parameters for customization
+        """
+        try:
+            import plotly.express as px
+            import plotly.graph_objects as go
+        except ImportError:
+            print("❌ Plotly ist nicht installiert. Bitte installieren Sie es mit: pip install plotly")
+            return
+        
+        print("Erstelle Treemap-Visualisierung...")
+        
+        if filtered_df.empty:
+            print("WARNUNG: Keine Daten nach Filterung vorhanden!")
+            return
+        
+        # Use parameters from configuration or default values
+        if params is None:
+            params = {}
+        
+        # Prepare data for treemap (same structure as sunburst)
+        treemap_data = []
+        
+        for _, row in filtered_df.iterrows():
+            if pd.isna(row['Hauptkategorie']):
+                continue
+            
+            main_cat = str(row['Hauptkategorie'])
+            
+            # Add main category
+            treemap_data.append({
+                'labels': main_cat,
+                'parents': '',
+                'values': 1
+            })
+            
+            # Handle subcategories
+            if pd.notna(row['Subkategorien']):
+                sub_cats = [cat.strip() for cat in str(row['Subkategorien']).split(',') if cat.strip()]
+                
+                for sub_cat in sub_cats:
+                    treemap_data.append({
+                        'labels': sub_cat,
+                        'parents': main_cat,
+                        'values': 1
+                    })
+                    
+                    # Handle keywords
+                    if pd.notna(row['Schlüsselwörter']):
+                        keywords = [kw.strip() for kw in str(row['Schlüsselwörter']).split(',') if kw.strip()]
+                        
+                        for keyword in keywords:
+                            # Use harmonized version if available
+                            harmonized_keyword = self.keyword_mappings.get(keyword, keyword)
+                            
+                            treemap_data.append({
+                                'labels': harmonized_keyword,
+                                'parents': sub_cat,
+                                'values': 1
+                            })
+        
+        # Convert to DataFrame and aggregate
+        treemap_df = pd.DataFrame(treemap_data)
+        treemap_df = treemap_df.groupby(['labels', 'parents'], as_index=False).sum()
+        
+        # Create standard treemap (without values in labels)
+        fig = px.treemap(
+            treemap_df,
+            names='labels',
+            parents='parents',
+            values='values',
+            title='Hierarchische Code-Struktur (Treemap)'
+        )
+        
+        fig.update_traces(textinfo='label')
+        fig.update_layout(
+            width=1200,
+            height=800,
+            font=dict(size=12)
+        )
+        
+        # Save standard version
+        output_path = self.output_dir / f"{output_filename}.html"
+        fig.write_html(str(output_path))
+        print(f"✅ Treemap-Visualisierung gespeichert: {output_path}")
+        
+        # Create version with values in labels
+        fig_with_values = px.treemap(
+            treemap_df,
+            names='labels',
+            parents='parents',
+            values='values',
+            title='Hierarchische Code-Struktur mit Werten (Treemap)'
+        )
+        
+        fig_with_values.update_traces(textinfo='label+value')
+        fig_with_values.update_layout(
+            width=1200,
+            height=800,
+            font=dict(size=12)
+        )
+        
+        # Save version with values
+        output_path_with_values = self.output_dir / f"{output_filename}_with_values.html"
+        fig_with_values.write_html(str(output_path_with_values))
+        print(f"✅ Treemap-Visualisierung mit Werten gespeichert: {output_path_with_values}")
+        
+        # Export data
+        excel_output_path = self.output_dir / f"{output_filename}_data.xlsx"
+        treemap_df.to_excel(excel_output_path, index=False)
+        print(f"✅ Daten exportiert: {excel_output_path}")
+
     async def create_custom_summary(self, 
                             filtered_df: pd.DataFrame, 
                             prompt_template: str, 

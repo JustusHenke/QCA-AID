@@ -421,7 +421,7 @@ class ResultsExporter:
                 
                 # FIX: Dokumentiere Änderung in Begründung
                 original_justification = consensus_coding.get('justification', '')
-                consensus_coding['justification'] = f"{original_justification} [FIX: Consensus-Validierung entfernte ungÜltige Subkategorien: {list(removed_subcats)}]"
+                consensus_coding['justification'] = f"{original_justification} [FIX: Consensus-Validierung entfernte ungültige Subkategorien: {list(removed_subcats)}]"
                 
         else:
             # FIX: Fallback ohne Validierung
@@ -503,7 +503,7 @@ class ResultsExporter:
                 invalid_subcats = [sub for sub in final_subcats if sub not in valid_subcats_for_main]
                 
                 if invalid_subcats:
-                    print(f"  WARNUNG: UngÜltige Subkategorien fuer '{main_cat}' gefunden: {invalid_subcats}")
+                    print(f"  WARNUNG: Ungültige Subkategorien fuer '{main_cat}' gefunden: {invalid_subcats}")
                     print(f"  GÜltige Subkategorien: {list(valid_subcats_for_main)}")
                     # NICHT entfernen, nur warnen!
             
@@ -774,7 +774,7 @@ class ResultsExporter:
             if isinstance(justification, str):
                 justification_score = min(len(justification.split()) / 20, 1.0)  # Max bei 20 WÖrtern
             else:
-                justification_score = 0.0  # Keine Begründung vorhanden oder ungÜltiger Typ
+                justification_score = 0.0  # Keine Begründung vorhanden oder ungültiger Typ
 
             # Gewichtete Kombination der Faktoren
             quality_score = (
@@ -1157,7 +1157,7 @@ class ResultsExporter:
             else:
                 display_category = category
                 is_coded = 'Ja'
-                # Kategorietyp bestimmen fuer gÜltige Kategorien
+                # Kategorietyp bestimmen fuer gültige Kategorien
                 if hasattr(self, '_determine_category_type'):
                     category_type = self._determine_category_type(category, original_categories or {})
                 else:
@@ -1914,7 +1914,7 @@ class ResultsExporter:
         if len(parts) == 2:
             return parts[0], parts[1]
         else:
-            # Fallback fuer ungÜltige Segment-IDs
+            # Fallback fuer ungültige Segment-IDs
             return segment_id, "unknown"
 
     def _get_base_segment_id(self, coding: Dict) -> str:

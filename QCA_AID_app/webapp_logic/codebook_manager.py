@@ -133,6 +133,23 @@ class CodebookManager:
         errors = []
         
         try:
+            # Ensure all categories are CategoryData instances before validation
+            for cat_name, category in list(codebook.deduktive_kategorien.items()):
+                # Check by type name instead of isinstance (handles import conflicts)
+                cat_type_name = type(category).__name__
+                
+                if cat_type_name == 'CategoryData':
+                    # It's already a CategoryData (even if isinstance fails due to import issues)
+                    continue
+                elif isinstance(category, dict):
+                    # Convert dict to CategoryData
+                    if 'name' not in category:
+                        category['name'] = cat_name
+                    codebook.deduktive_kategorien[cat_name] = CategoryData.from_dict(category)
+                else:
+                    # Unknown type - return error with debug info
+                    return False, [f"Category '{cat_name}' has unexpected type: {cat_type_name}. Expected CategoryData or dict."]
+            
             # Validiere Codebook vor dem Speichern
             is_valid, validation_errors = codebook.validate()
             if not is_valid:

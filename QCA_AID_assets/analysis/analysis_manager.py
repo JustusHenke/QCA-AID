@@ -127,10 +127,10 @@ class IntegratedAnalysisManager:
         
         Args:
             segments: Liste aller Segmente
-            batch_size: Batch-GrÖẞe
+            batch_size: Batch-Gröẞe
             
         Returns:
-            List[Tuple[str, str]]: NÄchster Batch von Segmenten AUS EINEM DOKUMENT
+            List[Tuple[str, str]]: Nächster Batch von Segmenten AUS EINEM DOKUMENT
         """
         remaining_segments = [
             seg for seg in segments 
@@ -237,7 +237,7 @@ class IntegratedAnalysisManager:
     
     async def _assess_grounded_saturation(self, batch_count: int, total_batches: int) -> bool:
         """
-        KORRIGIERTE SÄttigungslogik fuer Grounded Mode.
+        KORRIGIERTE Sättigungslogik fuer Grounded Mode.
         """
         try:
             # Berechne Material-Fortschritt
@@ -261,10 +261,10 @@ class IntegratedAnalysisManager:
                 self.grounded_keywords_collection = []
             keyword_diversity = len(set(self.grounded_keywords_collection))
             
-            # Berechne SÄttigungsmetriken
+            # Berechne Sättigungsmetriken
             avg_subcodes_per_batch = len(self.grounded_subcodes_collection) / max(batch_count, 1)
             
-            # Kriterien fuer Grounded Mode SÄttigung
+            # Kriterien fuer Grounded Mode Sättigung
             criteria = {
                 'min_batches': batch_count >= 3,  # Mindestens 3 Batches
                 'material_coverage': material_percentage >= 70,  # 70% Material verarbeitet
@@ -274,25 +274,25 @@ class IntegratedAnalysisManager:
                 'keyword_richness': keyword_diversity >= 15,  # Mindestens 15 verschiedene Keywords
             }
             
-            print(f"\n🕵️ Grounded Mode SÄttigungsprÜfung (Batch {batch_count}/{total_batches}):")
+            print(f"\n🕵️ Grounded Mode SättigungsprÜfung (Batch {batch_count}/{total_batches}):")
             print(f"🧾 Aktuelle Metriken:")
             print(f"   - Material-Fortschritt: {material_percentage:.1f}%")
             print(f"   - Gesammelte Subcodes: {len(self.grounded_subcodes_collection)}")
             print(f"   - Subcode-DiversitÄt: {subcode_diversity}")
             print(f"   - Keyword-DiversitÄt: {keyword_diversity}")
-            print(f"   - SÄttigungs-Counter: {self.grounded_saturation_counter}")
+            print(f"   - Sättigungs-Counter: {self.grounded_saturation_counter}")
             print(f"   - Ae˜ Subcodes/Batch: {avg_subcodes_per_batch:.1f}")
             
-            print(f"\n🎯 SÄttigungskriterien:")
+            print(f"\n🎯 Sättigungskriterien:")
             for criterion, met in criteria.items():
                 status = "✅" if met else "⚠️"
                 print(f"   {status} {criterion}: {met}")
             
-            # Bestimme SÄttigungsstatus
+            # Bestimme Sättigungsstatus
             critical_criteria = ['min_batches', 'subcodes_collected', 'saturation_stability']
             critical_met = all(criteria[crit] for crit in critical_criteria)
             
-            # VollstÄndige SÄttigung: Alle Kriterien oder kritische + Material fast vollstÄndig
+            # VollstÄndige Sättigung: Alle Kriterien oder kritische + Material fast vollstÄndig
             full_saturation = all(criteria.values())
             partial_saturation = critical_met and (material_percentage >= 85 or criteria['material_coverage'])
             forced_saturation = material_percentage >= 100  # 100% Material = ZwangssÄttigung
@@ -304,16 +304,16 @@ class IntegratedAnalysisManager:
                 print(f"\n🎯 GROUNDED MODE SÄTTIGUNG erreicht ({saturation_type}):")
                 print(f"   - Material: {material_percentage:.1f}% verarbeitet")
                 print(f"   - Subcodes: {len(self.grounded_subcodes_collection)} gesammelt")
-                print(f"   - SÄttigungs-Counter: {self.grounded_saturation_counter}")
+                print(f"   - Sättigungs-Counter: {self.grounded_saturation_counter}")
             else:
-                print(f"\nℹ️ SÄttigung noch nicht erreicht - setze Subcode-Sammlung fort")
+                print(f"\nℹ️ Sättigung noch nicht erreicht - setze Subcode-Sammlung fort")
                 missing_criteria = [k for k, v in criteria.items() if not v]
                 print(f"   - Fehlende Kriterien: {', '.join(missing_criteria)}")
             
             return is_saturated
             
         except Exception as e:
-            print(f"⚠️ Fehler bei Grounded Mode SÄttigungsprÜfung: {str(e)}")
+            print(f"⚠️ Fehler bei Grounded Mode SättigungsprÜfung: {str(e)}")
             import traceback
             traceback.print_exc()
             # Fallback: Bei Fehler weiter sammeln, auẞer 100% Material erreicht
@@ -545,7 +545,7 @@ class IntegratedAnalysisManager:
                 }
                 
                 if not effective_categories:
-                    print(f"    ❌ Keine gÜltigen CategoryDefinition-Objekte in preferred_cats - verwende alle Kategorien")
+                    print(f"    ❌ Keine gültigen CategoryDefinition-Objekte in preferred_cats - verwende alle Kategorien")
                     effective_categories = categories
                 else:
                     print(f"    🎯 Segment {segment_id}: Fokus auf {len(effective_categories)} Kategorien: {', '.join(preferred_cats)}")
@@ -652,7 +652,7 @@ class IntegratedAnalysisManager:
                             if removed:
                                 print(f"    🔧 Entfernt: {list(removed)} (Quelle: {validation_source})")
                         elif validation_source != "keine" and original_subcats:
-                            print(f"    ✅ Alle {len(original_subcats)} Subkategorien gÜltig (Quelle: {validation_source})")
+                            print(f"    ✅ Alle {len(original_subcats)} Subkategorien gültig (Quelle: {validation_source})")
                         elif validation_source == "keine" and original_subcats:
                             print(f"    ℹ️ Subkategorien-Validierung Übersprungen fuer '{main_category}' (Quelle: {validation_source})")
                         
@@ -897,8 +897,8 @@ class IntegratedAnalysisManager:
             self.inductive_coder.theoretical_saturation_history):
             
             final_saturation = self.inductive_coder.theoretical_saturation_history[-1]
-            print(f"\n🎯 Finale SÄttigung:")
-            print(f"   - Theoretische SÄttigung: {final_saturation['theoretical_saturation']:.1%}")
+            print(f"\n🎯 Finale Sättigung:")
+            print(f"   - Theoretische Sättigung: {final_saturation['theoretical_saturation']:.1%}")
             print(f"   - KategorienqualitÄt: {final_saturation['category_quality']:.1%}")
             print(f"   - DiversitÄt: {final_saturation['category_diversity']:.1%}")
         
@@ -987,7 +987,7 @@ class IntegratedAnalysisManager:
                 batch_size = CONFIG.get('BATCH_SIZE', 5)
             
             total_segments = len(all_segments)
-            print(f"Verarbeite {total_segments} Segmente mit Batch-GrÖẞe {batch_size}...")
+            print(f"Verarbeite {total_segments} Segmente mit Batch-Gröẞe {batch_size}...")
             self.history.log_analysis_start(total_segments, len(initial_categories))
 
             # GROUNDED MODE: Spezielle Behandlung
@@ -1007,7 +1007,7 @@ class IntegratedAnalysisManager:
                 return initial_categories, []
             
             if not isinstance(result, tuple) or len(result) != 2:
-                print("❌ Warnung: Analyse-Methode gab kein gÜltiges Tupel zurÜck")
+                print("❌ Warnung: Analyse-Methode gab kein gültiges Tupel zurÜck")
                 return initial_categories, []
             
             final_categories, coding_results = result
@@ -1055,7 +1055,7 @@ class IntegratedAnalysisManager:
             batch_size = CONFIG.get('BATCH_SIZE', 5)
         
         total_segments = len(all_segments)
-        print(f"Verarbeite {total_segments} Segmente mit Batch-GrÖẞe {batch_size}...")
+        print(f"Verarbeite {total_segments} Segmente mit Batch-Gröẞe {batch_size}...")
 
         # Initialisiere ImprovedSaturationController
         saturation_controller = ImprovedSaturationController(analysis_mode)
@@ -1145,7 +1145,7 @@ class IntegratedAnalysisManager:
                 
                 # 2. INDUKTIVE KATEGORIENENTWICKLUNG
                 if not skip_inductive and generally_relevant_batch:
-                    print(f"\n🕵️ NÄchster Schritt: Induktive Kategorienentwicklung...")
+                    print(f"\n🕵️ Nächster Schritt: Induktive Kategorienentwicklung...")
                     
                     # FIX: Escape-PrÜfung vor Kodierung
                     if self.check_escape_abort():
@@ -1209,7 +1209,7 @@ class IntegratedAnalysisManager:
                         return current_categories, self.coding_results
                     
                 # 3. DEDUKTIVE KODIERUNG
-                print(f"\n📝 NÄchster Schritt: Deduktive Kodierung aller {len(batch)} Segmente...")
+                print(f"\n📝 Nächster Schritt: Deduktive Kodierung aller {len(batch)} Segmente...")
 
                 # FIX: Escape-PrÜfung vor Kodierung
                 if self.check_escape_abort():
@@ -1247,12 +1247,12 @@ class IntegratedAnalysisManager:
             
                 self.coding_results.extend(batch_results)
                 
-                # 4. SÄttigungsprÜfung
+                # 4. SättigungsprÜfung
                 batch_time = time.time() - batch_start
                 material_percentage = (len(self.processed_segments) / total_segments) * 100
                 total_batches = len(all_segments) / batch_size
 
-                # Normale SÄttigungsprÜfung
+                # Normale SättigungsprÜfung
                 saturation_status = saturation_controller.assess_saturation(
                     current_categories=current_categories,
                     material_percentage=material_percentage,
@@ -1260,8 +1260,8 @@ class IntegratedAnalysisManager:
                     total_segments=self._total_segments
                 )
             
-                print(f"\n🧾 SÄttigungsstatus:")
-                print(f"   🎯 Theoretische SÄttigung: {saturation_status['theoretical_saturation']:.1%}")
+                print(f"\n🧾 Sättigungsstatus:")
+                print(f"   🎯 Theoretische Sättigung: {saturation_status['theoretical_saturation']:.1%}")
                 print(f"   ℹ️ Materialabdeckung: {saturation_status['material_coverage']:.1%}")
                 
                 if saturation_status['is_saturated']:
@@ -1361,7 +1361,7 @@ class IntegratedAnalysisManager:
                 # Sammle Subcodes zentral
                 self._collect_grounded_subcodes(grounded_analysis, batch_count)
             
-            # 3. SÄttigungsprÜfung (nur fuer Subcode-Sammlung)
+            # 3. SättigungsprÜfung (nur fuer Subcode-Sammlung)
             if await self._assess_grounded_saturation(batch_count, len(all_segments) / batch_size):
                 print(f"\n🏁 GROUNDED SUBCODE-SAMMLUNG abgeschlossen nach {batch_count} Batches!")
                 break
@@ -1466,7 +1466,7 @@ class IntegratedAnalysisManager:
                                     print(f"    ℹ️ Subcode erweitert: '{subcode_name}'")
                                     break
         
-        # Aktualisiere SÄttigungszÄhler
+        # Aktualisiere SättigungszÄhler
         if new_subcodes_count == 0:
             self.grounded_saturation_counter += 1
         else:
@@ -1484,7 +1484,7 @@ class IntegratedAnalysisManager:
         print(f"✅ SUBCODE-SAMMLUNG BATCH {batch_number}:")
         print(f"   - Neue Subcodes: {new_subcodes_count}")
         print(f"   - Gesamt Subcodes: {len(self.grounded_subcodes_collection)}")
-        print(f"   - SÄttigungs-Counter: {self.grounded_saturation_counter}")
+        print(f"   - Sättigungs-Counter: {self.grounded_saturation_counter}")
 
     async def _code_all_segments_with_grounded_categories(self, all_segments: List, 
                                                         grounded_categories: Dict, 
@@ -1659,7 +1659,7 @@ class IntegratedAnalysisManager:
                     'analysis_mode': 'grounded'
                 },
                 'subcodes': self.collected_subcodes,
-                'segment_analyses': self.grounded_segment_analyses[:100]  # Nur erste 100 fuer GrÖẞe
+                'segment_analyses': self.grounded_segment_analyses[:100]  # Nur erste 100 fuer Gröẞe
             }
             
             with open(subcodes_path, 'w', encoding='utf-8') as f:
@@ -1805,7 +1805,7 @@ class IntegratedAnalysisManager:
                 )
                 
                 if changes:
-                    print(f"\n🔀 Kategorie '{name}' aktualisiert:")
+                    print(f"\n🔀Kategorie '{name}' aktualisiert:")
                     for change in changes:
                         print(f"   - {change}")
         
@@ -1956,7 +1956,7 @@ class IntegratedAnalysisManager:
         Args:
             batch_results: Ergebnisse des Batches
             processing_time: Verarbeitungszeit
-            batch_size: GrÖẞe des Batches
+            batch_size: Gröẞe des Batches
         """
         self.coding_results.extend(batch_results)
         self.performance_metrics['batch_processing_times'].append(processing_time)
@@ -1974,7 +1974,7 @@ class IntegratedAnalysisManager:
         
         Args:
             material_percentage: Prozentsatz des verarbeiteten Materials
-            saturation_metrics: Metriken der SÄttigungsprÜfung
+            saturation_metrics: Metriken der SättigungsprÜfung
             num_results: Anzahl der Kodierungen
         """
         try:
@@ -1996,7 +1996,7 @@ class IntegratedAnalysisManager:
             print(f"- Neue Kodierungen: {num_results}")
             print(f"- Verarbeitungszeit: {status['processing_time']:.2f}s")
             if saturation_metrics:
-                print("- SÄttigungsmetriken:")
+                print("- Sättigungsmetriken:")
                 for key, value in saturation_metrics.items():
                     print(f"  - {key}: {value}")
         except Exception as e:

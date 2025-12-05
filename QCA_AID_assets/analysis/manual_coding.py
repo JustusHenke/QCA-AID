@@ -484,7 +484,7 @@ class ManualCoder:
             )
             
             if main_cat_input:
-                # Prüfe ob Eingabe eine gÜltige Nummer ist
+                # Prüfe ob Eingabe eine gültige Nummer ist
                 main_cat_info = self.number_to_category_map.get(main_cat_input.strip())
                 
                 if main_cat_info and main_cat_info['type'] == 'main':
@@ -536,7 +536,7 @@ class ManualCoder:
                     else:
                         messagebox.showwarning(
                             "Warnung", 
-                            f"UngÜltige Eingabe: '{main_cat_input}'\n\nBitte verwenden Sie die Nummer (z.B. '1') oder den exakten Namen der Hauptkategorie."
+                            f"Ungültige Eingabe: '{main_cat_input}'\n\nBitte verwenden Sie die Nummer (z.B. '1') oder den exakten Namen der Hauptkategorie."
                         )
 
     def _find_number_for_subcategory(self, main_cat_name: str, sub_name: str) -> str:

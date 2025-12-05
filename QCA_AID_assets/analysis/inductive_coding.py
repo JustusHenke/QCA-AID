@@ -25,7 +25,7 @@ token_counter = get_global_token_counter()
 class InductiveCoder:
     """
     Vereinfachter induktiver Kodierer mit strikter 2-Phasen-Struktur:
-    Phase 1: Kategoriensystem-Aufbau (mit strenger SÄttigung)
+    Phase 1: Kategoriensystem-Aufbau (mit strenger Sättigung)
     Phase 2: Kodierung mit festem System
     """
     
@@ -47,18 +47,18 @@ class InductiveCoder:
         self.batch_results = []
         self.similarity_cache = {}
         
-        # VERBESSERTE SÄttigungsschwellen (aus dem verbesserten Code)
+        # VERBESSERTE Sättigungsschwellen (aus dem verbesserten Code)
         self.MIN_CONFIDENCE = 0.7
         self.MIN_EXAMPLES = 2
         self.MIN_CATEGORY_USAGE = 2
         self.MAX_CATEGORIES_PER_BATCH = 5
         
-        # VERSCHÄRFTE SÄttigungskriterien (aus dem verbesserten Code)
+        # VERSCHÄRFTE Sättigungskriterien (aus dem verbesserten Code)
         self.MIN_BATCHES_BEFORE_SATURATION = 5
         self.MIN_MATERIAL_COVERAGE = 0.8
         self.STABILITY_THRESHOLD = 3
         
-        # Theoretische SÄttigungsmetriken (aus dem verbesserten Code)
+        # Theoretische Sättigungsmetriken (aus dem verbesserten Code)
         self.theoretical_saturation_history = []
         self.category_development_phases = []
         
@@ -67,7 +67,7 @@ class InductiveCoder:
         self.categories_locked = False
         self.development_complete = False
         
-        # SÄttigungs-Tracking (unverÄndert)
+        # Sättigungs-Tracking (unverÄndert)
         self.batches_without_new_categories = 0
         self.category_usage_history = {}
         self.rejected_categories = []
@@ -87,7 +87,7 @@ class InductiveCoder:
         )
 
         print(f"\n🧑‍💼 Induktive Kodierung initialisiert:")
-        print(f"- Min. Batches vor SÄttigung: {self.MIN_BATCHES_BEFORE_SATURATION}")
+        print(f"- Min. Batches vor Sättigung: {self.MIN_BATCHES_BEFORE_SATURATION}")
         print(f"- Min. Materialabdeckung: {self.MIN_MATERIAL_COVERAGE:.0%}")
         print(f"- StabilitÄtsschwelle: {self.STABILITY_THRESHOLD} Batches")
     
@@ -96,12 +96,12 @@ class InductiveCoder:
         
     def _create_proper_batches(self, segments: List[str], batch_size: int) -> List[List[str]]:
         """
-        VERBESSERT: Erstellt Batches ohne kÜnstliche GrÖẞenreduzierung
+        VERBESSERT: Erstellt Batches ohne kÜnstliche Gröẞenreduzierung
         """
         if not segments:
             return []
         
-        print(f"🔀¦ Erstelle Batches: {len(segments)} Segmente -> Batch-GrÖẞe {batch_size}")
+        print(f"🔀¦ Erstelle Batches: {len(segments)} Segmente -> Batch-Gröẞe {batch_size}")
         
         batches = []
         for i in range(0, len(segments), batch_size):
@@ -284,7 +284,7 @@ class InductiveCoder:
     
     async def develop_category_system(self, segments: List[str], initial_categories: Dict[str, CategoryDefinition] = None) -> Dict[str, CategoryDefinition]:
         """
-        VERBESSERTE Kategorienentwicklung mit korrekter SÄttigungslogik
+        VERBESSERTE Kategorienentwicklung mit korrekter Sättigungslogik
         """
         print(f"\n🕵️ Starte verbesserte induktive Entwicklung mit {len(segments)} Segmenten")
         
@@ -308,12 +308,12 @@ class InductiveCoder:
         
         print(f"🧾 Batch-Konfiguration:")
         print(f"- Relevante Segmente: {len(segments)}")
-        print(f"- Batch-GrÖẞe: {effective_batch_size}")
+        print(f"- Batch-Gröẞe: {effective_batch_size}")
         print(f"- Anzahl Batches: {len(batches)}")
         
         working_categories = current_categories.copy()
         
-        # HAUPTSCHLEIFE mit verbesserter SÄttigungslogik
+        # HAUPTSCHLEIFE mit verbesserter Sättigungslogik
         for batch_idx, batch in enumerate(batches):
             print(f"\n{'='*60}")
             print(f"🧾 BATCH {batch_idx + 1}/{len(batches)} - Kategorienentwicklung")
@@ -349,7 +349,7 @@ class InductiveCoder:
                 print("ℹ️ Keine neuen Kategorien in diesem Batch")
                 self.batches_without_new_categories += 1
             
-            # VERBESSERTE SÄttigungsprÜfung
+            # VERBESSERTE SättigungsprÜfung
             saturation_metrics = self._assess_comprehensive_saturation(
                 working_categories, 
                 batch_idx + 1, 
@@ -357,24 +357,24 @@ class InductiveCoder:
             )
             
             print(f"\nℹ️ SÄTTIGUNGSANALYSE:")
-            print(f"- Theoretische SÄttigung: {saturation_metrics['theoretical_saturation']:.2f}")
+            print(f"- Theoretische Sättigung: {saturation_metrics['theoretical_saturation']:.2f}")
             print(f"- Materialabdeckung: {saturation_metrics['material_coverage']:.1%}")
             print(f"- Stabile Batches: {saturation_metrics['stable_batches']}")
             print(f"- KategorienqualitÄt: {saturation_metrics['category_quality']:.2f}")
             print(f"- DiversitÄt: {saturation_metrics['category_diversity']:.2f}")
             
-            # Speichere SÄttigungshistorie
+            # Speichere Sättigungshistorie
             self.theoretical_saturation_history.append(saturation_metrics)
             
-            # Prüfe ALLE SÄttigungskriterien
+            # Prüfe ALLE Sättigungskriterien
             if self._check_comprehensive_saturation(saturation_metrics, batch_idx + 1, len(batches)):
                 print(f"\n🏁 VOLLSTÄNDIGE SÄTTIGUNG erreicht nach Batch {batch_idx + 1}")
-                print(f"🧾 SÄttigungsgrund:")
+                print(f"🧾 Sättigungsgrund:")
                 for criterion, value in saturation_metrics.items():
                     print(f"   - {criterion}: {value}")
                 break
             else:
-                print(f"\nℹ️ SÄttigung noch nicht erreicht - fortsetzen")
+                print(f"\nℹ️ Sättigung noch nicht erreicht - fortsetzen")
                 self._log_saturation_progress(saturation_metrics)
             
             # Zwischenkonsolidierung alle 3 Batches
@@ -392,12 +392,12 @@ class InductiveCoder:
 
     def _create_proper_batches(self, segments: List[str], batch_size: int) -> List[List[str]]:
         """
-        VERBESSERT: Erstellt Batches ohne kÜnstliche GrÖẞenreduzierung
+        VERBESSERT: Erstellt Batches ohne kÜnstliche Gröẞenreduzierung
         """
         if not segments:
             return []
         
-        print(f"🔀¦ Erstelle Batches: {len(segments)} Segmente -> Batch-GrÖẞe {batch_size}")
+        print(f"🔀¦ Erstelle Batches: {len(segments)} Segmente -> Batch-Gröẞe {batch_size}")
         
         batches = []
         for i in range(0, len(segments), batch_size):
@@ -410,9 +410,9 @@ class InductiveCoder:
     def _assess_comprehensive_saturation(self, categories: Dict[str, CategoryDefinition], 
                                        current_batch: int, total_batches: int) -> Dict[str, float]:
         """
-        VERBESSERTE umfassende SÄttigungsbeurteilung
+        VERBESSERTE umfassende Sättigungsbeurteilung
         """
-        # 1. Theoretische SÄttigung (KategorienqualitÄt und -vollstÄndigkeit)
+        # 1. Theoretische Sättigung (KategorienqualitÄt und -vollstÄndigkeit)
         theoretical_saturation = self._calculate_theoretical_saturation(categories)
         
         # 2. Materialabdeckung
@@ -439,7 +439,7 @@ class InductiveCoder:
 
     def _calculate_theoretical_saturation(self, categories: Dict[str, CategoryDefinition]) -> float:
         """
-        Berechnet theoretische SÄttigung basierend auf Kategorienreife und Forschungsabdeckung
+        Berechnet theoretische Sättigung basierend auf Kategorienreife und Forschungsabdeckung
         """
         if not categories:
             return 0.0
@@ -465,7 +465,7 @@ class InductiveCoder:
         estimated_optimal = 8  # Typisch fuer qualitative Analysen
         coverage_ratio = min(len(categories) / estimated_optimal, 1.0)
         
-        # 3. Kombinierte theoretische SÄttigung
+        # 3. Kombinierte theoretische Sättigung
         theoretical_saturation = (avg_maturity * 0.7) + (coverage_ratio * 0.3)
         
         return min(theoretical_saturation, 1.0)
@@ -524,7 +524,7 @@ class InductiveCoder:
     def _check_comprehensive_saturation(self, saturation_metrics: Dict[str, float], 
                                       current_batch: int, total_batches: int) -> bool:
         """
-        VERSCHÄRFTE SÄttigungsprÜfung mit mehreren Kriterien
+        VERSCHÄRFTE SättigungsprÜfung mit mehreren Kriterien
         """
         # Mindestkriterien
         min_batches = max(self.MIN_BATCHES_BEFORE_SATURATION, total_batches * 0.3)
@@ -541,16 +541,16 @@ class InductiveCoder:
             'sufficient_categories': saturation_metrics['total_categories'] >= 3
         }
         
-        print(f"\n🕵️ SÄttigungskriterien:")
+        print(f"\n🕵️ Sättigungskriterien:")
         for criterion, met in criteria_met.items():
             status = "✅" if met else "⚠️"
             print(f"   {status} {criterion}: {met}")
         
-        # SÄttigung nur wenn ALLE Kriterien erfÜllt
+        # Sättigung nur wenn ALLE Kriterien erfÜllt
         is_saturated = all(criteria_met.values())
         
         if is_saturated:
-            print(f"\n🎯 ALLE SÄttigungskriterien erfÜllt!")
+            print(f"\n🎯 ALLE Sättigungskriterien erfÜllt!")
         else:
             missing = [k for k, v in criteria_met.items() if not v]
             print(f"\nℹ️ Fehlende Kriterien: {', '.join(missing)}")
@@ -821,10 +821,10 @@ class InductiveCoder:
 
     def _log_saturation_progress(self, saturation_metrics: Dict[str, float]) -> None:
         """
-        Protokolliert SÄttigungsfortschritt fuer Benutzer-Feedback
+        Protokolliert Sättigungsfortschritt fuer Benutzer-Feedback
         """
-        print(f"\n🧾 SÄttigungsfortschritt:")
-        print(f"   🎯 Theoretische SÄttigung: {saturation_metrics['theoretical_saturation']:.1%}")
+        print(f"\n🧾 Sättigungsfortschritt:")
+        print(f"   🎯 Theoretische Sättigung: {saturation_metrics['theoretical_saturation']:.1%}")
         print(f"   ℹ️ Materialabdeckung: {saturation_metrics['material_coverage']:.1%}")
         print(f"   ℹ️ StabilitÄt: {saturation_metrics['stable_batches']} Batches ohne neue Kategorien")
         print(f"   â­ KategorienqualitÄt: {saturation_metrics['category_quality']:.1%}")
@@ -849,11 +849,11 @@ class InductiveCoder:
         print(f"   - Neu entwickelt: {new_categories}")
         print(f"   - Final: {final_count}")
         
-        # SÄttigungshistorie
+        # Sättigungshistorie
         if self.theoretical_saturation_history:
             final_saturation = self.theoretical_saturation_history[-1]
-            print(f"\n🎯 Finale SÄttigung:")
-            print(f"   - Theoretische SÄttigung: {final_saturation['theoretical_saturation']:.1%}")
+            print(f"\n🎯 Finale Sättigung:")
+            print(f"   - Theoretische Sättigung: {final_saturation['theoretical_saturation']:.1%}")
             print(f"   - KategorienqualitÄt: {final_saturation['category_quality']:.1%}")
             print(f"   - DiversitÄt: {final_saturation['category_diversity']:.1%}")
         
@@ -1247,7 +1247,7 @@ class InductiveCoder:
                 print(f"\nℹ️ Grounded Theory Meta-Analyse:")
                 print(f"   - Verarbeitete Subcodes: {meta.get('total_subcodes_processed', len(subcodes_data))}")
                 print(f"   - Generierte Hauptkategorien: {len(grounded_categories)}")
-                print(f"   - Theoretische SÄttigung: {meta.get('theoretical_saturation', 0):.2f}")
+                print(f"   - Theoretische Sättigung: {meta.get('theoretical_saturation', 0):.2f}")
                 print(f"   - Subcode-Abdeckung: {meta.get('coverage', 0):.2f}")
             
             # Prüfe Subcode-Zuordnung

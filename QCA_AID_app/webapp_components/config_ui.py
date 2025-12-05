@@ -249,17 +249,36 @@ def render_file_operations():
                 elif file_path_lower.endswith('.xlsx'):
                     detected_format = 'xlsx'
             
+            # Track previous format to detect changes
+            if 'previous_load_format' not in st.session_state:
+                st.session_state.previous_load_format = detected_format or 'json'
+            
             # Format selection with auto-detection
             if detected_format:
                 st.info(f"📋 Format automatisch erkannt: **{detected_format.upper()}**")
                 load_format = detected_format
+                st.session_state.previous_load_format = detected_format
             else:
                 load_format = st.radio(
                     "Format wählen:",
                     options=['json', 'xlsx'],
                     format_func=lambda x: 'JSON' if x == 'json' else 'Excel (XLSX)',
-                    horizontal=True
+                    horizontal=True,
+                    key="load_format_radio"
                 )
+                
+                # Update file extension if format changed manually
+                from pathlib import Path
+                if file_path and load_format != st.session_state.previous_load_format:
+                    path_obj = Path(file_path)
+                    old_ext = f".{st.session_state.previous_load_format}"
+                    if path_obj.suffix.lower() == old_ext:
+                        # Update extension to match new format
+                        new_path = str(path_obj.with_suffix(f".{load_format}"))
+                        st.session_state.selected_config_load_path = new_path
+                        st.rerun()
+                
+                st.session_state.previous_load_format = load_format
             
             col_load1, col_load2 = st.columns(2)
             
@@ -326,13 +345,18 @@ def render_file_operations():
             if 'selected_config_save_path' not in st.session_state:
                 st.session_state.selected_config_save_path = ""
             
+            # Track previous format to detect changes
+            if 'previous_save_format' not in st.session_state:
+                st.session_state.previous_save_format = 'json'
+            
             # Format selection first (to determine default filename)
             save_format = st.radio(
                 "Format wählen:",
                 options=['json', 'xlsx'],
                 format_func=lambda x: 'JSON (empfohlen)' if x == 'json' else 'Excel (XLSX)',
                 horizontal=True,
-                help="JSON ist das empfohlene Format für neue Konfigurationen"
+                help="JSON ist das empfohlene Format für neue Konfigurationen",
+                key="save_format_radio"
             )
             
             # File path input with browser button
@@ -343,8 +367,29 @@ def render_file_operations():
                 current_path = st.session_state.selected_config_save_path
                 default_filename = f"QCA-AID-Codebook.{save_format}"
                 
-                # Pre-fill with default filename if no path selected
-                display_path = current_path if current_path else default_filename
+                # Update file extension if format changed
+                from pathlib import Path
+                if current_path and save_format != st.session_state.previous_save_format:
+                    path_obj = Path(current_path)
+                    # Check if current extension matches old format
+                    old_ext = f".{st.session_state.previous_save_format}"
+                    if path_obj.suffix.lower() == old_ext:
+                        # Update extension to match new format
+                        display_path = str(path_obj.with_suffix(f".{save_format}"))
+                        # Update session state to reflect the change
+                        st.session_state.selected_config_save_path = display_path
+                    else:
+                        # Extension doesn't match - keep as is
+                        display_path = current_path
+                elif current_path:
+                    # Format hasn't changed - use current path
+                    display_path = current_path
+                else:
+                    # No path selected - use default
+                    display_path = default_filename
+                
+                # Update previous format tracker
+                st.session_state.previous_save_format = save_format
                 
                 placeholder_text = f"Standard: {default_filename}"
                 
@@ -480,22 +525,20 @@ def _load_model_pricing(provider_display_name: str, model_id: str) -> Optional[t
         'Anthropic': ['anthropic.json'],
         'Mistral': ['openrouter.json'],  # Mistral models are in OpenRouter
         'OpenRouter': ['openrouter.json'],
+        'Local (LM Studio/Ollama)': []  # No pricing for local models
     }
     
     config_files = provider_file_map.get(provider_display_name, [])
     if not config_files:
+        # No config files for this provider (e.g., local models)
         return None
     
     # Get path to config directory
     try:
-        # Get project root from session state
-        if 'project_manager' in st.session_state:
-            project_root = st.session_state.project_manager.get_root_directory()
-        else:
-            # Fallback: use parent directory
-            project_root = Path(__file__).parent.parent.parent
-        
-        config_dir = Path(project_root) / 'QCA_AID_assets' / 'utils' / 'llm' / 'configs'
+        # IMPORTANT: Use the module directory, not the project directory
+        # The config files are part of the QCA-AID installation, not the user's project
+        module_root = Path(__file__).parent.parent.parent
+        config_dir = module_root / 'QCA_AID_assets' / 'utils' / 'llm' / 'configs'
         
         # Try each config file
         for config_file in config_files:
@@ -521,14 +564,17 @@ def _load_model_pricing(provider_display_name: str, model_id: str) -> Optional[t
                     if input_cost is not None and output_cost is not None:
                         return (float(input_cost), float(output_cost))
                 
-                # For Mistral: also try matching without provider prefix
+                # Fuzzy matching for Mistral and OpenRouter
                 # e.g. 'mistral-large-latest' matches 'mistralai/mistral-large'
-                if provider_display_name == 'Mistral':
+                # e.g. 'deepseek/deepseek-v3.2' matches 'deepseek/deepseek-v3.2-exp'
+                if provider_display_name in ['Mistral', 'OpenRouter']:
                     # Remove provider prefix from stored ID
                     stored_id_without_prefix = model_id.split('/')[-1]
                     config_id_without_prefix = model_model_id.split('/')[-1]
                     
-                    if stored_id_without_prefix in config_id_without_prefix or config_id_without_prefix in stored_id_without_prefix:
+                    # Check if one is a substring of the other or they share a common base
+                    if (stored_id_without_prefix in config_id_without_prefix or 
+                        config_id_without_prefix in stored_id_without_prefix):
                         input_cost = model.get('cost_per_1m_in')
                         output_cost = model.get('cost_per_1m_out')
                         
@@ -873,8 +919,8 @@ def render_model_settings():
     
     if pricing_info:
         input_cost, output_cost = pricing_info
-        # Use st.caption to avoid LaTeX rendering issues with $ symbol
-        st.caption(f"💰 Kosten: \\${input_cost:.2f} / 1M Input-Tokens, \\${output_cost:.2f} / 1M Output-Tokens")
+        # Show pricing info as caption for subtle display (escape $ to avoid LaTeX)
+        st.caption(f"💰 Kosten: \\${input_cost:.2f} / 1M Input-Tokens · \\${output_cost:.2f} / 1M Output-Tokens")
     elif 'local' in new_provider.lower() or 'ollama' in new_model.lower() or 'lm-studio' in new_model.lower():
         st.caption("💰 Kostenlos (lokales Modell)")
     
@@ -883,10 +929,14 @@ def render_model_settings():
         st.session_state.config_modified = True
     
     # Directories with validation
+    from pathlib import Path
+    project_manager = st.session_state.project_manager
+    project_root = Path(project_manager.get_root_directory())
+    
     new_data_dir = st.text_input(
         "Eingabeverzeichnis",
         value=config.data_dir,
-        help="Verzeichnis mit Eingabedateien"
+        help="Verzeichnis mit Eingabedateien (relativ zum Projektverzeichnis oder absoluter Pfad)"
     )
     
     if new_data_dir != config.data_dir:
@@ -895,19 +945,25 @@ def render_model_settings():
     
     # Validate input directory
     if new_data_dir:
-        from pathlib import Path
         input_path = Path(new_data_dir)
+        
+        # If relative path, resolve against project root
+        if not input_path.is_absolute():
+            input_path = project_root / input_path
+        
         if not input_path.exists():
-            st.warning(f"⚠️ Verzeichnis existiert nicht und wird bei Bedarf erstellt")
+            st.warning(f"⚠️ Verzeichnis existiert nicht und wird bei Bedarf erstellt: `{input_path}`")
         elif not input_path.is_dir():
-            st.error(f"❌ Pfad ist kein Verzeichnis")
+            st.error(f"❌ Pfad ist kein Verzeichnis: `{input_path}`")
+        else:
+            st.success(f"✅ Verzeichnis gefunden: `{input_path}`")
     else:
         st.error("❌ Eingabeverzeichnis darf nicht leer sein")
     
     new_output_dir = st.text_input(
         "Ausgabeverzeichnis",
         value=config.output_dir,
-        help="Verzeichnis für Analyseergebnisse"
+        help="Verzeichnis für Analyseergebnisse (relativ zum Projektverzeichnis oder absoluter Pfad)"
     )
     
     if new_output_dir != config.output_dir:
@@ -916,12 +972,18 @@ def render_model_settings():
     
     # Validate output directory
     if new_output_dir:
-        from pathlib import Path
         output_path = Path(new_output_dir)
+        
+        # If relative path, resolve against project root
+        if not output_path.is_absolute():
+            output_path = project_root / output_path
+        
         if not output_path.exists():
-            st.warning(f"⚠️ Verzeichnis existiert nicht und wird bei Bedarf erstellt")
+            st.warning(f"⚠️ Verzeichnis existiert nicht und wird bei Bedarf erstellt: `{output_path}`")
         elif not output_path.is_dir():
-            st.error(f"❌ Pfad ist kein Verzeichnis")
+            st.error(f"❌ Pfad ist kein Verzeichnis: `{output_path}`")
+        else:
+            st.success(f"✅ Verzeichnis gefunden: `{output_path}`")
     else:
         st.error("❌ Ausgabeverzeichnis darf nicht leer sein")
 

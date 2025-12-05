@@ -366,7 +366,7 @@ class DeductiveCoder:
                                         
                     return coding_result
                 else:
-                    print(f"UngÜltige API-Antwort von {self.coder_id}")
+                    print(f"Ungültige API-Antwort von {self.coder_id}")
                     return None
                     
             except json.JSONDecodeError as e:

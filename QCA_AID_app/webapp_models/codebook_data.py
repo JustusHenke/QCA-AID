@@ -120,13 +120,28 @@ class CodebookData:
         elif not self.deduktive_kategorien:
             errors.append("At least one category is required")
         else:
-            for cat_name, category in self.deduktive_kategorien.items():
-                if not isinstance(category, CategoryData):
-                    errors.append(f"Category '{cat_name}' must be CategoryData instance")
+            # Auto-fix: Convert dict categories to CategoryData instances
+            for cat_name, category in list(self.deduktive_kategorien.items()):
+                # Check by type name instead of isinstance (handles import conflicts)
+                cat_type_name = type(category).__name__
+                
+                if cat_type_name == 'CategoryData':
+                    # It's already a CategoryData (even if isinstance fails due to import issues)
+                    pass
+                elif isinstance(category, dict):
+                    # Convert dict to CategoryData
+                    if 'name' not in category:
+                        category['name'] = cat_name
+                    self.deduktive_kategorien[cat_name] = CategoryData.from_dict(category)
+                    category = self.deduktive_kategorien[cat_name]
                 else:
-                    is_valid, cat_errors = category.validate()
-                    if not is_valid:
-                        errors.extend([f"Category '{cat_name}': {err}" for err in cat_errors])
+                    errors.append(f"Category '{cat_name}' has unexpected type: {cat_type_name}")
+                    continue
+                
+                # Validate the category
+                is_valid, cat_errors = category.validate()
+                if not is_valid:
+                    errors.extend([f"Category '{cat_name}': {err}" for err in cat_errors])
         
         return len(errors) == 0, errors
     

@@ -81,7 +81,7 @@ class ReviewManager:
                     categories.add(category)
             
             if len(categories) <= 1:
-                # Einfachkodierung oder keine gÜltigen Kategorien
+                # Einfachkodierung oder keine gültigen Kategorien
                 if categories:
                     category_segments.append({
                         'segment_id': original_id,
@@ -92,7 +92,7 @@ class ReviewManager:
                         'instance_info': {'instance_number': 1, 'total_instances': 1}
                     })
                 else:
-                    # Keine gÜltigen Kategorien - behalte ursprüngliches Segment
+                    # Keine gültigen Kategorien - behalte ursprüngliches Segment
                     category_segments.append({
                         'segment_id': original_id,
                         'original_segment_id': original_id,

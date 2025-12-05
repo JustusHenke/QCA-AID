@@ -611,7 +611,7 @@ async def main() -> None:
                     if isinstance(coding, dict) and 'segment_id' in coding:
                         all_codings.append(coding)
                     else:
-                        print(f"Überspringe ungÜltige Kodierung: {coding}")
+                        print(f"Überspringe ungültige Kodierung: {coding}")
 
             # FÜge manuelle Kodierungen hinzu
             if manual_codings and len(manual_codings) > 0:

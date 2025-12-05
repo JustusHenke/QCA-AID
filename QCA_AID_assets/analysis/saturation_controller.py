@@ -12,7 +12,7 @@ from ..core.data_models import CategoryDefinition
 
 class ImprovedSaturationController:
     """
-    Verbesserte SÄttigungskontrolle mit modusabhÄngigen Kriterien
+    Verbesserte Sättigungskontrolle mit modusabhÄngigen Kriterien
     """
     
     def __init__(self, analysis_mode: str):
@@ -40,9 +40,9 @@ class ImprovedSaturationController:
     def assess_saturation(self, current_categories: Dict, material_percentage: float, 
                          batch_count: int, total_segments: int) -> Dict:
         """
-        Umfassende SÄttigungsbeurteilung
+        Umfassende Sättigungsbeurteilung
         """
-        # Berechne theoretische SÄttigung
+        # Berechne theoretische Sättigung
         theoretical_saturation = self._calculate_theoretical_saturation(current_categories)
         
         # Berechne KategorienqualitÄt
@@ -60,9 +60,9 @@ class ImprovedSaturationController:
         
         is_saturated = all(criteria.values())
         
-        # Bestimme SÄttigungsgrund
+        # Bestimme Sättigungsgrund
         if is_saturated:
-            saturation_reason = "Alle SÄttigungskriterien erfÜllt"
+            saturation_reason = "Alle Sättigungskriterien erfÜllt"
         else:
             missing = [k for k, v in criteria.items() if not v]
             saturation_reason = f"Fehlende Kriterien: {', '.join(missing)}"
@@ -79,7 +79,7 @@ class ImprovedSaturationController:
 
     def _calculate_theoretical_saturation(self, categories: Dict) -> float:
         """
-        Berechnet theoretische SÄttigung
+        Berechnet theoretische Sättigung
         """
         if not categories:
             return 0.0

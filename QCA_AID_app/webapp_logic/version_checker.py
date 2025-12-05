@@ -138,8 +138,5 @@ class VersionChecker:
         
         # Zeige Update-Hinweis wenn verfügbar
         if update_available and latest_version:
-            st.sidebar.warning(f"🆕 Version {latest_version} verfügbar!")
-            st.sidebar.markdown(
-                f"[Zum Update →](https://github.com/JustusHenke/QCA-AID/releases/latest)",
-                unsafe_allow_html=True
-            )
+            st.sidebar.warning(f"🆕 Version {latest_version} verfügbar! - [Update](https://github.com/JustusHenke/QCA-AID/releases/latest)")
+

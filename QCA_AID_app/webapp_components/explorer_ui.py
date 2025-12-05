@@ -551,6 +551,13 @@ def render_analysis_tab(analysis: AnalysisConfig, index: int):
         render_network_parameters(analysis, index)
     elif analysis.analysis_type == 'heatmap':
         render_heatmap_parameters(analysis, index)
+    elif analysis.analysis_type in ('sunburst', 'treemap'):
+        st.info("ℹ️ Diese Visualisierung benötigt keine zusätzlichen Parameter. Sie wird automatisch aus den gefilterten Daten erstellt.")
+        st.markdown("""
+        **Hinweis:** Es werden zwei Versionen erstellt:
+        - Standard-Version (nur Labels)
+        - Version mit Werten (_with_values.html)
+        """)
     elif analysis.analysis_type in ('summary_paraphrase', 'summary_reasoning', 'custom_summary'):
         render_summary_parameters(analysis, index)
     elif analysis.analysis_type == 'sentiment_analysis':
@@ -591,6 +598,34 @@ def render_analysis_help_text(analysis_type: str):
         - **Colormap**: Farbschema für die Heatmap
         - **Figure Size**: Größe der Grafik
         - **Annotations**: Werte in Zellen anzeigen
+        """,
+        'sunburst': """
+        **☀️ Sunburst-Diagramm**
+        
+        Erstellt ein interaktives Sunburst-Diagramm zur Visualisierung hierarchischer Daten.
+        Zeigt die Beziehungen zwischen Hauptkategorien, Subkategorien und Schlüsselwörtern.
+        
+        **Ausgabe:**
+        - Zwei HTML-Dateien werden erstellt:
+          1. Standard-Version (nur Labels)
+          2. Version mit Werten in den Beschriftungen (_with_values.html)
+        - Excel-Datei mit den zugrunde liegenden Daten
+        
+        **Keine Parameter erforderlich** - Die Visualisierung wird automatisch aus den gefilterten Daten erstellt.
+        """,
+        'treemap': """
+        **🗺️ Treemap-Diagramm**
+        
+        Erstellt ein interaktives Treemap-Diagramm zur Visualisierung hierarchischer Daten.
+        Zeigt die Beziehungen zwischen Hauptkategorien, Subkategorien und Schlüsselwörtern als verschachtelte Rechtecke.
+        
+        **Ausgabe:**
+        - Zwei HTML-Dateien werden erstellt:
+          1. Standard-Version (nur Labels)
+          2. Version mit Werten in den Beschriftungen (_with_values.html)
+        - Excel-Datei mit den zugrunde liegenden Daten
+        
+        **Keine Parameter erforderlich** - Die Visualisierung wird automatisch aus den gefilterten Daten erstellt.
         """,
         'summary_paraphrase': """
         **📝 Zusammenfassung (Paraphrase)**
@@ -1502,6 +1537,8 @@ def render_add_analysis_dialog():
     analysis_types = {
         'netzwerk': '📊 Netzwerkanalyse',
         'heatmap': '🔥 Heatmap',
+        'sunburst': '☀️ Sunburst-Diagramm',
+        'treemap': '🗺️ Treemap-Diagramm',
         'summary_paraphrase': '📝 Zusammenfassung (Paraphrase)',
         'summary_reasoning': '🧠 Zusammenfassung (Reasoning)',
         'custom_summary': '✏️ Benutzerdefinierte Zusammenfassung',
