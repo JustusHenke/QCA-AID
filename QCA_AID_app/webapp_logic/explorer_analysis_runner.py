@@ -69,10 +69,19 @@ class ExplorerAnalysisRunner:
             
             # Initialize analyzer
             messages.append(f"Lade Excel-Datei: {self.excel_path}")
+            
+            # Ensure base_config includes script_dir pointing to project root
+            base_config = self.config_data.base_config.copy()
+            if 'script_dir' not in base_config or not base_config['script_dir']:
+                # Try to get project root from config or environment
+                project_root = base_config.get('project_root') or os.environ.get('QCA_AID_PROJECT_ROOT')
+                if project_root:
+                    base_config['script_dir'] = str(project_root)
+            
             self.analyzer = QCAAnalyzer(
                 self.excel_path, 
                 self.llm_provider, 
-                self.config_data.base_config
+                base_config
             )
             
             messages.append(f"Verfügbare Spalten: {', '.join(self.analyzer.columns)}")
