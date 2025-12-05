@@ -9,13 +9,23 @@ import requests
 from typing import Optional, Tuple
 from packaging import version
 import streamlit as st
+import sys
+import os
+
+# Add assets path to import version
+sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'QCA_AID_assets'))
+try:
+    from __version__ import __version__ as CURRENT_VERSION
+except ImportError:
+    # Fallback if import fails
+    CURRENT_VERSION = "0.11.2"
 
 
 class VersionChecker:
     """Prüft GitHub Releases auf neue Versionen."""
     
     GITHUB_API_URL = "https://api.github.com/repos/JustusHenke/QCA-AID/releases/latest"
-    CURRENT_VERSION = "0.11.1"
+    # CURRENT_VERSION wird jetzt dynamisch aus __version__.py geladen
     CACHE_KEY = "version_check_result"
     CACHE_DURATION = 3600  # 1 Stunde in Sekunden
     
@@ -43,7 +53,7 @@ class VersionChecker:
                 if latest_version:
                     # Versionen vergleichen
                     try:
-                        current = version.parse(cls.CURRENT_VERSION)
+                        current = version.parse(CURRENT_VERSION)
                         latest = version.parse(latest_version)
                         
                         if latest > current:
@@ -126,7 +136,7 @@ class VersionChecker:
         # Zeige aktuelle Version
         col1, col2 = st.sidebar.columns([2, 1])
         with col1:
-            st.caption(f"Version {cls.CURRENT_VERSION}")
+            st.caption(f"Version {CURRENT_VERSION}")
         with col2:
             # Button zum manuellen Prüfen
             if st.button("🔄", key="check_version", help="Nach Updates suchen"):
