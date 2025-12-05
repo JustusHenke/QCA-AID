@@ -5,6 +5,9 @@
 ### Neu in 0.11.2 (2025-12-05)
 
 **Bugfixes:**
+- 🐛 **Kontext-Paraphrasen Log**: Klarere Log-Ausgabe für CODE_WITH_CONTEXT
+  - Zeigt jetzt explizit, dass nur die letzten N Paraphrasen als Kontext verwendet werden
+  - Verhindert Missverständnisse über die tatsächlich genutzte Kontextmenge
 - 🐛 **Projekt- vs. Programmverzeichnis**: Korrekte Trennung zwischen Benutzer-Projektverzeichnis und QCA-AID-Installationsverzeichnis
   - Preisinformationen werden jetzt korrekt aus dem Installationsverzeichnis geladen
   - Eingabe- und Ausgabeverzeichnisse werden relativ zum Projektverzeichnis validiert

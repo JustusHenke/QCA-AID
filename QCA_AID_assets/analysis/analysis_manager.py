@@ -770,7 +770,7 @@ class IntegratedAnalysisManager:
             if batch:
                 doc_name, _ = self._extract_doc_and_chunk_id(batch[0][0])
                 total_paraphrases = len(self.document_paraphrases.get(doc_name, []))
-                print(f"📝 Dokument '{doc_name}' hat jetzt {total_paraphrases} Paraphrasen im Kontext")
+                print(f"📝 Dokument '{doc_name}': {total_paraphrases} Paraphrasen gesammelt (davon werden max. {self.context_paraphrase_count} als Kontext genutzt)")
         
         processing_time = time.time() - start_time
         
