@@ -11,7 +11,7 @@ from ..utils.llm.factory import LLMProviderFactory
 from datetime import datetime
 from typing import Dict, Optional, List, Tuple, Any
 
-from ..core.config import CONFIG, FORSCHUNGSFRAGE, KODIERREGELN, DEDUKTIVE_KATEGORIEN
+from ..core.config import CONFIG, FORSCHUNGSFRAGE, KODIERREGELN
 from ..core.data_models import CategoryDefinition, CodingResult
 from ..core.validators import CategoryValidator
 from ..QCA_Prompts import QCAPrompts
@@ -35,29 +35,40 @@ class DeductiveCategoryBuilder:
         today = datetime.now().strftime("%Y-%m-%d")
         
         try:
-            # Konvertiere DEDUKTIVE_KATEGORIEN in CategoryDefinition-Objekte
-            for name, data in DEDUKTIVE_KATEGORIEN.items():
-                # Stelle sicher, dass rules als Liste vorhanden ist
-                rules = data.get("rules", [])
-                if not isinstance(rules, list):
-                    rules = [str(rules)] if rules else []
-                
-                categories[name] = CategoryDefinition(
-                    name=name,
-                    definition=data.get("definition", ""),
-                    examples=data.get("examples", []),
-                    rules=rules,  # Übergebe die validierte rules Liste
-                    subcategories=data.get("subcategories", {}),
-                    added_date=today,
-                    modified_date=today
-                )
+            # Prüfe ob CONFIG bereits CategoryDefinition-Objekte enthält
+            ded_categories = CONFIG.get('DEDUKTIVE_KATEGORIEN', {})
+            
+            for name, category_def in ded_categories.items():
+                if isinstance(category_def, CategoryDefinition):
+                    # Bereits CategoryDefinition-Objekt - direkt verwenden
+                    categories[name] = category_def
+                else:
+                    # Fallback für Rohdaten (falls doch Rohdaten vorhanden sind)
+                    rules = category_def.get("rules", [])
+                    if not isinstance(rules, list):
+                        rules = [str(rules)] if rules else []
+                    
+                    categories[name] = CategoryDefinition(
+                        name=name,
+                        definition=category_def.get("definition", ""),
+                        examples=category_def.get("examples", []),
+                        rules=rules,
+                        subcategories=category_def.get("subcategories", {}),
+                        added_date=today,
+                        modified_date=today
+                    )
                 
             return categories
             
         except Exception as e:
             print(f"Fehler beim Laden der Kategorien: {str(e)}")
-            print("Aktuelle Kategorie:", name)
-            print("Kategorie-Daten:", json.dumps(data, indent=2, ensure_ascii=False))
+            print("Aktuelle Kategorie:", name if 'name' in locals() else "Unbekannt")
+            if 'category_def' in locals():
+                print("Kategorie-Typ:", type(category_def))
+                if isinstance(category_def, CategoryDefinition):
+                    print("CategoryDefinition-Objekt:", category_def.name)
+                else:
+                    print("Kategorie-Daten:", json.dumps(category_def, indent=2, ensure_ascii=False))
             raise
 
 
@@ -132,7 +143,7 @@ class DeductiveCoder:
             self.prompt_handler = QCAPrompts(
                 forschungsfrage=FORSCHUNGSFRAGE,
                 kodierregeln=KODIERREGELN,
-                deduktive_kategorien=DEDUKTIVE_KATEGORIEN
+                deduktive_kategorien=CONFIG.get('DEDUKTIVE_KATEGORIEN', {})
             )
 
     async def update_category_system(self, categories: Dict[str, CategoryDefinition]) -> bool:

@@ -12,7 +12,7 @@ from typing import List, Dict, Optional
 from openpyxl.styles import Font, PatternFill, Alignment
 
 from ..core.data_models import CategoryChange
-from ..core.config import FORSCHUNGSFRAGE, KODIERREGELN, DEDUKTIVE_KATEGORIEN
+from ..core.config import FORSCHUNGSFRAGE, KODIERREGELN, CONFIG
 from ..QCA_Prompts import QCAPrompts
 
 
@@ -47,7 +47,7 @@ class CategoryRevisionManager:
         self.prompt_handler = QCAPrompts(
             forschungsfrage=FORSCHUNGSFRAGE,
             kodierregeln=KODIERREGELN,
-            deduktive_kategorien=DEDUKTIVE_KATEGORIEN
+            deduktive_kategorien=CONFIG.get('DEDUKTIVE_KATEGORIEN', {})
         )
 
     def _load_revision_history(self) -> None:

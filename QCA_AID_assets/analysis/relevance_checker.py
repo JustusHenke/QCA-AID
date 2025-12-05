@@ -12,7 +12,7 @@ import time
 import asyncio
 from typing import List, Tuple, Dict, Optional, Any
 
-from ..core.config import CONFIG, FORSCHUNGSFRAGE, KODIERREGELN, DEDUKTIVE_KATEGORIEN
+from ..core.config import CONFIG, FORSCHUNGSFRAGE, KODIERREGELN
 from ..core.data_models import CategoryDefinition
 from ..QCA_Prompts import QCAPrompts
 
@@ -72,7 +72,7 @@ class RelevanceChecker:
         self.prompt_handler = QCAPrompts(
             forschungsfrage=FORSCHUNGSFRAGE,
             kodierregeln=KODIERREGELN,
-            deduktive_kategorien=DEDUKTIVE_KATEGORIEN
+            deduktive_kategorien=CONFIG.get('DEDUKTIVE_KATEGORIEN', {})
         )
 
     def _format_segments_for_batch(self, segments: List[Tuple[str, str]]) -> str:

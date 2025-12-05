@@ -7,7 +7,7 @@ Enthält fundamentale Datenmodelle, Validatoren und Konfiguration.
 from .data_models import CategoryDefinition, CodingResult, CategoryChange
 from .validators import CategoryValidator
 from .config import (
-    FORSCHUNGSFRAGE, KODIERREGELN, DEDUKTIVE_KATEGORIEN,
+    FORSCHUNGSFRAGE, KODIERREGELN,
     VALIDATION_THRESHOLDS, CONFIG
 )
 
@@ -18,7 +18,6 @@ __all__ = [
     'CategoryValidator',
     'FORSCHUNGSFRAGE',
     'KODIERREGELN',
-    'DEDUKTIVE_KATEGORIEN',
     'VALIDATION_THRESHOLDS',
     'CONFIG'
 ]

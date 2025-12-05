@@ -11,7 +11,7 @@ from typing import Dict, List, Optional, Tuple
 
 from ..core.data_models import CategoryDefinition, CategoryChange
 from ..core.validators import CategoryValidator
-from ..core.config import CONFIG, FORSCHUNGSFRAGE, KODIERREGELN, DEDUKTIVE_KATEGORIEN
+from ..core.config import CONFIG, FORSCHUNGSFRAGE, KODIERREGELN
 
 
 class CategoryManager:
@@ -127,7 +127,7 @@ class CategoryManager:
             
             for name, category in categories.items():
                 # Bestimme den Kategorietyp je nach Analysemodus
-                if name in DEDUKTIVE_KATEGORIEN:
+                if name in CONFIG.get('DEDUKTIVE_KATEGORIEN', {}):
                     development_type = "deductive"
                 elif CONFIG.get('ANALYSIS_MODE') == 'grounded':
                     development_type = "grounded"  # Neue Markierung fuer grounded Kategorien

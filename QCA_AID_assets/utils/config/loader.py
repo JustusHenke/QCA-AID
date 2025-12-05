@@ -96,7 +96,7 @@ class ConfigLoader:
                 print("Excel-Datei ist neuer. Aktualisiere JSON...")
                 json_data = ConfigConverter.qca_aid_xlsx_to_json(self.excel_path)
                 ConfigConverter.save_json(json_data, self.json_path)
-                print("✅ JSON-Datei aktualisiert")
+                print("JSON-Datei aktualisiert")
                 self.config_path = self.json_path
             
             # Wenn JSON neuer ist, aktualisiere XLSX
@@ -104,7 +104,7 @@ class ConfigLoader:
                 print("JSON-Datei ist neuer. Aktualisiere Excel...")
                 json_data = ConfigConverter.load_json(self.json_path)
                 ConfigConverter.qca_aid_json_to_xlsx(json_data, self.excel_path)
-                print("✅ Excel-Datei aktualisiert")
+                print("Excel-Datei aktualisiert")
                 self.config_path = self.json_path
             
             # Wenn gleich alt, verwende JSON
@@ -113,7 +113,7 @@ class ConfigLoader:
                 self.config_path = self.json_path
                 
         except Exception as e:
-            print(f"⚠️ Warnung: Synchronisation fehlgeschlagen: {str(e)}")
+            print(f"Warnung: Synchronisation fehlgeschlagen: {str(e)}")
             print("Verwende JSON-Datei als Fallback.")
             self.config_path = self.json_path
     

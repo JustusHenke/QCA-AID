@@ -12,7 +12,7 @@ from collections import defaultdict, Counter
 from typing import Dict, List, Optional, Tuple, Set, Any
 from datetime import datetime
 
-from ..core.config import CONFIG, FORSCHUNGSFRAGE, KODIERREGELN, DEDUKTIVE_KATEGORIEN
+from ..core.config import CONFIG, FORSCHUNGSFRAGE, KODIERREGELN
 from ..core.data_models import CategoryDefinition, CodingResult
 from ..core.validators import CategoryValidator
 from ..management import DevelopmentHistory, CategoryManager, CategoryRevisionManager
@@ -50,7 +50,7 @@ class IntegratedAnalysisManager:
         self.prompt_handler = QCAPrompts(
             forschungsfrage=FORSCHUNGSFRAGE,
             kodierregeln=KODIERREGELN,
-            deduktive_kategorien=DEDUKTIVE_KATEGORIEN
+            deduktive_kategorien=CONFIG.get('DEDUKTIVE_KATEGORIEN', {})
 
         )
         

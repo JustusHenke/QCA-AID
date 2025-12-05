@@ -13,7 +13,7 @@ from datetime import datetime
 from typing import Dict, Optional, List, Set, Tuple, Any
 from collections import defaultdict
 
-from ..core.config import CONFIG, FORSCHUNGSFRAGE, KODIERREGELN, DEDUKTIVE_KATEGORIEN
+from ..core.config import CONFIG, FORSCHUNGSFRAGE, KODIERREGELN
 from ..core.data_models import CategoryDefinition, CodingResult
 from ..management import DevelopmentHistory
 from ..QCA_Prompts import QCAPrompts, ConfidenceScales
@@ -83,7 +83,7 @@ class InductiveCoder:
         self.prompt_handler = QCAPrompts(
             forschungsfrage=FORSCHUNGSFRAGE,
             kodierregeln=KODIERREGELN,
-            deduktive_kategorien=DEDUKTIVE_KATEGORIEN
+            deduktive_kategorien=CONFIG.get('DEDUKTIVE_KATEGORIEN', {})
         )
 
         print(f"\n🧑‍💼 Induktive Kodierung initialisiert:")
