@@ -1224,7 +1224,7 @@ def render_explorer_view():
                 st.info(f"🔍 Filter angewendet: Minimale Konfidenz {min_confidence:.2f} → {len(df)} Kodierungen")
         
         # Display visualizations
-        config = st.session_state.explorer_config
+        config = st.session_state.explorer_config_data
         
         if 'category_distribution' in config.enabled_charts:
             st.subheader("📊 Kategorieverteilung")
