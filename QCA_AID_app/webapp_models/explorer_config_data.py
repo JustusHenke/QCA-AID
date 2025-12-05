@@ -35,7 +35,8 @@ class AnalysisConfig:
         # Validate analysis_type
         valid_types = {
             'netzwerk', 'heatmap', 'summary_paraphrase', 
-            'summary_reasoning', 'custom_summary', 'sentiment_analysis'
+            'summary_reasoning', 'custom_summary', 'sentiment_analysis',
+            'sunburst', 'treemap'
         }
         if not isinstance(self.analysis_type, str):
             errors.append(f"Analysis type must be string, got {type(self.analysis_type).__name__}")
