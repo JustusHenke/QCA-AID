@@ -208,6 +208,22 @@ class ExplorerAnalysisRunner:
                     analysis_config.params
                 )
                 
+            elif analysis_config.analysis_type == 'sunburst':
+                messages.append("Erstelle Sunburst-Visualisierung...")
+                self.analyzer.create_sunburst(
+                    filtered_df,
+                    f"Sunburst_{output_prefix}",
+                    analysis_config.params
+                )
+                
+            elif analysis_config.analysis_type == 'treemap':
+                messages.append("Erstelle Treemap-Visualisierung...")
+                self.analyzer.create_treemap(
+                    filtered_df,
+                    f"Treemap_{output_prefix}",
+                    analysis_config.params
+                )
+                
             elif analysis_config.analysis_type == 'summary_paraphrase':
                 messages.append("Erstelle Paraphrasen-Zusammenfassung...")
                 prompt_template = analysis_config.params.get(

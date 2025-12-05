@@ -361,6 +361,10 @@ class ExplorerConfigData:
     """Represents complete explorer configuration"""
     base_config: Dict[str, Any]  # provider, model, temperature, etc.
     analysis_configs: List[AnalysisConfig]
+    enabled_charts: List[str] = field(default_factory=lambda: ['category_distribution', 'confidence_histogram'])
+    color_scheme: str = "default"
+    show_statistics: bool = True
+    export_format: str = "xlsx"
     
     def validate(self) -> Tuple[bool, List[str]]:
         """
@@ -412,7 +416,11 @@ class ExplorerConfigData:
         """
         return {
             'base_config': self.base_config.copy(),
-            'analysis_configs': [config.to_dict() for config in self.analysis_configs]
+            'analysis_configs': [config.to_dict() for config in self.analysis_configs],
+            'enabled_charts': self.enabled_charts.copy(),
+            'color_scheme': self.color_scheme,
+            'show_statistics': self.show_statistics,
+            'export_format': self.export_format
         }
     
     @classmethod
