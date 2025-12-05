@@ -171,11 +171,15 @@ def initialize_session_state():
         success, config_data, errors = manager.load_config()
         
         if success and config_data:
+            # Ensure script_dir is set to project root
+            if not config_data.base_config.get('script_dir'):
+                config_data.base_config['script_dir'] = str(project_root)
             st.session_state.explorer_config_data = config_data
             st.session_state.explorer_config_loaded_from = "file"
         else:
-            # Create default config
+            # Create default config with project root
             st.session_state.explorer_config_data = ExplorerConfigData.create_default()
+            st.session_state.explorer_config_data.base_config['script_dir'] = str(project_root)
             st.session_state.explorer_config_loaded_from = "default"
             # Store errors for potential display
             if errors:
