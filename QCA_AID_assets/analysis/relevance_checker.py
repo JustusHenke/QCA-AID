@@ -155,8 +155,9 @@ class RelevanceChecker:
                     except json.JSONDecodeError as e:
                         print(f"‼️ JSONDecodeError in check_multiple_category_relevance for segment {segment_id}: {e}")
                         print(f"‼️ Raw LLM response: {llm_response.content}")
-                        print(f"‼️ Extracted JSON attempt: {llm_response.extract_json()}")
-                        raise
+                        print(f"⚠️ Fallback: Keine Mehrfachkodierung für dieses Segment")
+                        # Fallback: Keine Mehrfachkodierung
+                        return segment_id, []
                     
                     
                     token_counter.track_response(response, self.model_name)
@@ -293,7 +294,11 @@ class RelevanceChecker:
                 except json.JSONDecodeError as e:
                     print(f"‼️ JSONDecodeError in check_relevance_batch: {e}")
                     print(f"‼️ Raw LLM response: {llm_response.content}")
-                    raise
+                    print(f"⚠️ Fallback: Markiere alle Segmente als relevant")
+                    # Fallback: Alle als relevant, damit Analyse weitergehen kann
+                    for segment_id, _ in uncached_segments:
+                        self.relevance_cache[segment_id] = True
+                    return {sid: True for sid, _ in segments}
                 
                 
                 token_counter.track_response(response, self.model_name)
@@ -379,7 +384,9 @@ class RelevanceChecker:
                         except json.JSONDecodeError as e:
                             print(f"‼️ JSONDecodeError in process_sub_batch: {e}")
                             print(f"‼️ Raw LLM response: {llm_response.content}")
-                            raise
+                            print(f"⚠️ Fallback für Sub-Batch: Markiere alle als relevant")
+                            # Fallback: Alle als relevant
+                            return {segment_id: True for segment_id, _ in sub_batch}
                         
                         
                         token_counter.track_response(response, self.model_name)

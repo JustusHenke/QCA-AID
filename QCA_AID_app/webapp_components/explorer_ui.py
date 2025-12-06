@@ -37,10 +37,10 @@ def render_explorer_model_settings():
     config = st.session_state.config_data
     explorer_config = st.session_state.explorer_config_data
     
-    # Requirement 3.1: Read values from explorer_config_data.base_config with fallback to config_data
-    # Requirement 2.1: Use config_data as default when base_config is empty
-    current_provider = explorer_config.base_config.get('provider') or config.model_provider
-    current_model = explorer_config.base_config.get('model') or config.model_name
+    # FIX: Explorer hat sein eigenes LLM-Modell (unabhängig von Config UI)
+    # Wenn noch nicht gesetzt, verwendet der Explorer seine Standard-Defaults (nicht config_data)
+    current_provider = explorer_config.base_config.get('provider')
+    current_model = explorer_config.base_config.get('model')
     
     # Map provider IDs to display names
     provider_display_map = {
@@ -279,27 +279,20 @@ def render_config_file_controls():
                 # Requirement 2.4: Use LLM settings from loaded config
                 # Requirement 3.5: Transfer provider and model from base_config to config_data
                 try:
-                    config_data = st.session_state.config_data
                     base_config = loaded_config_data.base_config
                     
-                    # Copy provider with validation and fallback
+                    # FIX: Validiere nur Provider/Modell im Explorer-Config, nicht in config_data
+                    # Explorer hat sein eigenes LLM-Modell
                     if 'provider' in base_config and base_config['provider']:
                         # Validate provider
                         valid_providers = ['openai', 'anthropic', 'mistral', 'openrouter', 'local']
                         provider = base_config['provider'].lower()
-                        if provider in valid_providers:
-                            config_data.model_provider = provider
-                        else:
-                            # Invalid provider - use fallback
-                            st.warning(f"⚠️ Ungültiger Provider '{provider}' in Config - verwende Standard")
-                    
-                    # Copy model with validation
-                    if 'model' in base_config and base_config['model']:
-                        config_data.model_name = base_config['model']
+                        if provider not in valid_providers:
+                            st.warning(f"⚠️ Ungültiger Provider '{provider}' in Explorer-Config")
                     
                 except Exception as e:
                     # Error handling for missing or invalid values
-                    st.warning(f"⚠️ Fehler beim Synchronisieren der LLM-Einstellungen: {e}")
+                    st.warning(f"⚠️ Fehler beim Validate der Explorer-Einstellungen: {e}")
                 
                 st.success("✅ Konfiguration erfolgreich geladen")
                 st.rerun()
@@ -310,11 +303,9 @@ def render_config_file_controls():
         if st.button("💾 Speichern (JSON)", use_container_width=True):
             manager = st.session_state.explorer_config_manager
             explorer_config_data = st.session_state.explorer_config_data
-            config_data = st.session_state.config_data
             
-            # Requirement 3.3: Copy LLM settings from config_data to base_config before saving
-            explorer_config_data.base_config['provider'] = config_data.model_provider
-            explorer_config_data.base_config['model'] = config_data.model_name
+            # FIX: Explorer speichert sein eigenes LLM-Modell (nicht from config_data)
+            # Das Modell wurde bereits über die UI-Controls in explorer_config_data.base_config gespeichert
             
             success, errors = manager.save_config(explorer_config_data, format='json')
             
@@ -329,11 +320,9 @@ def render_config_file_controls():
         if st.button("💾 Speichern (XLSX)", use_container_width=True):
             manager = st.session_state.explorer_config_manager
             explorer_config_data = st.session_state.explorer_config_data
-            config_data = st.session_state.config_data
             
-            # Requirement 3.3: Copy LLM settings from config_data to base_config before saving
-            explorer_config_data.base_config['provider'] = config_data.model_provider
-            explorer_config_data.base_config['model'] = config_data.model_name
+            # FIX: Explorer speichert sein eigenes LLM-Modell (nicht from config_data)
+            # Das Modell wurde bereits über die UI-Controls in explorer_config_data.base_config gespeichert
             
             success, errors = manager.save_config(explorer_config_data, format='xlsx')
             
@@ -361,17 +350,10 @@ def render_explorer_config_view():
         # Clear errors after displaying
         del st.session_state.explorer_config_load_errors
     
-    # Requirement 2.1: Initialize base_config with values from config_data when base_config is empty
-    # Requirement 2.5: Use config_data as fallback when no Explorer-Config exists
+    # FIX: Explorer hat sein eigenes LLM-Modell
+    # Fallback zu config_data wurde entfernt - Explorer nutzt sein eigenes Default-Modell
     config_data = st.session_state.config_data
     explorer_config_data = st.session_state.explorer_config_data
-    
-    # Ensure provider and model are always present in base_config
-    if not explorer_config_data.base_config.get('provider'):
-        explorer_config_data.base_config['provider'] = config_data.model_provider
-    
-    if not explorer_config_data.base_config.get('model'):
-        explorer_config_data.base_config['model'] = config_data.model_name
     
     # Add load/save buttons at the top
     render_config_file_controls()
@@ -1594,24 +1576,20 @@ def save_explorer_config_new():
     """
     Saves explorer configuration using ExplorerConfigManager.
     
-    Requirement 1.3: WHEN the user saves the Explorer-Config 
-                    THEN the system SHALL transfer current LLM settings from config_data to base_config
     Requirement 1.5: WHEN the user saves the configuration 
                     THEN the system SHALL persist all analysis configurations to the config file
     Requirement 2.3: Update session state when configuration changes
-    Requirement 3.3: WHEN save_explorer_config_new() is called 
-                    THEN the system SHALL copy LLM settings from config_data to explorer_config_data.base_config
     Requirement 3.4: WHEN the Explorer-Config is saved 
                     THEN the system SHALL persist provider and model in base_config
+    
+    FIX: Explorer speichert sein eigenes, unabhängiges LLM-Modell
+         (nicht vom Config UI-Modell überschrieben)
     """
     manager = st.session_state.explorer_config_manager
     config = st.session_state.explorer_config_data
-    config_data = st.session_state.config_data
     
-    # Requirement 3.3: Copy LLM settings from config_data to base_config before saving
-    # Requirement 1.3: Transfer current LLM settings
-    config.base_config['provider'] = config_data.model_provider
-    config.base_config['model'] = config_data.model_name
+    # FIX: Explorer nutzt sein eigenes LLM-Modell aus base_config
+    # provider und model wurden bereits über UI-Controls gespeichert
     
     # Save to both JSON and XLSX
     # Requirement 3.4: Ensure values are persisted in both formats

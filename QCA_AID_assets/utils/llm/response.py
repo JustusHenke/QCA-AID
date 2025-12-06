@@ -104,23 +104,25 @@ class LLMResponse:
     
     def extract_json(self) -> str:
         """
-        Extrahiert JSON aus dem Response-Content.
+        Extrahiert JSON aus dem Response-Content mit robustem Parsing.
         
         Anthropic (Claude) gibt oft JSON in Markdown-Code-Blöcken zurück:
         ```json
         {"key": "value"}
         ```
         
-        Diese Methode extrahiert das reine JSON.
+        Diese Methode extrahiert das reine JSON und versucht unvollständige
+        JSON-Responses zu reparieren.
         
         Returns:
             str: Bereinigter JSON-String
         """
         import re
+        import json as json_module
         
         content = self.content.strip()
         
-        # Prüfe ob Content mit ```json oder ``` beginnt
+        # 1. Prüfe ob Content mit ```json oder ``` beginnt
         if content.startswith('```'):
             # Extrahiere JSON aus Code-Block
             # Pattern: ```json\n{...}\n``` oder ```\n{...}\n```
@@ -129,20 +131,76 @@ class LLMResponse:
             if match:
                 extracted = match.group(1).strip()
                 logger.debug(f"Extracted JSON from markdown code block (length: {len(extracted)})")
-                return extracted
+                return self._repair_json(extracted)
         
-        # Wenn kein Code-Block gefunden, versuche JSON direkt zu finden
-        # Suche nach { ... } oder [ ... ]
-        json_pattern = r'(\{.*\}|\[.*\])'
-        match = re.search(json_pattern, content, re.DOTALL)
-        if match:
-            extracted = match.group(1).strip()
-            logger.debug(f"Extracted JSON from content (length: {len(extracted)})")
-            return extracted
+        # 2. Wenn kein Code-Block gefunden, versuche JSON direkt zu finden
+        # Suche nach { oder [ am Anfang
+        first_brace = content.find('{')
+        first_bracket = content.find('[')
+        
+        start_pos = -1
+        json_char = None
+        
+        if first_brace != -1 and (first_bracket == -1 or first_brace < first_bracket):
+            start_pos = first_brace
+            json_char = '{'
+        elif first_bracket != -1:
+            start_pos = first_bracket
+            json_char = '['
+        
+        if start_pos != -1:
+            extracted = content[start_pos:].strip()
+            logger.debug(f"Extracted JSON from content starting at position {start_pos} (length: {len(extracted)})")
+            return self._repair_json(extracted)
         
         # Fallback: Gib Original-Content zurück
         logger.debug("No JSON extraction needed, returning original content")
         return content
+    
+    def _repair_json(self, json_str: str) -> str:
+        """
+        Versucht unvollständige oder malformed JSON zu reparieren.
+        
+        Args:
+            json_str: Möglicherweise unvollständiger JSON-String
+            
+        Returns:
+            str: Reparierter JSON-String
+        """
+        import json as json_module
+        
+        # Versuche zuerst direktes Parsen
+        try:
+            json_module.loads(json_str)
+            return json_str
+        except json_module.JSONDecodeError:
+            pass
+        
+        # Wenn direktes Parsen fehlschlägt, versuche zu reparieren
+        
+        # 1. Zähle öffnende und schließende Klammern
+        open_braces = json_str.count('{')
+        close_braces = json_str.count('}')
+        open_brackets = json_str.count('[')
+        close_brackets = json_str.count(']')
+        
+        # 2. Füge fehlende schließende Klammern hinzu
+        while open_braces > close_braces:
+            json_str += '}'
+            close_braces += 1
+        while open_brackets > close_brackets:
+            json_str += ']'
+            close_brackets += 1
+        
+        # 3. Versuche nochmal zu parsen
+        try:
+            json_module.loads(json_str)
+            logger.debug(f"Successfully repaired JSON by adding missing brackets")
+            return json_str
+        except json_module.JSONDecodeError as e:
+            logger.debug(f"Could not repair JSON: {e}")
+            # Gib das beste Ergebnis zurück, auch wenn fehlerhaft
+            return json_str
     
     def __repr__(self) -> str:
         """String representation for debugging"""

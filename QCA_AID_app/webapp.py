@@ -155,18 +155,27 @@ def initialize_session_state():
     st.session_state.setdefault('analysis_logs', [])
     
     # Explorer tab state
-    # Initialize explorer_config_manager if not present
+    # Initialize or update explorer_config_manager based on current project root
     # Requirement 1.2: Initialize explorer_config_manager in session state
-    if 'explorer_config_manager' not in st.session_state:
-        from webapp_logic.explorer_config_manager import ExplorerConfigManager
+    # FIX: Always update with current project_root (not just on first initialization)
+    from webapp_logic.explorer_config_manager import ExplorerConfigManager
+    current_explorer_manager = st.session_state.get('explorer_config_manager')
+    if not current_explorer_manager or str(current_explorer_manager.project_dir) != str(project_root):
         st.session_state.explorer_config_manager = ExplorerConfigManager(str(project_root))
     
-    # Initialize explorer_config_data if not present
+    # Initialize or reload explorer_config_data based on current project root
     # Requirement 2.3, 7.1, 7.3, 7.4: Initialize explorer_config_data in session state
+    # FIX: Reload config if project_root changed
+    from webapp_models.explorer_config_data import ExplorerConfigData
+    
+    should_reload = False
     if 'explorer_config_data' not in st.session_state:
-        from webapp_models.explorer_config_data import ExplorerConfigData
-        
-        # Try to load existing config
+        should_reload = True
+    elif st.session_state.explorer_config_data.base_config.get('script_dir') != str(project_root):
+        should_reload = True
+    
+    if should_reload:
+        # Try to load existing config from current project
         manager = st.session_state.explorer_config_manager
         success, config_data, errors = manager.load_config()
         
