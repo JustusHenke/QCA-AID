@@ -418,9 +418,19 @@ def render_analysis_controls():
                     for msg in messages:
                         st.error(f"  • {msg}")
         else:
-            st.info("🔄 Analyse läuft...")
+            # FIX: Zeige Status-Info statt "Analyse läuft" wenn abgeschlossen
+            status = runner.get_status()
+            if status.current_step == "Abgeschlossen":
+                st.success("✅ Fertig")
+            elif status.current_step == "Abgebrochen":
+                st.warning("⚠️ Abgebrochen")
+            elif status.error:
+                st.error("❌ Fehler")
+            else:
+                st.info("🔄 Analyse läuft...")
     
     with col2:
+        # FIX: Zeige "Analyse stoppen" Button nur wenn Analyse wirklich läuft
         if is_running:
             if st.button("⏹️ Analyse stoppen", use_container_width=True, type="secondary"):
                 success, error_msg = runner.stop_analysis()
@@ -430,6 +440,24 @@ def render_analysis_controls():
                     st.rerun()
                 else:
                     st.error(f"❌ Fehler beim Stoppen der Analyse: {error_msg}")
+        else:
+            # FIX: Zeige alternativen Button oder leeren Platz wenn Analyse nicht läuft
+            status = runner.get_status()
+            if status.current_step == "Abgeschlossen" or status.output_file:
+                st.success("🎉 Abgeschlossen")
+            elif status.current_step == "Abgebrochen":
+                if st.button("🔄 Neue Analyse", use_container_width=True, type="primary"):
+                    # Reset status für neue Analyse
+                    runner.status = runner.status.create_initial()
+                    st.rerun()
+            elif status.error:
+                if st.button("🔄 Neue Analyse", use_container_width=True, type="primary"):
+                    # Reset status für neue Analyse
+                    runner.status = runner.status.create_initial()
+                    st.rerun()
+            else:
+                # Leerer Platz für bessere Ausrichtung
+                st.empty()
 
 
 def render_analysis_progress():
@@ -449,9 +477,30 @@ def render_analysis_progress():
         st.info("🔄 Analyse läuft... Siehe Logs unten für Details")
     elif status.output_file and not status.is_running:
         st.success(f"✅ Analyse abgeschlossen!")
+    elif status.error:
+        st.error(f"❌ Analyse fehlgeschlagen: {status.error}")
+    elif status.current_step == "Abgeschlossen":
+        st.success(f"✅ Analyse erfolgreich abgeschlossen!")
+    elif status.current_step == "Abgebrochen":
+        st.warning(f"⚠️ Analyse wurde abgebrochen")
+    elif not status.is_running and status.current_step != "Not started":
+        st.info(f"ℹ️ Status: {status.current_step}")
         
-        # Create download button for output file
-        output_path = Path(status.output_file)
+        # Find the newest Excel file in the output directory (in case the old one is locked)
+        output_dir = Path(status.output_file).parent
+        analysis_mode = st.session_state.get('analysis_mode', 'deductive')
+        
+        # Look for Excel files matching the pattern
+        excel_files = list(output_dir.glob(f"QCA-AID_Analysis_{analysis_mode}_*.xlsx"))
+        
+        if excel_files:
+            # Sort by modification time and get the newest
+            newest_file = max(excel_files, key=lambda p: p.stat().st_mtime)
+            output_path = newest_file
+        else:
+            # Fallback to the status output file
+            output_path = Path(status.output_file)
+        
         if output_path.exists():
             filename = output_path.name
             
@@ -460,17 +509,22 @@ def render_analysis_progress():
             with col1:
                 st.info(f"📄 Ergebnisdatei: {filename}")
             with col2:
-                # Read file for download
-                with open(output_path, 'rb') as f:
-                    file_data = f.read()
-                
-                st.download_button(
-                    label="⬇️ Download",
-                    data=file_data,
-                    file_name=filename,
-                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                    use_container_width=True
-                )
+                # Read file for download with error handling
+                try:
+                    with open(output_path, 'rb') as f:
+                        file_data = f.read()
+                    
+                    st.download_button(
+                        label="⬇️ Download",
+                        data=file_data,
+                        file_name=filename,
+                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                        use_container_width=True
+                    )
+                except PermissionError:
+                    st.warning(f"⚠️ Datei ist noch geöffnet. Bitte schließ Sie {filename} in Excel und laden Sie die Seite neu.")
+                except Exception as e:
+                    st.error(f"❌ Fehler beim Lesen der Datei: {str(e)}")
             
             # Show file path for reference
             st.caption(f"Speicherort: {output_path.absolute()}")
@@ -570,6 +624,34 @@ def render_results():
     total_files = len(files)
     st.markdown(f"**{total_files} Ergebnisdatei(en) gefunden**")
     
+    # Action buttons at the top (appear once for all files)
+    col_btn1, col_btn2 = st.columns(2)
+    
+    with col_btn1:
+        # Open file location button - opens the output directory
+        if st.button("📂 Ordner öffnen", key="open_folder_top"):
+            import subprocess
+            import platform
+            
+            try:
+                if platform.system() == 'Windows':
+                    os.startfile(output_dir)
+                elif platform.system() == 'Darwin':  # macOS
+                    subprocess.run(['open', output_dir])
+                else:  # Linux
+                    subprocess.run(['xdg-open', output_dir])
+                
+                st.success("✅ Ordner geöffnet")
+            except Exception as e:
+                st.error(f"❌ Fehler: {str(e)}")
+    
+    with col_btn2:
+        # Show directory path button
+        if st.button("📋 Pfad kopieren", key="copy_path_top"):
+            st.code(output_dir, language=None)
+    
+    st.markdown("---")
+    
     # Pagination controls
     if total_files > st.session_state.files_per_page:
         # Get current page
@@ -604,46 +686,11 @@ def render_results():
         # Use paginated files
         files = paginated_files
     
-    # Display each file
+    # Display each file with compact layout
     for file_info in files:
         with st.container():
-            col1, col2, col3 = st.columns([3, 2, 2])
-            
-            with col1:
-                st.markdown(f"**{file_info.name}**")
-            
-            with col2:
-                st.text(f"📦 {file_info.format_size()}")
-            
-            with col3:
-                st.text(f"📅 {file_info.format_date()}")
-            
-            # Action buttons
-            col_btn1, col_btn2 = st.columns(2)
-            
-            with col_btn1:
-                # Open file location button
-                if st.button("📂 Ordner öffnen", key=f"open_folder_{file_info.name}"):
-                    import subprocess
-                    import platform
-                    
-                    folder_path = os.path.dirname(file_info.path)
-                    
-                    try:
-                        if platform.system() == 'Windows':
-                            os.startfile(folder_path)
-                        elif platform.system() == 'Darwin':  # macOS
-                            subprocess.run(['open', folder_path])
-                        else:  # Linux
-                            subprocess.run(['xdg-open', folder_path])
-                        
-                        st.success("✅ Ordner geöffnet")
-                    except Exception as e:
-                        st.error(f"❌ Fehler: {str(e)}")
-            
-            with col_btn2:
-                # Show file path button
-                if st.button("📋 Pfad kopieren", key=f"copy_path_{file_info.name}"):
-                    st.code(file_info.path, language=None)
-            
+            # Filename in bold
+            st.markdown(f"**{file_info.name}**")
+            # Size and date as small text below
+            st.caption(f"📦 {file_info.format_size()} • 📅 {file_info.format_date()}")
             st.markdown("---")

@@ -575,7 +575,7 @@ def render_custom_tab():
         st.success(f"Ergebnis: {result}")
 ```
 
-### Neuen Analysemodus hinzufügen
+### Neuen Analysemodus hinzuFügen
 
 1. Erweitere `VALID_ANALYSIS_MODES` in `webapp_models/config_data.py`
 2. Implementiere Logik in `../QCA_AID_assets/analysis/`

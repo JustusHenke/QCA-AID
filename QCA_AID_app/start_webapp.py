@@ -51,7 +51,7 @@ def ensure_config():
 # Bind only to localhost for security
 address = "127.0.0.1"
 port = 8501
-enableCORS = false
+enableCORS = true
 enableXsrfProtection = true
 maxUploadSize = 200
 

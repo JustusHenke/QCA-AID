@@ -502,7 +502,7 @@ def render_categories():
     Requirement 4.1: WHEN der Codebook-Reiter angezeigt wird 
                     THEN das System SHALL eine Liste aller Hauptkategorien mit Expand/Collapse-Funktionalität anzeigen
     Requirement 4.3: WHEN der Codebook-Reiter angezeigt wird 
-                    THEN das System SHALL eine Schaltfläche zum Hinzufügen neuer Hauptkategorien anzeigen
+                    THEN das System SHALL eine Schaltfläche zum HinzuFügen neuer Hauptkategorien anzeigen
     Requirement 5.1: Display imported codes in separate section
     """
     codebook = st.session_state.codebook_data
@@ -562,13 +562,13 @@ def render_categories():
     st.markdown("---")
     codebook = st.session_state.codebook_data
     button_type = "primary" if not codebook or len(codebook.deduktive_kategorien) == 0 else "secondary"
-    button_help = "Erstellen Sie Ihre erste Kategorie" if not codebook or len(codebook.deduktive_kategorien) == 0 else "Weitere Kategorie hinzufügen"
-    if st.button("➕ Neue Kategorie hinzufügen", use_container_width=True, key="add_category_main_btn", type=button_type, help=button_help):
+    button_help = "Erstellen Sie Ihre erste Kategorie" if not codebook or len(codebook.deduktive_kategorien) == 0 else "Weitere Kategorie hinzuFügen"
+    if st.button("➕ Neue Kategorie hinzuFügen", use_container_width=True, key="add_category_main_btn", type=button_type, help=button_help):
         st.session_state.show_add_category_dialog = True
     
     # Add category dialog
     if st.session_state.get('show_add_category_dialog', False):
-        with st.expander("➕ Neue Kategorie hinzufügen", expanded=True):
+        with st.expander("➕ Neue Kategorie hinzuFügen", expanded=True):
             render_add_category_form()
 
 
@@ -579,7 +579,7 @@ def render_category_editor(cat_name: str, category: CategoryData):
     Requirement 4.2: WHEN eine Kategorie erweitert wird 
                     THEN das System SHALL Eingabefelder für Definition, Regeln und Beispiele anzeigen
     Requirement 4.4: WHEN eine Kategorie ausgewählt ist 
-                    THEN das System SHALL die Verwaltung von Subkategorien mit Hinzufügen/Entfernen-Funktionen ermöglichen
+                    THEN das System SHALL die Verwaltung von Subkategorien mit HinzuFügen/Entfernen-Funktionen ermöglichen
     """
     codebook = st.session_state.codebook_data
     
@@ -700,7 +700,7 @@ def render_category_editor(cat_name: str, category: CategoryData):
             st.rerun()
     
     # Add new subcategory
-    with st.expander("➕ Subkategorie hinzufügen"):
+    with st.expander("➕ Subkategorie hinzuFügen"):
         col1, col2 = st.columns(2)
         
         with col1:
@@ -719,7 +719,7 @@ def render_category_editor(cat_name: str, category: CategoryData):
                 help="Optionale Definition der Subkategorie"
             )
         
-        if st.button("Subkategorie hinzufügen", key=f"add_subcat_btn_{cat_name}"):
+        if st.button("Subkategorie hinzuFügen", key=f"add_subcat_btn_{cat_name}"):
             if new_subcat_name:
                 if new_subcat_name not in category.subcategories:
                     # Definition is optional - use empty string if not provided
@@ -747,7 +747,7 @@ def render_category_editor(cat_name: str, category: CategoryData):
 
 def render_add_category_form():
     """
-    Rendert Formular zum Hinzufügen einer neuen Kategorie.
+    Rendert Formular zum HinzuFügen einer neuen Kategorie.
     """
     codebook = st.session_state.codebook_data
     
@@ -799,7 +799,7 @@ def render_add_category_form():
     col1, col2 = st.columns(2)
     
     with col1:
-        if st.button("Kategorie hinzufügen", use_container_width=True, key="add_cat_btn"):
+        if st.button("Kategorie hinzuFügen", use_container_width=True, key="add_cat_btn"):
             # Validate inputs
             errors = []
             
@@ -965,7 +965,7 @@ def render_inductive_import_dialog():
     - 4.5: Extract codes from selected file
     """
     with st.expander("📥 Induktive Codes importieren", expanded=True):
-        st.markdown("**Verfügbare Analyse-Dateien**")
+        st.markdown("**verfügbare Analyse-Dateien**")
         
         # Get output directory
         project_manager = st.session_state.project_manager

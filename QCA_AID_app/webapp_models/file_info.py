@@ -116,8 +116,8 @@ class AnalysisStatus:
         self.is_running = False
         self.progress = 1.0
         self.output_file = output_file
-        self.current_step = "Completed"
-        self.add_log(f"Analysis completed: {output_file}")
+        self.current_step = "Abgeschlossen"  # FIX: Verwende deutschen Text
+        self.add_log(f"Analyse abgeschlossen: {output_file}")
     
     def to_dict(self) -> Dict:
         """Konvertiert zu Dictionary"""

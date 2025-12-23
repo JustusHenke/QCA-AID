@@ -84,7 +84,7 @@ class ExplorerAnalysisRunner:
                 base_config
             )
             
-            messages.append(f"Verfügbare Spalten: {', '.join(self.analyzer.columns)}")
+            messages.append(f"verfügbare Spalten: {', '.join(self.analyzer.columns)}")
             
             return True, messages
             

@@ -10,6 +10,7 @@ import subprocess
 import threading
 import queue
 import time
+import json
 from typing import Dict, Tuple, List, Optional
 from pathlib import Path
 from datetime import datetime
@@ -185,9 +186,13 @@ class AnalysisRunner:
                 else:
                     # Check return code
                     if self.process.returncode == 0:
-                        self.status.set_complete("Analysis completed (no output file found)")
+                        # FIX: Auch ohne Output-Datei als abgeschlossen markieren
+                        self.status.is_running = False
+                        self.status.progress = 1.0
+                        self.status.current_step = "Abgeschlossen"
+                        self.status.add_log("Analyse abgeschlossen (keine Output-Datei gefunden)")
                     else:
-                        self.status.set_error(f"Analysis failed with return code {self.process.returncode}")
+                        self.status.set_error(f"Analyse fehlgeschlagen mit Return-Code {self.process.returncode}")
         
         return self.status.progress, self.status.current_step
     
@@ -318,7 +323,7 @@ class AnalysisRunner:
                     if not files:
                         errors.append(
                             f"Eingabeverzeichnis ist leer: {data_dir}. "
-                            "Bitte fügen Sie Dateien hinzu, bevor Sie die Analyse starten."
+                            "Bitte Fügen Sie Dateien hinzu, bevor Sie die Analyse starten."
                         )
                 except PermissionError:
                     errors.append(f"Keine Leseberechtigung für Eingabeverzeichnis: {data_dir}")
@@ -494,7 +499,9 @@ class AnalysisRunner:
             'Berechne': 0.7,
             'Review': 0.8,
             'Export': 0.9,
-            'erfolgreich': 1.0
+            'erfolgreich abgeschlossen': 1.0,
+            'Export erfolgreich abgeschlossen': 1.0,
+            'Analyse abgeschlossen': 1.0
         }
         
         # Find highest matching progress

@@ -1057,7 +1057,7 @@ def render_analysis_settings():
     config = st.session_state.config_data
     
     # Analysis Mode
-    analysis_mode_options = ['full', 'deductive', 'inductive', 'abductive', 'grounded']
+    analysis_mode_options = ['deductive', 'inductive', 'abductive', 'grounded']
     current_mode_idx = analysis_mode_options.index(config.analysis_mode) if config.analysis_mode in analysis_mode_options else 0
     
     new_analysis_mode = st.selectbox(
@@ -1087,6 +1087,21 @@ def render_analysis_settings():
         st.session_state.config_modified = True
     
     # Boolean settings
+    # new_enable_optimization = st.checkbox(
+    #     "🚀 Neue effiziente Kodiermethode verwenden",
+    #     value=config.enable_optimization,
+    #     help="Aktiviert die optimierte Analyse mit Batching und Caching. Reduziert API-Calls um 50-73% und verbessert die Effizienz erheblich. (Empfohlen: Aktiviert)"
+    # )
+    
+    # if new_enable_optimization != config.enable_optimization:
+    #     config.enable_optimization = new_enable_optimization
+    #     st.session_state.config_modified = True
+    
+    # if new_enable_optimization:
+    #     st.info("ℹ️ Optimierte Methode aktiviert: Batching und Caching werden verwendet, um API-Calls zu reduzieren und die Effizienz zu verbessern.")
+    # else:
+    #     st.warning("⚠️ Optimierte Methode deaktiviert: Es wird die Standard-Analyse verwendet (mehr API-Calls, höhere Kosten).")
+    
     new_code_with_context = st.checkbox(
         "Mit Kontext kodieren",
         value=config.code_with_context,
@@ -1154,7 +1169,7 @@ def render_coder_settings():
     
     Requirement 6.1: WHEN der Konfigurationsreiter angezeigt wird 
                     THEN das System SHALL eine Liste der konfigurierten Coder anzeigen
-    Requirement 6.2: WHEN ein Benutzer auf "Coder hinzufügen" klickt 
+    Requirement 6.2: WHEN ein Benutzer auf "Coder hinzuFügen" klickt 
                     THEN das System SHALL ein neues Coder-Konfigurationsformular anzeigen
     Requirement 6.3: WHEN ein Coder konfiguriert wird 
                     THEN das System SHALL Eingabefelder für temperature und coder_id anzeigen
@@ -1237,7 +1252,7 @@ def render_coder_settings():
             st.markdown("---")
     
     # Add new coder button
-    if st.button("➕ Coder hinzufügen", use_container_width=True):
+    if st.button("➕ Coder hinzuFügen", use_container_width=True):
         # Generate new coder ID
         existing_ids = [c.coder_id for c in config.coder_settings]
         new_id = f"auto_{len(config.coder_settings) + 1}"
@@ -1259,7 +1274,7 @@ def render_attribute_labels():
     
     Requirement 9.1: WHEN der Konfigurationsreiter angezeigt wird 
                     THEN das System SHALL eine Liste der ATTRIBUTE_LABELS anzeigen
-    Requirement 9.2: WHEN ein Benutzer auf "Attribut hinzufügen" klickt 
+    Requirement 9.2: WHEN ein Benutzer auf "Attribut hinzuFügen" klickt 
                     THEN das System SHALL Eingabefelder für Schlüssel und Bezeichnung anzeigen
     Requirement 9.3: WHEN ein Benutzer ein Attribut bearbeitet 
                     THEN das System SHALL die Änderungen sofort in der Vorschau anzeigen
@@ -1319,7 +1334,7 @@ def render_attribute_labels():
             st.rerun()
     
     # Add new attribute section
-    with st.expander("➕ Neues Attribut hinzufügen"):
+    with st.expander("➕ Neues Attribut hinzuFügen"):
         col1, col2 = st.columns(2)
         
         with col1:
@@ -1338,7 +1353,7 @@ def render_attribute_labels():
                 help="z.B. 'Quelle', 'Jahr', 'Kategorie'"
             )
         
-        if st.button("Attribut hinzufügen", use_container_width=True):
+        if st.button("Attribut hinzuFügen", use_container_width=True):
             if new_attr_key and new_attr_label:
                 if new_attr_key not in config.attribute_labels:
                     config.attribute_labels[new_attr_key] = new_attr_label

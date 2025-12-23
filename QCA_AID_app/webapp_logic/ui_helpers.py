@@ -312,7 +312,15 @@ def show_real_time_path_validation(
     
     if result.has_warnings():
         for warning in result.warnings:
-            st.warning(f"⚠️ {warning}")
+            # Make warning message more user-friendly for file existence checks
+            if "existiert noch nicht" in warning or "Datei existiert noch nicht" in warning:
+                # For save operations, this is normal - show as info instead
+                if check_writable:
+                    st.info(f"ℹ️ Neue Datei wird erstellt")
+                else:
+                    st.warning(f"⚠️ {warning}")
+            else:
+                st.warning(f"⚠️ {warning}")
     
     if result.has_suggestions():
         with st.expander("💡 Hinweise anzeigen"):

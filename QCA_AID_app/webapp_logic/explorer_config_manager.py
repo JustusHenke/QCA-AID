@@ -16,6 +16,7 @@ if str(parent_dir) not in sys.path:
 
 # Import webapp models
 from webapp_models.explorer_config_data import ExplorerConfigData, AnalysisConfig
+from webapp_logic.category_loader import CategoryLoader
 
 
 class ExplorerConfigManager:
@@ -41,6 +42,10 @@ class ExplorerConfigManager:
         self.project_dir = Path(project_dir) if project_dir else Path.cwd()
         self.xlsx_path = self.project_dir / "QCA-AID-Explorer-Config.xlsx"
         self.json_path = self.project_dir / "QCA-AID-Explorer-Config.json"
+        self.category_loader = None
+        
+        # Try to load categories from analysis results
+        self._load_categories()
 
     def _load_config_file(self, file_path: str) -> Tuple[Dict[str, Any], List[Dict[str, Any]]]:
         """
@@ -541,3 +546,102 @@ class ExplorerConfigManager:
             return False, [f"Error converting to XLSX: {str(e)}"]
         except Exception as e:
             return False, [f"Error saving XLSX file: {str(e)}"]
+    
+    def _load_categories(self) -> None:
+        """
+        Lädt Kategorien aus verfügbaren Analyseergebnissen.
+        
+        Sucht nach QCA-AID_Analysis_*.xlsx Dateien im output-Verzeichnis
+        und versucht, Kategorien aus dem "Kategorien"-Sheet zu laden.
+        """
+        try:
+            # Suche nach Analyseergebnissen im output-Verzeichnis
+            output_dir = self.project_dir / "output"
+            if not output_dir.exists():
+                return
+            
+            # Finde die neueste QCA-AID_Analysis_*.xlsx Datei
+            analysis_files = list(output_dir.glob("QCA-AID_Analysis_*.xlsx"))
+            if not analysis_files:
+                return
+            
+            # Sortiere nach Änderungsdatum (neueste zuerst)
+            analysis_files.sort(key=lambda x: x.stat().st_mtime, reverse=True)
+            latest_file = analysis_files[0]
+            
+            # Versuche Kategorien zu laden
+            self.category_loader = CategoryLoader(str(latest_file))
+            
+        except Exception:
+            # Fehler beim Laden - das ist OK, wir verwenden dann keine intelligenten Dropdowns
+            self.category_loader = None
+    
+    def get_category_loader(self) -> Optional[CategoryLoader]:
+        """
+        Gibt den CategoryLoader zurück falls verfügbar.
+        
+        Returns:
+            CategoryLoader-Instanz oder None falls nicht verfügbar
+        """
+        return self.category_loader
+    
+    def get_filter_options(self) -> Dict[str, Any]:
+        """
+        Gibt verfügbare Filter-Optionen zurück, einschließlich Kategorien.
+        
+        Returns:
+            Dictionary mit verfügbaren Filter-Optionen
+        """
+        options = {
+            'main_categories': [],
+            'subcategories': [],
+            'category_mapping': {},
+            'has_categories': False
+        }
+        
+        if self.category_loader and self.category_loader.is_loaded:
+            options.update({
+                'main_categories': self.category_loader.get_main_categories(),
+                'subcategories': self.category_loader.get_all_subcategories(),
+                'category_mapping': self.category_loader.get_category_mapping(),
+                'has_categories': True
+            })
+        
+        return options
+    
+    def validate_analysis_filters(self, analysis: AnalysisConfig) -> List[str]:
+        """
+        Validiert die Filter einer Analysekonfiguration gegen verfügbare Kategorien.
+        
+        Args:
+            analysis: Analysekonfiguration mit Filtern
+            
+        Returns:
+            Liste von Validierungsfehlern (leer wenn alles gültig ist)
+        """
+        if not self.category_loader or not self.category_loader.is_loaded:
+            return []  # Keine Validierung möglich ohne Kategorien
+        
+        errors = []
+        filters = analysis.filters
+        
+        main_category = filters.get('Hauptkategorie')
+        subcategories_str = filters.get('Subkategorien')
+        
+        # Parse Subkategorien falls als String angegeben
+        subcategories = None
+        if subcategories_str:
+            if isinstance(subcategories_str, str):
+                subcategories = [sub.strip() for sub in subcategories_str.split(',') if sub.strip()]
+            elif isinstance(subcategories_str, list):
+                subcategories = subcategories_str
+        
+        # Validiere gegen Kategorien
+        is_valid, validation_errors = self.category_loader.validate_filter_values(
+            main_category, subcategories
+        )
+        
+        if not is_valid:
+            errors.extend(validation_errors)
+        
+        return errors

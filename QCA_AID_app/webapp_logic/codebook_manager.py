@@ -194,7 +194,7 @@ class CodebookManager:
         Fügt neue Kategorie hinzu.
         
         Requirement 4.3: WHEN der Codebook-Reiter angezeigt wird 
-                        THEN das System SHALL eine Schaltfläche zum Hinzufügen neuer Hauptkategorien anzeigen
+                        THEN das System SHALL eine Schaltfläche zum HinzuFügen neuer Hauptkategorien anzeigen
         
         Args:
             name: Kategoriename
@@ -244,7 +244,7 @@ class CodebookManager:
             return True, []
             
         except Exception as e:
-            return False, [f"Fehler beim Hinzufügen der Kategorie: {str(e)}"]
+            return False, [f"Fehler beim HinzuFügen der Kategorie: {str(e)}"]
     
     def remove_category(self, name: str) -> Tuple[bool, List[str]]:
         """

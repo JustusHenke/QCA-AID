@@ -2,7 +2,7 @@
 
 Dieses Verzeichnis enthält Beispielkonfigurationen für verschiedene Anwendungsfälle.
 
-## Verfügbare Beispiele
+## verfügbare Beispiele
 
 ### 1. Minimal-Konfiguration
 **Datei:** `config-minimal.json`

@@ -382,6 +382,17 @@ def render_explorer_config_view():
         st.info("💡 Wählen Sie eine Analysedatei aus, um fortzufahren.")
         return
     
+    # Zeige Kategorie-Informationen falls verfügbar
+    explorer_config_manager = st.session_state.get('explorer_config_manager')
+    category_loader = explorer_config_manager.get_category_loader() if explorer_config_manager else None
+    
+    if category_loader and category_loader.is_loaded:
+        with st.expander("📊 Verfügbare Kategorien", expanded=False):
+            from webapp_components.smart_filter_controls import render_category_statistics
+            render_category_statistics(category_loader)
+    else:
+        st.info("ℹ️ **Keine Kategorien verfügbar** - Filter verwenden Freitext-Eingabe. Stellen Sie sicher, dass Ihre Analysedatei ein 'Kategorien'-Sheet enthält.")
+    
     st.markdown("---")
     
     # Step 2: Configure Analyses with Tabbed Interface
@@ -396,6 +407,12 @@ def render_explorer_config_view():
             st.warning("⚠️ Ungespeicherte Änderungen")
     
     render_explorer_config_tabs()
+    
+    # Zeige Filter-Validierung falls Kategorien verfügbar
+    if category_loader and category_loader.is_loaded:
+        st.markdown("---")
+        from webapp_components.smart_filter_controls import render_filter_validation_summary
+        render_filter_validation_summary(explorer_config_data.analysis_configs, category_loader)
     
     st.markdown("---")
     
@@ -421,12 +438,12 @@ def render_explorer_config_tabs():
         st.markdown(f"**{len(explorer_config.analysis_configs)} Analyse(n) konfiguriert**")
     
     with col2:
-        if st.button("➕ Analyse hinzufügen", use_container_width=True, key="add_analysis_btn"):
+        if st.button("➕ Analyse hinzuFügen", use_container_width=True, key="add_analysis_btn"):
             handle_add_analysis()
     
     # If no analyses, show message
     if not explorer_config.analysis_configs:
-        st.info("💡 Keine Analysen konfiguriert. Klicken Sie auf 'Analyse hinzufügen', um zu beginnen.")
+        st.info("💡 Keine Analysen konfiguriert. Klicken Sie auf 'Analyse hinzuFügen', um zu beginnen.")
         return
     
     # Create tabs for each analysis
@@ -522,7 +539,21 @@ def render_analysis_tab(analysis: AnalysisConfig, index: int):
     
     # Render filters (common to all analyses)
     st.markdown("### 🔍 Filter")
-    render_filter_controls(analysis, index)
+    
+    # Hole CategoryLoader vom ExplorerConfigManager
+    explorer_config_manager = st.session_state.get('explorer_config_manager')
+    category_loader = explorer_config_manager.get_category_loader() if explorer_config_manager else None
+    
+    # Verwende intelligente Filter-Controls
+    from webapp_components.smart_filter_controls import render_smart_filter_controls
+    filter_updated = render_smart_filter_controls(analysis, index, category_loader)
+    
+    # Prüfe auf Filter-Updates über Session State
+    filter_update_key = f'filter_update_{index}'
+    if filter_update_key in st.session_state:
+        updated_filters = st.session_state[filter_update_key]
+        handle_update_analysis(index, {'filters': updated_filters})
+        del st.session_state[filter_update_key]  # Cleanup
     
     st.markdown("---")
     
@@ -1513,7 +1544,7 @@ def render_add_analysis_dialog():
     Requirement 7.1, 7.2: Add analysis with type selection
     """
     st.markdown("---")
-    st.subheader("➕ Neue Analyse hinzufügen")
+    st.subheader("➕ Neue Analyse hinzuFügen")
     
     # Analysis type selection
     analysis_types = {
@@ -1545,7 +1576,7 @@ def render_add_analysis_dialog():
     col1, col2 = st.columns(2)
     
     with col1:
-        if st.button("✅ Hinzufügen", use_container_width=True, type="primary"):
+        if st.button("✅ HinzuFügen", use_container_width=True, type="primary"):
             # Create new analysis
             manager = st.session_state.explorer_config_manager
             new_analysis = manager.add_analysis(selected_type, analysis_name)

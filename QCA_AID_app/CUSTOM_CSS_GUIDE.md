@@ -23,7 +23,7 @@
 2. CSS-Klassen im Inspector ansehen
 3. Klasse kopieren (z.B. `.st-emotion-cache-1234`)
 
-### 2. Style hinzufügen
+### 2. Style hinzuFügen
 
 **Öffne**: `QCA_AID_app/webapp_components/fluent_styles.py`
 
@@ -127,7 +127,7 @@ Du kannst die Fluent UI Farben aus den Klassen verwenden:
     }}
 ```
 
-**Verfügbare Farben**:
+**verfügbare Farben**:
 - `{FluentColors.BRAND_PRIMARY}` - #0078D4 (Fluent Blue)
 - `{FluentColors.NEUTRAL_BACKGROUND}` - #FFFFFF
 - `{FluentColors.NEUTRAL_BACKGROUND_SECONDARY}` - #F5F5F5
