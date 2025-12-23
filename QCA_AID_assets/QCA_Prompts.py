@@ -204,13 +204,51 @@ class QCAPrompts:
         self.FORSCHUNGSFRAGE = forschungsfrage
         self.KODIERREGELN = kodierregeln
         self.DEDUKTIVE_KATEGORIEN = deduktive_kategorien
-        # FIX: Alias für bessere Kompatibilität hinzufügen
+        # FIX: Alias für bessere Kompatibilität hinzuFügen
         self.deduktive_kategorien = deduktive_kategorien
 
         # print(f"QCAPrompts initialisiert:")
         # print(f"- Forschungsfrage: {len(self.FORSCHUNGSFRAGE)} Zeichen")
         # print(f"- Kodierregeln: {len(self.KODIERREGELN)} Kategorien")
         # print(f"- Deduktive Kategorien: {len(self.DEDUKTIVE_KATEGORIEN)} Kategorien")
+    
+    def _format_categories_for_prompt(self, categories_overview: List[Dict]) -> str:
+        """
+        Formatiert Kategorien für Prompt-Verwendung.
+        
+        Args:
+            categories_overview: Liste von Kategorie-Dictionaries mit 'name', 'definition', 'subcategories'
+            
+        Returns:
+            Formatierter Kategorien-Text für Prompts
+        """
+        formatted_categories = []
+        
+        for cat in categories_overview:
+            cat_name = cat.get('name', 'Unbekannte Kategorie')
+            cat_definition = cat.get('definition', 'Keine Definition verfügbar')
+            subcategories = cat.get('subcategories', {})
+            
+            # Hauptkategorie formatieren
+            cat_text = f"**{cat_name}**: {cat_definition}"
+            
+            # Subkategorien hinzufügen falls vorhanden
+            if subcategories:
+                subcat_list = []
+                for subcat_name, subcat_def in subcategories.items():
+                    if isinstance(subcat_def, str):
+                        subcat_list.append(f"  - {subcat_name}: {subcat_def}")
+                    elif hasattr(subcat_def, 'definition'):
+                        subcat_list.append(f"  - {subcat_name}: {subcat_def.definition}")
+                    else:
+                        subcat_list.append(f"  - {subcat_name}")
+                
+                if subcat_list:
+                    cat_text += "\n" + "\n".join(subcat_list)
+            
+            formatted_categories.append(cat_text)
+        
+        return "\n\n".join(formatted_categories)
     
     def get_deductive_coding_prompt(self, chunk: str, categories_overview: List[Dict], 
                                     context_paraphrases: Optional[List[str]] = None) -> str:
@@ -401,7 +439,90 @@ class QCAPrompts:
             - Sei streng bei der thematischen Vorprüfung
             """
 
-    # FIX: Neue Prompt-Methode für Kategorie-Vorauswahl hinzufügen
+    def get_category_preferences_prompt(self, segments_text: str, 
+                                       categories: Dict[str, Any]) -> str:
+        """
+        Prompt für reine Kategoriepräferenz-Bestimmung (OHNE Relevanzprüfung).
+        
+        Für bereits als relevant bestätigte Segmente.
+        
+        Args:
+            segments_text: Formatierte Textsegmente
+            categories: Dictionary mit CategoryDefinition-Objekten
+            
+        Returns:
+            str: Formatierter Prompt für Kategoriepräferenzen
+        """
+        # FIX: Sichere Extraktion der Kategorie-Beschreibungen
+        category_descriptions = {}
+        for name, cat_def in categories.items():
+            # FIX: Prüfe ob cat_def ein CategoryDefinition-Objekt ist
+            if hasattr(cat_def, 'definition') and hasattr(cat_def, 'subcategories'):
+                category_descriptions[name] = {
+                    'definition': cat_def.definition,
+                    'subcategories': list(cat_def.subcategories.keys()) if cat_def.subcategories else []
+                }
+            else:
+                # FIX: Fallback für andere Datenstrukturen
+                category_descriptions[name] = {
+                    'definition': str(cat_def.get('definition', 'Keine Definition verfügbar')),
+                    'subcategories': []
+                }
+
+        # FIX: Verwende einheitliche Konfidenz-Skala
+        confidence_guidelines = ConfidenceScales.get_confidence_guidelines(
+            scale_type="category_relevance", 
+            context="kategorien"
+        )
+
+        return f"""
+        AUFGABE: Bestimme für jedes bereits relevante Textsegment die Kategoriepräferenzen für die Forschungsfrage:
+        "{self.FORSCHUNGSFRAGE}"
+        
+        WICHTIG: Alle Segmente sind bereits als RELEVANT zur Forschungsfrage bestätigt.
+        Deine Aufgabe ist NUR die Bestimmung der Kategoriepräferenzen.
+        
+        HAUPTKATEGORIEN:
+        {json.dumps(category_descriptions, indent=2, ensure_ascii=False)}
+        
+        TEXTSEGMENTE (alle bereits relevant):
+        {segments_text}
+
+        {confidence_guidelines}
+        
+        ANALYSIERE JEDES SEGMENT:
+        
+        KATEGORIE-PRÄFERENZ-BEWERTUNG:
+        - Bewerte JEDE Hauptkategorie: Wie gut passt das Segment zu dieser Kategorie? (0.0-1.0)
+        - Identifiziere 1-3 wahrscheinlichste Kategorien (Score ≥ 0.6)
+        - Begründe kurz die Kategorie-Einschätzungen
+        
+        BEWERTUNGSKRITERIEN:
+        - Score 0.8-1.0: "Perfekte Passung - Segment gehört definitiv zu dieser Kategorie"
+        - Score 0.6-0.8: "Gute Passung - Segment passt gut zu dieser Kategorie"
+        - Score 0.4-0.6: "Mögliche Passung - Segment könnte zu dieser Kategorie gehören"
+        - Score 0.0-0.4: "Schwache Passung - Segment passt nicht gut zu dieser Kategorie"
+        
+        QUALITÄTSKONTROLLE:
+        - Jedes Segment SOLLTE mindestens eine Kategorie ≥ 0.6 haben
+        - Preferred_categories enthält nur Kategorien mit Score ≥ 0.6
+        - Reasoning muss konkrete Textbezüge enthalten
+        - Bei Unsicherheit zwischen Kategorien: beide einschließen wenn Score ≥ 0.6
+        
+        Antworte ausschließlich mit JSON:
+        {{
+            "segment_results": [
+                {{
+                    "segment_number": 1,
+                    "category_scores": {{"Kategorie1": 0.8, "Kategorie2": 0.3, ...}},
+                    "preferred_categories": ["Kategorie1"],
+                    "reasoning": "Konkrete Begründung mit Textbezug für Kategorie-Einschätzung"
+                }}
+            ]
+        }}
+        """
+
+    # FIX: Neue Prompt-Methode für Kategorie-Vorauswahl hinzuFügen
     def get_relevance_with_category_preselection_prompt(self, segments_text: str, 
                                                        categories: Dict[str, Any]) -> str:
         """
@@ -451,12 +572,21 @@ class QCAPrompts:
         ANALYSIERE JEDES SEGMENT:
         
         1. ALLGEMEINE RELEVANZ:
-        - Ist das Segment für die Forschungsfrage relevant? (ja/nein)
+        - Ist das Segment DIREKT für die Forschungsfrage relevant? (ja/nein)
+        - NUR JA wenn das Segment konkrete Inhalte zur Forschungsfrage enthält
+        - NEIN wenn das Segment nur allgemeine/unspezifische Informationen enthält
         
         2. KATEGORIE-PRÄFERENZ (nur falls relevant):
         - Bewerte JEDE Hauptkategorie: Wie wahrscheinlich passt das Segment zu dieser Kategorie? (0.0-1.0)
         - Identifiziere 1-3 wahrscheinlichste Kategorien (Score ≥ 0.6)
         - Begründe kurz die Kategorie-Einschätzungen
+        
+        WICHTIG FÜR RELEVANZ-BEWERTUNG:
+        - Sei STRENG bei der Relevanzprüfung
+        - Nur Segmente mit DIREKTEM Bezug zur Forschungsfrage sind relevant
+        - Allgemeine Informationen ohne spezifischen Bezug sind NICHT relevant
+        - Test-Segmente oder Beispiel-Texte sind NICHT relevant
+        - Bei Zweifel: eher als NICHT relevant einstufen
         
         WICHTIG FÜR KATEGORIE-VORAUSWAHL:
         - Sei konservativ aber nicht zu restriktiv
@@ -743,9 +873,62 @@ class QCAPrompts:
             """
 
     def get_category_batch_analysis_prompt(self, current_categories_text: str, segments: List[str], mode_instructions: str, json_schema: str) -> str:
-        """Prompt für induktive Kategorienentwicklung"""
-        # Platzhalter - Prompt für Batch-Analyse und Kategorienentwicklung
-        pass
+        """Prompt für Batch-Kategorienanalyse (induktiv/abduktiv)"""
+        
+        # FIX: Verwende spezialisierte Coding-Konfidenz-Skala
+        confidence_guidelines = ConfidenceScales.get_confidence_guidelines(
+            scale_type="coding", 
+            context="kategorienentwicklung"
+        )
+        
+        segments_text = "\n\n".join([f"SEGMENT {i+1}:\n{segment}" for i, segment in enumerate(segments)])
+        
+        return f"""
+        Führe eine systematische Kategorienanalyse für die folgenden Textsegmente durch.
+        
+        FORSCHUNGSFRAGE:
+        {self.FORSCHUNGSFRAGE}
+        
+        KODIERREGELN:
+        {chr(10).join(f"- {regel}" for regel in self.KODIERREGELN)}
+        
+        AKTUELLE KATEGORIEN:
+        {current_categories_text}
+        
+        MODUS-SPEZIFISCHE ANWEISUNGEN:
+        {mode_instructions}
+        
+        {confidence_guidelines}
+        
+        TEXTSEGMENTE ZU ANALYSIEREN:
+        {segments_text}
+        
+        ALLGEMEINE QUALITÄTSKRITERIEN:
+        
+        1. FORSCHUNGSFRAGEN-BEZUG:
+        - Alle Kategorien müssen zur Beantwortung der Forschungsfrage beitragen
+        - Kategorien sollen zentrale Aspekte der Forschungsfrage abdecken
+        - Irrelevante oder tangentiale Aspekte ausschließen
+        
+        2. KATEGORIENQUALITÄT:
+        - Präzise und eindeutige Benennung
+        - Klare Abgrenzung zwischen Kategorien
+        - Empirisch gut belegte Kategorien (durch Textstellen)
+        - Angemessene Abstraktionsebene
+        
+        3. SYSTEMATIK:
+        - Konsistente Kategorienentwicklung über alle Segmente
+        - Berücksichtigung bestehender Kategorien
+        - Logische Kategorienstruktur
+        
+        4. BEGRÜNDUNG:
+        - Jede Kategorienentscheidung muss begründet werden
+        - Bezug zu konkreten Textstellen herstellen
+        - Verbindung zur Forschungsfrage erläutern
+        
+        Antworte ausschließlich im angegebenen JSON-Format:
+        {json_schema}
+        """
 
     def get_grounded_analysis_prompt(self, segments: List[str], existing_subcodes: List[str], json_schema: str) -> str:
         """Prompt für Grounded Theory Analyse"""
@@ -760,8 +943,14 @@ class QCAPrompts:
             Analysiere folgende Textsegmente im Sinne der Grounded Theory.
             Identifiziere Subcodes und Keywords, ohne sie bereits Hauptkategorien zuzuordnen.
             
-            FORSCHUNGSFRAGE:
+            FORSCHUNGSFRAGE (ZENTRALE ORIENTIERUNG):
             {self.FORSCHUNGSFRAGE}
+            
+            WICHTIG - FORSCHUNGSFRAGE BERÜCKSICHTIGEN:
+            - Prüfe ZUERST, ob ein Textsegment zur Forschungsfrage relevant ist
+            - Entwickle NUR Subcodes für Aspekte, die zur Beantwortung der Forschungsfrage beitragen
+            - Filtere textnahe Details heraus, die keinen Bezug zur Forschungsfrage haben
+            - Subcode-Namen sollten Terminologie der Forschungsfrage aufgreifen, wo sinnvoll
             
             {"BEREITS IDENTIFIZIERTE SUBCODES:" if existing_subcodes else ""}
             {json.dumps(existing_subcodes, indent=2, ensure_ascii=False) if existing_subcodes else ""}
@@ -773,12 +962,14 @@ class QCAPrompts:
             
             ANWEISUNGEN FÜR DEN GROUNDED THEORY MODUS:
             
-            1. OFFENES KODIEREN MIT KLARER ABSTRAKTIONSHIERARCHIE:
+            1. OFFENES KODIEREN MIT FORSCHUNGSFOKUS UND KLARER ABSTRAKTIONSHIERARCHIE:
             - KEYWORDS: Extrahiere TEXTNAHE, KONKRETE Begriffe und Phrasen direkt aus dem Text
+            * NUR wenn sie zur Forschungsfrage relevant sind
             - SUBCODES: Entwickle eine ERSTE ABSTRAKTIONSEBENE basierend auf den Keywords
             * Fasse ähnliche Keywords zu einem gemeinsamen, leicht abstrahierten Subcode zusammen
             * Verwende eine präzisere Sprache als für spätere Hauptkategorien
             * Formuliere Subcodes als analytische Konzepte, NICHT als bloße Wiederholung der Keywords
+            * Berücksichtige die Terminologie der Forschungsfrage
             
             2. WICHTIG - PROGRESSIVE ANREICHERUNG DES SUBCODE-SETS:
             - Berücksichtige die bereits identifizierten Subcodes
@@ -789,7 +980,7 @@ class QCAPrompts:
             3. QUALITÄTSKRITERIEN FÜR SUBCODES:
             - Empirisch gut belegt durch Textstellen
             - Präzise und eindeutig benannt
-            - Analytisch wertvoll für die Forschungsfrage
+            - Analytisch wertvoll für die Forschungsfrage (ZENTRAL!)
             - Trennscharf zu anderen Subcodes
             - ABSTRAKTION: Erkennbar abstrakter als die Keywords, aber konkreter als spätere Hauptkategorien
             - Nicht zu allgemein oder zu spezifisch
@@ -844,6 +1035,9 @@ class QCAPrompts:
         top_keywords_str = ', '.join([kw for kw, _ in top_keywords[:10]])
         
         return f"""
+        FORSCHUNGSFRAGE (ZENTRALE ORIENTIERUNG):
+        {self.FORSCHUNGSFRAGE}
+        
         GROUNDED THEORY: Generiere Hauptkategorien aus gesammelten Subcodes
         
         Du erhältst {len(subcodes_data)} Subcodes mit ihren Keywords, die während einer Grounded Theory Analyse gesammelt wurden. 
@@ -851,13 +1045,17 @@ class QCAPrompts:
 
         {confidence_guidelines}
         
-        FORSCHUNGSFRAGE: {self.FORSCHUNGSFRAGE}
+        WICHTIG - FORSCHUNGSFRAGE BERÜCKSICHTIGEN:
+        - Jede Hauptkategorie MUSS einen erkennbaren Beitrag zur Beantwortung der Forschungsfrage leisten
+        - Gruppiere Subcodes so, dass die entstehenden Hauptkategorien relevante Aspekte der Forschungsfrage abbilden
+        - Kategoriennamen sollten Terminologie der Forschungsfrage aufgreifen, wo sinnvoll
+        - Filtere Subcodes heraus, die keinen relevanten Bezug zur Forschungsfrage haben
         
         GESAMMELTE SUBCODES UND KEYWORDS:
         {subcodes_text}
         
         GROUNDED THEORY ANALYSE-ANWEISUNGEN:
-        1. Analysiere die thematischen Verbindungen zwischen den Subcodes
+        1. Analysiere die thematischen Verbindungen zwischen den Subcodes IM KONTEXT DER FORSCHUNGSFRAGE
         2. Gruppiere verwandte Subcodes zu 3-6 kohärenten Hauptkategorien
         3. Jede Hauptkategorie sollte mindestens 2-3 Subcodes enthalten
         4. Erstelle aussagekräftige Namen und Definitionen für die Hauptkategorien
@@ -1220,3 +1418,241 @@ class QCAPrompts:
             "key_aspects": ["Liste", "relevanter", "Aspekte"]
         }}
         """
+
+    def get_comprehensive_deductive_prompt(self, segment_text: str, categories_overview: List[Dict], 
+                                         multiple_coding_threshold: float = 0.7,
+                                         context_paraphrases: Optional[List[str]] = None) -> str:
+        """
+        Prompt für umfassende deduktive Analyse (für Optimierung).
+        Erweitert den Standard-Deduktiv-Prompt um zusätzliche Analyseschritte.
+        """
+        
+        # Basis-Prompt verwenden
+        base_prompt = self.get_deductive_coding_prompt(
+            chunk=segment_text,
+            categories_overview=categories_overview,
+            context_paraphrases=context_paraphrases
+        )
+        
+        # Erweiterte Analyse-Anweisungen hinzufügen
+        comprehensive_extension = f"""
+
+ERWEITERTE ANALYSE FÜR OPTIMIERUNG:
+Zusätzlich zur Standard-Kodierung, führe folgende Analysen durch:
+
+1. RELEVANZSCORES: Bewerte die Relevanz für JEDE Kategorie (0.0-1.0)
+   - Auch für Kategorien, die nicht als Hauptkategorie gewählt werden
+   - Berücksichtige Forschungsfrage und Kodierregeln
+
+2. MEHRFACHKODIERUNG: Prüfe ob Mehrfachkodierung nötig ist
+   - Schwellenwert: {multiple_coding_threshold}
+   - Wenn 2+ Kategorien diesen Schwellenwert erreichen → Mehrfachkodierung erforderlich
+
+3. ALLE KATEGORIEN: Liste alle Kategorien mit Relevanzscores und Begründungen
+   - Auch niedrig bewertete Kategorien mit Begründung warum nicht relevant
+
+4. KEYWORDS: Extrahiere 3-5 zentrale Schlüsselwörter aus dem Segment
+
+5. PARAPHRASE: Erstelle präzise Zusammenfassung des Segments
+
+Erweitere das JSON-Format um folgende Felder:
+{{
+  "relevance_scores": {{
+    "Kategorie1": 0.85,
+    "Kategorie2": 0.42,
+    "Kategorie3": 0.15
+  }},
+  "all_categories": [
+    {{
+      "category": "Kategorie1",
+      "relevance_score": 0.85,
+      "reasoning": "Begründung warum relevant/nicht relevant"
+    }},
+    {{
+      "category": "Kategorie2", 
+      "relevance_score": 0.42,
+      "reasoning": "Begründung warum relevant/nicht relevant"
+    }}
+  ],
+  "requires_multiple_coding": true/false,
+  "keywords": "Schlüsselwort1, Schlüsselwort2, Schlüsselwort3",
+  "paraphrase": "Zusammenfassung des Segments"
+}}
+"""
+        
+        return base_prompt + comprehensive_extension
+
+    def get_batch_deductive_prompt(self, segments: List[Dict[str, str]], categories_overview: List[Dict],
+                                 context_paraphrases: Optional[List[str]] = None) -> str:
+        """
+        Prompt für Batch-Verarbeitung deduktiver Kodierung.
+        """
+        
+        # FIX: Verwende spezialisierte Coding-Konfidenz-Skala
+        confidence_guidelines = ConfidenceScales.get_confidence_guidelines(
+            scale_type="coding", 
+            context="kodierung"
+        )
+        
+        # Kategorien formatieren
+        categories_text = self._format_categories_for_prompt(categories_overview)
+        
+        # Segmente formatieren
+        segments_text = "\n\n".join([
+            f"SEGMENT {i+1} (ID: {seg['segment_id']}):\n{seg['text']}"
+            for i, seg in enumerate(segments)
+        ])
+        
+        return f"""
+        Führe eine deduktive Kodierung für die folgenden {len(segments)} Segmente durch.
+        
+        FORSCHUNGSFRAGE:
+        {self.FORSCHUNGSFRAGE}
+        
+        KODIERREGELN:
+        {chr(10).join(f"- {regel}" for regel in self.KODIERREGELN)}
+        
+        {confidence_guidelines}
+        
+        KATEGORIEN:
+        {categories_text}
+        
+        {"KONTEXT-PARAPHRASEN:" if context_paraphrases else ""}
+        {chr(10).join(f"- {para}" for para in (context_paraphrases or []))}
+        
+        ZU ANALYSIERENDE SEGMENTE:
+        {segments_text}
+        
+        ANWEISUNGEN FÜR JEDES SEGMENT:
+        
+        1. KATEGORIEZUORDNUNG:
+        - Wähle die am besten passende Hauptkategorie
+        - Berücksichtige alle Kodierregeln und die Forschungsfrage
+        - Bei Unsicherheit: Wähle die Kategorie mit dem stärksten Textbezug
+        
+        2. SUBKATEGORIEN:
+        - Wähle passende Subkategorien der Hauptkategorie (falls verfügbar)
+        - Maximal 3 Subkategorien pro Segment
+        
+        3. KONFIDENZ:
+        - Bewerte die Sicherheit der Kodierung (0.0-1.0)
+        - Berücksichtige Eindeutigkeit des Textbezugs
+        
+        4. BEGRÜNDUNG:
+        - Erkläre die Kategoriewahl mit direktem Bezug zum Text
+        - Nenne konkrete Textstellen als Belege
+        
+        Antworte NUR mit folgendem JSON-Format:
+        {{
+          "results": [
+            {{
+              "segment_id": "segment_id_from_text",
+              "primary_category": "Kategoriename",
+              "subcategories": ["Subkategorie1", "Subkategorie2"],
+              "confidence": 0.92,
+              "justification": "Begründung mit Textbezug",
+              "paraphrase": "Zusammenfassung des Segments",
+              "keywords": "keyword1, keyword2, keyword3"
+            }}
+          ]
+        }}
+        """
+
+    def get_inductive_mode_instructions(self) -> str:
+        """Mode-spezifische Anweisungen für induktive Kategorienentwicklung."""
+        return """
+        INDUKTIVE KATEGORIENENTWICKLUNG:
+        - Entwickle Kategorien direkt aus dem Material
+        - Keine vorgegebenen Kategorien verwenden
+        - Kategorien sollen die Inhalte der Segmente widerspiegeln
+        - Jede Kategorie braucht eine klare Definition
+        - Kategorien müssen zur Forschungsfrage beitragen
+        """
+
+    def get_inductive_json_schema(self) -> str:
+        """JSON-Schema für induktive Kategorienentwicklung."""
+        return '''
+        {
+          "results": [
+            {
+              "segment_id": "segment_id_here",
+              "categories": ["Kategorie1", "Kategorie2"],
+              "category_definitions": {
+                "Kategorie1": "Definition der Kategorie",
+                "Kategorie2": "Definition der Kategorie"
+              },
+              "confidence": 0.8,
+              "reasoning": "Begründung der Kategorienentwicklung"
+            }
+          ]
+        }
+        '''
+
+    def get_abductive_mode_instructions(self, categories_text: str) -> str:
+        """Mode-spezifische Anweisungen für abduktive Analyse."""
+        return f"""
+        ABDUKTIVER MODUS: Entwickle NUR neue Subkategorien für bestehende Hauptkategorien.
+
+        BESTEHENDE HAUPTKATEGORIEN:
+        {categories_text}
+
+        STRIKTE REGELN FÜR ABDUKTIVEN MODUS:
+        - KEINE neuen Hauptkategorien entwickeln
+        - NUR neue Subkategorien für bestehende Hauptkategorien
+        - Subkategorien müssen neue, relevante Themenaspekte der Hauptkategorie abbilden
+        - Mindestens 2 Textbelege pro neuer Subkategorie
+        - Konfidenz mindestens 0.7
+        - Nur Subkategorien vorschlagen, die das bestehende System sinnvoll verfeinern
+        """
+
+    def get_abductive_json_schema(self) -> str:
+        """JSON-Schema für abduktive Analyse."""
+        return '''
+        {
+          "extended_categories": {
+            "hauptkategorie_name": {
+              "new_subcategories": [
+                {
+                  "name": "Subkategorie Name",
+                  "definition": "Definition der Subkategorie",
+                  "evidence": ["Textbelege aus den Segmenten"],
+                  "confidence": 0.0,
+                  "thematic_novelty": "Warum diese Subkategorie einen neuen Aspekt der Hauptkategorie abbildet"
+                }
+              ]
+            }
+          },
+          "development_assessment": {
+            "subcategories_developed": 0,
+            "saturation_indicators": ["Liste von Hinweisen auf Sättigung"],
+            "recommendation": "continue/pause/stop"
+          },
+          "segment_assignments": [
+            {
+              "segment_id": "segment_id_here",
+              "main_category": "Hauptkategorie",
+              "subcategories": ["Bestehende_Subkategorie1", "Neue_Subkategorie2"],
+              "confidence": 0.9,
+              "reasoning": "Begründung der Kategoriezuordnung"
+            }
+          ]
+        }
+        '''
+
+    def get_grounded_json_schema(self) -> str:
+        """JSON-Schema für Grounded Theory Analyse."""
+        return '''
+        {
+          "results": [
+            {
+              "segment_id": "segment_id_here",
+              "codes": ["Code1", "Code2", "Code3"],
+              "keywords": ["keyword1", "keyword2"],
+              "memo": "Analytisches Memo zu diesem Segment",
+              "concepts": ["Konzept1", "Konzept2"],
+              "relationships": ["Beziehung zwischen Konzepten"],
+              "confidence": 0.8
+            }
+          ]
+        }
+        '''

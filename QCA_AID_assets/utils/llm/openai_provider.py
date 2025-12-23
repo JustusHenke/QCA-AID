@@ -113,7 +113,7 @@ class OpenAIProvider(LLMProvider):
                 # Model unterstützt temperature - nutze es
                 if temperature is not None:
                     params['temperature'] = temperature
-            # else: Model unterstützt temperature nicht - füge es nicht hinzu
+            # else: Model unterstützt temperature nicht - Füge es nicht hinzu
 
             # Füge optionale Parameter hinzu
             if max_tokens:

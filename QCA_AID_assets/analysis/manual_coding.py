@@ -115,7 +115,7 @@ class ManualCoder:
         sorted_categories = sorted(self.categories.items())
         
         for cat_name, cat_def in sorted_categories:
-            # Hauptkategorie hinzufÜgen mit Nummerierung
+            # Hauptkategorie hinzuFügen mit Nummerierung
             main_number = str(main_category_number)
             display_text = f"{main_number}. 🔀 {cat_name}"
             self.category_listbox.insert(tk.END, display_text)
@@ -136,7 +136,7 @@ class ManualCoder:
             current_index += 1
             sub_category_number = 1
             
-            # Subkategorien hinzufÜgen (eingerÜckt und nummeriert)
+            # Subkategorien hinzuFügen (eingerÜckt und nummeriert)
             if hasattr(cat_def, 'subcategories') and cat_def.subcategories:
                 sorted_subcats = sorted(cat_def.subcategories.items())
                 for sub_name, sub_def in sorted_subcats:
@@ -168,7 +168,7 @@ class ManualCoder:
         if self.category_listbox.size() > 0:
             self.category_listbox.see(0)
         
-        print(f"Nummerierte Kategorieliste aktualisiert: {len(self.category_map)} EintrÄge")
+        print(f"Nummerierte Kategorieliste aktualisiert: {len(self.category_map)} Einträge")
         
         # Zeige Nummern-Referenz in einem Label an
         self._update_number_reference()
@@ -272,7 +272,7 @@ class ManualCoder:
             messagebox.showerror(
                 "Fehler",
                 f"Hauptkategorie '{main_cat}' nicht gefunden.\n"
-                f"VerfÜgbare Kategorien: {', '.join(self.categories.keys())}"
+                f"verfügbare Kategorien: {', '.join(self.categories.keys())}"
             )
             return
             
@@ -280,7 +280,7 @@ class ManualCoder:
             messagebox.showerror(
                 "Fehler",
                 f"Subkategorie '{sub_cat}' nicht in '{main_cat}' gefunden.\n"
-                f"VerfÜgbare Subkategorien: {', '.join(self.categories[main_cat].subcategories.keys())}"
+                f"verfügbare Subkategorien: {', '.join(self.categories[main_cat].subcategories.keys())}"
             )
             return
 
@@ -331,7 +331,7 @@ class ManualCoder:
                 if cat['type'] == 'sub'
             ]
             
-            # FÜge Hauptkategorie hinzu, wenn sie direkt ausgewÄhlt wurde
+            # Füge Hauptkategorie hinzu, wenn sie direkt ausgewÄhlt wurde
             main_cat_selected = any(
                 cat['type'] == 'main' for cat in selected_categories
             )
@@ -400,7 +400,7 @@ class ManualCoder:
                     "Der manuelle Kodierungsprozess wird beendet."
                 )
             
-            # KORRIGIERT: FÜge destroy() hinzu um das Fenster komplett zu schlieẞen
+            # KORRIGIERT: Füge destroy() hinzu um das Fenster komplett zu schlieẞen
             try:
                 if self.root and self.root.winfo_exists():
                     self.root.quit()
@@ -461,19 +461,19 @@ class ManualCoder:
         if not self._is_processing:
             from tkinter import simpledialog
             
-            # Zeige verfÜgbare Hauptkategorien mit Nummern
+            # Zeige verfügbare Hauptkategorien mit Nummern
             main_cats_info = []
             for number, info in self.number_to_category_map.items():
                 if info['type'] == 'main':
                     main_cats_info.append(f"{number} = {info['name']}")
             
             if not main_cats_info:
-                messagebox.showwarning("Warnung", "Keine Hauptkategorien verfÜgbar.")
+                messagebox.showwarning("Warnung", "Keine Hauptkategorien verfügbar.")
                 return
             
             # Erstelle Eingabedialog mit Nummern-Auswahl
             dialog_text = (
-                "VerfÜgbare Hauptkategorien:\n" + 
+                "verfügbare Hauptkategorien:\n" + 
                 "\n".join(main_cats_info) + 
                 "\n\nGeben Sie die Nummer der Hauptkategorie ein:"
             )
@@ -501,7 +501,7 @@ class ManualCoder:
                             messagebox.showwarning("Warnung", "Diese Subkategorie existiert bereits.")
                             return
                             
-                        # FÜge neue Subkategorie hinzu
+                        # Füge neue Subkategorie hinzu
                         self.categories[main_cat_name].subcategories[new_sub] = ""
                         
                         # Aktualisiere die Anzeige

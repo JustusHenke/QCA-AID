@@ -107,7 +107,7 @@ class AnthropicProvider(LLMProvider):
                 # Model unterstützt temperature - nutze es
                 if temperature is not None:
                     params['temperature'] = temperature
-            # else: Model unterstützt temperature nicht - füge es nicht hinzu
+            # else: Model unterstützt temperature nicht - Füge es nicht hinzu
             
             # Add system message if present
             if system_message:

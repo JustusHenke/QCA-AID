@@ -8,9 +8,10 @@ Handles analysis configurations, filters, and parameters for the Explorer tool.
 import os
 import pandas as pd
 from pathlib import Path
-from typing import Dict, List, Any
+from typing import Dict, List, Any, Optional
 from .converter import ConfigConverter
 from .synchronizer import ConfigSynchronizer
+from .category_loader import CategoryLoader
 
 
 class ExplorerConfigLoader:
@@ -36,12 +37,16 @@ class ExplorerConfigLoader:
         self.config_path = config_path
         self.base_config = {}
         self.analysis_configs = []
+        self.category_loader = None
         
         # Synchronisation vor dem Laden
         self._sync_configs()
         
         # Lade Konfiguration
         self._load_config()
+        
+        # Lade Kategorien falls möglich
+        self._load_categories()
     
     def _sync_configs(self) -> None:
         """
@@ -297,3 +302,113 @@ class ExplorerConfigLoader:
             Liste von Dictionaries mit Analysekonfigurationen
         """
         return self.analysis_configs
+    
+    def _load_categories(self) -> None:
+        """
+        Lädt Kategorien aus der Excel-Datei falls verfügbar.
+        
+        Versucht die Kategorien aus der gleichen Excel-Datei zu laden,
+        die auch die Analysedaten enthält.
+        """
+        try:
+            # Bestimme den Pfad zur Excel-Datei mit den Analysedaten
+            explore_file = self.base_config.get('explore_file', '')
+            if not explore_file:
+                print("Keine Explorationsdatei konfiguriert - Kategorien können nicht geladen werden")
+                return
+            
+            # Bestimme den vollständigen Pfad
+            config_dir = Path(self.config_path).parent
+            script_dir = self.base_config.get('script_dir') or str(config_dir)
+            output_dir = self.base_config.get('output_dir', 'output')
+            
+            excel_path = Path(script_dir) / output_dir / explore_file
+            
+            if not excel_path.exists():
+                print(f"Excel-Datei für Kategorien nicht gefunden: {excel_path}")
+                return
+            
+            # Lade Kategorien
+            self.category_loader = CategoryLoader(str(excel_path))
+            print("✓ Kategorien erfolgreich geladen")
+            
+            # Zeige Statistiken
+            stats = self.category_loader.get_statistics()
+            print(f"  - {stats['total_main_categories']} Hauptkategorien")
+            print(f"  - {stats['total_subcategories']} Subkategorien")
+            
+        except Exception as e:
+            print(f"Warnung: Kategorien konnten nicht geladen werden: {str(e)}")
+            self.category_loader = None
+    
+    def get_category_loader(self) -> Optional[CategoryLoader]:
+        """
+        Gibt den CategoryLoader zurück falls verfügbar.
+        
+        Returns:
+            CategoryLoader-Instanz oder None falls nicht verfügbar
+        """
+        return self.category_loader
+    
+    def get_filter_options(self) -> Dict[str, Any]:
+        """
+        Gibt verfügbare Filter-Optionen zurück, einschließlich Kategorien.
+        
+        Returns:
+            Dictionary mit verfügbaren Filter-Optionen
+        """
+        options = {
+            'main_categories': [],
+            'subcategories': [],
+            'category_mapping': {},
+            'has_categories': False
+        }
+        
+        if self.category_loader:
+            options.update({
+                'main_categories': self.category_loader.get_main_categories(),
+                'subcategories': self.category_loader.get_all_subcategories(),
+                'category_mapping': self.category_loader.get_category_mapping(),
+                'has_categories': True
+            })
+        
+        return options
+    
+    def validate_analysis_filters(self, analysis_config: Dict[str, Any]) -> List[str]:
+        """
+        Validiert die Filter einer Analysekonfiguration gegen verfügbare Kategorien.
+        
+        Args:
+            analysis_config: Analysekonfiguration mit Filtern
+            
+        Returns:
+            Liste von Validierungsfehlern (leer wenn alles gültig ist)
+        """
+        if not self.category_loader:
+            return []  # Keine Validierung möglich ohne Kategorien
+        
+        filters = analysis_config.get('filters', {})
+        errors = []
+        
+        main_category = filters.get('Hauptkategorie')
+        subcategories_str = filters.get('Subkategorien')
+        
+        # Parse Subkategorien falls als String angegeben
+        subcategories = None
+        if subcategories_str:
+            if isinstance(subcategories_str, str):
+                subcategories = [sub.strip() for sub in subcategories_str.split(',') if sub.strip()]
+            elif isinstance(subcategories_str, list):
+                subcategories = subcategories_str
+        
+        # Validiere gegen Kategorien
+        is_valid, validation_errors = self.category_loader.validate_filter_values(
+            main_category, subcategories
+        )
+        
+        if not is_valid:
+            analysis_name = analysis_config.get('name', 'Unbekannt')
+            errors.append(f"Validierungsfehler in Analyse '{analysis_name}':")
+            errors.extend([f"  - {error}" for error in validation_errors])
+        
+        return errors

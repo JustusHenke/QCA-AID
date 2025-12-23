@@ -110,6 +110,13 @@ class TokenTracker:
                             'output': cost_out / 1_000_000
                         }
                         
+                        # Create alias for models with vendor prefix (e.g. 'openai/gpt-4o' -> 'gpt-4o')
+                        if '/' in model_id:
+                            short_id = model_id.split('/')[-1]
+                            # Only set alias if not already present (prioritize explicit short IDs)
+                            if short_id not in prices:
+                                prices[short_id] = prices[model_id]
+                        
             except Exception as e:
                 # Bei Fehler: Logge und fahre fort
                 print(f"⚠️  Fehler beim Laden von {config_file.name}: {e}")
@@ -142,15 +149,16 @@ class TokenTracker:
             'gpt-3.5-turbo-instruct': {'input': 0.0000015, 'output': 0.000002},
             
             # === BATCH API PREISE (50% Rabatt) ===
-            'gpt-4o-batch': {'input': 0.0000015, 'output': 0.000005},
+            'gpt-4o-batch': {'input': 0.00000125, 'output': 0.000005},
             'gpt-4o-mini-batch': {'input': 0.000000075, 'output': 0.0000003},
             'gpt-4-turbo-batch': {'input': 0.000005, 'output': 0.000015},
         }
         
         # Merge: Config-Preise überschreiben Legacy-Preise
-        prices.update(legacy_prices)
+        # WICHTIG: Übersreibe IMMER mit geladenen Configs wenn vorhanden
+        legacy_prices.update(prices)
         
-        return prices
+        return legacy_prices
     
     def get_model_price(self, model_name: str) -> Dict[str, float]:
         """
@@ -168,6 +176,11 @@ class TokenTracker:
         # Exakte Übereinstimmung
         if model_name in self.model_prices:
             return self.model_prices[model_name]
+            
+        # Try to find a matching key in loaded prices (e.g. 'openai/gpt-4o' for 'gpt-4o')
+        for key in self.model_prices:
+            if key.endswith(f"/{model_name}"):
+                return self.model_prices[key]
         
         # Fallback-Logik für ähnliche Modelle
         model_lower = model_name.lower()
@@ -179,7 +192,7 @@ class TokenTracker:
             elif 'codex' in model_lower:
                 return self.model_prices['gpt-5.1-codex']
             else:
-                return self.model_prices['gpt-5.1']
+                return self.model_prices.get('gpt-5.1', {'input': 0.000005, 'output': 0.000020})
         
         # GPT-5 Familie
         elif 'gpt-5' in model_lower:
@@ -190,14 +203,14 @@ class TokenTracker:
             elif 'codex' in model_lower:
                 return self.model_prices['gpt-5-codex']
             else:
-                return self.model_prices['gpt-5']
+                return self.model_prices.get('gpt-5', {'input': 0.000005, 'output': 0.000020})
         
         # O3/O4 Familie
         elif 'o3' in model_lower or 'o4' in model_lower:
             if 'mini' in model_lower:
                 return self.model_prices['o3-mini']
             else:
-                return self.model_prices['o3']
+                return self.model_prices.get('o3', {'input': 0.000005, 'output': 0.000020})
         
         # GPT-4.1 Familie
         elif 'gpt-4.1' in model_lower or 'gpt-4-1' in model_lower:
@@ -206,7 +219,7 @@ class TokenTracker:
             elif 'mini' in model_lower:
                 return self.model_prices['gpt-4.1-mini']
             else:
-                return self.model_prices['gpt-4.1']
+                return self.model_prices.get('gpt-4.1', {'input': 0.000002, 'output': 0.000008})
         
         # GPT-4o Familie
         elif 'gpt-4o' in model_lower:
@@ -215,7 +228,7 @@ class TokenTracker:
             elif 'batch' in model_lower:
                 return self.model_prices['gpt-4o-batch']
             else:
-                return self.model_prices['gpt-4o']
+                return self.model_prices.get('gpt-4o', {'input': 0.0000025, 'output': 0.00001})
         
         # GPT-4 Familie
         elif 'gpt-4' in model_lower:
@@ -351,20 +364,15 @@ class TokenTracker:
             input_tokens = 0
             output_tokens = 0
             
-            # Multi-Provider Token-Extraktion
-            if hasattr(usage_data, 'prompt_tokens'):
-                input_tokens = usage_data.prompt_tokens
-            elif hasattr(usage_data, 'input_tokens'):
-                input_tokens = usage_data.input_tokens
-            elif isinstance(usage_data, dict):
+            # Multi-Provider Token-Extraktion mit verbesserter Robustheit
+            # Versuche Dictionary-Zugriff falls usage_data ein Dict ist
+            if isinstance(usage_data, dict):
                 input_tokens = usage_data.get('prompt_tokens', 0) or usage_data.get('input_tokens', 0)
-            
-            if hasattr(usage_data, 'completion_tokens'):
-                output_tokens = usage_data.completion_tokens
-            elif hasattr(usage_data, 'output_tokens'):
-                output_tokens = usage_data.output_tokens
-            elif isinstance(usage_data, dict):
                 output_tokens = usage_data.get('completion_tokens', 0) or usage_data.get('output_tokens', 0)
+            else:
+                # Versuche Attribut-Zugriff (Pydantic models / OpenAI objects)
+                input_tokens = getattr(usage_data, 'prompt_tokens', 0) or getattr(usage_data, 'input_tokens', 0)
+                output_tokens = getattr(usage_data, 'completion_tokens', 0) or getattr(usage_data, 'output_tokens', 0)
             
             if input_tokens > 0 or output_tokens > 0:
                 # Berechne Kosten basierend auf Model-Preisen

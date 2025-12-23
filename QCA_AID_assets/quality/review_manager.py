@@ -18,6 +18,7 @@ class ReviewManager:
     
     def __init__(self, output_dir: str):
         self.output_dir = output_dir
+        self.review_decisions = []  # Store all review decisions for logging
     
     def process_coding_review(self, all_codings: List[Dict], export_mode: str) -> List[Dict]:
         """
@@ -44,6 +45,10 @@ class ReviewManager:
             reviewed_codings = self._consensus_review_process(category_segments)
         
         print(f"Review abgeschlossen: {len(reviewed_codings)} finale Kodierungen")
+        
+        # Save review decisions to file
+        self._save_review_decisions(export_mode)
+        
         return reviewed_codings
     
     def _create_category_specific_segments(self, all_codings: List[Dict]) -> List[Dict]:
@@ -155,7 +160,7 @@ class ReviewManager:
         """
         Consensus-Review fuer kategorie-spezifische Segmente
         """
-        print("🕵️ FÜhre Consensus-Review durch...")
+        print("🕵️ Führe Consensus-Review durch...")
         reviewed_codings = []
         
         for segment in category_segments:
@@ -164,6 +169,11 @@ class ReviewManager:
                 # Nur eine Kodierung - Übernehme direkt
                 final_coding = codings[0].copy()
                 final_coding['segment_id'] = segment['segment_id']
+                
+                # Log the decision (no actual review needed)
+                decision_reason = "Nur eine Kodierung verfügbar - keine Consensus-Entscheidung erforderlich"
+                self._log_review_decision(segment, final_coding, codings, "single_coder", decision_reason)
+                
                 reviewed_codings.append(final_coding)
             else:
                 # Mehrere Kodierungen - fÜhre Consensus durch
@@ -177,7 +187,7 @@ class ReviewManager:
         """
         Majority-Review fuer kategorie-spezifische Segmente
         """
-        print("🕵️ FÜhre Majority-Review durch...")
+        print("🕵️ Führe Majority-Review durch...")
         reviewed_codings = []
         
         for segment in category_segments:
@@ -186,6 +196,11 @@ class ReviewManager:
                 # Nur eine Kodierung - Übernehme direkt
                 final_coding = codings[0].copy()
                 final_coding['segment_id'] = segment['segment_id']
+                
+                # Log the decision (no actual review needed)
+                decision_reason = "Nur eine Kodierung verfügbar - keine Majority-Entscheidung erforderlich"
+                self._log_review_decision(segment, final_coding, codings, "single_coder", decision_reason)
+                
                 reviewed_codings.append(final_coding)
             else:
                 # Mehrere Kodierungen - fÜhre Majority durch
@@ -200,7 +215,7 @@ class ReviewManager:
         FIX: Korrigierter manueller Review-Prozess ohne Event Loop Konflikt
         FÜr ReviewManager Klasse - verwendet bestehende Methoden und behÄlt Sortierreihenfolge bei
         """
-        print("🕵️ FÜhre manuelles Review durch...")
+        print("🕵️ Führe manuelles Review durch...")
         
         # Identifiziere Segmente, die Review benÖtigen
         segments_needing_review = []
@@ -240,7 +255,7 @@ class ReviewManager:
             # FIX: Verwende asyncio.create_task() fuer bereits laufende Event Loop
             import concurrent.futures
             
-            # FÜhre GUI-Review in separatem Thread aus
+            # Führe GUI-Review in separatem Thread aus
             def run_gui_review():
                 try:
                     # Erstelle neue Event Loop fuer diesen Thread
@@ -260,7 +275,7 @@ class ReviewManager:
                     print(f"⚠️ Fehler im GUI-Thread: {e}")
                     return None
             
-            # FÜhre GUI-Review in separatem Thread aus
+            # Führe GUI-Review in separatem Thread aus
             with concurrent.futures.ThreadPoolExecutor() as executor:
                 future = executor.submit(run_gui_review)
                 review_decisions = future.result(timeout=300)  # 5 Minuten Timeout
@@ -295,6 +310,11 @@ class ReviewManager:
                 if len(segment['codings']) == 1:
                     final_coding = segment['codings'][0].copy()
                     final_coding['segment_id'] = segment['segment_id']
+                    
+                    # Log the decision (no manual review needed)
+                    decision_reason = "Nur eine Kodierung verfügbar - kein manueller Review erforderlich"
+                    self._log_review_decision(segment, final_coding, segment['codings'], "single_coder", decision_reason)
+                    
                     reviewed_codings.append(final_coding)
                 else:
                     # FIX: Verwende bestehende Consensus-Methode fuer Fallback
@@ -376,6 +396,17 @@ class ReviewManager:
             }
         })
         
+        # Log the decision
+        decision_reason = f"Consensus erreicht: {len(consensus_subcats)} Subkategorien erfüllen Schwellenwert ({consensus_threshold}/{total_coders}). Beste Kodierung nach Konfidenz gewählt."
+        additional_info = {
+            "consensus_threshold": consensus_threshold,
+            "total_coders": total_coders,
+            "consensus_subcategories": consensus_subcats,
+            "subcategory_counts": dict(subcat_counts),
+            "chosen_by_confidence": True
+        }
+        self._log_review_decision(segment, consensus_coding, codings, "consensus", decision_reason, additional_info)
+        
         return consensus_coding
     
     def _get_majority_for_category_segment(self, segment: Dict) -> Optional[Dict]:
@@ -406,6 +437,18 @@ class ReviewManager:
             }
         })
         
+        # Log the decision
+        confidence_scores = [(coding.get('coder_id'), self._extract_confidence_value(coding)) for coding in codings]
+        confidence_scores.sort(key=lambda x: x[1], reverse=True)
+        
+        decision_reason = f"Majority-Voting: Kodierung mit höchster Konfidenz gewählt ({best_coding.get('coder_id')}: {self._extract_confidence_value(best_coding):.3f})"
+        additional_info = {
+            "total_coders": len(codings),
+            "confidence_scores": confidence_scores,
+            "selection_method": "highest_confidence"
+        }
+        self._log_review_decision(segment, majority_coding, codings, "majority", decision_reason, additional_info)
+        
         return majority_coding
     
     def _extract_confidence_value(self, coding: Dict) -> float:
@@ -418,6 +461,89 @@ class ReviewManager:
         elif isinstance(confidence, (int, float)):
             return float(confidence)
         return 0.0
+    
+    def _save_review_decisions(self, review_mode: str) -> None:
+        """
+        Save review decisions to JSON file for transparency and auditability.
+        """
+        if not self.review_decisions:
+            print("   ℹ️ Keine Review-Entscheidungen zu speichern")
+            return
+        
+        import os
+        from datetime import datetime
+        
+        decisions_data = {
+            "metadata": {
+                "created": datetime.now().isoformat(),
+                "review_mode": review_mode,
+                "total_decisions": len(self.review_decisions),
+                "version": "1.0"
+            },
+            "decisions": self.review_decisions
+        }
+        
+        decisions_file = os.path.join(self.output_dir, "review_decisions.json")
+        
+        try:
+            with open(decisions_file, 'w', encoding='utf-8') as f:
+                json.dump(decisions_data, f, indent=2, ensure_ascii=False)
+            
+            print(f"   💾 Review-Entscheidungen gespeichert: {decisions_file}")
+            print(f"   📊 {len(self.review_decisions)} Entscheidungen dokumentiert")
+            
+            # Summary statistics
+            decision_types = {}
+            for decision in self.review_decisions:
+                decision_type = decision.get('decision_type', 'unknown')
+                decision_types[decision_type] = decision_types.get(decision_type, 0) + 1
+            
+            print(f"   📋 Entscheidungstypen: {dict(decision_types)}")
+            
+        except Exception as e:
+            print(f"   ⚠️ Fehler beim Speichern der Review-Entscheidungen: {e}")
+    
+    def _log_review_decision(self, segment: Dict, chosen_coding: Dict, all_codings: List[Dict], 
+                           decision_type: str, decision_reason: str, additional_info: Dict = None) -> None:
+        """
+        Log a review decision for transparency.
+        
+        Args:
+            segment: The segment being reviewed
+            chosen_coding: The coding that was chosen
+            all_codings: All available codings for this segment
+            decision_type: Type of decision (consensus, majority, confidence_based, manual)
+            decision_reason: Detailed reason for the decision
+            additional_info: Additional decision metadata
+        """
+        decision = {
+            "segment_id": segment['segment_id'],
+            "original_segment_id": segment.get('original_segment_id', segment['segment_id']),
+            "target_category": segment.get('target_category'),
+            "is_multiple_coding": segment.get('is_multiple_coding', False),
+            "decision_type": decision_type,
+            "decision_reason": decision_reason,
+            "chosen_coder": chosen_coding.get('coder_id'),
+            "chosen_category": chosen_coding.get('category'),
+            "chosen_subcategories": chosen_coding.get('subcategories', []),
+            "chosen_confidence": self._extract_confidence_value(chosen_coding),
+            "alternatives": [],
+            "decision_metadata": additional_info or {}
+        }
+        
+        # Document all alternative codings
+        for coding in all_codings:
+            if coding.get('coder_id') != chosen_coding.get('coder_id'):
+                alternative = {
+                    "coder_id": coding.get('coder_id'),
+                    "category": coding.get('category'),
+                    "subcategories": coding.get('subcategories', []),
+                    "confidence": self._extract_confidence_value(coding),
+                    "justification": coding.get('justification', '')[:200] + '...' if len(coding.get('justification', '')) > 200 else coding.get('justification', '')
+                }
+                decision["alternatives"].append(alternative)
+        
+        self.review_decisions.append(decision)
 
 
 # ============================

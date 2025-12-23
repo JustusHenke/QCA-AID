@@ -82,7 +82,7 @@ class MaterialLoader:
             current_chunk.append(sentence_text)
             current_length += sentence_length
         
-        # Letzten Chunk hinzufügen, falls vorhanden
+        # Letzten Chunk hinzuFügen, falls vorhanden
         if current_chunk:
             chunk_text = ' '.join(current_chunk)
             chunks.append(chunk_text)

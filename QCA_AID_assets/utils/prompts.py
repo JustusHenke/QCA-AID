@@ -14,7 +14,7 @@ def get_default_prompts() -> Dict[str, str]:
     
     Returns:
         Dictionary mit Prompt-Templates für verschiedene Analysetypen.
-        Verfügbare Keys:
+        verfügbare Keys:
         - "paraphrase": Template für die Analyse paraphrasierter Textabschnitte
         - "reasoning": Template für die Analyse von Begründungen
     """

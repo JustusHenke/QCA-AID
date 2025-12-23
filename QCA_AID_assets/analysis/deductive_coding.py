@@ -11,7 +11,7 @@ from ..utils.llm.factory import LLMProviderFactory
 from datetime import datetime
 from typing import Dict, Optional, List, Tuple, Any
 
-from ..core.config import CONFIG, FORSCHUNGSFRAGE, KODIERREGELN
+from ..core.config import CONFIG, FORSCHUNGSFRAGE, KODIERREGELN, DEDUKTIVE_KATEGORIEN
 from ..core.data_models import CategoryDefinition, CodingResult
 from ..core.validators import CategoryValidator
 from ..QCA_Prompts import QCAPrompts
@@ -169,7 +169,7 @@ class DeductiveCoder:
                         grounded_categories[name] = cat
                 
                 print(f"   ℹ️ Grounded Mode: Kodierer {self.coder_id} aktualisiert mit {len(grounded_categories)} rein induktiven Kategorien")
-                print(f"   🔀 Ausgeschlossen: {len(categories) - len(grounded_categories)} deduktive Kategorien")
+                print(f"   🔀 Ausgeschlossen: {len(categories) - len(grounded_categories)} deduktive Kategorien")
                 
                 # Verwende nur die gefilterten Kategorien
                 categories_to_use = grounded_categories
@@ -211,7 +211,7 @@ class DeductiveCoder:
                 {json.dumps(categories_dict, indent=2, ensure_ascii=False)}
                 
                 BerÜcksichtige bei der Kodierung:
-                1. Verwende alle verfÜgbaren Kategorien entsprechend ihrer Definitionen
+                1. Verwende alle verfügbaren Kategorien entsprechend ihrer Definitionen
                 2. Prüfe auch Subkategorien bei der Zuordnung
                 3. Kodiere nur bei eindeutiger Zuordnung
                 
@@ -281,7 +281,7 @@ class DeductiveCoder:
             current_categories = categories
             
             if not current_categories:
-                print(f"Fehler: Kein Kategoriensystem fuer Kodierer {self.coder_id} verfÜgbar")
+                print(f"Fehler: Kein Kategoriensystem fuer Kodierer {self.coder_id} verfügbar")
                 return None
 
             # FIX: Kategorien-Filterung basierend auf preferred_cats
@@ -315,7 +315,7 @@ class DeductiveCoder:
                     'subcategories': {}
                 }
                 
-                # FÜge Subkategorien hinzu
+                # Füge Subkategorien hinzu
                 for sub_name, sub_def in cat.subcategories.items():
                     category_info['subcategories'][sub_name] = sub_def
                     
@@ -411,7 +411,7 @@ class DeductiveCoder:
         
         try:
             if not categories:
-                print(f"Fehler: Kein Kategoriensystem fuer Kodierer {self.coder_id} verfÜgbar")
+                print(f"Fehler: Kein Kategoriensystem fuer Kodierer {self.coder_id} verfügbar")
                 return None
 
             # print(f"    🎯 Fokuskodierung fuer Kategorie: {focus_category} (Relevanz: {focus_context.get('relevance_score', 0):.2f})")
@@ -432,7 +432,7 @@ class DeductiveCoder:
                     'subcategories': {}
                 }
                 
-                # FÜge Subkategorien hinzu
+                # Füge Subkategorien hinzu
                 for sub_name, sub_def in cat.subcategories.items():
                     category_info['subcategories'][sub_name] = sub_def
                     

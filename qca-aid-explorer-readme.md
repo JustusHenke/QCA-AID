@@ -600,4 +600,4 @@ Bei Fragen oder Problemen wenden Sie sich bitte an den Entwickler oder öffnen S
 
 ---
 
-**Hinweis:** Stellen Sie sicher, dass Sie über die erforderlichen Rechte für die verwendeten API-Schlüssel und Daten verfügen. QCA-AID Explorer ist ein Werkzeug zur qualitativen Analyse und übernimmt keine Verantwortung für die Ergebnisse oder den Inhalt der generierten Analysen.
+**Hinweis:** Stellen Sie sicher, dass Sie über die erforderlichen Rechte für die verwendeten API-Schlüssel und Daten verFügen. QCA-AID Explorer ist ein Werkzeug zur qualitativen Analyse und übernimmt keine Verantwortung für die Ergebnisse oder den Inhalt der generierten Analysen.

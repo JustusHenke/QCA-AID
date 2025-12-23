@@ -186,7 +186,7 @@ class DocumentReader:
             if table_texts:
                 full_text = '\n'.join(table_texts)
                 print(f"\nErgebnis:")
-                print(f"  ✅ {len(table_texts)} Tabelleneinträge extrahiert")
+                print(f"  ✅ {len(table_texts)} TabellenEinträge extrahiert")
                 print(f"  ✅ Gesamtlänge: {len(full_text)} Zeichen")
                 return full_text
                 
@@ -292,8 +292,8 @@ class DocumentReader:
             if text_content:
                 full_text = '\n'.join(text_content)
                 print(f"\nErgebnis:")
-                print(f"  ✅ {len(text_content)} Textabschnitte extrahiert")
-                print(f"  ✅ Gesamtlänge: {len(full_text)} Zeichen")
+                print(f"✅ {len(text_content)} Textabschnitte extrahiert")
+                print(f"✅ Gesamtlänge: {len(full_text)} Zeichen")
                 return full_text
             else:
                 print("\n‼️ Kein Text aus PDF extrahiert")

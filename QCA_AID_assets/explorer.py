@@ -69,6 +69,30 @@ async def main():
     base_config = config_loader.get_base_config()
     analysis_configs = config_loader.get_analysis_configs()
     
+    # Validiere Konfiguration gegen verfügbare Kategorien
+    if config_loader.get_category_loader():
+        print("\n=== Konfigurationsvalidierung ===")
+        all_valid = True
+        
+        for config in analysis_configs:
+            validation_errors = config_loader.validate_analysis_filters(config)
+            if validation_errors:
+                all_valid = False
+                for error in validation_errors:
+                    print(f"⚠️  {error}")
+        
+        if all_valid:
+            print("✓ Alle Filter sind gültig")
+        else:
+            print("\n❌ Validierungsfehler gefunden!")
+            print("Verwenden Sie den QCA-AID-Config-Builder.py um die Konfiguration zu korrigieren.")
+            
+            continue_anyway = input("Trotzdem fortfahren? (j/n): ").lower().startswith('j')
+            if not continue_anyway:
+                print("Analyse abgebrochen.")
+                return
+        print("=" * 40)
+    
     # Extrahiere Basis-Parameter
     PROVIDER_NAME = base_config.get('provider', 'openai')
     MODEL_NAME = base_config.get('model', 'gpt-4o-mini')
@@ -94,7 +118,7 @@ async def main():
     
     # Initialize analyzer
     analyzer = QCAAnalyzer(EXCEL_PATH, llm_provider, base_config)
-    print(f"Verfügbare Spalten: {', '.join(analyzer.columns)}")
+    print(f"verfügbare Spalten: {', '.join(analyzer.columns)}")
     
     # Standardprompts laden
     default_prompts = get_default_prompts()

@@ -177,7 +177,7 @@ class ConfigLoader:
                 data_only=True,
                 keep_vba=False  # Verhindert Probleme mit VBA-Code
             )
-            print(f"Excel-Datei erfolgreich geladen. Verfügbare Sheets: {wb.sheetnames}")
+            print(f"Excel-Datei erfolgreich geladen. verfügbare Sheets: {wb.sheetnames}")
             
             # Prüfe DEDUKTIVE_KATEGORIEN Sheet
             if 'DEDUKTIVE_KATEGORIEN' in wb.sheetnames:
@@ -599,7 +599,7 @@ class ConfigLoader:
 
         # Validierung: ANALYSIS_MODE
         if 'ANALYSIS_MODE' in config:
-            valid_modes = {'full', 'abductive', 'deductive', 'inductive', 'grounded'}
+            valid_modes = {'abductive', 'deductive', 'inductive', 'grounded'}
             if config['ANALYSIS_MODE'] not in valid_modes:
                 print(f"[CONFIG] Warnung: Ungültiger ANALYSIS_MODE '{config['ANALYSIS_MODE']}'. Verwende 'deductive'.")
                 config['ANALYSIS_MODE'] = 'deductive'
@@ -809,7 +809,7 @@ class ConfigLoader:
             # ===== SUBTASK 3.2: Enum-Validierung =====
             
             # ANALYSIS_MODE: Prüfe gegen gültige Werte
-            valid_analysis_modes = {'full', 'abductive', 'deductive', 'inductive', 'grounded'}
+            valid_analysis_modes = {'abductive', 'deductive', 'inductive', 'grounded'}
             if 'ANALYSIS_MODE' in loaded_config:
                 analysis_mode = loaded_config['ANALYSIS_MODE']
                 if analysis_mode not in valid_analysis_modes:

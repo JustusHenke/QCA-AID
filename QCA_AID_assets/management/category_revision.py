@@ -43,7 +43,7 @@ class CategoryRevisionManager:
         # Load existing revision history if available
         self._load_revision_history()
 
-        # Prompt-Handler hinzufÜgen
+        # Prompt-Handler hinzuFügen
         self.prompt_handler = QCAPrompts(
             forschungsfrage=FORSCHUNGSFRAGE,
             kodierregeln=KODIERREGELN,
@@ -165,7 +165,7 @@ class CategoryRevisionManager:
                     for cell in row:
                         cell.alignment = Alignment(wrap_text=True, vertical='top')
                 
-                print(f"Revisionshistorie mit {len(revision_data)} EintrÄgen exportiert")
+                print(f"Revisionshistorie mit {len(revision_data)} Einträgen exportiert")
                 
             else:
                 print("Keine Revisionshistorie zum Exportieren vorhanden")

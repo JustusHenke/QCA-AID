@@ -40,7 +40,7 @@ class CategoryValidator:
         if main_category not in categories_dict:
             if warn_only:
                 print(f"[WARN] WARNUNG: Hauptkategorie '{main_category}' nicht im Kategoriensystem gefunden")
-                print(f"   Verfügbare Kategorien: {list(categories_dict.keys())[:5]}...")
+                print(f"   verfügbare Kategorien: {list(categories_dict.keys())[:5]}...")
                 return subcategories
             else:
                 print(f"   [FIX] Hauptkategorie '{main_category}' ungueltig - alle Subkategorien entfernt")
@@ -129,7 +129,7 @@ class CategoryValidator:
             print(f"⚠️ FEHLER bei Subkategorien-Extraktion: {str(e)}")
             print(f"   Kategorie-Definition Typ: {type(category_def)}")
             if hasattr(category_def, '__dict__'):
-                print(f"   Verfügbare Attribute: {list(category_def.__dict__.keys())}")
+                print(f"   verfügbare Attribute: {list(category_def.__dict__.keys())}")
         
         return valid_subcats
     
@@ -178,7 +178,7 @@ class CategoryValidator:
         
         Args:
             codings: Liste von Kodierungsergebnissen
-            categories_dict: Verfügbares Kategoriensystem
+            categories_dict: verfügbares Kategoriensystem
             
         Returns:
             List[Dict[str, Any]]: Liste validierter Kodierungen

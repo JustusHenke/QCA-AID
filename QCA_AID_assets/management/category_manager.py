@@ -35,7 +35,7 @@ class CategoryManager:
                 } for name, cat in categories.items()
             }
             
-            # Metadata hinzufÜgen
+            # Metadata hinzuFügen
             output_data = {
                 'timestamp': datetime.now().isoformat(),
                 'version': '1.0',
@@ -111,37 +111,83 @@ class CategoryManager:
             traceback.print_exc()
             return None
     
-    def save_codebook(self, categories: Dict[str, CategoryDefinition], filename: str = "codebook_inductive.json") -> None:
-        """Speichert das vollstÄndige Codebook inkl. deduktiver, induktiver und grounded Kategorien"""
+    def save_codebook(self, categories: Dict[str, CategoryDefinition], filename: str = "codebook_inductive.json", research_question: Optional[str] = None) -> None:
+        """Speichert das vollständige Codebook inkl. deduktiver, induktiver und grounded Kategorien"""
         try:
+            # Use provided research question or fall back to config/default
+            actual_research_question = research_question or CONFIG.get('FORSCHUNGSFRAGE', FORSCHUNGSFRAGE)
+            
             codebook_data = {
                 "metadata": {
                     "created": datetime.now().isoformat(),
                     "version": "2.0",
                     "total_categories": len(categories),
-                    "research_question": FORSCHUNGSFRAGE,
+                    "research_question": actual_research_question,
                     "analysis_mode": CONFIG.get('ANALYSIS_MODE', 'deductive')  # Speichere den Analysemodus
                 },
                 "categories": {}
             }
             
             for name, category in categories.items():
-                # Bestimme den Kategorietyp je nach Analysemodus
+                # Bestimme den Kategorietyp je nach Analysemodus und Subkategorien-Entwicklung
                 if name in CONFIG.get('DEDUKTIVE_KATEGORIEN', {}):
-                    development_type = "deductive"
+                    # Check if this deductive category was extended with abductive subcategories
+                    has_abductive_subcategories = False
+                    if hasattr(category, 'subcategories') and category.subcategories:
+                        # Check if any subcategories were added recently (indicating abductive development)
+                        original_deductive_cat = CONFIG.get('DEDUKTIVE_KATEGORIEN', {}).get(name)
+                        if original_deductive_cat:
+                            # Handle both CategoryDefinition objects and dictionary format
+                            if hasattr(original_deductive_cat, 'subcategories'):
+                                original_deductive_subcats = original_deductive_cat.subcategories or {}
+                            elif isinstance(original_deductive_cat, dict):
+                                original_deductive_subcats = original_deductive_cat.get('subcategories', {})
+                            else:
+                                original_deductive_subcats = {}
+                        else:
+                            original_deductive_subcats = {}
+                            
+                        for subcat_name, subcat_obj in category.subcategories.items():
+                            # If subcategory is not in original deductive definition, it was added abductively
+                            if subcat_name not in original_deductive_subcats:
+                                has_abductive_subcategories = True
+                                break
+                    
+                    if has_abductive_subcategories:
+                        development_type = "abductive"  # Mark as abductive if extended
+                        print(f"   🔄 Kategorie '{name}' als 'abductive' markiert (erweitert mit neuen Subkategorien)")
+                    else:
+                        development_type = "deductive"
                 elif CONFIG.get('ANALYSIS_MODE') == 'grounded':
                     development_type = "grounded"  # Neue Markierung fuer grounded Kategorien
                 else:
                     development_type = "inductive"
                     
+                # Convert subcategories properly - they contain CategoryDefinition objects
+                subcategories_dict = {}
+                if hasattr(category, 'subcategories') and category.subcategories:
+                    for subcat_name, subcat_obj in category.subcategories.items():
+                        if isinstance(subcat_obj, CategoryDefinition):
+                            # Convert CategoryDefinition to dict
+                            subcategories_dict[subcat_name] = {
+                                "definition": subcat_obj.definition,
+                                "examples": list(subcat_obj.examples) if isinstance(subcat_obj.examples, set) else subcat_obj.examples,
+                                "rules": list(subcat_obj.rules) if isinstance(subcat_obj.rules, set) else subcat_obj.rules,
+                                "added_date": subcat_obj.added_date,
+                                "last_modified": subcat_obj.modified_date
+                            }
+                        else:
+                            # Handle string subcategories (legacy format)
+                            subcategories_dict[subcat_name] = str(subcat_obj)
+                
                 codebook_data["categories"][name] = {
                     "definition": category.definition,
                     # Wandle examples in eine Liste um, falls es ein Set ist
                     "examples": list(category.examples) if isinstance(category.examples, set) else category.examples,
                     # Wandle rules in eine Liste um, falls es ein Set ist
                     "rules": list(category.rules) if isinstance(category.rules, set) else category.rules,
-                    # Wandle subcategories in ein Dictionary um, falls nÖtig
-                    "subcategories": dict(category.subcategories) if isinstance(category.subcategories, set) else category.subcategories,
+                    # Use properly converted subcategories
+                    "subcategories": subcategories_dict,
                     "development_type": development_type,
                     "added_date": category.added_date,
                     "last_modified": category.modified_date
@@ -153,12 +199,13 @@ class CategoryManager:
                 
             print(f"\nCodebook gespeichert unter: {output_path}")
             print(f"- Deduktive Kategorien: {sum(1 for c in codebook_data['categories'].values() if c['development_type'] == 'deductive')}")
+            print(f"- Abduktive Kategorien: {sum(1 for c in codebook_data['categories'].values() if c['development_type'] == 'abductive')}")
             print(f"- Induktive Kategorien: {sum(1 for c in codebook_data['categories'].values() if c['development_type'] == 'inductive')}")
             print(f"- Grounded Kategorien: {sum(1 for c in codebook_data['categories'].values() if c['development_type'] == 'grounded')}")
             
         except Exception as e:
             print(f"Fehler beim Speichern des Codebooks: {str(e)}")
-            # ZusÄtzliche Fehlerdiagnose
+            # Zusätzliche Fehlerdiagnose
             import traceback
             traceback.print_exc()
 

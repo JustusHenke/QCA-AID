@@ -2,6 +2,48 @@
 
 ## Versionen und Updates
 
+### Neu in 0.12.0 (2025-12-20)
+
+DYNAMIC CACHE SYSTEM: INTELLIGENTE MULTI-CODER CACHE-OPTIMIERUNG
+
+**🚀 Revolutionäres Cache-System für Multi-Coder Analysen:**
+- **Deutliche API-Call Reduktion** bei Multi-Coder Szenarien durch intelligente Operation-Klassifikation
+- **Shared vs. Coder-Specific Caching**: Relevanzprüfung und Kategorienentwicklung werden zwischen Kodierern geteilt, Kodierung bleibt kodierer-spezifisch
+- **Methodologische Integrität**: Respektiert QCA-Prinzipien für alle Analysemodi (induktiv, abduktiv, grounded, deduktiv)
+- **Automatische Strategie-Auswahl**: Wechselt dynamisch zwischen Single-Coder und Multi-Coder Strategien basierend auf Konfiguration
+
+**💡 Intercoder-Reliabilität Integration:**
+- **Automatische Datensammlung**: Alle Kodierungen (automatisch und manuell) werden für Reliabilitätsanalyse gespeichert
+- **Manual-Coder Isolation**: Manuelle Kodierungen sind vollständig von automatischen Caches isoliert
+- **Persistente Speicherung**: JSON-Datenbank für dauerhafte Reliabilitätsdaten
+- **Built-in Reliabilitäts-Tests**: Integrierte Tests für Manual + Auto-Coder Kombinationen
+
+**🔧 Weitere Features:**
+- Cache-Plugin-System: Erweiterbare Cache-Strategien für spezielle Anwendungsfälle
+- Debug-Tools für Cache: Umfassende Logging-Level, Cache-Dumps, Performance-Benchmarks
+- Bessere Token-Stats und API-Call-Berechnung
+- Smarte Filter in der Explorer Analyse fertiger Kodierungen
+- Deutlich aufgeräumteres und informativeres Log-File
+
+
+**📊 Cache-Strategien nach Analysemodus:**
+- **Induktiv**: Kategorienentwicklung shared, Kodierung per-coder
+- **Abduktiv**: Subkategorien-Entwicklung shared, Kodierung per-coder  
+- **Grounded**: Subcode-Sammlung shared, keine Kodierung in Phase 1
+- **Deduktiv**: Relevanzprüfung shared, Kodierung per-coder
+
+**🛠️ Technische Implementierung:**
+- `DynamicCacheManager`: Zentrale Cache-Verwaltung mit automatischer Strategie-Auswahl
+- `CacheStrategy Pattern`: Modulare Strategien für verschiedene Szenarien
+- `ReliabilityDatabase`: Persistente Speicherung aller Kodierungsergebnisse
+- `Cache Migration System`: Automatische Migration bei Strategie-Wechseln
+- `Performance Benchmarking`: Integrierte Tools für Leistungsmessung
+
+**Legacy Features (weiterhin verfügbar):**
+- Standard-Analyse nach bisherigem Verfahren
+- dafür in der Config manuell "ENABLE_OPTIMIZATION" auf "False" setzen.
+- falls es Problem mit der neuen optimierten Variante gibt
+
 ### Neu in 0.11.2 (2025-12-05)
 
 **Bugfixes:**
@@ -15,7 +57,7 @@
   - Fuzzy-Matching für OpenRouter-Modelle (z.B. deepseek/deepseek-v3.2)
   - Korrekte Pfadauflösung zu den Preis-Konfigurationsdateien
   - Dezente Anzeige als Caption statt Info-Box
-- 🐛 **Kategorie-Erstellung**: Fehler beim Hinzufügen neuer Kategorien behoben
+- 🐛 **Kategorie-Erstellung**: Fehler beim HinzuFügen neuer Kategorien behoben
   - Import-Konflikt bei CategoryData-Klasse gelöst
   - Automatische Konvertierung von Dictionary zu CategoryData-Instanzen
   - Typ-Check verwendet jetzt Klassennamen statt isinstance()
@@ -528,7 +570,7 @@ QCA-AID-Explorer Verbesserungen:
 
 ### Neu in 0.9.9
 
-    Abduktivmodus: induktive Codierung nur für Subcodes ohne Hinzufügen von Hauptcodes
+    Abduktivmodus: induktive Codierung nur für Subcodes ohne HinzuFügen von Hauptcodes
     kann entweder beim starten des Skripts ausgewählt oder im Codebook konfiguriert
     leicht verschärfte Relevanzprüfung für Textsegmente (aus Interviews)
     Kodierkonsens: Segmente ohne Konsens als "kein Kodierkonsens" markieren; wenn kein Konsens besteht, wird die Kodierung mit höherem Konfidenzwert gewählt, sonst "kein Kodierkonsens"
@@ -537,13 +579,13 @@ QCA-AID-Explorer Verbesserungen:
 
     Progressive Dokumentenzusammenfassung als Kodierungskontext (max. 80 Wörter)
     Aktivieren durch Setzen des CONFIG-Wertes CODE_WITH_CONTEXT im Codebook auf 'true' (Standard: false)
-    Eignet sich insbesondere bei deduktivem Kodieren. Es kann Einfluss auf die Kodierung nehmen, daher testen, ob die Funktion zu besseren Ergebnissen führt. Den Kontext beizufügen, erleichtert es dem Sprachmodell einzuschätzen, ob die Inhalte im größeren Zusammenhang des Textes bedeutsam sind. Damit wird gewissermaßen ein Gedächtnis des bisherigen Textes in die Verarbeitung des Textsegments integriert.
+    Eignet sich insbesondere bei deduktivem Kodieren. Es kann Einfluss auf die Kodierung nehmen, daher testen, ob die Funktion zu besseren Ergebnissen führt. Den Kontext beizuFügen, erleichtert es dem Sprachmodell einzuschätzen, ob die Inhalte im größeren Zusammenhang des Textes bedeutsam sind. Damit wird gewissermaßen ein Gedächtnis des bisherigen Textes in die Verarbeitung des Textsegments integriert.
 
 ### Weitere Hinweise zur Version (0.9.7)
 
     NEU: Mistral Support! Es kann jetzt auch die Mistral API genutzt werden. Umschalten zwischen OpenAI und Mistral mit CONFIG-Parameter 'MODEL_PROVIDER'. Standardmodell für OpenAI ist 'GPT-4o-mini', für Mistral 'mistral-small'.
     NEU: Ausschlusskriterien während der Relevanzprüfung in 'KODIERREGELN' definieren (z.B. Literaturverzeichnis)
-    NEU: Hinzufügen von Ausschlusskriterien für die Relevanzprüfung in Codebuch-Kodierregeln
+    NEU: HinzuFügen von Ausschlusskriterien für die Relevanzprüfung in Codebuch-Kodierregeln
     NEU: Export von Begründungen für nicht relevante Textsegmente
     Verbesserte Relevanzprüfung, Rechtfertigung und Aufforderung zur Kodierung von Segmenten
     NEU: Erstellen von Zusammenfassungen und Diagrammen aus Ihren kodierten Daten mit 'QCA-AID-Explorer.py'.

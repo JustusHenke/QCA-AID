@@ -80,7 +80,7 @@ DEDUKTIVE_KATEGORIEN = {
         "subcategories": {
             "Materiell": "Finanzielle und physische Ressourcen",
             "Immateriell": "Wissen, Kompetenzen, soziales Kapital",
-            "Zugang": "Verfügbarkeit und Verteilung",
+            "Zugang": "verfügbarkeit und Verteilung",
             "Nutzung": "Einsatz und Verwertung"
         }
     },
@@ -154,6 +154,7 @@ CONFIG = {
     'CONTEXT_PARAPHRASE_COUNT': 3,  # Anzahl vorheriger Paraphrasen als Kontext (wenn CODE_WITH_CONTEXT aktiviert)
     'MULTIPLE_CODINGS': True, 
     'MULTIPLE_CODING_THRESHOLD': 0.85,  # Schwellenwert für zusätzliche Relevanz
+    'ENABLE_OPTIMIZATION': True,  # Feature Flag für neue optimierte Analyse (Batching, Caching)
     'ANALYSIS_MODE': 'deductive',
     'REVIEW_MODE': 'consensus',
     'ATTRIBUTE_LABELS': {

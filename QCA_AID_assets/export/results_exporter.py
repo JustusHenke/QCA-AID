@@ -132,7 +132,7 @@ class ResultsExporter:
                 removed_subcats = set(original_subcats) - set(validated_subcats)
                 if removed_subcats:
                     print(f"   🔧 ENTFERNT: {removed_subcats}")
-                    # FIX: FÜge Validierungs-Info zur Begründung hinzu
+                    # FIX: Füge Validierungs-Info zur Begründung hinzu
                     original_justification = consensus_coding.get('justification', '')
                     consensus_coding['justification'] = f"{original_justification} [FIX: Subkategorien-Validierung entfernte: {list(removed_subcats)}]"
                 
@@ -143,7 +143,7 @@ class ResultsExporter:
                 print(f"   Fallback: Verwende ursprüngliche Subkategorien ohne Validierung")
                 consensus_coding['subcategories'] = original_subcats
             
-            # FIX: FÜge Validierungs-Metadaten hinzu
+            # FIX: Füge Validierungs-Metadaten hinzu
             consensus_coding['validation_applied'] = True
             consensus_coding['original_subcategory_count'] = len(original_subcats)
             consensus_coding['validated_subcategory_count'] = len(consensus_coding['subcategories'])
@@ -151,7 +151,7 @@ class ResultsExporter:
             return consensus_coding
         
         # Fallback: Erste Kodierung verwenden
-        print("❌ FALLBACK: Verwende erste verfÜgbare Kodierung")
+        print("❌ FALLBACK: Verwende erste verfügbare Kodierung")
         fallback_coding = segment_codes[0] if segment_codes else {}
         
         # FIX: Auch Fallback-Kodierung validieren
@@ -322,7 +322,7 @@ class ResultsExporter:
                 # KORRIGIERT: Behalte nur Subkategorien der gewÄhlten Hauptkategorie
                 result_coding['subcategories'] = best_coding.get('subcategories', [])
                 
-                # FÜge Hinweis zur konfidenzbedingten Auswahl hinzu
+                # Füge Hinweis zur konfidenzbedingten Auswahl hinzu
                 result_coding['justification'] = (f"[Konfidenzbasierte Auswahl: {highest_confidence:.2f}] " + 
                                                 result_coding.get('justification', ''))
                 
@@ -406,7 +406,7 @@ class ResultsExporter:
         consensus_coding = base_coding.copy()
         main_category = consensus_coding.get('category', '')
         original_subcats = base_coding.get('subcategories', [])
-        # FIX: Prüfe ob wir Zugriff auf das vollstÄndige Kategoriensystem haben
+        # FIX: Prüfe ob wir Zugriff auf das vollständige Kategoriensystem haben
         categories_for_validation = getattr(self, 'current_categories', {})
         
         if categories_for_validation and main_category in categories_for_validation:
@@ -528,7 +528,7 @@ class ResultsExporter:
         return result_codings
    
    
-    # ZusÄtzliche Methode fuer ResultsExporter Klasse
+    # Zusätzliche Methode fuer ResultsExporter Klasse
     def debug_export_process(self, codings: List[Dict]) -> None:
         """
         Ae–ffentliche Debug-Methode fuer Export-Prozess
@@ -537,7 +537,7 @@ class ResultsExporter:
         print(f"\n🕵️ STARTE EXPORT-DEBUG fuer {len(codings)} Kodierungen")
         self._debug_export_preparation(codings)
         
-        # ZusÄtzliche Checks
+        # Zusätzliche Checks
         segments_with_issues = []
         
         for coding in codings:
@@ -635,7 +635,7 @@ class ResultsExporter:
                     'manual_coders': len(manual_codings),
                     'auto_coders': len(auto_codings),
                     'selection_type': 'single_manual',
-                    'priority_reason': 'Einzige manuelle Kodierung verfÜgbar'
+                    'priority_reason': 'Einzige manuelle Kodierung verfügbar'
                 }
                 print(f"    Einzige manuelle Kodierung: '{selected_coding['category']}' mit {len(selected_coding.get('subcategories', []))} Subkategorien")
                 
@@ -723,7 +723,7 @@ class ResultsExporter:
                     'manual_coders': 0,
                     'auto_coders': len(auto_codings),
                     'selection_type': 'auto_consensus',
-                    'priority_reason': 'Keine manuellen Kodierungen verfÜgbar - automatischer Konsens'
+                    'priority_reason': 'Keine manuellen Kodierungen verfügbar - automatischer Konsens'
                 })
                 print(f"    Automatischer Konsens: '{selected_coding['category']}' mit {len(selected_coding.get('subcategories', []))} Subkategorien")
             else:
@@ -894,9 +894,21 @@ class ResultsExporter:
             df: DataFrame mit einer 'Hauptkategorie' Spalte
         """
         if not self.category_colors:  # Nur initialisieren wenn noch nicht geschehen
+            import unicodedata
+            
             # Hole alle eindeutigen Hauptkategorien auẞer 'Nicht kodiert'
-            categories = sorted([cat for cat in df['Hauptkategorie'].unique() 
-                              if cat != 'Nicht kodiert'])
+            raw_categories = df['Hauptkategorie'].unique()
+            
+            # FIX: Normalize category strings consistently
+            normalized_categories = []
+            for cat in raw_categories:
+                if cat is not None and cat != 'Nicht kodiert':
+                    normalized_cat = unicodedata.normalize('NFKC', str(cat).strip())
+                    if normalized_cat and normalized_cat != 'Nicht kodiert':
+                        normalized_categories.append(normalized_cat)
+            
+            # Sort for consistent color assignment
+            categories = sorted(set(normalized_categories))
             
             # Generiere Pastellfarben
             colors = generate_pastel_colors(len(categories))
@@ -906,8 +918,8 @@ class ResultsExporter:
                 category: color for category, color in zip(categories, colors)
             }
             
-            # FÜge 'Nicht kodiert' mit grauer Farbe hinzu
-            if 'Nicht kodiert' in df['Hauptkategorie'].unique():
+            # Füge 'Nicht kodiert' mit grauer Farbe hinzu
+            if 'Nicht kodiert' in raw_categories:
                 self.category_colors['Nicht kodiert'] = 'CCCCCC'
             
             print("\nFarbzuordnung initialisiert:")
@@ -976,7 +988,7 @@ class ResultsExporter:
                     self._export_intercoder_bericht(writer, original_codings, reliability)
                     print(f"✅ IntercoderBericht mit Alpha={reliability:.3f} erstellt")
                 else:
-                    print("❌ Keine ursprünglichen Kodierungen oder Reliabilität verfÜgbar")
+                    print("❌ Keine ursprünglichen Kodierungen oder Reliabilität verfügbar")
                     self._create_empty_intercoder_sheet(writer)
                 
                 # 4. KATEGORIEN-ÜBERSICHT
@@ -986,7 +998,7 @@ class ResultsExporter:
                 
                 # 5. PROGRESSIVE SUMMARIES (falls vorhanden)
                 if document_summaries:
-                    print("🔀 Exportiere Progressive Summaries...")
+                    print("🔀 Exportiere Progressive Summaries...")
                     self._export_progressive_summaries(writer, document_summaries)
                 
                 # 6. REVIEW-STATISTIKEN
@@ -994,12 +1006,12 @@ class ResultsExporter:
                 review_stats = self._calculate_review_statistics(codings, export_mode, original_codings)
                 self._export_review_statistics(writer, review_stats, export_mode)
                 
-                # 7. REVISIONSHISTORIE (falls verfÜgbar)
+                # 7. REVISIONSHISTORIE (falls verfügbar)
                 if revision_manager and hasattr(revision_manager, 'changes'):
                     print("🧾 Exportiere Revisionshistorie...")
                     revision_manager._export_revision_history(writer, revision_manager.changes)
                 else:
-                    print("ℹ️ Keine Revisionshistorie verfÜgbar")
+                    print("ℹ️ Keine Revisionshistorie verfügbar")
                 
                 # 8. KONFIGURATION-SHEET 
                 print("✅ Exportiere Konfiguration...")
@@ -1058,7 +1070,7 @@ class ResultsExporter:
                 print(f"🧾 DataFrame erstellt: {len(df)} Zeilen fuer HÄufigkeitsanalyse")
                 return df
             else:
-                print("❌ Keine Daten fuer DataFrame verfÜgbar")
+                print("❌ Keine Daten fuer DataFrame verfügbar")
                 return pd.DataFrame()
                 
         except Exception as e:
@@ -1082,10 +1094,14 @@ class ResultsExporter:
         FIX: Übernimmt alle fehlenden Spalten und Logik aus _prepare_coding_for_export
         """
         
+        # FIX: Berechne korrekte Instanznummern vor der Verarbeitung
+        print("   🔧 Berechne Instanznummern für wiederholte Segmente...")
+        updated_codings = self._calculate_instance_info(codings)
+        
         # DataFrame erstellen
         data = []
         
-        for coding in codings:
+        for coding in updated_codings:
             # FIX: Übernehme Dokumentname-Extraktion aus _prepare_coding_for_export
             doc_name = coding.get('document', '')
             if not doc_name:
@@ -1110,7 +1126,7 @@ class ResultsExporter:
             # FIX: Erstelle eindeutigen PrÄfix fuer Chunk-Nr mit bis zu 6 Buchstaben pro Attribut
             chunk_prefix = ""
             if attribut1 and attribut2:
-                # FIX: Extrahiere bis zu 6 Buchstaben pro Attribut (oder alle verfÜgbaren)
+                # FIX: Extrahiere bis zu 6 Buchstaben pro Attribut (oder alle verfügbaren)
                 import re
                 attr1_letters = re.sub(r'[^a-zA-Z0-9]', '', attribut1)[:6]
                 attr2_letters = re.sub(r'[^a-zA-Z0-9]', '', attribut2)[:6]
@@ -1194,7 +1210,7 @@ class ResultsExporter:
                     subcats_text = str(subcategories).strip()
                     subcats_text = subcats_text.replace('[', '').replace(']', '').replace("'", "").replace('"', '')
             
-            # ZusÄtzliche Bereinigung
+            # Zusätzliche Bereinigung
             subcats_text = subcats_text.replace('[', '').replace(']', '').replace("'", "")
             
             # FIX: Keywords verarbeiten wie in _prepare_coding_for_export
@@ -1263,7 +1279,9 @@ class ResultsExporter:
             
             # FIX: Mehrfachkodierungs-Info wie in _prepare_coding_for_export
             consensus_info = coding.get('consensus_info', {})
-            original_chunk_id = consensus_info.get('original_segment_id', chunk_id)
+            # FIX: Verwende Normalisierungsmethode für konsistente Original_Chunk_Nr
+            original_segment_id = consensus_info.get('original_segment_id', coding.get('segment_id', ''))
+            original_chunk_id = self._normalize_segment_id(original_segment_id)
             is_multiple = consensus_info.get('is_multiple_coding_instance', False)
             instance_info = consensus_info.get('instance_info', {})
             
@@ -1282,16 +1300,23 @@ class ResultsExporter:
                 self.attribute_labels.get('attribut2', 'Attribut2'): sanitize_text_for_excel(attribut2),
             }
             
-            # FIX: FÜge attribut3 hinzu, wenn es definiert ist
+            # FIX: Füge attribut3 hinzu, wenn es definiert ist
             if 'attribut3' in self.attribute_labels and self.attribute_labels['attribut3']:
                 row_data[self.attribute_labels['attribut3']] = sanitize_text_for_excel(attribut3)
             
+            # FIX: Review_Typ Logik konsistent mit Standard-Analyse
             if coding.get('manual_review', False):
                 review_typ = 'manual'
+            elif consensus_info.get('selection_type') == 'consensus':
+                review_typ = 'consensus'
+            elif consensus_info.get('selection_type') == 'majority':
+                review_typ = 'consensus'  # Majority is also a form of consensus
+            elif is_multiple:
+                review_typ = 'consensus'  # Multiple instances require consensus
             else:
-                review_typ = consensus_info.get('selection_type', 'single')
+                review_typ = 'single'
             
-            # FIX: Alle weiteren Spalten hinzufÜgen
+            # FIX: Alle weiteren Spalten hinzuFügen
             additional_fields = {
                 'Chunk_Nr': unique_chunk_id,
                 'Text': sanitize_text_for_excel(text),  # FIX: Korrekte Funktionsaufrufe
@@ -1317,7 +1342,7 @@ class ResultsExporter:
             
             row_data.update(additional_fields)
             
-            # FIX: Kontext-bezogene Felder hinzufÜgen, wenn vorhanden
+            # FIX: Kontext-bezogene Felder hinzuFügen, wenn vorhanden
             if 'context_summary' in coding and coding['context_summary']:
                 row_data['Progressive_Context'] = sanitize_text_for_excel(coding.get('context_summary', ''))
             
@@ -1329,6 +1354,12 @@ class ResultsExporter:
         # Als DataFrame exportieren
         if data:
             df = pd.DataFrame(data)
+            
+            # FIX: Initialisiere Kategorie-Farben BEVOR das Sheet exportiert wird
+            if not self.category_colors:
+                print("   🎨 Initialisiere Kategorie-Farben für konsistente Farbgebung...")
+                self._initialize_category_colors(df)
+            
             df.to_excel(writer, sheet_name='Kodierungsergebnisse', index=False)
             
             # FIX: Aktiviere TabellenfunktionalitÄt explizit
@@ -1340,6 +1371,89 @@ class ResultsExporter:
         else:
             print("❌ Keine Hauptergebnisse zum Exportieren")
     
+    def _calculate_instance_info(self, all_codings: List[Dict]) -> List[Dict]:
+        """
+        Berechnet korrekte Instanznummern für wiederholte Segmente.
+        
+        Args:
+            all_codings: Liste aller Kodierungen
+            
+        Returns:
+            Liste der Kodierungen mit korrekten instance_info
+        """
+        # Gruppiere Kodierungen nach Original-Segment-ID
+        segment_groups = {}
+        for coding in all_codings:
+            # Extrahiere Original-Segment-ID
+            consensus_info = coding.get('consensus_info', {})
+            original_id = consensus_info.get('original_segment_id')
+            
+            if not original_id:
+                # Fallback: Verwende segment_id
+                original_id = coding.get('segment_id', '')
+                # Entferne mögliche Suffixe wie "-1", "-2" etc.
+                if '-' in original_id and original_id.split('-')[-1].isdigit():
+                    original_id = '-'.join(original_id.split('-')[:-1])
+            
+            if original_id not in segment_groups:
+                segment_groups[original_id] = []
+            segment_groups[original_id].append(coding)
+        
+        # Berechne Instanznummern für jede Gruppe
+        updated_codings = []
+        for original_id, codings_group in segment_groups.items():
+            total_instances = len(codings_group)
+            
+            # Sortiere nach Kodierer-ID für konsistente Reihenfolge
+            codings_group.sort(key=lambda x: x.get('coder_id', ''))
+            
+            for instance_number, coding in enumerate(codings_group, 1):
+                # Update consensus_info mit korrekten Instanznummern
+                if 'consensus_info' not in coding:
+                    coding['consensus_info'] = {}
+                
+                coding['consensus_info']['instance_info'] = {
+                    'instance_number': instance_number,
+                    'total_instances': total_instances,
+                    'original_segment_id': original_id,
+                    'all_categories': [c.get('category', '') for c in codings_group]
+                }
+                
+                # Markiere als Mehrfachkodierung wenn mehr als eine Instanz
+                coding['consensus_info']['is_multiple_coding_instance'] = total_instances > 1
+                
+                # Setze auch die alten Felder für Kompatibilität
+                coding['total_coding_instances'] = total_instances
+                coding['multiple_coding_instance'] = instance_number
+                
+                updated_codings.append(coding)
+        
+        return updated_codings
+    
+    def _normalize_segment_id(self, segment_id: str) -> str:
+        """
+        Normalisiert Segment-IDs zu einem einheitlichen Format.
+        
+        Args:
+            segment_id: Original Segment-ID
+            
+        Returns:
+            Normalisierte Segment-ID im Format: dateiname_chunk_X
+        """
+        if not segment_id:
+            return 'unknown_segment'
+        
+        # Bereits im korrekten Format?
+        if '_chunk_' in segment_id:
+            # Entferne mögliche Mehrfachkodierungs-Suffixe wie "-1", "-2"
+            if '-' in segment_id and segment_id.split('-')[-1].isdigit():
+                base_id = '-'.join(segment_id.split('-')[:-1])
+                return base_id
+            return segment_id
+        
+        # Fallback: Verwende die ID wie sie ist
+        return segment_id
+
     def _extract_document_from_segment_id(self, segment_id: str) -> str:
         """
         Extrahiert Dokumentnamen aus segment_id falls document-Feld fehlt
@@ -1358,9 +1472,6 @@ class ResultsExporter:
     
     def _extract_three_attributes_from_document(self, doc_name: str) -> tuple:
         """
-        PUNKT 3: Korrekte Extraktion von 3 Attributen aus Dokumentname
-        
-        Erwartet Format: attribut1_attribut2_attribut3_rest.txt
         """
         # Entferne Dateierweiterung
         clean_name = doc_name
@@ -1484,7 +1595,7 @@ class ResultsExporter:
                 if not hasattr(self, 'category_colors') or not self.category_colors:
                     self._initialize_category_colors(df)
                 
-                print(f"VerfÜgbare Kategorie-Farben: {list(self.category_colors.keys())}")
+                print(f"verfügbare Kategorie-Farben: {list(self.category_colors.keys())}")
 
             # Bestimme Spaltenbreiten adaptiv
             column_widths = []
@@ -1801,7 +1912,7 @@ class ResultsExporter:
         # Daten
         row = 2
         for cat_name, cat_obj in categories.items():
-            cat_type = 'Deduktiv' if cat_name in original_categories else 'Induktiv'
+            cat_type = self._determine_category_type(cat_name, original_categories)
             definition = getattr(cat_obj, 'definition', '')
             subcats = getattr(cat_obj, 'subcategories', [])
             
@@ -1980,7 +2091,7 @@ class ResultsExporter:
         cat_data = []
         
         for cat_name, cat_obj in categories.items():
-            cat_type = 'Deduktiv' if cat_name in (original_categories or {}) else 'Induktiv'
+            cat_type = self._determine_category_type(cat_name, original_categories)
             definition = getattr(cat_obj, 'definition', '')
             subcats = getattr(cat_obj, 'subcategories', [])
             
@@ -2012,9 +2123,154 @@ class ResultsExporter:
             # Hole alle DatensÄtze, auch "Nicht kodiert"
             df_all = df_coded.copy()
             
-            # Hole eindeutige Hauptkategorien, inkl. "Nicht kodiert"
-            main_categories = df_all['Hauptkategorie'].unique()
-            category_colors = {cat: color for cat, color in zip(main_categories, generate_pastel_colors(len(main_categories)))}
+            # FIX: Normalize category strings in DataFrame to prevent matching issues
+            import unicodedata
+            if 'Hauptkategorie' in df_all.columns:
+                df_all['Hauptkategorie'] = df_all['Hauptkategorie'].apply(
+                    lambda x: unicodedata.normalize('NFKC', str(x).strip()) if x is not None else x
+                )
+            
+            # DEBUG: Check for None values in categories
+            none_count = df_all['Hauptkategorie'].isnull().sum()
+            if none_count > 0:
+                print(f"⚠️ DEBUG: Found {none_count} None/NaN values in Hauptkategorie column")
+                print(f"   Sample rows with None categories:")
+                none_rows = df_all[df_all['Hauptkategorie'].isnull()].head(3)
+                for idx, row in none_rows.iterrows():
+                    print(f"   - Row {idx}: Segment={row.get('Segment_ID', 'N/A')}, Coder={row.get('Coder_ID', 'N/A')}")
+                
+                # Filter out rows with None categories to prevent pivot table issues
+                print(f"   🔧 Filtering out {none_count} rows with None categories")
+                df_all = df_all[df_all['Hauptkategorie'].notna()]
+            
+            # Hole eindeutige Hauptkategorien, inkl. "Nicht kodiert" (filter out None values)
+            all_categories = df_all['Hauptkategorie'].unique()
+            
+            # FIX: Normalize category strings to prevent matching issues
+            import unicodedata
+            main_categories = []
+            for cat in all_categories:
+                if cat is not None:
+                    # Normalize unicode and strip whitespace
+                    normalized_cat = unicodedata.normalize('NFKC', str(cat).strip())
+                    main_categories.append(normalized_cat)
+            
+            print(f"   📊 Categories found: {len(all_categories)} total, {len(main_categories)} valid (filtered {len(all_categories) - len(main_categories)} None values)")
+            
+            # FIX: Stelle sicher, dass category_colors bereits initialisiert ist
+            # Falls nicht, initialisiere sie mit derselben Logik wie in _export_main_results
+            if not self.category_colors:
+                print("⚠️ Kategorie-Farben noch nicht initialisiert, initialisiere jetzt...")
+                self._initialize_category_colors(df_all)
+                print(f"   ✅ {len(self.category_colors)} Kategorie-Farben initialisiert")
+            else:
+                print(f"   ✅ Verwende bereits initialisierte {len(self.category_colors)} Kategorie-Farben")
+                
+                # DEBUG: Show existing category colors
+                print(f"   🔍 DEBUG: Existing category colors:")
+                for cat, color in self.category_colors.items():
+                    print(f"      '{cat}': {color}")
+                
+                # print(f"   🔍 DEBUG: Categories found in frequency data:")
+                for cat in main_categories:
+                    is_in_colors = cat in self.category_colors
+                    # print(f"      '{cat}' (in colors: {is_in_colors})")
+                    
+                    # DEBUG: Detailed string analysis for problematic categories
+                    if not is_in_colors and cat is not None:
+                        # print(f"         🔍 String analysis for '{cat}':")
+                        # print(f"            Length: {len(cat)}")
+                        # print(f"            Repr: {repr(cat)}")
+                        # print(f"            Encoded: {cat.encode('utf-8')}")
+                        
+                        # Check for similar strings in category_colors
+                        for existing_cat in self.category_colors.keys():
+                            if existing_cat.strip().lower() == cat.strip().lower():
+                                # print(f"            ⚠️ Case/whitespace mismatch with: '{existing_cat}'")
+                                # print(f"               Existing repr: {repr(existing_cat)}")
+                                # print(f"               Existing encoded: {existing_cat.encode('utf-8')}")
+                                pass
+                            elif existing_cat.replace(' ', '') == cat.replace(' ', ''):
+                                # print(f"            ⚠️ Space difference with: '{existing_cat}'")
+                                pass
+                        
+                        # Check for exact matches with different encoding
+                        for existing_cat in self.category_colors.keys():
+                            try:
+                                if existing_cat.encode('utf-8') == cat.encode('utf-8'):
+                                    # print(f"            ⚠️ Encoding match but string comparison failed: '{existing_cat}'")
+                                    pass
+                            except:
+                                pass
+                
+                # FIX: Check if any categories from frequency data are missing colors
+                # Use robust string matching to handle encoding/whitespace issues
+                missing_categories = []
+                for cat in main_categories:
+                    if cat is None:
+                        continue
+                    
+                    # First try exact match
+                    if cat in self.category_colors:
+                        continue
+                    
+                    # Try normalized matching (strip whitespace, normalize unicode, normalize case)
+                    import unicodedata
+                    cat_normalized = unicodedata.normalize('NFKC', str(cat).strip())
+                    found_match = False
+                    
+                    for existing_cat in self.category_colors.keys():
+                        existing_normalized = unicodedata.normalize('NFKC', str(existing_cat).strip())
+                        
+                        # Try exact normalized match
+                        if existing_normalized == cat_normalized:
+                            print(f"   🔧 Unicode/whitespace mismatch fixed: '{cat}' -> '{existing_cat}'")
+                            self.category_colors[cat] = self.category_colors[existing_cat]
+                            found_match = True
+                            break
+                        
+                        # Try case-insensitive normalized match
+                        elif existing_normalized.lower() == cat_normalized.lower():
+                            print(f"   🔧 Case/unicode mismatch fixed: '{cat}' -> '{existing_cat}'")
+                            self.category_colors[cat] = self.category_colors[existing_cat]
+                            found_match = True
+                            break
+                    
+                    if not found_match:
+                        missing_categories.append(cat)
+                
+                if missing_categories:
+                    print(f"\n⚠️ Fehlende Kategorien in Farbzuordnung gefunden: {missing_categories}")
+                    
+                    # CRITICAL FIX: Don't generate new colors, this breaks consistency!
+                    # Instead, log the issue and use a default color
+                    for cat in missing_categories:
+                        # Use a consistent default color for missing categories
+                        self.category_colors[cat] = 'FFE6E6'  # Light pink as fallback
+                        print(f"  + {cat}: FFE6E6 (Fallback-Farbe für fehlende Kategorie)")
+                        print(f"    ⚠️ WARNUNG: Diese Kategorie sollte bereits in den Hauptergebnissen definiert sein!")
+                
+                # Stelle sicher dass "Nicht kodiert" grau ist
+                if 'Nicht kodiert' in main_categories and 'Nicht kodiert' not in self.category_colors:
+                    self.category_colors['Nicht kodiert'] = 'CCCCCC'
+                    print(f"  + Nicht kodiert: CCCCCC (Standard-Grau)")
+            
+            # FIX: Debug-Ausgabe der verwendeten Farben (filter out None values)
+            print(f"\n🎨 Verwende Kategorie-Farben für Häufigkeitsanalyse:")
+            valid_categories = [cat for cat in main_categories if cat is not None]
+            for cat in sorted(valid_categories):
+                color = self.category_colors.get(cat, 'FFFFFF')
+                print(f"  - {cat}: {color}")
+            
+            # FIX: Vergleiche mit Hauptergebnisse-Farben
+            print(f"\n🔍 Farbkonsistenz-Check:")
+            print(f"  - Hauptergebnisse haben {len(self.category_colors)} Farben definiert")
+            print(f"  - Häufigkeitsanalyse benötigt {len(main_categories)} Farben")
+            missing_in_main = [cat for cat in main_categories if cat not in self.category_colors]
+            if missing_in_main:
+                print(f"  ⚠️ Fehlende Farben: {missing_in_main}")
+            else:
+                print(f"  ✅ Alle Kategorien haben definierte Farben")
 
             if 'Häufigkeitsanalysen' not in writer.sheets:
                 writer.book.create_sheet('Häufigkeitsanalysen')
@@ -2069,13 +2325,15 @@ class ResultsExporter:
             # Formatiere den Bereich (Header + Daten)
             self._apply_professional_formatting_to_range(worksheet, current_row, 1, len(temp_df_main) + 1, len(headers))
             
-            # ZusÄtzliche Farbkodierung fuer Hauptkategorien
+            # FIX: Verbesserte Farbkodierung fuer Hauptkategorien - verwende exakt dieselben Farben
             for row_idx in range(1, len(temp_df_main) + 1):
                 kategorie = temp_df_main.iloc[row_idx-1]['Hauptkategorie']
                 if kategorie != 'Gesamt' and kategorie in self.category_colors:
                     color = self.category_colors[kategorie]
                     from openpyxl.styles import PatternFill
-                    worksheet.cell(row=current_row + row_idx, column=1).fill = PatternFill(start_color=color, end_color=color, fill_type='solid')
+                    fill = PatternFill(start_color=color, end_color=color, fill_type='solid')
+                    worksheet.cell(row=current_row + row_idx, column=1).fill = fill
+                    print(f"  🎨 Farbe angewendet: {kategorie} -> {color}")
             
             current_row += len(temp_df_main) + 3
             # FIX: Ende - einfache Methode wie bei Subkategorien
@@ -2126,6 +2384,15 @@ class ResultsExporter:
             
             # Formatiere den Bereich (Header + Daten)
             self._apply_professional_formatting_to_range(worksheet, current_row, 1, len(temp_df_sub) + 1, len(headers))
+            
+            # Zusätzliche Farbkodierung fuer Hauptkategorien in Subkategorien-Tabelle
+            for row_idx in range(1, len(temp_df_sub) + 1):
+                kategorie = temp_df_sub.iloc[row_idx-1]['Hauptkategorie']
+                if kategorie != 'Gesamt' and kategorie in self.category_colors:
+                    color = self.category_colors[kategorie]
+                    from openpyxl.styles import PatternFill
+                    worksheet.cell(row=current_row + row_idx, column=1).fill = PatternFill(start_color=color, end_color=color, fill_type='solid')
+            
             current_row += len(temp_df_sub) + 2
 
             # 3. Attribut-Analysen
@@ -2331,10 +2598,10 @@ class ResultsExporter:
         PUNKT 7: Formatierte Progressive Summaries
         """
         try:
-            print("🔀 Erstelle formatierte Progressive Summaries...")
+            print("🔀 Erstelle formatierte Progressive Summaries...")
             
             if not document_summaries:
-                print("ℹ️ Keine Document-Summaries verfÜgbar")
+                print("ℹ️ Keine Document-Summaries verfügbar")
                 return
             
             summary_data = []
@@ -2430,7 +2697,7 @@ class ResultsExporter:
         stats['segments_after_review'] = len(codings)
         
         for coding in codings:
-            # Bestimme den Typ der Kodierung basierend auf verfÜgbaren Informationen
+            # Bestimme den Typ der Kodierung basierend auf verfügbaren Informationen
             if coding.get('manual_review', False):
                 stats['manual_priority'] += 1
             elif coding.get('consolidated_from_multiple', False):
@@ -2552,7 +2819,7 @@ class ResultsExporter:
             worksheet.cell(row=current_row, column=2).font = Font(bold=True)
             worksheet.cell(row=current_row, column=3).font = Font(bold=True)
             
-            # FIX: ZusÄtzliche Analyse-Sektion
+            # FIX: Zusätzliche Analyse-Sektion
             current_row += 2
             worksheet.cell(row=current_row, column=1, value="REVIEW-EFFIZIENZ")
             worksheet.cell(row=current_row, column=1).font = Font(bold=True, size=12)
@@ -2577,7 +2844,7 @@ class ResultsExporter:
                 worksheet.cell(row=current_row, column=1, value="Kodierungs-Reduzierung")
                 worksheet.cell(row=current_row, column=2, value=f"{reduction_rate:.1f}%")
                 current_row += 1
-            # FIX: Ende ZusÄtzliche Analyse
+            # FIX: Ende Zusätzliche Analyse
             
             # Spaltenbreiten anpassen
             worksheet.column_dimensions['A'].width = 25
@@ -2685,7 +2952,7 @@ class ResultsExporter:
                 df_empty.to_excel(writer, sheet_name='Intercoder_Unstimmigkeiten', index=False)
                 print("ℹ️ Keine Intercoder-Unstimmigkeiten gefunden")
             
-            # ZusÄtzlich: Übersichts-Statistiken
+            # Zusätzlich: Übersichts-Statistiken
             self._create_intercoder_summary(writer, original_segments, reliability)
             
         except Exception as e:
@@ -2761,14 +3028,19 @@ class ResultsExporter:
             # FIX: Verwende bereits berechnete Reliabilität (aus main())
             print(f"🧾 Verwende bereits berechnete Reliabilität: {reliability:.3f}")
             
-            # FIX: Berechne zusÄtzliche Statistiken nur fuer Display
-            reliability_calc = ReliabilityCalculator()
-            
-            # FIX: Berechne vollstÄndigen Bericht fuer detaillierte Anzeige
-            comprehensive_report = reliability_calc.calculate_comprehensive_reliability(original_codings)
-            
-            statistics = reliability_calc._calculate_basic_statistics(original_codings)
-            agreement_analysis = reliability_calc._calculate_detailed_agreement_analysis(original_codings)
+            # FIX: Verwende bereits berechneten comprehensive report statt Neuberechnung
+            if hasattr(self, 'comprehensive_reliability_report') and self.comprehensive_reliability_report:
+                print("🧾 Verwende bereits berechneten comprehensive reliability report")
+                comprehensive_report = self.comprehensive_reliability_report
+                statistics = comprehensive_report['statistics']
+                agreement_analysis = comprehensive_report['agreement_analysis']
+            else:
+                print("🧾 Fallback: Berechne reliability report (comprehensive report nicht verfügbar)")
+                # Fallback: Berechne nur wenn nicht bereits verfügbar
+                reliability_calc = ReliabilityCalculator()
+                comprehensive_report = reliability_calc.calculate_comprehensive_reliability(original_codings)
+                statistics = reliability_calc._calculate_basic_statistics(original_codings)
+                agreement_analysis = reliability_calc._calculate_detailed_agreement_analysis(original_codings)
             
             # 1. Reliabilitäts-Übersicht
             worksheet.cell(row=current_row, column=1, value="1. Reliabilitäts-Übersicht")
@@ -2781,7 +3053,7 @@ class ResultsExporter:
             alpha_cell.font = Font(bold=True, size=12)
             current_row += 1
             
-            # FIX: Bewertung hinzufÜgen
+            # FIX: Bewertung hinzuFügen
             worksheet.cell(row=current_row, column=1, value="Bewertung:")
             overall_alpha = comprehensive_report['overall_alpha']
             rating = "Exzellent" if overall_alpha > 0.8 else "Akzeptabel" if overall_alpha > 0.667 else "Unzureichend"
@@ -2797,7 +3069,7 @@ class ResultsExporter:
                 rating_cell.fill = PatternFill(start_color='FFB6C1', end_color='FFB6C1', fill_type='solid')
             current_row += 2
             
-            # FIX: ZusÄtzliche Alpha-Werte aus dem comprehensive report
+            # FIX: Zusätzliche Alpha-Werte aus dem comprehensive report
             worksheet.cell(row=current_row, column=1, value="Hauptkategorien Alpha (Jaccard):")
             worksheet.cell(row=current_row, column=2, value=f"{comprehensive_report['main_categories_alpha']:.3f}")
             current_row += 1
@@ -2814,7 +3086,7 @@ class ResultsExporter:
             worksheet.cell(row=current_row, column=2, value=comprehensive_report['statistics']['anzahl_kodierer'])
             current_row += 2
             
-            # FIX: Methodik-Informationen hinzufÜgen
+            # FIX: Methodik-Informationen hinzuFügen
             worksheet.cell(row=current_row, column=1, value="2. Methodik")
             worksheet.cell(row=current_row, column=1).font = Font(bold=True)
             current_row += 1
@@ -2831,26 +3103,281 @@ class ResultsExporter:
             worksheet.cell(row=current_row, column=2, value="Overall zwischen Haupt- und Sub-Alpha")
             current_row += 2
             
-            # Spaltenbreiten anpassen
-            worksheet.column_dimensions['A'].width = 35
-            worksheet.column_dimensions['B'].width = 20
+            # 3. Detaillierte Set-Analyse für Nachprüfung
+            worksheet.cell(row=current_row, column=1, value="3. Detaillierte Set-Analyse (Nachprüfung)")
+            worksheet.cell(row=current_row, column=1).font = Font(bold=True)
+            current_row += 1
             
-            print("✅ IntercoderBericht mit ursprünglichen Daten erstellt")
+            worksheet.cell(row=current_row, column=1, value="Diese Tabelle zeigt die Sets je Kodierer und Segment für die manuelle Nachprüfung der Jaccard-Berechnung.")
+            current_row += 2
+            
+            # Erstelle detaillierte Set-Analyse
+            current_row = self._add_detailed_set_analysis(worksheet, original_codings, current_row)
+            
+            # Spaltenbreiten anpassen
+            worksheet.column_dimensions['A'].width = 25  # Segment ID
+            worksheet.column_dimensions['B'].width = 15  # Kodierer 1
+            worksheet.column_dimensions['C'].width = 15  # Kodierer 2
+            worksheet.column_dimensions['D'].width = 40  # Set 1
+            worksheet.column_dimensions['E'].width = 40  # Set 2
+            worksheet.column_dimensions['F'].width = 30  # Schnittmenge
+            worksheet.column_dimensions['G'].width = 30  # Vereinigung
+            worksheet.column_dimensions['H'].width = 18  # Jaccard-Ähnlichkeit
+            
+            print("✅ IntercoderBericht mit ursprünglichen Daten und detaillierter Set-Analyse erstellt")
             
         except Exception as e:
             print(f"⚠️ Fehler beim IntercoderBericht: {str(e)}")
             import traceback
             traceback.print_exc()
 
+    def _add_detailed_set_analysis(self, worksheet, original_codings: List[Dict], start_row: int) -> int:
+        """
+        Fügt detaillierte Set-Analyse für Nachprüfung der Jaccard-Berechnung hinzu.
+        
+        Args:
+            worksheet: Excel worksheet
+            original_codings: Liste der ursprünglichen Kodierungen
+            start_row: Startzeile für die Tabelle
+            
+        Returns:
+            Nächste verfügbare Zeile nach der Tabelle
+        """
+        try:
+            from ..quality.reliability import ReliabilityCalculator
+            
+            # Initialisiere ReliabilityCalculator für Hilfsmethoden
+            reliability_calc = ReliabilityCalculator()
+            
+            # Gruppiere Kodierungen nach Segmenten
+            segment_data = reliability_calc._group_by_original_segments(original_codings)
+            
+            current_row = start_row
+            
+            # Header für die Set-Analyse Tabelle
+            headers = [
+                "Segment ID", "Kodierer 1", "Kodierer 2", 
+                "Set 1 (Kategorien + Subkategorien)", "Set 2 (Kategorien + Subkategorien)",
+                "Schnittmenge", "Vereinigung", "Jaccard-Ähnlichkeit"
+            ]
+            
+            for col, header in enumerate(headers, 1):
+                header_cell = worksheet.cell(row=current_row, column=col, value=header)
+                header_cell.font = Font(bold=True)
+                header_cell.fill = PatternFill(start_color='E6E6FA', end_color='E6E6FA', fill_type='solid')
+            current_row += 1
+            
+            # FIX: Korrekte Behandlung von Mehrfachkodierungen
+            # Sammle alle Vergleiche für die Tabelle (inklusive Mehrfachkodierungen)
+            comparisons = []
+            
+            # NEUE LOGIK: Gruppiere nach tatsächlichen Segment-IDs (mit Mehrfachkodierungs-Suffixen)
+            actual_segment_data = {}
+            for coding in original_codings:
+                actual_segment_id = coding.get('segment_id', '')
+                coder_id = coding.get('coder_id', 'unknown')
+                
+                if actual_segment_id not in actual_segment_data:
+                    actual_segment_data[actual_segment_id] = {}
+                
+                if coder_id not in actual_segment_data[actual_segment_id]:
+                    actual_segment_data[actual_segment_id][coder_id] = []
+                
+                actual_segment_data[actual_segment_id][coder_id].append(coding)
+            
+            # Sammle alle Basis-Segment-IDs
+            base_segments = {}
+            for actual_segment_id in actual_segment_data.keys():
+                base_id = reliability_calc._extract_base_segment_id({'segment_id': actual_segment_id})
+                if base_id not in base_segments:
+                    base_segments[base_id] = []
+                base_segments[base_id].append(actual_segment_id)
+            
+            # Erstelle Vergleiche für jede Kombination von Mehrfachkodierungen
+            for base_segment_id, actual_segment_ids in base_segments.items():
+                # Sammle alle Kodierer für dieses Basis-Segment
+                all_coders_for_base = set()
+                for actual_id in actual_segment_ids:
+                    all_coders_for_base.update(actual_segment_data[actual_id].keys())
+                
+                all_coders_list = list(all_coders_for_base)
+                
+                if len(all_coders_list) < 2:
+                    continue
+                
+                # Paarweise Vergleiche zwischen allen Kodierern
+                for i in range(len(all_coders_list)):
+                    for j in range(i + 1, len(all_coders_list)):
+                        coder1, coder2 = all_coders_list[i], all_coders_list[j]
+                        
+                        # Finde alle Kodierungen von beiden Kodierern für dieses Basis-Segment
+                        coder1_codings = []
+                        coder2_codings = []
+                        
+                        for actual_id in actual_segment_ids:
+                            if coder1 in actual_segment_data[actual_id]:
+                                coder1_codings.extend(actual_segment_data[actual_id][coder1])
+                            if coder2 in actual_segment_data[actual_id]:
+                                coder2_codings.extend(actual_segment_data[actual_id][coder2])
+                        
+                        if not coder1_codings or not coder2_codings:
+                            continue
+                        
+                        # Erstelle Vergleiche für alle Kombinationen von Mehrfachkodierungen
+                        for coding1 in coder1_codings:
+                            for coding2 in coder2_codings:
+                                # Sammle Sets für beide Kodierungen
+                                set1 = set()
+                                set2 = set()
+                                
+                                # Set 1 (Kodierung 1)
+                                main_cat1 = coding1.get('category', '')
+                                if main_cat1 and main_cat1 not in ['Nicht kodiert', 'Kein Kodierkonsens']:
+                                    set1.add(f"MAIN:{main_cat1}")
+                                
+                                subcats1 = coding1.get('subcategories', [])
+                                if isinstance(subcats1, (list, tuple)):
+                                    for subcat in subcats1:
+                                        if subcat:
+                                            set1.add(f"SUB:{subcat}")
+                                
+                                # Set 2 (Kodierung 2)
+                                main_cat2 = coding2.get('category', '')
+                                if main_cat2 and main_cat2 not in ['Nicht kodiert', 'Kein Kodierkonsens']:
+                                    set2.add(f"MAIN:{main_cat2}")
+                                
+                                subcats2 = coding2.get('subcategories', [])
+                                if isinstance(subcats2, (list, tuple)):
+                                    for subcat in subcats2:
+                                        if subcat:
+                                            set2.add(f"SUB:{subcat}")
+                                
+                                # Berechne Jaccard-Ähnlichkeit
+                                if len(set1) == 0 and len(set2) == 0:
+                                    jaccard_similarity = 1.0
+                                    intersection = set()
+                                    union = set()
+                                elif len(set1) == 0 or len(set2) == 0:
+                                    jaccard_similarity = 0.0
+                                    intersection = set()
+                                    union = set1.union(set2)
+                                else:
+                                    intersection = set1.intersection(set2)
+                                    union = set1.union(set2)
+                                    jaccard_similarity = len(intersection) / len(union) if len(union) > 0 else 0.0
+                                
+                                # Formatiere Sets für Anzeige
+                                set1_display = ", ".join(sorted(set1)) if set1 else "(leer)"
+                                set2_display = ", ".join(sorted(set2)) if set2 else "(leer)"
+                                intersection_display = ", ".join(sorted(intersection)) if intersection else "(leer)"
+                                union_display = ", ".join(sorted(union)) if union else "(leer)"
+                                
+                                # Verwende tatsächliche Segment-IDs für Anzeige
+                                display_segment_id = f"{coding1.get('segment_id', '')} vs {coding2.get('segment_id', '')}"
+                                
+                                comparisons.append({
+                                    'segment_id': display_segment_id,
+                                    'coder1': coder1,
+                                    'coder2': coder2,
+                                    'set1': set1_display,
+                                    'set2': set2_display,
+                                    'intersection': intersection_display,
+                                    'union': union_display,
+                                    'jaccard': jaccard_similarity
+                                })
+            
+            # Sortiere Vergleiche nach Segment ID
+            comparisons.sort(key=lambda x: x['segment_id'])
+            
+            # Füge Vergleiche zur Tabelle hinzu
+            for comparison in comparisons:
+                worksheet.cell(row=current_row, column=1, value=comparison['segment_id'])
+                worksheet.cell(row=current_row, column=2, value=comparison['coder1'])
+                worksheet.cell(row=current_row, column=3, value=comparison['coder2'])
+                worksheet.cell(row=current_row, column=4, value=comparison['set1'])
+                worksheet.cell(row=current_row, column=5, value=comparison['set2'])
+                worksheet.cell(row=current_row, column=6, value=comparison['intersection'])
+                worksheet.cell(row=current_row, column=7, value=comparison['union'])
+                
+                # Jaccard-Ähnlichkeit mit Farbkodierung
+                jaccard_cell = worksheet.cell(row=current_row, column=8, value=f"{comparison['jaccard']:.3f}")
+                
+                # Farbkodierung basierend auf Ähnlichkeit
+                if comparison['jaccard'] >= 0.8:
+                    jaccard_cell.fill = PatternFill(start_color='90EE90', end_color='90EE90', fill_type='solid')  # Grün
+                elif comparison['jaccard'] >= 0.5:
+                    jaccard_cell.fill = PatternFill(start_color='FFFF90', end_color='FFFF90', fill_type='solid')  # Gelb
+                else:
+                    jaccard_cell.fill = PatternFill(start_color='FFB6C1', end_color='FFB6C1', fill_type='solid')  # Rosa
+                
+                current_row += 1
+            
+            # Füge Zusammenfassung hinzu
+            current_row += 1
+            worksheet.cell(row=current_row, column=1, value="Zusammenfassung:")
+            worksheet.cell(row=current_row, column=1).font = Font(bold=True)
+            current_row += 1
+            
+            if comparisons:
+                avg_jaccard = sum(c['jaccard'] for c in comparisons) / len(comparisons)
+                worksheet.cell(row=current_row, column=1, value=f"Durchschnittliche Jaccard-Ähnlichkeit:")
+                worksheet.cell(row=current_row, column=2, value=f"{avg_jaccard:.3f}")
+                current_row += 1
+                
+                worksheet.cell(row=current_row, column=1, value=f"Anzahl Vergleiche:")
+                worksheet.cell(row=current_row, column=2, value=len(comparisons))
+                current_row += 1
+                
+                high_agreement = sum(1 for c in comparisons if c['jaccard'] >= 0.8)
+                worksheet.cell(row=current_row, column=1, value=f"Hohe Übereinstimmung (≥0.8):")
+                worksheet.cell(row=current_row, column=2, value=f"{high_agreement}/{len(comparisons)} ({high_agreement/len(comparisons)*100:.1f}%)")
+                current_row += 1
+            else:
+                worksheet.cell(row=current_row, column=1, value="Keine Vergleiche verfügbar")
+                current_row += 1
+            
+            current_row += 1
+            
+            # Erklärung der Berechnung
+            worksheet.cell(row=current_row, column=1, value="4. Erklärung der Jaccard-Berechnung")
+            worksheet.cell(row=current_row, column=1).font = Font(bold=True)
+            current_row += 1
+            
+            explanations = [
+                "• Jaccard-Ähnlichkeit = |Schnittmenge| / |Vereinigungsmenge|",
+                "• MAIN: kennzeichnet Hauptkategorien",
+                "• SUB: kennzeichnet Subkategorien", 
+                "• Beide Sets werden kombiniert (Haupt- + Subkategorien)",
+                "• Farbkodierung: Grün (≥0.8), Gelb (≥0.5), Rosa (<0.5)",
+                "• Leere Sets werden als perfekte Übereinstimmung (1.0) gewertet"
+            ]
+            
+            for explanation in explanations:
+                worksheet.cell(row=current_row, column=1, value=explanation)
+                current_row += 1
+            
+            print(f"✅ Detaillierte Set-Analyse hinzugefügt: {len(comparisons)} Vergleiche")
+            
+            return current_row + 1
+            
+        except Exception as e:
+            print(f"⚠️ Fehler bei detaillierter Set-Analyse: {str(e)}")
+            import traceback
+            traceback.print_exc()
+            
+            # Fallback: Fehlermeldung in Sheet
+            worksheet.cell(row=start_row, column=1, value=f"Fehler bei Set-Analyse: {str(e)}")
+            return start_row + 2
+
     def _create_empty_intercoder_sheet(self, writer):
         """
-        FIX: Erstellt Info-Sheet wenn keine Reliabilitätsdaten verfÜgbar
+        FIX: Erstellt Info-Sheet wenn keine Reliabilitätsdaten verfügbar
         FÜr ResultsExporter Klasse
         """
         worksheet = writer.book.create_sheet("IntercoderBericht")
         
         worksheet.cell(row=1, column=1, value="Intercoder-Reliabilitäts-Bericht").font = Font(bold=True, size=14)
-        worksheet.cell(row=3, column=1, value="❌ Keine ursprünglichen Kodierungen fuer Reliabilitätsberechnung verfÜgbar")
+        worksheet.cell(row=3, column=1, value="❌ Keine ursprünglichen Kodierungen fuer Reliabilitätsberechnung verfügbar")
         worksheet.cell(row=4, column=1, value="Reliabilität muss vor dem Review-Prozess berechnet werden")
         
         worksheet.column_dimensions['A'].width = 60
@@ -2864,29 +3391,38 @@ class ResultsExporter:
         try:
             print("🧾 Erstelle erweiterte Intercoder-Übersicht...")
             
-            # FIX: Berechne detaillierte Reliabilitätsinformationen
-            reliability_calc = ReliabilityCalculator()
-            
-            # Extrahiere ursprüngliche Kodierungen aus den Segment-Daten
-            original_codings = []
-            for segment_codings in original_segments.values():
-                original_codings.extend(segment_codings)
-            
-            # FIX: Berechne umfassende Reliabilität mit Details
-            if original_codings:
-                comprehensive_report = reliability_calc.calculate_comprehensive_reliability(original_codings)
+            # FIX: Verwende bereits berechneten comprehensive report statt Neuberechnung
+            if hasattr(self, 'comprehensive_reliability_report') and self.comprehensive_reliability_report:
+                print("🧾 Verwende bereits berechneten comprehensive reliability report")
+                comprehensive_report = self.comprehensive_reliability_report
                 overall_alpha = comprehensive_report['overall_alpha']
                 main_categories_alpha = comprehensive_report['main_categories_alpha']
                 subcategories_alpha = comprehensive_report['subcategories_alpha']
                 agreement_analysis = comprehensive_report['agreement_analysis']
                 statistics = comprehensive_report['statistics']
             else:
-                # Fallback wenn keine Daten
-                overall_alpha = reliability
-                main_categories_alpha = 0.0
-                subcategories_alpha = 0.0
-                agreement_analysis = {'VollstÄndige Übereinstimmung': 0, 'Hauptkategorie gleich, Subkat. unterschiedlich': 0, 'Hauptkategorie unterschiedlich': 0, 'Gesamt': 0}
-                statistics = {'vergleichbare_segmente': 0, 'anzahl_kodierer': 0}
+                print("🧾 Fallback: Berechne reliability report (comprehensive report nicht verfügbar)")
+                # Extrahiere ursprüngliche Kodierungen aus den Segment-Daten
+                original_codings = []
+                for segment_codings in original_segments.values():
+                    original_codings.extend(segment_codings)
+                
+                # FIX: Berechne umfassende Reliabilität mit Details nur als Fallback
+                if original_codings:
+                    reliability_calc = ReliabilityCalculator()
+                    comprehensive_report = reliability_calc.calculate_comprehensive_reliability(original_codings)
+                    overall_alpha = comprehensive_report['overall_alpha']
+                    main_categories_alpha = comprehensive_report['main_categories_alpha']
+                    subcategories_alpha = comprehensive_report['subcategories_alpha']
+                    agreement_analysis = comprehensive_report['agreement_analysis']
+                    statistics = comprehensive_report['statistics']
+                else:
+                    # Fallback wenn keine Daten
+                    overall_alpha = reliability
+                    main_categories_alpha = 0.0
+                    subcategories_alpha = 0.0
+                    agreement_analysis = {'Vollständige Übereinstimmung': 0, 'Hauptkategorie gleich, Subkat. unterschiedlich': 0, 'Hauptkategorie unterschiedlich': 0, 'Gesamt': 0}
+                    statistics = {'vergleichbare_segmente': 0, 'anzahl_kodierer': 0}
             
             # Berechne Übersichtsstatistiken
             total_segments = len(original_segments)
@@ -2917,7 +3453,7 @@ class ResultsExporter:
                 ['Vergleichbare Segmente', statistics.get('vergleichbare_segmente', 0)],
                 ['', ''],  # Leerzeile als Trenner
                 ['--- ÜBEREINSTIMMUNGSANALYSE ---', ''],
-                ['VollstÄndige Übereinstimmung', agreement_analysis.get('VollstÄndige Übereinstimmung', 0)],
+                ['Vollständige Übereinstimmung', agreement_analysis.get('Vollständige Übereinstimmung', 0)],
                 ['Hauptkategorie gleich, Subkat. unterschiedlich', agreement_analysis.get('Hauptkategorie gleich, Subkat. unterschiedlich', 0)],
                 ['Hauptkategorie unterschiedlich', agreement_analysis.get('Hauptkategorie unterschiedlich', 0)],
                 ['Gesamt analysiert', agreement_analysis.get('Gesamt', 0)],
@@ -3073,6 +3609,8 @@ class ResultsExporter:
                     return 'Grounded'
                 elif dev_type == 'deductive':
                     return 'Deduktiv'
+                elif dev_type == 'abductive':
+                    return 'Abduktiv'
                 elif dev_type == 'inductive':
                     return 'Induktiv'
         
@@ -3142,7 +3680,7 @@ class ResultsExporter:
             # FIX: Importiere PDF-Annotator (nur wenn benÖtigt)
             from ..utils.export.pdf_annotator import PDFAnnotator
         except ImportError:
-            print("   ⚠️ PyMuPDF nicht verfÜgbar - PDF-Annotation Übersprungen")
+            print("   ⚠️ PyMuPDF nicht verfügbar - PDF-Annotation Übersprungen")
             print("   ℹ️ Installieren Sie mit: pip install PyMuPDF")
             return []
         
@@ -3257,7 +3795,7 @@ class ResultsExporter:
             from ..utils.export.pdf_annotator import PDFAnnotator
             from ..utils.export.converters import DocumentToPDFConverter
         except ImportError:
-            print("   ⚠️ BenÖtigte Bibliotheken nicht verfÜgbar")
+            print("   ⚠️ BenÖtigte Bibliotheken nicht verfügbar")
             print("   ℹ️ Installieren Sie mit: pip install PyMuPDF reportlab")
             return []
         

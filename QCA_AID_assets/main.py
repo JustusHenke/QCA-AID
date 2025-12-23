@@ -32,7 +32,7 @@ from .preprocessing.material_loader import MaterialLoader
 from .analysis.deductive_coding import DeductiveCategoryBuilder, DeductiveCoder
 from .analysis.analysis_manager import IntegratedAnalysisManager, token_counter
 from .analysis.manual_coding import ManualCoder
-from .management import DevelopmentHistory, CategoryRevisionManager, CategoryManager
+from .management import CategoryRevisionManager, CategoryManager
 from .quality.reliability import ReliabilityCalculator
 from .quality.review_manager import ReviewManager
 from .export.results_exporter import ResultsExporter
@@ -91,6 +91,9 @@ def _resolve_project_root() -> Path:
             print(f"⚠️ Konnte .qca-aid-project.json nicht lesen: {e}")
     
     return repo_root
+
+
+
 
 
 async def perform_manual_coding(chunks, categories, manual_coders):
@@ -171,7 +174,7 @@ async def perform_manual_coding(chunks, categories, manual_coders):
                                     'coding_date': datetime.now().isoformat()
                                 }
                                 
-                                # FÜge weitere Attribute hinzu falls vorhanden
+                                # Füge weitere Attribute hinzu falls vorhanden
                                 for attr in ['paraphrase', 'keywords', 'text_references', 'uncertainties']:
                                     if attr in single_coding:
                                         coding_entry[attr] = single_coding[attr]
@@ -198,7 +201,7 @@ async def perform_manual_coding(chunks, categories, manual_coders):
                                 'coding_date': datetime.now().isoformat()
                             }
                             
-                            # FÜge weitere Attribute hinzu falls vorhanden
+                            # Füge weitere Attribute hinzu falls vorhanden
                             for attr in ['paraphrase', 'keywords', 'text_references', 'uncertainties']:
                                 if attr in coding_result:
                                     coding_entry[attr] = coding_result[attr]
@@ -364,7 +367,7 @@ async def configure_analysis_start(CONFIG: Dict, codebook_path: str) -> Dict:
     print("\n👤 MANUELLES KODIEREN")
     print("-" * 70)
     print("Manuelle Kodierung ermöglicht:")
-    print("  • Verfügbarkeit von Intercodierabgleich (zur Qualitätskontrolle)")
+    print("  • verfügbarkeit von Intercodierabgleich (zur Qualitätskontrolle)")
     print("  • Möglichkeit, die automatische Kodierung zu überprüfen")
     print("  • Erreichen höherer Reliabilität bei kleineren Stichproben")
     print("\nWarnung: Manuelle Kodierung verlangsamt die Analyse deutlich!")
@@ -436,8 +439,7 @@ async def main() -> None:
         category_builder = DeductiveCategoryBuilder()
         initial_categories = category_builder.load_theoretical_categories()
         
-        # 3. Manager und History initialisieren
-        development_history = DevelopmentHistory(CONFIG['OUTPUT_DIR'])
+        # 3. Manager initialisieren
         revision_manager = CategoryRevisionManager(
             output_dir=CONFIG['OUTPUT_DIR'],
             config=CONFIG
@@ -599,26 +601,166 @@ async def main() -> None:
                 skip_inductive=skip_inductive
             )
 
-            # Beende FortschrittsÜberwachung
+
+            # Beende Fortschrittsüberwachung
             progress_task.cancel()
-            await progress_task
+            try:
+                await progress_task
+            except asyncio.CancelledError:
+                pass  # Expected when cancelling the progress task
 
             # Kombiniere alle Kodierungen
             all_codings = []
             if coding_results and len(coding_results) > 0:
-                print(f"\nFÜge {len(coding_results)} automatische Kodierungen hinzu")
+                print(f"\nFüge {len(coding_results)} automatische Kodierungen hinzu")
                 for coding in coding_results:
                     if isinstance(coding, dict) and 'segment_id' in coding:
                         all_codings.append(coding)
                     else:
                         print(f"Überspringe ungültige Kodierung: {coding}")
 
-            # FÜge manuelle Kodierungen hinzu
+            # Füge manuelle Kodierungen hinzu
             if manual_codings and len(manual_codings) > 0:
-                print(f"FÜge {len(manual_codings)} manuelle Kodierungen hinzu")
+                print(f"Füge {len(manual_codings)} manuelle Kodierungen hinzu")
                 all_codings.extend(manual_codings)
 
-            print(f"\nGesamtzahl Kodierungen: {len(all_codings)}")
+            # FIX: Stelle sicher, dass ALLE Segmente im Export enthalten sind
+            # Erstelle "Nicht kodiert" Einträge für fehlende Segmente
+            print(f"\n🔍 Prüfe auf fehlende Segmente für vollständigen Export...")
+            coded_segment_ids = set(coding.get('segment_id', '') for coding in all_codings)
+            
+            # Sammle alle Segment-IDs aus chunks
+            all_segment_ids = set()
+            all_segments_for_relevance = []  # Für Relevanzprüfung
+            for doc_name, doc_chunks in chunks.items():
+                for chunk_idx, chunk_text in enumerate(doc_chunks):
+                    segment_id = f"{doc_name}_chunk_{chunk_idx}"
+                    all_segment_ids.add(segment_id)
+                    all_segments_for_relevance.append((segment_id, chunk_text))
+            
+            # Finde fehlende Segmente
+            missing_segment_ids = all_segment_ids - coded_segment_ids
+            
+            # Liste für nicht-relevante Segmente (für Reliability Database)
+            non_relevant_codings = []
+            
+            if missing_segment_ids:
+                print(f"   📝 Füge {len(missing_segment_ids)} nicht kodierte Segmente hinzu...")
+                
+                # FIX: Führe Relevanzprüfung für alle fehlenden Segmente durch, um echte Begründungen zu bekommen
+                print(f"   🔍 Führe Relevanzprüfung für {len(missing_segment_ids)} fehlende Segmente durch...")
+                missing_segments_for_check = [(seg_id, text) for seg_id, text in all_segments_for_relevance if seg_id in missing_segment_ids]
+                
+                if missing_segments_for_check and hasattr(analysis_manager, 'relevance_checker'):
+                    try:
+                        # Führe Relevanzprüfung durch
+                        relevance_results = await analysis_manager.relevance_checker.check_relevance_batch(missing_segments_for_check)
+                        print(f"   ✅ Relevanzprüfung für {len(relevance_results)} Segmente abgeschlossen")
+                    except Exception as e:
+                        print(f"   ⚠️ Fehler bei Relevanzprüfung: {e}")
+                        relevance_results = {}
+                else:
+                    relevance_results = {}
+                
+                # Erstelle "Nicht kodiert" Einträge für fehlende Segmente
+                for segment_id in missing_segment_ids:
+                    # Extrahiere Dokumentname und Chunk-Index
+                    if '_chunk_' in segment_id:
+                        doc_name = segment_id.split('_chunk_')[0]
+                        chunk_idx = int(segment_id.split('_chunk_')[1])
+                        
+                        # Hole den Text des Segments
+                        segment_text = ""
+                        if doc_name in chunks and chunk_idx < len(chunks[doc_name]):
+                            segment_text = chunks[doc_name][chunk_idx]
+                        
+                        # FIX: Hole echte Begründung aus der gerade durchgeführten Relevanzprüfung
+                        justification = 'Segment wurde als nicht relevant für die Forschungsfrage eingestuft'
+                        if hasattr(analysis_manager, 'relevance_checker') and analysis_manager.relevance_checker:
+                            relevance_details = analysis_manager.relevance_checker.get_relevance_details(segment_id)
+                            if relevance_details and relevance_details.get('reasoning'):
+                                # Verwende die echte API-Begründung
+                                justification = relevance_details['reasoning']
+                                print(f"   📝 Echte Begründung für {segment_id}: {justification[:80]}...")
+                            elif segment_id in relevance_results:
+                                # Fallback: Verwende Ergebnis aus aktueller Prüfung
+                                is_relevant = relevance_results[segment_id]
+                                if not is_relevant:
+                                    justification = f"Segment als nicht relevant eingestuft (Relevanz-Score: 0.0)"
+                        
+                        # Erstelle "Nicht kodiert" Eintrag für jeden Kodierer
+                        for coder_config in CONFIG['CODER_SETTINGS']:
+                            not_coded_entry = {
+                                'segment_id': segment_id,
+                                'coder_id': coder_config['coder_id'],
+                                'category': 'Nicht kodiert',
+                                'subcategories': [],
+                                'confidence': {'total': 1.0, 'category': 1.0, 'subcategories': 1.0},
+                                'justification': justification,  # FIX: Echte API-Begründung
+                                'text': segment_text,
+                                'document': doc_name,
+                                'chunk_id': chunk_idx,
+                                'multiple_coding_instance': 1,
+                                'total_coding_instances': 1,
+                                'is_relevant': False,  # WICHTIG: Markiere als nicht relevant
+                                'exclude_from_reliability': True,  # WICHTIG: Ausschluss von Reliabilität
+                                'coding_date': datetime.now().isoformat()
+                            }
+                            all_codings.append(not_coded_entry)
+                            non_relevant_codings.append(not_coded_entry)
+                
+                print(f"   ✅ {len(missing_segment_ids)} nicht kodierte Segmente hinzugefügt")
+                
+                # FIX: Speichere nicht-relevante Segmente auch in Reliability Database
+                if hasattr(analysis_manager, 'dynamic_cache_manager') and analysis_manager.dynamic_cache_manager:
+                    print(f"   💾 Speichere {len(non_relevant_codings)} nicht-relevante Segmente in Reliability Database...")
+                    
+                    from .core.data_models import ExtendedCodingResult
+                    
+                    for not_coded in non_relevant_codings:
+                        extended_result = ExtendedCodingResult(
+                            segment_id=not_coded['segment_id'],
+                            coder_id=not_coded['coder_id'],
+                            category=not_coded['category'],
+                            subcategories=not_coded.get('subcategories', []),
+                            confidence=not_coded.get('confidence', {}).get('total', 1.0) if isinstance(not_coded.get('confidence'), dict) else 1.0,
+                            justification=not_coded['justification'],  # FIX: Echte API-Begründung
+                            analysis_mode=CONFIG.get('ANALYSIS_MODE', 'deductive'),
+                            timestamp=datetime.now(),
+                            is_manual=False,
+                            metadata={
+                                'is_relevant': False,
+                                'exclude_from_reliability': True,
+                                'document': not_coded.get('document', ''),
+                                'chunk_id': not_coded.get('chunk_id', 0),
+                                'text': not_coded.get('text', '')
+                            }
+                        )
+                        
+                        analysis_manager.dynamic_cache_manager.store_for_reliability(extended_result)
+                    
+                    print(f"   ✅ Nicht-relevante Segmente in Reliability Database gespeichert")
+            else:
+                print(f"   ✅ Alle Segmente sind bereits kodiert")
+
+            print(f"\nGesamtzahl Kodierungen (inkl. nicht kodierte): {len(all_codings)}")
+            
+            # FIX: Sortiere all_codings nach ursprünglicher Segment-Reihenfolge
+            print(f"   🔄 Sortiere Kodierungen nach ursprünglicher Segment-Reihenfolge...")
+            
+            def get_sort_key(coding):
+                segment_id = coding.get('segment_id', '')
+                if '_chunk_' in segment_id:
+                    doc_name = segment_id.split('_chunk_')[0]
+                    try:
+                        chunk_idx = int(segment_id.split('_chunk_')[1])
+                        return (doc_name, chunk_idx, coding.get('coder_id', ''))
+                    except ValueError:
+                        return (doc_name, 999999, coding.get('coder_id', ''))
+                return (segment_id, 0, coding.get('coder_id', ''))
+            
+            all_codings.sort(key=get_sort_key)
+            print(f"   ✅ Kodierungen sortiert nach Dokument und Chunk-Reihenfolge")
 
 
             # 8.  Intercoder-Reliabilität mit kategorie-spezifischer Berechnung
@@ -626,20 +768,55 @@ async def main() -> None:
                 print("\n8. Berechne korrekte Intercoder-Reliabilität...")
                 
                 # FIX: SICHER ursprüngliche Kodierungen BEVOR Review-Prozess
-                original_codings_for_reliability = all_codings.copy()  # Kopie der ursprünglichen Kodierungen
+                # NEUE LOGIK: Verwende Reliability Database wenn verfügbar, sonst Fallback
+                try:
+                    # Versuche Daten aus Reliability Database zu holen
+                    reliability_data_from_db = analysis_manager.get_reliability_data()
+                    if reliability_data_from_db and len(reliability_data_from_db) > 0:
+                        print(f"   📊 Verwende {len(reliability_data_from_db)} Kodierungen aus Reliability Database")
+                        # Konvertiere ExtendedCodingResult zu Dict-Format für ReliabilityCalculator
+                        original_codings_for_reliability = []
+                        for result in reliability_data_from_db:
+                            coding_dict = {
+                                'segment_id': result.segment_id,
+                                'coder_id': result.coder_id,
+                                'category': result.category,
+                                'subcategories': result.subcategories,
+                                'confidence': result.confidence,
+                                'justification': result.justification,
+                                'analysis_mode': result.analysis_mode,
+                                'timestamp': result.timestamp,
+                                'is_manual': result.is_manual,
+                                'metadata': result.metadata
+                            }
+                            original_codings_for_reliability.append(coding_dict)
+                        print(f"   ✅ Reliability Database erfolgreich geladen")
+                    else:
+                        # Fallback zu in-memory Daten
+                        print(f"   ⚠️ Reliability Database leer, verwende In-Memory Kodierungen")
+                        original_codings_for_reliability = all_codings.copy()
+                except Exception as e:
+                    # Fallback zu in-memory Daten bei Fehlern
+                    print(f"   ⚠️ Fehler beim Laden aus Reliability Database: {e}")
+                    print(f"   🔄 Fallback zu In-Memory Kodierungen")
+                    original_codings_for_reliability = all_codings.copy()
                 
                 # NEUE LOGIK: Verwende korrigierte ReliabilityCalculator
                 reliability_calculator = ReliabilityCalculator()
-                reliability = reliability_calculator.calculate_reliability(original_codings_for_reliability)
+                
+                # Calculate comprehensive report once (includes all alpha values)
+                comprehensive_reliability_report = reliability_calculator.calculate_comprehensive_reliability(original_codings_for_reliability)
+                reliability = comprehensive_reliability_report['overall_alpha']  # Extract main alpha for backward compatibility
                 
                 print(f"📈 Krippendorff's Alpha (korrigiert fuer Mehrfachkodierungen): {reliability:.3f}")
             else:
                 print("\nKeine Kodierungen fuer Reliabilitätsberechnung")
                 reliability = 0.0
                 original_codings_for_reliability = []
+                comprehensive_reliability_report = None  # No report when no codings
 
             # 9. Review-Behandlung mit kategorie-zentrierter Mehrfachkodierungs-Logik
-            print(f"\n9. FÜhre kategorie-zentrierten Review-Prozess durch...")
+            print(f"\n9. Führe kategorie-zentrierten Review-Prozess durch...")
 
             # Gruppiere Kodierungen nach Segmenten fuer Review
             segment_codings = {}
@@ -676,7 +853,7 @@ async def main() -> None:
             review_manager = ReviewManager(CONFIG['OUTPUT_DIR'])
             
             try:
-                # FÜhre kategorie-zentrierten Review durch
+                # Führe kategorie-zentrierten Review durch
                 reviewed_codings = review_manager.process_coding_review(all_codings, review_mode)
                 
                 print(f"✅ Review abgeschlossen: {len(reviewed_codings)} finale Kodierungen")
@@ -711,7 +888,8 @@ async def main() -> None:
                 category_manager = CategoryManager(CONFIG['OUTPUT_DIR'])
                 category_manager.save_codebook(
                     categories=final_categories,
-                    filename="codebook_inductive.json"
+                    filename="codebook_inductive.json",
+                    research_question=CONFIG.get('FORSCHUNGSFRAGE', FORSCHUNGSFRAGE)
                 )
                 print(f"\nCodebook erfolgreich gespeichert mit {len(final_categories)} Hauptkategorien und {total_subcats} Subkategorien")
 
@@ -729,6 +907,10 @@ async def main() -> None:
                 
                 # FIX: Store original codings in exporter for reliability calculation
                 exporter.original_codings_for_reliability = original_codings_for_reliability
+                
+                # FIX: Store calculated reliability to avoid recalculation
+                exporter.calculated_reliability = reliability
+                exporter.comprehensive_reliability_report = comprehensive_reliability_report
                 
                 # Exportiere Ergebnisse
                 # NEU: Paraphrasen-Kontext ist intern, summaries nicht mehr für Export benötigt
@@ -773,15 +955,15 @@ async def main() -> None:
 
                 # FIX: Korrekte PrÜfung von EXPORT_ANNOTATED_PDFS
                 export_pdfs_enabled = CONFIG.get('EXPORT_ANNOTATED_PDFS', True)
-                print(f"DEBUG: EXPORT_ANNOTATED_PDFS Wert: {export_pdfs_enabled} (Typ: {type(export_pdfs_enabled)})")
+                # print(f"DEBUG: EXPORT_ANNOTATED_PDFS Wert: {export_pdfs_enabled} (Typ: {type(export_pdfs_enabled)})")
                 
                 if export_pdfs_enabled is False or str(export_pdfs_enabled).lower() in ['false', '0', 'no', 'nein', 'off']:
-                    print("\n   [INFO]⚠️ PDF-Annotation deaktiviert (EXPORT_ANNOTATED_PDFS=False)")
+                    print("\n   ⚠️ PDF-Annotation deaktiviert (EXPORT_ANNOTATED_PDFS=False)")
                 elif not pdf_annotation_available:
-                    print("\n   [INFO]⚠️ PDF-Annotation nicht verfÜgbar (PyMuPDF/ReportLab fehlt)")
+                    print("\n   ⚠️ PDF-Annotation nicht verfügbar (PyMuPDF/ReportLab fehlt)")
                     print("   ℹ️ Installieren Sie mit: pip install PyMuPDF reportlab")
                 else:
-                    # PDF-Annotation ist aktiviert und verfÜgbar
+                    # PDF-Annotation ist aktiviert und verfügbar
                     try:
                         print("\n💾 Exportiere annotierte PDFs fuer alle Dateiformate...")
                         
@@ -797,7 +979,7 @@ async def main() -> None:
                             for pdf_path in annotated_pdfs:
                                 print(f"   - {os.path.basename(pdf_path)}")
                         else:
-                            print("   [INFO]⚠️ Keine Dateien fuer Annotation gefunden")
+                            print("   ⚠️ Keine Dateien fuer Annotation gefunden")
                             
                     except Exception as e:
                         print(f"   ❌ Fehler bei erweiterter PDF-Annotation: {e}")
@@ -824,7 +1006,7 @@ async def main() -> None:
                     auto_coder_ids = set(c.get('coder_id', '') for c in codings_for_stats if c.get('coder_id', '').startswith('auto'))
         # Mehrfachkodierungs-Statistiken entfernt (Unicode-Probleme)
                 else:
-                    print("\n                    Mehrfachkodierungs-Statistiken: Keine Kodierungen fuer Analyse verfÜgbar")
+                    print("\n                    Mehrfachkodierungs-Statistiken: Keine Kodierungen fuer Analyse verfügbar")
             else:
                 print("\n                    Mehrfachkodierungs-Statistiken: DEAKTIVIERT")
             
@@ -832,14 +1014,40 @@ async def main() -> None:
             print("\nToken-Nutzung:")
             print(token_counter.get_report())
             
-            # Relevanz-Statistiken
-            relevance_stats = analysis_manager.relevance_checker.get_statistics()
-            print("\nRelevanz-Statistiken:")
-            print(f"- Segmente analysiert: {relevance_stats['total_segments']}")
-            print(f"- Relevante Segmente: {relevance_stats['relevant_segments']}")
-            print(f"- Relevanzrate: {relevance_stats['relevance_rate']*100:.1f}%")
-            print(f"- API-Calls gespart: {relevance_stats['total_segments'] - relevance_stats['api_calls']}")
-            print(f"- Cache-Nutzung: {relevance_stats['cache_size']} EintrÄge")
+            # Relevanz-Statistiken - nur wenn NICHT im Optimization Mode
+            # Im Optimization Mode werden die Statistiken bereits während der Analyse angezeigt
+            if not analysis_manager.optimization_enabled:
+                relevance_stats = analysis_manager.relevance_checker.get_statistics()
+                print("\n" + "="*70)
+                print("📊 RELEVANZ-STATISTIKEN")
+                print("="*70)
+                
+                # Berechne Werte
+                total_segs = relevance_stats['total_segments']
+                relevant_segs = relevance_stats['relevant_segments']
+                relevance_rate = relevance_stats['relevance_rate'] * 100
+                api_calls = relevance_stats['api_calls']
+                cached_calls = total_segs - api_calls
+                cache_size = relevance_stats['cache_size']
+                
+                # Segmentanalyse
+                print(f"\n📄 Segmentanalyse:")
+                print(f"   • Analysierte Segmente:  {total_segs}")
+                print(f"   • Relevante Segmente:    {relevant_segs}")
+                print(f"   • Relevanzrate:          {relevance_rate:.1f}%")
+                
+                # API-Effizienz
+                print(f"\n🔌 API-Effizienz:")
+                print(f"   • Tatsächliche API-Calls: {api_calls}")
+                print(f"   • Aus Cache geladen:      {cached_calls}")
+                if total_segs > 0:
+                    efficiency = (cached_calls / total_segs) * 100
+                    print(f"   • Cache-Effizienz:        {efficiency:.1f}%")
+                
+                # Cache-Status
+                print(f"\n💾 Cache-Status:")
+                print(f"   • Gespeicherte Einträge:  {cache_size}")
+                print("="*70)
 
             if 'console_logger' in locals():
                 console_logger.stop_logging() 
@@ -901,6 +1109,15 @@ async def monitor_progress(analysis_manager: IntegratedAnalysisManager):
             print("\n--- Analysefortschritt ---")
             print(f"Verarbeitet: {progress['progress']['processed_segments']} Segmente")
             print(f"Geschwindigkeit: {progress['progress']['segments_per_hour']:.1f} Segmente/Stunde")
+            
+            # FIX: Zeige zusätzliche Status-Information
+            if 'status' in progress['progress']:
+                print(f"Status: {progress['progress']['status']}")
+            
+            # FIX: Zeige Kodierungs-Information für Multi-Coder Szenarien
+            if progress['progress']['total_codings'] > 0:
+                print(f"Kodierungen: {progress['progress']['coding_info']}")
+            
             print("------------------------")
             
             await asyncio.sleep(30)  # Update alle 30 Sekunden

@@ -212,7 +212,7 @@ class EscapeHandler:
                                 input_chars.pop()
                                 print('\b \b', end='', flush=True)  # Zeichen löschen
                         
-                        # FIX: Nur gültige Zeichen hinzufügen
+                        # FIX: Nur gültige Zeichen hinzuFügen
                         else:
                             try:
                                 decoded_char = char.decode('utf-8')
@@ -270,7 +270,7 @@ class EscapeHandler:
                                     input_chars.pop()
                                     print('\b \b', end='', flush=True)
                             
-                            # FIX: Normale Zeichen hinzufügen
+                            # FIX: Normale Zeichen hinzuFügen
                             else:
                                 if char.isprintable():
                                     input_chars.append(char)
@@ -416,7 +416,7 @@ def add_escape_handler_to_manager(manager_instance) -> EscapeHandler:
 # Decorator für automatische Escape-Handler Integration
 def with_escape_handler(cls):
     """
-    Decorator um automatisch einen Escape-Handler zu einer Klasse hinzuzufügen.
+    Decorator um automatisch einen Escape-Handler zu einer Klasse hinzuzuFügen.
     
     Usage:
         @with_escape_handler

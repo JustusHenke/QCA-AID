@@ -403,7 +403,7 @@ class LLMProviderManager:
         Args:
             provider_name: Name des neuen Providers (z.B. 'custom-provider')
             url: URL zur Provider-Config JSON-Datei
-            update_cache: Ob Cache nach dem Hinzufügen aktualisiert werden soll (Standard: True)
+            update_cache: Ob Cache nach dem HinzuFügen aktualisiert werden soll (Standard: True)
         
         Raises:
             ProviderLoadError: Wenn URL nicht erreichbar oder JSON ungültig ist
@@ -471,7 +471,7 @@ class LLMProviderManager:
         Args:
             provider_name: Name des neuen Providers (z.B. 'custom-provider')
             config_path: Pfad zur lokalen Provider-Config JSON-Datei
-            update_cache: Ob Cache nach dem Hinzufügen aktualisiert werden soll (Standard: True)
+            update_cache: Ob Cache nach dem HinzuFügen aktualisiert werden soll (Standard: True)
         
         Raises:
             ProviderLoadError: Wenn Datei nicht existiert oder JSON ungültig ist

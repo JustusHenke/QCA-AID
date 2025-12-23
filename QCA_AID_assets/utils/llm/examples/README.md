@@ -2,7 +2,7 @@
 
 Dieses Verzeichnis enthält praktische Beispiele für die Verwendung des LLM Provider Managers.
 
-## Verfügbare Beispiele
+## verfügbare Beispiele
 
 ### 1. basic_usage.py
 **Basis-Nutzung des Provider Managers**
@@ -76,9 +76,9 @@ python pricing_overrides.py
 ---
 
 ### 4. add_new_provider.py
-**Neue Provider hinzufügen**
+**Neue Provider hinzuFügen**
 
-Demonstriert das Hinzufügen neuer Provider:
+Demonstriert das HinzuFügen neuer Provider:
 - Via URL (Catwalk-Format)
 - Via lokale JSON-Datei
 - Mehrere Provider gleichzeitig
@@ -122,7 +122,7 @@ python QCA_AID_assets/utils/llm/examples/filter_usage.py
 # Pricing-Overrides
 python QCA_AID_assets/utils/llm/examples/pricing_overrides.py
 
-# Neue Provider hinzufügen
+# Neue Provider hinzuFügen
 python QCA_AID_assets/utils/llm/examples/add_new_provider.py
 ```
 

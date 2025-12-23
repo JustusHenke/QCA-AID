@@ -5,6 +5,7 @@ Koordiniert die verschiedenen Analysephasen in einem zusammenhängenden Prozess.
 """
 
 import json
+import os
 import asyncio
 import time
 import traceback
@@ -15,7 +16,7 @@ from datetime import datetime
 from ..core.config import CONFIG, FORSCHUNGSFRAGE, KODIERREGELN
 from ..core.data_models import CategoryDefinition, CodingResult
 from ..core.validators import CategoryValidator
-from ..management import DevelopmentHistory, CategoryManager, CategoryRevisionManager
+from ..management import CategoryManager, CategoryRevisionManager
 from ..export.results_exporter import ResultsExporter
 from .relevance_checker import RelevanceChecker
 from .deductive_coding import DeductiveCoder
@@ -28,6 +29,7 @@ from ..utils.impact_analysis import analyze_multiple_coding_impact
 from ..utils.validators import validate_category_specific_segments
 from ..utils.llm.response import LLMResponse
 from ..QCA_Prompts import QCAPrompts
+from ..optimization.controller import OptimizationController, AnalysisMode
 
 # Verwende globale Token-Counter Instanz
 token_counter = get_global_token_counter()
@@ -38,20 +40,23 @@ class IntegratedAnalysisManager:
     def __init__(self, config: Dict):
         # Bestehende Initialisierung
         self.config = config
-        self.history = DevelopmentHistory(config['OUTPUT_DIR'])
+        self.output_dir = config['OUTPUT_DIR']  # FIX: output_dir Attribut hinzufügen
 
-        # FIX: model_name Attribut hinzufÜgen fuer RelevanceChecker
+        # FIX: model_name Attribut hinzuFügen fuer RelevanceChecker
         self.model_name = config['MODEL_NAME']
 
         # Batch Size aus Config
         self.batch_size = config.get('BATCH_SIZE', 5) 
 
-        # Prompt-Handler initialisieren
+        # Prompt-Handler initialisieren mit echter Config statt statischen Werten
+        self.research_question = config.get('FORSCHUNGSFRAGE', FORSCHUNGSFRAGE)  # Echte Forschungsfrage aus User-Config
+        self.coding_rules = config.get('KODIERREGELN', KODIERREGELN)  # Echte Kodierregeln aus User-Config
+        self.deductive_categories = config.get('DEDUKTIVE_KATEGORIEN', {})  # Echte Kategorien aus User-Config
+        
         self.prompt_handler = QCAPrompts(
-            forschungsfrage=FORSCHUNGSFRAGE,
-            kodierregeln=KODIERREGELN,
-            deduktive_kategorien=CONFIG.get('DEDUKTIVE_KATEGORIEN', {})
-
+            forschungsfrage=self.research_question,
+            kodierregeln=self.coding_rules,
+            deduktive_kategorien=self.deductive_categories
         )
         
         # Zentrale Relevanzprüfung
@@ -65,7 +70,6 @@ class IntegratedAnalysisManager:
         self.inductive_coder = InductiveCoder(
             model_name=config['MODEL_NAME'],
             temperature=config.get('INDUCTIVE_CODER_TEMPERATURE', 0.2),
-            history=self.history,
             output_dir=config['OUTPUT_DIR'],
             config=config  # Übergebe config fuer verbesserte Initialisierung
         )
@@ -105,15 +109,77 @@ class IntegratedAnalysisManager:
         self.grounded_saturation_counter = 0    # ZÄhler fuer Batches ohne neue Subcodes
 
 
-        # NEU: Escape-Handler hinzufÜgen (unverÄndert)
+        # NEU: Escape-Handler hinzuFügen (unverÄndert)
         self.escape_handler = EscapeHandler(self)
         self._should_abort = False
         self._escape_abort_requested = False
 
-        self.current_categories = {}  # FIX: HinzufÜgen
+        self.current_categories = {}  
+
+        # OPTIMIZATION INTEGRATION
+        self.optimization_enabled = config.get('ENABLE_OPTIMIZATION', True)
+        self.optimization_controller = None
+        
+        # NEW: Dynamic Cache System Integration (automatically enabled with optimization)
+        # If ENABLE_OPTIMIZATION is True, ENABLE_DYNAMIC_CACHE is also True by default
+        self.use_dynamic_cache = config.get('ENABLE_DYNAMIC_CACHE', self.optimization_enabled)
+        self.dynamic_cache_manager = None
+        
+        # Log the configuration
+        if self.optimization_enabled and not config.get('ENABLE_DYNAMIC_CACHE', True):
+            print("   ℹ️ ENABLE_OPTIMIZATION=True aktiviert automatisch ENABLE_DYNAMIC_CACHE=True")
+            self.use_dynamic_cache = True
+        
+        if self.optimization_enabled:
+            try:
+                # Reuse the LLM provider from inductive coder
+                if hasattr(self.inductive_coder, 'llm_provider'):
+                    provider = self.inductive_coder.llm_provider
+                else:
+                    # Fallback creation if needed (should generally exist)
+                    from ..utils.llm.factory import create_llm_provider
+                    provider = create_llm_provider(config['MODEL_PROVIDER'])
+                
+                # WICHTIG: Übergebe Temperaturen aus Config
+                relevance_temp = config.get('RELEVANCE_CHECK_TEMPERATURE', 0.3)
+                inductive_temp = config.get('INDUCTIVE_CODER_TEMPERATURE', 0.2)
+                multiple_coding_threshold = config.get('MULTIPLE_CODING_THRESHOLD', 0.7)
+                self.optimization_controller = OptimizationController(
+                    llm_provider=provider,
+                    model_name=config['MODEL_NAME'],
+                    output_dir=config['OUTPUT_DIR'],
+                    cache_dir=os.path.join(config['OUTPUT_DIR'], '.cache'),
+                    relevance_temperature=relevance_temp,  # Temperature aus Config für Relevanzprüfung
+                    inductive_temperature=inductive_temp,   # Temperature aus Config für Inductive Mode
+                    multiple_coding_threshold=multiple_coding_threshold  # Threshold aus Config
+                )
+                print(f"   🚀 OptimizationController initialisiert (Batching & Caching aktiviert)")
+                
+                # NEW: Initialize Dynamic Cache Manager if enabled
+                if self.use_dynamic_cache:
+                    try:
+                        # WICHTIG: Verwende den DynamicCacheManager vom OptimizationController
+                        # statt einen eigenen zu erstellen, um Duplikation zu vermeiden
+                        self.dynamic_cache_manager = self.optimization_controller.dynamic_cache_manager
+                        
+                        print(f"   🗄️ DynamicCacheManager vom OptimizationController wiederverwendet")
+                        print(f"   📊 Reliability Database: {self.dynamic_cache_manager.reliability_db.db_path}")
+                        
+                    except Exception as e:
+                        print(f"   ⚠️ Konnte DynamicCacheManager nicht wiederverwenden: {e}")
+                        self.use_dynamic_cache = False
+                        self.dynamic_cache_manager = None
+                
+            except Exception as e:
+                print(f"   ⚠️ Konnte OptimizationController nicht initialisieren: {e}")
+                self.optimization_enabled = False
 
         print(f"\n🧑‍💼 IntegratedAnalysisManager initialisiert:")
         print(f"   - Analysemodus: {config.get('ANALYSIS_MODE', 'inductive')}")
+        print(f"   - Optimization: {'✅ Aktiviert' if self.optimization_enabled else '❌ Deaktiviert'}")
+        print(f"   - Dynamic Cache: {'✅ Aktiviert' if self.use_dynamic_cache else '❌ Deaktiviert (Legacy Mode)'}")
+        print(f"   - Reliability: {'🗄️ Database' if self.use_dynamic_cache else '📊 Legacy Calculator'}")
+        
         if config.get('ANALYSIS_MODE') == 'grounded':
             print(f"   - Grounded Mode: Subcode-Sammlung aktiviert")
             print(f"   - Hauptkategorien werden erst am Ende generiert")
@@ -189,10 +255,10 @@ class IntegratedAnalysisManager:
     async def _process_inductive_mode(self, relevant_segments: List[str], 
                                     current_categories: Dict[str, CategoryDefinition]) -> Dict[str, CategoryDefinition]:
         """
-        INDUCTIVE MODE: VollstÄndige induktive Kategorienentwicklung (ehemals full mode)
+        INDUCTIVE MODE: Vollständige induktive Kategorienentwicklung (ehemals full mode)
         """
-        print("ℹ️ INDUCTIVE MODE: VollstÄndige induktive Kategorienentwicklung")
-        print("   - Entwickle eigenstÄndiges induktives Kategoriensystem")
+        print("ℹ️ INDUCTIVE MODE: Vollständige induktive Kategorienentwicklung")
+        print("   - Entwickle eigenständiges induktives Kategoriensystem")
         print("   - Deduktive Kategorien werden ignoriert")
         
         # KORRIGIERT: Übergebe bestehende induktive Kategorien als Basis
@@ -203,7 +269,7 @@ class IntegratedAnalysisManager:
         
         print(f"✅ INDUCTIVE MODE: {len(new_categories)} Kategorien entwickelt")
         if current_categories:
-            print(f"   (zusÄtzlich zu {len(current_categories)} bereits bestehenden)")
+            print(f"   (zusätzlich zu {len(current_categories)} bereits bestehenden)")
         return new_categories
 
     async def _process_abductive_mode(self, relevant_segments: List[str], 
@@ -278,10 +344,10 @@ class IntegratedAnalysisManager:
             print(f"🧾 Aktuelle Metriken:")
             print(f"   - Material-Fortschritt: {material_percentage:.1f}%")
             print(f"   - Gesammelte Subcodes: {len(self.grounded_subcodes_collection)}")
-            print(f"   - Subcode-DiversitÄt: {subcode_diversity}")
-            print(f"   - Keyword-DiversitÄt: {keyword_diversity}")
+            print(f"   - Subcode-Di: {subcode_diversity}")
+            print(f"   - Keyword-Di: {keyword_diversity}")
             print(f"   - Sättigungs-Counter: {self.grounded_saturation_counter}")
-            print(f"   - Ae˜ Subcodes/Batch: {avg_subcodes_per_batch:.1f}")
+            print(f"   - Subcodes/Batch: {avg_subcodes_per_batch:.1f}")
             
             print(f"\n🎯 Sättigungskriterien:")
             for criterion, met in criteria.items():
@@ -292,7 +358,7 @@ class IntegratedAnalysisManager:
             critical_criteria = ['min_batches', 'subcodes_collected', 'saturation_stability']
             critical_met = all(criteria[crit] for crit in critical_criteria)
             
-            # VollstÄndige Sättigung: Alle Kriterien oder kritische + Material fast vollstÄndig
+            # Vollständige Sättigung: Alle Kriterien oder kritische + Material fast vollständig
             full_saturation = all(criteria.values())
             partial_saturation = critical_met and (material_percentage >= 85 or criteria['material_coverage'])
             forced_saturation = material_percentage >= 100  # 100% Material = ZwangssÄttigung
@@ -300,7 +366,7 @@ class IntegratedAnalysisManager:
             is_saturated = full_saturation or partial_saturation or forced_saturation
             
             if is_saturated:
-                saturation_type = "VollstÄndig" if full_saturation else ("Partiell" if partial_saturation else "Material-bedingt")
+                saturation_type = "Vollständig" if full_saturation else ("Partiell" if partial_saturation else "Material-bedingt")
                 print(f"\n🎯 GROUNDED MODE SÄTTIGUNG erreicht ({saturation_type}):")
                 print(f"   - Material: {material_percentage:.1f}% verarbeitet")
                 print(f"   - Subcodes: {len(self.grounded_subcodes_collection)} gesammelt")
@@ -440,6 +506,7 @@ class IntegratedAnalysisManager:
                 print(f"🎯 Häufigste Präferenzen: {dict(pref_stats.most_common(3))}")
         
         print(f"\n🕵️ Prüfe Kodierungs-Relevanz...")
+        print(f"   📋 Forschungsfrage: {self.research_question}")
         coding_relevance_results = await self.relevance_checker.check_relevance_batch(batch)
         
         # Debug-Ausgaben
@@ -538,7 +605,7 @@ class IntegratedAnalysisManager:
             preferred_cats = preselection.get('preferred_categories', [])
             
             if preferred_cats:
-                # FIX: Verwende vollstÄndige CategoryDefinition-Objekte aus categories
+                # FIX: Verwende vollständige CategoryDefinition-Objekte aus categories
                 effective_categories = {
                     name: cat for name, cat in categories.items() 
                     if name in preferred_cats and isinstance(cat, CategoryDefinition)  # FIX: Validiere CategoryDefinition
@@ -550,7 +617,7 @@ class IntegratedAnalysisManager:
                 else:
                     print(f"    🎯 Segment {segment_id}: Fokus auf {len(effective_categories)} Kategorien: {', '.join(preferred_cats)}")
                     
-                    # FIX: Validiere, dass effective_categories vollstÄndige Definitionen hat
+                    # FIX: Validiere, dass effective_categories vollständige Definitionen hat
                     for name, cat in effective_categories.items():
                         if not hasattr(cat, 'subcategories'):
                             print(f"    ❌ KRITISCH: effective_categories['{name}'] fehlen Subkategorien - hole aus categories")
@@ -559,7 +626,7 @@ class IntegratedAnalysisManager:
             else:
                 # FIX: Fallback auf alle Kategorien wenn keine Vorauswahl
                 effective_categories = categories
-                print(f"    🔀 Segment {segment_id}: Standard-Kodierung mit allen {len(categories)} Kategorien")
+                print(f"    🔀 Segment {segment_id}: Standard-Kodierung mit allen {len(categories)} Kategorien")
             
             
             # Bestimme Kodierungsinstanzen (fuer Mehrfachkodierung)
@@ -586,17 +653,17 @@ class IntegratedAnalysisManager:
             
             # 🚀 PARALLEL: Alle Kodierer fuer alle Instanzen
             async def code_with_coder_and_instance(coder, instance_info):
-                """FIX: Kodiert mit einem Kodierer unter Verwendung der vollstÄndigen CategoryDefinition-Objekte."""
+                """FIX: Kodiert mit einem Kodierer unter Verwendung der vollständigen CategoryDefinition-Objekte."""
                 try:
 
-                    # FIX: Bei Fokuskodierung die target_category zu effective_categories hinzufÜgen
+                    # FIX: Bei Fokuskodierung die target_category zu effective_categories hinzuFügen
                     enhanced_categories = effective_categories.copy()
                     target_cat = instance_info['target_category']
                     if target_cat:
                         if target_cat and target_cat not in enhanced_categories:
                             if target_cat in categories:  
                                 enhanced_categories[target_cat] = categories[target_cat]  
-                                print(f"    🎯 Fokuskategorie '{target_cat}' zu verfÜgbaren Kategorien hinzugefÜgt")
+                                print(f"    🎯 Fokuskategorie '{target_cat}' zu verfügbaren Kategorien hinzugefÜgt")
                             else:
                                 print(f"    ❌ Fokuskategorie '{target_cat}' nicht in Kategorien vorhanden")
 
@@ -638,12 +705,12 @@ class IntegratedAnalysisManager:
                                     except Exception as e2:
                                         print(f"    ⚠️ Auch Fallback-Validierung fehlgeschlagen: {str(e2)}")
                         else:
-                            # FIX: Informative Meldung bei nicht verfÜgbaren Kategorien
+                            # FIX: Informative Meldung bei nicht verfügbaren Kategorien
                             if main_category not in enhanced_categories:
-                                print(f"    ℹ️ Kategorie '{main_category}' nicht in verfÜgbaren Kategorien")
-                                print(f"    🎯 VerfÜgbare Kategorien: {list(enhanced_categories.keys())}")
+                                print(f"    ℹ️ Kategorie '{main_category}' nicht in verfügbaren Kategorien")
+                                print(f"    🎯 verfügbare Kategorien: {list(enhanced_categories.keys())}")
                             elif not hasattr(enhanced_categories[main_category], 'subcategories'):
-                                print(f"    ℹ️ Keine Subkategorie-Definitionen verfÜgbar fuer '{main_category}'")
+                                print(f"    ℹ️ Keine Subkategorie-Definitionen verfügbar fuer '{main_category}'")
                         
                         # FIX: Debug-Ausgabe nur bei wichtigen Ereignissen
                         if len(original_subcats) != len(validated_subcats):
@@ -699,7 +766,7 @@ class IntegratedAnalysisManager:
                     task = code_with_coder_and_instance(coder, instance_info)
                     coding_tasks.append(task)
             
-            # FÜhre alle Kodierungen fuer dieses Segment parallel aus
+            # Führe alle Kodierungen fuer dieses Segment parallel aus
             coding_results = await asyncio.gather(*coding_tasks, return_exceptions=True)
             
             # Sammle erfolgreiche Ergebnisse
@@ -718,7 +785,7 @@ class IntegratedAnalysisManager:
         
         print(f"🚀 Starte parallele Kodierung von {len(segment_tasks)} Segmenten...")
         
-        # 🚀 FÜhre alle Segment-Kodierungen parallel aus
+        # 🚀 Führe alle Segment-Kodierungen parallel aus
         all_segment_results = await asyncio.gather(*segment_tasks, return_exceptions=True)
         
         # Sammle alle Ergebnisse
@@ -775,14 +842,14 @@ class IntegratedAnalysisManager:
         processing_time = time.time() - start_time
         
         print(f"✅ PARALLEL-BATCH ABGESCHLOSSEN:")
-        print(f"   âš¡ Zeit: {processing_time:.2f}s")
+        print(f"   ⌚ Zeit: {processing_time:.2f}s")
         if processing_time > 0:
             print(f"   🚀 Geschwindigkeit: {len(batch)/processing_time:.1f} Segmente/Sekunde")
         else:
             print(f"   🚀 Geschwindigkeit: {len(batch)} Segmente in <0.01s (sehr schnell)")
         print(f"   ✅ Erfolgreiche Segmente: {successful_segments}/{len(batch)}")
         print(f"   🧾 Gesamte Kodierungen: {len(batch_results)}")
-        # FIX: ZusÄtzliche Statistiken fuer Kategorie-Vorauswahl
+        # FIX: Zusätzliche Statistiken fuer Kategorie-Vorauswahl
         if category_preselections:
             print(f"   🎯 Kategorie-Vorauswahl genutzt: {preselection_used_count} Kodierungen")
             print(f"   🔧 Subkategorie-Validierung durchgefÜhrt: {validation_performed_count} Kodierungen")
@@ -837,7 +904,7 @@ class IntegratedAnalysisManager:
                 
             elif analysis_mode == 'grounded':
                 # Im separaten Grounded Mode wurde bereits alles erledigt
-                print(f"\n✅ GROUNDED MODE bereits vollstÄndig abgeschlossen")
+                print(f"\n✅ GROUNDED MODE bereits vollständig abgeschlossen")
                 return current_categories
                 
             elif analysis_mode == 'abductive':
@@ -866,7 +933,7 @@ class IntegratedAnalysisManager:
         analysis_mode = CONFIG.get('ANALYSIS_MODE', 'inductive')
         
         if analysis_mode == 'inductive':
-            print(f"🧑‍💼 INDUCTIVE MODE - EigenstÄndiges induktives System:")
+            print(f"🧑‍💼 INDUCTIVE MODE - Eigenständiges induktives System:")
             print(f"   - Deduktive Kategorien: IGNORIERT")
             print(f"   - Entwickelte induktive Kategorien: {len(final_categories)}")
             print(f"   - Verarbeitete Batches: {batch_count}")
@@ -899,8 +966,8 @@ class IntegratedAnalysisManager:
             final_saturation = self.inductive_coder.theoretical_saturation_history[-1]
             print(f"\n🎯 Finale Sättigung:")
             print(f"   - Theoretische Sättigung: {final_saturation['theoretical_saturation']:.1%}")
-            print(f"   - KategorienqualitÄt: {final_saturation['category_quality']:.1%}")
-            print(f"   - DiversitÄt: {final_saturation['category_diversity']:.1%}")
+            print(f"   - Kategorienqualität: {final_saturation['category_quality']:.1%}")
+            print(f"   - Di: {final_saturation['category_diversity']:.1%}")
         
         if (hasattr(self, 'inductive_coder') and 
             self.inductive_coder and 
@@ -948,7 +1015,7 @@ class IntegratedAnalysisManager:
                 
                 print(f"ðŸ’¾ Grounded Checkpoint geladen: {len(self.grounded_subcodes_collection)} Subcodes")
                 print(f"   - Keywords: {len(self.grounded_keywords_collection)}")
-                print(f"   - Batch-Historie: {len(self.grounded_batch_history)} EintrÄge")
+                print(f"   - Batch-Historie: {len(self.grounded_batch_history)} Einträge")
                 return True
         except Exception as e:
             print(f"❌ Fehler beim Laden des Grounded Checkpoints: {str(e)}")
@@ -988,7 +1055,6 @@ class IntegratedAnalysisManager:
             
             total_segments = len(all_segments)
             print(f"Verarbeite {total_segments} Segmente mit Batch-Gröẞe {batch_size}...")
-            self.history.log_analysis_start(total_segments, len(initial_categories))
 
             # GROUNDED MODE: Spezielle Behandlung
             if analysis_mode == 'grounded':
@@ -1060,6 +1126,282 @@ class IntegratedAnalysisManager:
         # Initialisiere ImprovedSaturationController
         saturation_controller = ImprovedSaturationController(analysis_mode)
         
+        # --- OPTIMIZATION INTEGRATION ---
+        # Verwende OptimizationController für ALLE Modi (wenn ENABLE_OPTIMIZATION=True)
+        # HINWEIS: Manual Coder Kompatibilität:
+        #   - Manual Coder arbeitet unabhängig vom OptimizationController
+        #   - Manual Codings werden nach der automatischen Analyse hinzugefügt
+        #   - Keine Konflikte erwartet, da Manual Coder separate Kodierungen erstellt
+        # 
+        # HINWEIS: Alle Modi werden unterstützt:
+        #   - Deductive: Relevanzprüfung + Kodierung (pro Kodierer)
+        #   - Inductive: Relevanzprüfung + Kategorienentwicklung + Kodierung
+        #   - Abductive: Relevanzprüfung + Subkategorien-Entwicklung + Kodierung
+        #   - Grounded: Relevanzprüfung + Subcode-Sammlung (Phase 1), dann Hauptkategorien + Kodierung
+        if self.optimization_enabled and self.optimization_controller:
+            # Prüfe ob Modus unterstützt wird
+            supported_modes = ['deductive', 'inductive', 'abductive', 'grounded']
+            if analysis_mode not in supported_modes:
+                print(f"⚠️ Modus '{analysis_mode}' wird im OptimizationController nicht unterstützt, verwende Standard-Analyse")
+            else:
+                print(f"\n🚀 OPTIMIZED ANALYSIS MODE ACTIVATED ({analysis_mode.upper()})")
+                print(f"   ℹ️ Nutze Batching & Caching via OptimizationController")
+                
+                # Konvertiere Segmente in Format für OptimizationController
+                opt_segments = [{'segment_id': s[0], 'text': s[1]} for s in all_segments]
+                
+                # Mapping Coding Rules - verwende echte Kodierregeln aus User-Config
+                rules = self.coding_rules.get('general', []) + self.coding_rules.get('format', [])
+                
+                # Coder Settings aus Config
+                coder_settings = self.config.get('CODER_SETTINGS', [])
+                if not coder_settings:
+                    # Fallback: Erstelle aus deductive_coders
+                    coder_settings = [
+                        {'temperature': coder.temperature, 'coder_id': coder.coder_id}
+                        for coder in self.deductive_coders
+                    ]
+                
+                try:
+                    # Verwende OptimizationController für alle Modi
+                    mode_mapping = {
+                        'deductive': AnalysisMode.DEDUCTIVE,
+                        'inductive': AnalysisMode.INDUCTIVE,
+                        'abductive': AnalysisMode.ABDUCTIVE,
+                        'grounded': AnalysisMode.GROUNDED
+                    }
+                    
+                    opt_mode = mode_mapping.get(analysis_mode)
+                    if not opt_mode:
+                        raise ValueError(f"Unbekannter Modus: {analysis_mode}")
+                    
+                    # Mapping der Kategorie-Definitionen (für Modi die Kategorien benötigen)
+                    cat_defs = {}
+                    if analysis_mode in ['deductive', 'abductive']:
+                        cat_defs = {
+                            k: {
+                                'definition': v.definition,
+                                'subcategories': dict(v.subcategories) if v.subcategories else {}
+                            }
+                            for k, v in current_categories.items()
+                        }
+                    
+                    # Verwende OptimizationController für vollständigen Workflow
+                    print(f"   🚀 Starte optimierte Analyse für {len(opt_segments)} Segmente...")
+                    print(f"   🔍 DEBUG: DynamicCacheManager verfügbar: {self.dynamic_cache_manager is not None}")
+                    if self.dynamic_cache_manager:
+                        print(f"   🔍 DEBUG: Reliability DB path: {self.dynamic_cache_manager.reliability_db.db_path}")
+                    
+                    # FIX: Aktualisiere processed_segments VOR der Analyse für bessere Progress-Anzeige
+                    # Dies zeigt dem Progress Monitor, dass die Segmente "in Bearbeitung" sind
+                    for segment in opt_segments:
+                        self.processed_segments.add(segment['segment_id'])
+                    
+                    results, updated_categories = await self.optimization_controller.analyze_segments(
+                        segments=opt_segments,
+                        analysis_mode=opt_mode,
+                        category_definitions=cat_defs if cat_defs else None,
+                        research_question=self.research_question,  # Echte Forschungsfrage aus User-Config
+                        coding_rules=rules,
+                        batch_size=batch_size,
+                        current_categories=current_categories if analysis_mode in ['inductive', 'abductive'] else None,
+                        coder_settings=coder_settings,
+                        use_context=self.use_context,
+                        document_paraphrases=self.document_paraphrases,
+                        context_paraphrase_count=self.context_paraphrase_count
+                    )
+                    
+                    print(f"✅ Optimierte Analyse abgeschlossen: {len(results)} Ergebnisse für {len(opt_segments)} Segmente")
+                    print(f"   🔍 DEBUG: Checking reliability database after optimization...")
+                    if self.dynamic_cache_manager:
+                        try:
+                            db_results = self.dynamic_cache_manager.get_all_coding_data()
+                            print(f"   🔍 DEBUG: Reliability DB now contains {len(db_results)} total results")
+                            relevant_results = self.dynamic_cache_manager.get_reliability_data(exclude_non_relevant=True)
+                            print(f"   🔍 DEBUG: Of which {len(relevant_results)} are relevant for reliability")
+                        except Exception as e:
+                            print(f"   ❌ DEBUG: Error checking reliability DB: {e}")
+                    
+                    # Update current_categories with any developed/extended categories
+                    if updated_categories and analysis_mode in ['inductive', 'abductive']:
+                        print(f"   🔄 Aktualisiere Kategorien: {len(current_categories)} → {len(updated_categories)}")
+                        current_categories.update(updated_categories)
+                        print(f"   ✅ Kategorien erfolgreich aktualisiert")
+                    
+                    # Konvertiere Ergebnisse für alle Modi
+                    converted_results = []
+                    for opt_result in results:
+                        segment_id = opt_result.get('segment_id', '')
+                        segment_text = next((s['text'] for s in opt_segments if s['segment_id'] == segment_id), '')
+                        
+                        # Extrahiere Ergebnis-Daten (handle verschiedene Formate)
+                        if 'result' in opt_result:
+                            result_data = opt_result['result']
+                            primary_category = result_data.get('primary_category', 'Nicht kodiert')
+                            confidence_val = result_data.get('confidence', 0.7)
+                            subcategories = result_data.get('subcategories', [])
+                            keywords = result_data.get('keywords', '')
+                            paraphrase = result_data.get('paraphrase', '')
+                            justification = result_data.get('justification', '')
+                            coder_id = result_data.get('coder_id', 'auto_1')
+                        else:
+                            primary_category = opt_result.get('primary_category', 'Nicht kodiert')
+                            confidence_val = opt_result.get('confidence', 0.7)
+                            subcategories = opt_result.get('subcategories', [])
+                            keywords = opt_result.get('keywords', '')
+                            paraphrase = opt_result.get('paraphrase', '')
+                            justification = opt_result.get('justification', '')
+                            coder_id = opt_result.get('coder_id', 'auto_1')
+                        
+                        coding_result = {
+                            'segment_id': segment_id,
+                            'coder_id': coder_id,
+                            'category': primary_category,
+                            'subcategories': subcategories if subcategories else [],
+                            'confidence': {
+                                'total': confidence_val if isinstance(confidence_val, (int, float)) else confidence_val.get('total', 0.7),
+                                'category': confidence_val if isinstance(confidence_val, (int, float)) else confidence_val.get('category', 0.7),
+                                'subcategories': 1.0
+                            },
+                            'justification': justification if justification else f"Confidence: {confidence_val:.2f}",
+                            'text': segment_text,
+                            'paraphrase': paraphrase if paraphrase else '',
+                            'keywords': keywords if keywords else '',
+                            'multiple_coding_instance': 1,
+                            'total_coding_instances': 1,
+                            'target_category': '',
+                            'category_focus_used': False,
+                            'category_preselection_used': False,
+                            'preferred_categories': [],
+                            'context_paraphrases_used': False
+                        }
+                        converted_results.append(coding_result)
+                    
+                    # Für Inductive/Abductive: Kategorien wurden bereits aktualisiert
+                    
+                    # FIX: Sammle Paraphrasen für Kontext (wie in Standard-Analyse)
+                    if self.use_context and converted_results:
+                        for result in converted_results:
+                            if result.get('paraphrase') and result.get('category') != 'Nicht kodiert':
+                                segment_id = result.get('segment_id')
+                                if segment_id:
+                                    doc_name, chunk_id = self._extract_doc_and_chunk_id(segment_id)
+                                    
+                                    # Initialisiere Liste falls nötig
+                                    if doc_name not in self.document_paraphrases:
+                                        self.document_paraphrases[doc_name] = []
+                                    
+                                    # Füge Paraphrase hinzu (vermeide Duplikate)
+                                    paraphrase = result['paraphrase']
+                                    if paraphrase and paraphrase not in self.document_paraphrases[doc_name]:
+                                        self.document_paraphrases[doc_name].append(paraphrase)
+                        
+                        # Debug-Ausgabe
+                        if converted_results:
+                            # Sammle alle Dokumente aus den Ergebnissen
+                            docs_in_results = set()
+                            for result in converted_results:
+                                segment_id = result.get('segment_id', '')
+                                if segment_id:
+                                    doc_name, _ = self._extract_doc_and_chunk_id(segment_id)
+                                    docs_in_results.add(doc_name)
+                            
+                            for doc_name in docs_in_results:
+                                total_paraphrases = len(self.document_paraphrases.get(doc_name, []))
+                                print(f"📝 Dokument '{doc_name}': {total_paraphrases} Paraphrasen gesammelt (davon werden max. {self.context_paraphrase_count} als Kontext genutzt)")
+                    
+                    print(f"\n✅ Optimierte Analyse abgeschlossen: {len(converted_results)} Kodierungen erstellt")
+                    
+                    # Finale Effizienz-Statistiken
+                    final_stats = token_counter.session_stats
+                    total_tokens = final_stats.get('input', 0) + final_stats.get('output', 0)
+                    total_cost = final_stats.get('cost', 0.0)
+                    total_requests = final_stats.get('requests', 0)
+                    
+                    print(f"\n📊 EFFIZIENZ-STATISTIKEN:")
+                    print(f"   • API-Calls: {total_requests}")
+                    print(f"   • Tokens: {total_tokens:,}")
+                    print(f"   • Kosten: ${total_cost:.4f}")
+                    if len(opt_segments) > 0:
+                        calls_per_segment = total_requests / len(opt_segments)
+                        tokens_per_segment = total_tokens / len(opt_segments)
+                        print(f"   • Calls/Segment: {calls_per_segment:.2f}")
+                        print(f"   • Tokens/Segment: {tokens_per_segment:.0f}")
+                    
+                    # DEBUG: Zeige coder_ids aus converted_results
+                    print(f"\n[DEBUG] Erste 3 converted_results:")
+                    for i, c in enumerate(converted_results[:3]):
+                        print(f"  {i+1}. coder_id={c.get('coder_id', '?')}, category={c.get('category', '?')}, segment_id={c.get('segment_id', '?')}")
+                    
+                    # Prüfe ob Multi-Coder verwendet wurde
+                    unique_coders = set(c.get('coder_id', 'auto_1') for c in converted_results)
+                    print(f"[DEBUG] unique_coders: {unique_coders}")
+                    if len(unique_coders) > 1:
+                        print(f"\n📊 MULTI-CODER REVIEW:")
+                        print(f"   • Anzahl Kodierer: {len(unique_coders)}")
+                        print(f"   • Kodierer: {', '.join(sorted(unique_coders))}")
+                        
+                        # Import ReviewManager
+                        from ..quality.review_manager import ReviewManager
+                        review_manager = ReviewManager(self.output_dir)
+                        
+                        # Wende Review-Modus an (aus Config oder default: consensus)
+                        review_mode = self.config.get('REVIEW_MODE', 'consensus')
+                        print(f"   • Review-Modus: {review_mode}")
+                        
+                        # CRITICAL FIX: Speichere ursprüngliche Kodierungen für Reliabilitätsberechnung
+                        # Diese müssen in self.coding_results für Intercoder-Reliabilität verfügbar sein!
+                        original_codings = converted_results.copy()
+                        # print(f"   🔍 [INTERCODER-FIX] Speichere {len(original_codings)} ursprüngliche Multi-Coder Kodierungen für Reliabilität")
+                        
+                        # Konsolidiere Kodierungen für Export/Weiterverarbeitung
+                        consolidated_results = review_manager.process_coding_review(
+                            all_codings=original_codings,
+                            export_mode=review_mode
+                        )
+                        
+                        print(f"   • Nach Review: {len(consolidated_results)} konsolidierte Kodierungen")
+                        
+                        # CRITICAL FIX: Gebe BEIDE zurück - ursprüngliche für Reliabilität, konsolidierte für Export
+                        # Setze coding_results auf ursprüngliche Multi-Coder Ergebnisse für Intercoder-Reliabilität
+                        self.coding_results = original_codings  # Für Intercoder-Reliabilität
+                        self.consolidated_results = consolidated_results  # Für Export
+                        
+                        # print(f"   🔍 [INTERCODER-FIX] coding_results enthält {len(self.coding_results)} ursprüngliche Kodierungen")
+                        # print(f"   🔍 [INTERCODER-FIX] consolidated_results enthält {len(self.consolidated_results)} konsolidierte Kodierungen")
+                        
+                    else:
+                        print(f"\n📊 SINGLE-CODER MODE:")
+                        if unique_coders:
+                            coder_list = list(unique_coders)
+                            if coder_list:
+                                print(f"   • Kodierer: {coder_list[0]}")
+                            else:
+                                print(f"   • Keine Kodierungen erstellt")
+                        else:
+                            print(f"   • Keine Kodierungen erstellt")
+                        print(f"   • Kein Review erforderlich")
+                    
+                    # FIX: processed_segments wurden bereits oben aktualisiert, keine doppelte Aktualisierung nötig
+                    
+                    # CRITICAL FIX: Für Multi-Coder, gebe ursprüngliche Kodierungen zurück
+                    # damit Intercoder-Reliabilität berechnet werden kann
+                    if len(unique_coders) > 1:
+                        # print(f"   🔍 [INTERCODER-FIX] Gebe {len(self.coding_results)} ursprüngliche Multi-Coder Kodierungen zurück")
+                        return current_categories, self.coding_results  # Ursprüngliche Multi-Coder Ergebnisse
+                    else:
+                        self.coding_results = converted_results
+                        return current_categories, self.coding_results
+                    
+                except Exception as e:
+                    print(f"❌ Fehler in optimierter Analyse: {e}")
+                    import traceback
+                    traceback.print_exc()
+                    print(f"⚠️ Falle zurück auf Standard-Analyse...")
+                    # Fallback works automatically by continuing below
+        
+        # --- END OPTIMIZATION INTEGRATION ---
+        
         # HAUPTSCHLEIFE
         batch_count = 0
         use_context = CONFIG.get('CODE_WITH_CONTEXT', False)
@@ -1088,6 +1430,7 @@ class IntegratedAnalysisManager:
             try:
                 # 1. ALLGEMEINE RELEVANZPRÜFUNG
                 print(f"\n🕵️ Schritt 1: Erweiterte Relevanzprüfung fuer Forschungsfrage...")
+                print(f"   📋 Forschungsfrage: {self.research_question}")
 
                 # FIX: Escape-PrÜfung vor Relevanzprüfung
                 if self.check_escape_abort():
@@ -1190,7 +1533,7 @@ class IntegratedAnalysisManager:
                             else:
                                 print(f"✅ {added_count} neue Kategorien integriert")
                                 if added_subcategories > 0:
-                                    print(f"   🔀 ZusÄtzlich {added_subcategories} neue Subkategorien")
+                                    print(f"   🔀 Zusätzlich {added_subcategories} neue Subkategorien")
                             
                             # Aktualisiere ALLE Kodierer
                             for coder in self.deductive_coders:
@@ -1221,24 +1564,24 @@ class IntegratedAnalysisManager:
                 if analysis_mode == 'inductive':
                     if len(current_categories) == 0:
                         coding_categories = {}
-                        print(f"   🔀 Inductive Mode: Keine induktiven Kategorien -> 'Nicht kodiert'")
+                        print(f"   🔀 Inductive Mode: Keine induktiven Kategorien -> 'Nicht kodiert'")
                     else:
                         coding_categories = current_categories
-                        print(f"   🔀 Inductive Mode: Verwende {len(current_categories)} induktive Kategorien")
+                        print(f"   🔀 Inductive Mode: Verwende {len(current_categories)} induktive Kategorien")
                 elif analysis_mode == 'grounded':
                     # FIX: Im grounded mode nur rein induktive Kategorien verwenden
                     grounded_categories = {}
                     for name, cat in current_categories.items():
-                        if name not in DEDUKTIVE_KATEGORIEN:
+                        if name not in deductive_categories:
                             grounded_categories[name] = cat
                     
                     coding_categories = grounded_categories
-                    print(f"   🔀 Grounded Mode: Verwende {len(grounded_categories)} rein induktive Kategorien")
+                    print(f"   🔀 Grounded Mode: Verwende {len(grounded_categories)} rein induktive Kategorien")
                     print(f"   ❌ Ausgeschlossen: {len(current_categories) - len(grounded_categories)} deduktive Kategorien")
                 else:
                     coding_categories = current_categories
                 
-                # FÜhre Kodierung durch (Paraphrasen-Kontext wird automatisch genutzt wenn aktiviert)
+                # Führe Kodierung durch (Paraphrasen-Kontext wird automatisch genutzt wenn aktiviert)
                 batch_results = await self._code_batch_deductively(
                     batch, 
                     coding_categories,
@@ -1247,26 +1590,31 @@ class IntegratedAnalysisManager:
             
                 self.coding_results.extend(batch_results)
                 
+                # NEW: Store coding results in Dynamic Cache Manager if enabled
+                if self.use_dynamic_cache and self.dynamic_cache_manager:
+                    await self._store_batch_results_for_reliability(batch_results)
+                
                 # 4. SättigungsprÜfung
                 batch_time = time.time() - batch_start
                 material_percentage = (len(self.processed_segments) / total_segments) * 100
                 total_batches = len(all_segments) / batch_size
 
-                # Normale SättigungsprÜfung
-                saturation_status = saturation_controller.assess_saturation(
-                    current_categories=current_categories,
-                    material_percentage=material_percentage,
-                    batch_count=batch_count,
-                    total_segments=self._total_segments
-                )
-            
-                print(f"\n🧾 Sättigungsstatus:")
-                print(f"   🎯 Theoretische Sättigung: {saturation_status['theoretical_saturation']:.1%}")
-                print(f"   ℹ️ Materialabdeckung: {saturation_status['material_coverage']:.1%}")
+                # Normale SättigungsprÜfung (nur fuer inductive/grounded Modi)
+                if analysis_mode in ['inductive', 'grounded']:
+                    saturation_status = saturation_controller.assess_saturation(
+                        current_categories=current_categories,
+                        material_percentage=material_percentage,
+                        batch_count=batch_count,
+                        total_segments=self._total_segments
+                    )
                 
-                if saturation_status['is_saturated']:
-                    print(f"\n🎯 SÄTTIGUNG ERREICHT nach {batch_count} Batches!")
-                    break
+                    print(f"\n🧾 Sättigungsstatus:")
+                    print(f"   🎯 Theoretische Sättigung: {saturation_status['theoretical_saturation']:.1%}")
+                    print(f"   ℹ️ Materialabdeckung: {saturation_status['material_coverage']:.1%}")
+                    
+                    if saturation_status['is_saturated']:
+                        print(f"\n🎯 SÄTTIGUNG ERREICHT nach {batch_count} Batches!")
+                        break
                 
                 # Fortschrittsinfo
                 print(f"\nℹ️ Fortschritt:")
@@ -1303,12 +1651,254 @@ class IntegratedAnalysisManager:
     async def _analyze_grounded_mode(self, chunks: Dict[str, List[str]], initial_categories: Dict, 
                                 all_segments: List, batch_size: int) -> Tuple[Dict, List]:
         """
-        NEUE METHODE: Separate Grounded Mode Analyse
+        OPTIMIERTE GROUNDED MODE ANALYSE mit OptimizationController
         """
-        print("\nℹ️ GROUNDED MODE: Starte spezielle Subcode-Sammlung")
+        print("\nℹ️ GROUNDED MODE: Starte optimierte Subcode-Sammlung")
         
         if batch_size is None:
             batch_size = CONFIG.get('BATCH_SIZE', 5)
+        
+        # Prüfe ob OptimizationController verfügbar ist
+        if not self.optimization_controller:
+            print("⚠️ OptimizationController nicht verfügbar - verwende Standard-Implementierung")
+            return await self._analyze_grounded_mode_standard(chunks, initial_categories, all_segments, batch_size)
+        
+        # Konvertiere all_segments zu OptimizationController Format
+        opt_segments = [{'segment_id': seg_id, 'text': text} for seg_id, text in all_segments]
+        
+        # Markiere alle Segmente als verarbeitet für Fortschrittsanzeige
+        self.processed_segments.update(seg_id for seg_id, _ in all_segments)
+        
+        # PHASE 1: Optimierte Subcode-Sammlung mit OptimizationController
+        print(f"\n🕵️ PHASE 1: Subcode-Sammlung mit OptimizationController für {len(opt_segments)} Segmente...")
+        
+        try:
+            from QCA_AID_assets.optimization.controller import AnalysisMode
+            
+            # Erstelle coder_settings aus deductive_coders
+            coder_settings = []
+            if hasattr(self, 'deductive_coders') and self.deductive_coders:
+                coder_settings = [
+                    {'temperature': coder.temperature, 'coder_id': coder.coder_id}
+                    for coder in self.deductive_coders
+                ]
+            else:
+                # Fallback: Standard-Kodierer
+                coder_settings = [{'temperature': 0.3, 'coder_id': 'auto_1'}]
+            
+            print(f"   🔧 Erstelle coder_settings aus {len(coder_settings)} Kodierern")
+            
+            subcode_results = await self.optimization_controller.analyze_segments(
+                segments=opt_segments,
+                analysis_mode=AnalysisMode.GROUNDED,
+                research_question=self.research_question,
+                coder_settings=coder_settings,
+                batch_size=batch_size,
+                use_context=CONFIG.get('CODE_WITH_CONTEXT', False),
+                document_paraphrases=getattr(self, 'document_paraphrases', None),
+                context_paraphrase_count=CONFIG.get('CONTEXT_PARAPHRASE_COUNT', 3)
+            )
+            
+            # Extrahiere nur die Ergebnisse (Kategorien werden in Phase 1 nicht verändert)
+            if isinstance(subcode_results, tuple):
+                subcode_results, _ = subcode_results
+            
+            print(f"✅ Phase 1 abgeschlossen: {len(subcode_results)} Subcode-Analysen")
+            
+            # PHASE 2: Hauptkategorien-Generierung
+            if len(self.optimization_controller.grounded_subcodes_collection) >= 5:
+                # WICHTIG: Im Grounded Mode KEINE initial_categories verwenden (rein induktiv)
+                grounded_categories = await self.optimization_controller.generate_grounded_main_categories(
+                    research_question=self.research_question,
+                    initial_categories={}  # Leeres Dict - keine vordefinierten Kategorien!
+                )
+                
+                if grounded_categories:
+                    # PHASE 3: Kodierung mit Grounded-Kategorien
+                    coding_results = await self.optimization_controller.code_with_grounded_categories(
+                        all_segments=opt_segments,
+                        grounded_categories=grounded_categories,
+                        research_question=self.research_question,
+                        coding_rules=getattr(self, 'coding_rules', []),
+                        coder_settings=coder_settings,
+                        batch_size=batch_size
+                    )
+                    
+                    # FIX: Konvertiere Ergebnisse zu Standard-Format (wie andere Modi)
+                    converted_coding_results = []
+                    for opt_result in coding_results:
+                        segment_id = opt_result.get('segment_id', '')
+                        segment_text = next((s['text'] for s in opt_segments if s['segment_id'] == segment_id), '')
+                        
+                        # Extrahiere Ergebnis-Daten (handle verschiedene Formate)
+                        if 'result' in opt_result:
+                            result_data = opt_result['result']
+                            primary_category = result_data.get('primary_category', 'Nicht kodiert')
+                            confidence_val = result_data.get('confidence', 0.7)
+                            subcategories = result_data.get('subcategories', [])
+                            keywords = result_data.get('keywords', '')
+                            paraphrase = result_data.get('paraphrase', '')
+                            justification = result_data.get('justification', '')
+                            coder_id = result_data.get('coder_id', 'auto_1')
+                        else:
+                            primary_category = opt_result.get('primary_category', 'Nicht kodiert')
+                            confidence_val = opt_result.get('confidence', 0.7)
+                            subcategories = opt_result.get('subcategories', [])
+                            keywords = opt_result.get('keywords', '')
+                            paraphrase = opt_result.get('paraphrase', '')
+                            justification = opt_result.get('justification', '')
+                            coder_id = opt_result.get('coder_id', 'auto_1')
+                        
+                        coding_result = {
+                            'segment_id': segment_id,
+                            'coder_id': coder_id,
+                            'category': primary_category,  # FIX: Flache Struktur für Exporter
+                            'subcategories': subcategories if subcategories else [],
+                            'confidence': {
+                                'total': confidence_val if isinstance(confidence_val, (int, float)) else confidence_val.get('total', 0.7),
+                                'category': confidence_val if isinstance(confidence_val, (int, float)) else confidence_val.get('category', 0.7),
+                                'subcategories': 1.0
+                            },
+                            'justification': justification if justification else f"Grounded Analysis: Confidence {confidence_val:.2f}",
+                            'text': segment_text,
+                            'paraphrase': paraphrase if paraphrase else '',
+                            'keywords': keywords if keywords else '',
+                            'multiple_coding_instance': result_data.get('multiple_coding_instance', 1) if 'result' in opt_result else 1,
+                            'total_coding_instances': result_data.get('total_coding_instances', 1) if 'result' in opt_result else 1,
+                            'target_category': result_data.get('target_category', '') if 'result' in opt_result else '',
+                            'category_focus_used': False,
+                            'category_preselection_used': result_data.get('category_preselection_used', False) if 'result' in opt_result else False,
+                            'preferred_categories': result_data.get('preferred_categories', []) if 'result' in opt_result else [],
+                            'context_paraphrases_used': False
+                        }
+                        converted_coding_results.append(coding_result)
+                    
+                    self.coding_results = converted_coding_results
+                    return grounded_categories, converted_coding_results
+                else:
+                    print("⚠️ Keine Hauptkategorien generiert - verwende Subcodes als Kategorien")
+                    
+                    # FIX: Konvertiere auch Subcode-Ergebnisse zu Standard-Format
+                    converted_subcode_results = []
+                    for opt_result in subcode_results:
+                        segment_id = opt_result.get('segment_id', '')
+                        segment_text = next((s['text'] for s in opt_segments if s['segment_id'] == segment_id), '')
+                        
+                        # Extrahiere Ergebnis-Daten aus Grounded-Format
+                        if 'result' in opt_result:
+                            result_data = opt_result['result']
+                            primary_category = result_data.get('primary_category', 'Grounded_Analysis')
+                            confidence_val = result_data.get('confidence', 0.8)
+                            subcategories = result_data.get('subcategories', [])
+                            keywords = result_data.get('keywords', '')
+                            paraphrase = result_data.get('paraphrase', '')
+                            justification = result_data.get('justification', '')
+                            coder_id = result_data.get('coder_id', 'auto_1')
+                        else:
+                            # Fallback für altes Format
+                            primary_category = 'Grounded_Analysis'
+                            confidence_val = 0.8
+                            subcategories = opt_result.get('subcodes', [])
+                            keywords = ', '.join(opt_result.get('keywords', []))
+                            paraphrase = opt_result.get('memo', '')
+                            justification = f"Subcode Analysis: {len(subcategories)} codes identified"
+                            coder_id = 'auto_1'
+                        
+                        coding_result = {
+                            'segment_id': segment_id,
+                            'coder_id': coder_id,
+                            'category': primary_category,  # FIX: Flache Struktur für Exporter
+                            'subcategories': subcategories if subcategories else [],
+                            'confidence': {
+                                'total': confidence_val,
+                                'category': confidence_val,
+                                'subcategories': 1.0
+                            },
+                            'justification': justification,
+                            'text': segment_text,
+                            'paraphrase': paraphrase,
+                            'keywords': keywords,
+                            'multiple_coding_instance': 1,
+                            'total_coding_instances': 1,
+                            'target_category': '',
+                            'category_focus_used': False,
+                            'category_preselection_used': False,
+                            'preferred_categories': [],
+                            'context_paraphrases_used': False
+                        }
+                        converted_subcode_results.append(coding_result)
+                    
+                    self.coding_results = converted_subcode_results
+                    return initial_categories, converted_subcode_results
+            else:
+                print(f"⚠️ Zu wenige Subcodes für Hauptkategorien-Generierung: {len(self.optimization_controller.grounded_subcodes_collection)} < 5")
+                
+                # FIX: Konvertiere auch Subcode-Ergebnisse zu Standard-Format
+                converted_subcode_results = []
+                for opt_result in subcode_results:
+                    segment_id = opt_result.get('segment_id', '')
+                    segment_text = next((s['text'] for s in opt_segments if s['segment_id'] == segment_id), '')
+                    
+                    # Extrahiere Ergebnis-Daten aus Grounded-Format
+                    if 'result' in opt_result:
+                        result_data = opt_result['result']
+                        primary_category = result_data.get('primary_category', 'Grounded_Analysis')
+                        confidence_val = result_data.get('confidence', 0.8)
+                        subcategories = result_data.get('subcategories', [])
+                        keywords = result_data.get('keywords', '')
+                        paraphrase = result_data.get('paraphrase', '')
+                        justification = result_data.get('justification', '')
+                        coder_id = result_data.get('coder_id', 'auto_1')
+                    else:
+                        # Fallback für altes Format
+                        primary_category = 'Grounded_Analysis'
+                        confidence_val = 0.8
+                        subcategories = opt_result.get('subcodes', [])
+                        keywords = ', '.join(opt_result.get('keywords', []))
+                        paraphrase = opt_result.get('memo', '')
+                        justification = f"Subcode Analysis: {len(subcategories)} codes identified"
+                        coder_id = 'auto_1'
+                    
+                    coding_result = {
+                        'segment_id': segment_id,
+                        'coder_id': coder_id,
+                        'category': primary_category,  # FIX: Flache Struktur für Exporter
+                        'subcategories': subcategories if subcategories else [],
+                        'confidence': {
+                            'total': confidence_val,
+                            'category': confidence_val,
+                            'subcategories': 1.0
+                        },
+                        'justification': justification,
+                        'text': segment_text,
+                        'paraphrase': paraphrase,
+                        'keywords': keywords,
+                        'multiple_coding_instance': 1,
+                        'total_coding_instances': 1,
+                        'target_category': '',
+                        'category_focus_used': False,
+                        'category_preselection_used': False,
+                        'preferred_categories': [],
+                        'context_paraphrases_used': False
+                    }
+                    converted_subcode_results.append(coding_result)
+                
+                self.coding_results = converted_subcode_results
+                return initial_categories, converted_subcode_results
+                
+        except Exception as e:
+            print(f"❌ Fehler in optimierter Grounded Mode Analyse: {e}")
+            import traceback
+            traceback.print_exc()
+            print("🔄 Fallback auf Standard-Implementierung...")
+            return await self._analyze_grounded_mode_standard(chunks, initial_categories, all_segments, batch_size)
+    
+    async def _analyze_grounded_mode_standard(self, chunks: Dict[str, List[str]], initial_categories: Dict, 
+                                all_segments: List, batch_size: int) -> Tuple[Dict, List]:
+        """
+        STANDARD GROUNDED MODE ANALYSE (Fallback)
+        """
+        print("\nℹ️ GROUNDED MODE: Starte Standard Subcode-Sammlung")
         
         # Initialisiere Grounded-spezifische Variablen
         self.grounded_subcodes_collection = []
@@ -1339,6 +1929,8 @@ class IntegratedAnalysisManager:
             print(f"{'='*60}")
             
             # 1. Relevanzprüfung
+            print(f"\n🕵️ Relevanzprüfung für Forschungsfrage...")
+            print(f"   📋 Forschungsfrage: {self.research_question}")
             general_relevance_results = await self.relevance_checker.check_relevance_batch(batch)
             generally_relevant_batch = [
                 (segment_id, text) for segment_id, text in batch 
@@ -1411,7 +2003,7 @@ class IntegratedAnalysisManager:
         new_subcodes_count = 0
         
         if grounded_analysis and 'segment_analyses' in grounded_analysis:
-            print(f"🔀 Verarbeite {len(grounded_analysis['segment_analyses'])} Segment-Analysen")
+            print(f"🔀 Verarbeite {len(grounded_analysis['segment_analyses'])} Segment-Analysen")
             
             # Speichere alle Segment-Analysen
             self.grounded_segment_analyses.extend(grounded_analysis['segment_analyses'])
@@ -1613,7 +2205,7 @@ class IntegratedAnalysisManager:
         print(f"{'='*50}")
         
         # Subcode-Statistiken
-        print(f"🔀 Subcode-Sammlung:")
+        print(f"🔀 Subcode-Sammlung:")
         print(f"   - Gesammelte Subcodes: {len(self.collected_subcodes)}")
         print(f"   - Segment-Analysen: {len(self.grounded_segment_analyses)}")
         
@@ -1665,7 +2257,7 @@ class IntegratedAnalysisManager:
             with open(subcodes_path, 'w', encoding='utf-8') as f:
                 json.dump(export_data, f, indent=2, ensure_ascii=False)
                 
-            print(f"\n🔀 Grounded Mode Details exportiert: {subcodes_path}")
+            print(f"\n🔀 Grounded Mode Details exportiert: {subcodes_path}")
             
         except Exception as e:
             print(f"❌ Fehler beim Export der Grounded Mode Details: {str(e)}")
@@ -1699,9 +2291,10 @@ class IntegratedAnalysisManager:
                 category_manager = CategoryManager(CONFIG['OUTPUT_DIR'])
                 category_manager.save_codebook(
                     categories=current_categories,
-                    filename=f"codebook_intermediate_{timestamp}.json"
+                    filename=f"codebook_intermediate_{timestamp}.json",
+                    research_question=self.research_question
                 )
-                print(f"🔀 Zwischenkategorien gespeichert: {len(current_categories)} Kategorien")
+                print(f"🔀 Zwischenkategorien gespeichert: {len(current_categories)} Kategorien")
             
             # Exportiere Zwischenkodierungen falls vorhanden
             if self.coding_results:
@@ -1987,7 +2580,7 @@ class IntegratedAnalysisManager:
                 'processing_time': self.performance_metrics['batch_processing_times'][-1] if self.performance_metrics['batch_processing_times'] else 0
             }
             
-            # FÜge Status zum Log hinzu
+            # Füge Status zum Log hinzu
             self.analysis_log.append(status)
             
             # Debug-Ausgabe fuer wichtige Metriken
@@ -2052,24 +2645,64 @@ class IntegratedAnalysisManager:
         """Analysiert die Verteilung der Kodierungen."""
         if not self.coding_results:
             return {}
-            
-        coders = Counter(coding['coder_id'] for coding in self.coding_results)
-        categories = Counter(coding['category'] for coding in self.coding_results)
+        
+        coders = []
+        categories = []
+        
+        for coding in self.coding_results:
+            # Handle different coding result structures
+            if isinstance(coding, dict):
+                # New optimized structure: coder_id is in result field
+                if 'result' in coding and isinstance(coding['result'], dict):
+                    coder_id = coding['result'].get('coder_id', 'unknown')
+                    primary_category = coding['result'].get('primary_category', 'Nicht kodiert')
+                # Legacy structure: coder_id at top level
+                elif 'coder_id' in coding:
+                    coder_id = coding['coder_id']
+                    primary_category = coding.get('category', coding.get('primary_category', 'Nicht kodiert'))
+                else:
+                    coder_id = 'unknown'
+                    primary_category = coding.get('category', coding.get('primary_category', 'Nicht kodiert'))
+                
+                coders.append(coder_id)
+                categories.append(primary_category)
         
         return {
-            'coders': dict(coders),
-            'categories': dict(categories)
+            'coders': dict(Counter(coders)),
+            'categories': dict(Counter(categories))
         }
     
     def _get_coding_summary(self) -> Dict:
         """Erstellt eine Zusammenfassung der Kodierungen."""
         if not self.coding_results:
             return {}
+        
+        # Extract segment_ids and categories with proper structure handling
+        segment_ids = []
+        categories = []
+        
+        for coding in self.coding_results:
+            # Get segment_id (should be at top level)
+            segment_id = coding.get('segment_id', 'unknown')
+            segment_ids.append(segment_id)
+            
+            # Get category with proper structure handling
+            if isinstance(coding, dict):
+                # New optimized structure: category is in result field as primary_category
+                if 'result' in coding and isinstance(coding['result'], dict):
+                    category = coding['result'].get('primary_category', 'Nicht kodiert')
+                # Legacy structure: category at top level
+                elif 'category' in coding:
+                    category = coding['category']
+                else:
+                    category = coding.get('primary_category', 'Nicht kodiert')
+                
+                categories.append(category)
             
         return {
-            'total_segments_coded': len(set(coding['segment_id'] for coding in self.coding_results)),
+            'total_segments_coded': len(set(segment_ids)),
             'avg_codings_per_segment': len(self.coding_results) / len(self.processed_segments) if self.processed_segments else 0,
-            'unique_categories': len(set(coding['category'] for coding in self.coding_results))
+            'unique_categories': len(set(categories))
         }
 
     def get_progress_report(self) -> Dict:
@@ -2086,17 +2719,35 @@ class IntegratedAnalysisManager:
         avg_batch_time = statistics.mean(self.performance_metrics['batch_processing_times']) if self.performance_metrics['batch_processing_times'] else 0
         avg_coding_time = statistics.mean(self.performance_metrics['coding_times']) if self.performance_metrics['coding_times'] else 0
         
-                
         # Berechne Verarbeitungsstatistiken
         total_segments = len(self.processed_segments)
+        total_codings = len(self.coding_results)
+        
+        # FIX: Berücksichtige auch consolidated_results falls vorhanden (Multi-Coder)
+        if hasattr(self, 'consolidated_results') and self.consolidated_results:
+            display_codings = len(self.consolidated_results)
+            coding_info = f"{total_codings} ursprünglich, {display_codings} konsolidiert"
+        else:
+            display_codings = total_codings
+            coding_info = str(total_codings)
+        
         segments_per_hour = (total_segments / elapsed_time) * 3600 if elapsed_time > 0 else 0
+        
+        # FIX: Verbesserte Status-Information für Optimierung
+        status_info = "Läuft"
+        if self.optimization_enabled and total_segments > 0 and display_codings == 0:
+            status_info = "Optimierte Analyse läuft..."
+        elif total_segments > 0 and display_codings > 0:
+            status_info = "Kodierung abgeschlossen"
         
         return {
             'progress': {
                 'processed_segments': total_segments,
-                'total_codings': len(self.coding_results),
+                'total_codings': display_codings,
+                'coding_info': coding_info,  # FIX: Zusätzliche Info für Multi-Coder
                 'segments_per_hour': round(segments_per_hour, 2),
-                'elapsed_time': round(elapsed_time, 2)
+                'elapsed_time': round(elapsed_time, 2),
+                'status': status_info  # FIX: Zeige aktuellen Status
             },
             'performance': {
                 'avg_batch_processing_time': round(avg_batch_time, 2),
@@ -2106,7 +2757,148 @@ class IntegratedAnalysisManager:
             'status': {
                 'start_time': self.start_time.strftime('%Y-%m-%d %H:%M:%S'),
                 'current_time': current_time.strftime('%Y-%m-%d %H:%M:%S'),
-                'last_update': self.analysis_log[-1]['timestamp'] if self.analysis_log else None
+                'last_update': self.analysis_log[-1]['timestamp'] if self.analysis_log else None,
+                'optimization_enabled': self.optimization_enabled  # FIX: Zeige ob Optimierung aktiv ist
             }
         }
 
+
+    async def _code_batch_with_context(self, batch: List[Tuple[str, str]], categories: Dict[str, CategoryDefinition]) -> List[Dict]:
+        """
+        Wrapper fuer _code_batch_deductively, da Kontext-Logik dort bereits integriert ist.
+        Dient der Kompatibilität mit Aufrufen, die explizit _code_batch_with_context erwarten.
+        """
+        return await self._code_batch_deductively(batch, categories)
+    async def _store_batch_results_for_reliability(self, batch_results: List[Dict]) -> None:
+        """
+        Store batch results in Dynamic Cache Manager for reliability analysis.
+        
+        Args:
+            batch_results: List of coding results from batch processing
+        """
+        if not self.dynamic_cache_manager:
+            return
+        
+        try:
+            from ..core.data_models import ExtendedCodingResult
+            
+            for result in batch_results:
+                # Convert legacy coding result to ExtendedCodingResult
+                extended_result = ExtendedCodingResult(
+                    segment_id=result.get('segment_id', ''),
+                    coder_id=result.get('coder_id', 'auto_coder'),
+                    category=result.get('category', ''),
+                    subcategories=result.get('subcategories', []),
+                    confidence=result.get('confidence', {}).get('overall', 0.5) if isinstance(result.get('confidence'), dict) else 0.5,
+                    justification=result.get('justification', ''),
+                    analysis_mode=self.config.get('ANALYSIS_MODE', 'inductive'),
+                    timestamp=datetime.now(),
+                    is_manual=False,
+                    metadata={
+                        'legacy_conversion': True,
+                        'original_confidence': result.get('confidence', {}),
+                        'text_references': result.get('text_references', []),
+                        'uncertainties': result.get('uncertainties', [])
+                    }
+                )
+                
+                # Store in reliability database
+                self.dynamic_cache_manager.store_for_reliability(extended_result)
+                
+        except Exception as e:
+            print(f"⚠️ Warning: Could not store results for reliability analysis: {e}")
+    
+    def get_reliability_data(self, exclude_non_relevant: bool = True) -> List:
+        """
+        Get reliability data from Dynamic Cache Manager or fallback to legacy method.
+        
+        Args:
+            exclude_non_relevant: Whether to exclude non-relevant segments from reliability calculation (default: True)
+        
+        Returns:
+            List of coding results for reliability analysis (excluding non-relevant segments by default)
+        """
+        if self.use_dynamic_cache and self.dynamic_cache_manager:
+            try:
+                return self.dynamic_cache_manager.get_reliability_data(exclude_non_relevant=exclude_non_relevant)
+            except Exception as e:
+                print(f"⚠️ Warning: Could not get reliability data from database: {e}")
+        
+        # Fallback to legacy coding_results
+        # FIX: Filter out non-relevant segments from legacy data if requested
+        if exclude_non_relevant:
+            filtered_results = []
+            for result in self.coding_results:
+                is_relevant = result.get('is_relevant', True)
+                exclude_from_reliability = result.get('exclude_from_reliability', False)
+                
+                if is_relevant and not exclude_from_reliability:
+                    filtered_results.append(result)
+            
+            return filtered_results
+        else:
+            return self.coding_results
+    
+    def get_all_coding_data(self) -> List:
+        """
+        Get ALL coding data including non-relevant segments.
+        
+        Returns:
+            List of all coding results (including non-relevant segments)
+        """
+        return self.get_reliability_data(exclude_non_relevant=False)
+    
+    def get_reliability_summary(self) -> Dict:
+        """
+        Get reliability summary from Dynamic Cache Manager or fallback to legacy method.
+        
+        Returns:
+            Dictionary with reliability summary
+        """
+        if self.use_dynamic_cache and self.dynamic_cache_manager:
+            try:
+                return self.dynamic_cache_manager.get_reliability_summary()
+            except Exception as e:
+                print(f"⚠️ Warning: Could not get reliability summary from database: {e}")
+        
+        # Fallback to legacy method
+        return {
+            'total_codings': len(self.coding_results),
+            'total_segments': len(self.processed_segments),
+            'codings_per_coder': {},
+            'analysis_modes': [self.config.get('ANALYSIS_MODE', 'inductive')],
+            'segments_with_multiple_coders': 0
+        }
+    
+    def export_reliability_data(self, filepath: str) -> None:
+        """
+        Export reliability data using Dynamic Cache Manager or fallback to legacy method.
+        
+        Args:
+            filepath: Path to export file
+        """
+        if self.use_dynamic_cache and self.dynamic_cache_manager:
+            try:
+                self.dynamic_cache_manager.export_reliability_data(filepath)
+                print(f"✅ Reliability data exported via Dynamic Cache Manager to {filepath}")
+                return
+            except Exception as e:
+                print(f"⚠️ Warning: Could not export via Dynamic Cache Manager: {e}")
+        
+        # Fallback to legacy JSON export
+        try:
+            import json
+            export_data = {
+                'timestamp': datetime.now().isoformat(),
+                'analysis_mode': self.config.get('ANALYSIS_MODE', 'inductive'),
+                'coding_results': self.coding_results,
+                'summary': self.get_reliability_summary()
+            }
+            
+            with open(filepath, 'w', encoding='utf-8') as f:
+                json.dump(export_data, f, indent=2, ensure_ascii=False)
+            
+            print(f"✅ Reliability data exported via legacy method to {filepath}")
+            
+        except Exception as e:
+            print(f"❌ Error: Could not export reliability data: {e}")

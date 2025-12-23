@@ -184,7 +184,7 @@ class QCAAnalyzer:
         if len(filtered_df) == 0:
             print("WARNUNG: Die Filterung ergab keine Ergebnisse!")
             # Show available values for filter columns
-            print("\nVerfügbare Werte in den Filter-Spalten:")
+            print("\nverfügbare Werte in den Filter-Spalten:")
             for col in applicable_filters.keys():
                 if col in self.df.columns:
                     unique_values = self.df[col].value_counts().head(10)
@@ -211,7 +211,7 @@ class QCAAnalyzer:
         """
         Display all available columns and their values that can be used as filters.
         """
-        print("\n=== Verfügbare Filter ===")
+        print("\n=== verfügbare Filter ===")
         
         # Show generic attributes
         attribute_mapping = self.get_column_mapping()

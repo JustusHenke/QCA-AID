@@ -10,7 +10,7 @@ Ein erweiterbares System zur Verwaltung mehrerer LLM-Provider (OpenAI, Anthropic
 - ✅ **Einheitliches Interface**: Alle Modelle im gleichen Format
 - ✅ **Flexible Filter-API**: Suche nach Provider, Kosten, Context Window, Capabilities
 - ✅ **Pricing-Overrides**: Eigene Preisinformationen definieren
-- ✅ **Erweiterbar**: Neue Provider einfach hinzufügen
+- ✅ **Erweiterbar**: Neue Provider einfach hinzuFügen
 - ✅ **Robuste Fehlerbehandlung**: Fallback-Mechanismen bei Netzwerkproblemen
 
 ## Installation
@@ -40,7 +40,7 @@ async def main():
     
     # Alle verfügbaren Modelle abrufen
     all_models = manager.get_all_models()
-    print(f"Verfügbare Modelle: {len(all_models)}")
+    print(f"verfügbare Modelle: {len(all_models)}")
     
     # Modelle nach Provider filtern
     openai_models = manager.get_models_by_provider('openai')
@@ -216,12 +216,12 @@ print(f"Überschriebene Kosten: ${model.cost_in} / ${model.cost_out}")
 - ✅ Fehlerhafte Override-Dateien führen zu einer Warnung, nicht zu einem Fehler
 - ✅ Ohne `pricing_overrides.json` werden Standard-Preise verwendet
 
-## Neue Provider hinzufügen
+## Neue Provider hinzuFügen
 
 ### Via URL (Catwalk-Format)
 
 ```python
-# Neuen Provider von URL hinzufügen
+# Neuen Provider von URL hinzuFügen
 await manager.add_provider_source(
     provider_name='custom-provider',
     url='https://example.com/custom-provider.json'
@@ -234,7 +234,7 @@ custom_models = manager.get_models_by_provider('custom-provider')
 ### Via lokale JSON-Datei
 
 ```python
-# Neuen Provider von lokaler Datei hinzufügen
+# Neuen Provider von lokaler Datei hinzuFügen
 await manager.add_local_provider_config(
     provider_name='custom-provider',
     config_path='/path/to/custom-provider.json'
@@ -279,7 +279,7 @@ Ihre Provider-Config-Datei sollte dem Catwalk-Format folgen:
 ### Cache-Update deaktivieren
 
 ```python
-# Provider hinzufügen ohne Cache-Update
+# Provider hinzuFügen ohne Cache-Update
 await manager.add_provider_source(
     provider_name='custom-provider',
     url='https://example.com/custom-provider.json',

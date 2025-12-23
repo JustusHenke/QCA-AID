@@ -1,5 +1,5 @@
 """
-Beispiel: Neue Provider hinzufügen
+Beispiel: Neue Provider hinzuFügen
 
 Dieses Beispiel zeigt wie man neue Provider hinzufügt:
 - Via URL (Catwalk-Format)
@@ -32,13 +32,13 @@ async def add_provider_via_url_example():
     """Zeigt wie man einen Provider via URL hinzufügt"""
     
     print("=" * 60)
-    print("1. Provider via URL hinzufügen")
+    print("1. Provider via URL hinzuFügen")
     print("=" * 60)
     
     manager = LLMProviderManager()
     await manager.initialize()
     
-    print("\nVerfügbare Provider vor dem Hinzufügen:")
+    print("\nverfügbare Provider vor dem HinzuFügen:")
     providers_before = manager.get_supported_providers()
     print(f"   {', '.join(providers_before)}")
     
@@ -56,7 +56,7 @@ async def add_provider_via_file_example():
     """Zeigt wie man einen Provider via lokale Datei hinzufügt"""
     
     print("\n" + "=" * 60)
-    print("2. Provider via lokale Datei hinzufügen")
+    print("2. Provider via lokale Datei hinzuFügen")
     print("=" * 60)
     
     # Erstelle temporäres Verzeichnis
@@ -117,7 +117,7 @@ async def add_provider_via_file_example():
         manager = LLMProviderManager()
         await manager.initialize()
         
-        print("\nVerfügbare Provider vor dem Hinzufügen:")
+        print("\nverfügbare Provider vor dem HinzuFügen:")
         providers_before = manager.get_supported_providers()
         print(f"   {', '.join(providers_before)}")
         print(f"   Gesamt: {len(manager.get_all_models())} Modelle")
@@ -132,7 +132,7 @@ async def add_provider_via_file_example():
         print("\n✓ Custom Provider erfolgreich hinzugefügt!")
         
         # Zeige aktualisierte Provider-Liste
-        print("\nVerfügbare Provider nach dem Hinzufügen:")
+        print("\nverfügbare Provider nach dem HinzuFügen:")
         providers_after = manager.get_supported_providers()
         print(f"   {', '.join(providers_after)}")
         print(f"   Gesamt: {len(manager.get_all_models())} Modelle")
@@ -242,7 +242,7 @@ async def multiple_providers_example():
     """Zeigt wie man mehrere Custom Provider hinzufügt"""
     
     print("\n" + "=" * 60)
-    print("4. Mehrere Custom Provider hinzufügen")
+    print("4. Mehrere Custom Provider hinzuFügen")
     print("=" * 60)
     
     temp_dir = tempfile.mkdtemp()
@@ -311,8 +311,8 @@ async def multiple_providers_example():
         manager = LLMProviderManager()
         await manager.initialize()
         
-        print(f"\nProvider vor dem Hinzufügen: {len(manager.get_supported_providers())}")
-        print(f"Modelle vor dem Hinzufügen: {len(manager.get_all_models())}")
+        print(f"\nProvider vor dem HinzuFügen: {len(manager.get_supported_providers())}")
+        print(f"Modelle vor dem HinzuFügen: {len(manager.get_all_models())}")
         
         # Füge alle Provider hinzu
         print("\nFüge Custom Provider hinzu...")
@@ -324,8 +324,8 @@ async def multiple_providers_example():
             )
             print(f"   ✓ {provider_id} hinzugefügt")
         
-        print(f"\nProvider nach dem Hinzufügen: {len(manager.get_supported_providers())}")
-        print(f"Modelle nach dem Hinzufügen: {len(manager.get_all_models())}")
+        print(f"\nProvider nach dem HinzuFügen: {len(manager.get_supported_providers())}")
+        print(f"Modelle nach dem HinzuFügen: {len(manager.get_all_models())}")
         
         # Zeige alle Provider
         print("\nAlle verfügbaren Provider:")

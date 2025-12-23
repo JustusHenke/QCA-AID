@@ -45,6 +45,7 @@ output/
 *.log
 token_stats.json
 .qca-aid-project.json
+optimization_cache.json
 tests/
 
 # Config metadata (auto-generated)

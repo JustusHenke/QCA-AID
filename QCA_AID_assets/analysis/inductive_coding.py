@@ -11,11 +11,10 @@ from ..utils.llm.factory import LLMProviderFactory
 import asyncio
 from datetime import datetime
 from typing import Dict, Optional, List, Set, Tuple, Any
-from collections import defaultdict
+from collections import defaultdict, Counter
 
 from ..core.config import CONFIG, FORSCHUNGSFRAGE, KODIERREGELN
 from ..core.data_models import CategoryDefinition, CodingResult
-from ..management import DevelopmentHistory
 from ..QCA_Prompts import QCAPrompts, ConfidenceScales
 
 # Verwende globale Token-Counter Instanz
@@ -29,11 +28,10 @@ class InductiveCoder:
     Phase 2: Kodierung mit festem System
     """
     
-    def __init__(self, model_name: str, temperature: float, history: DevelopmentHistory, output_dir: str, config: dict = None):
+    def __init__(self, model_name: str, temperature: float, output_dir: str, config: dict = None):
         self.model_name = model_name
         self.temperature = float(temperature)
         self.output_dir = output_dir
-        self.history = history
         self.config = config or CONFIG  # KORREKTUR: Speichere config
         
         # LLM Provider (unverÄndert)
@@ -86,10 +84,17 @@ class InductiveCoder:
             deduktive_kategorien=CONFIG.get('DEDUKTIVE_KATEGORIEN', {})
         )
 
-        print(f"\n🧑‍💼 Induktive Kodierung initialisiert:")
-        print(f"- Min. Batches vor Sättigung: {self.MIN_BATCHES_BEFORE_SATURATION}")
-        print(f"- Min. Materialabdeckung: {self.MIN_MATERIAL_COVERAGE:.0%}")
-        print(f"- StabilitÄtsschwelle: {self.STABILITY_THRESHOLD} Batches")
+
+        # Show initialization message only for inductive mode
+        analysis_mode = config.get('ANALYSIS_MODE', 'inductive') if config else CONFIG.get('ANALYSIS_MODE', 'inductive')
+        if analysis_mode == 'inductive':
+            print(f"\n🧑‍💼 Induktive Kodierung initialisiert:")
+            print(f"- Min. Batches vor Sättigung: {self.MIN_BATCHES_BEFORE_SATURATION}")
+            print(f"- Min. Materialabdeckung: {self.MIN_MATERIAL_COVERAGE:.0%}")
+            print(f"- Stabilitätsschwelle: {self.STABILITY_THRESHOLD} Batches")
+        elif analysis_mode in ['abductive', 'grounded']:
+            # Silent initialization for modes that may use inductive components
+            pass
     
     
     
@@ -178,7 +183,7 @@ class InductiveCoder:
         # Sortiere nach Ähnlichkeit
         merge_candidates.sort(key=lambda x: x[2], reverse=True)
         
-        # FÜhre Konsolidierungen durch
+        # Führe Konsolidierungen durch
         for name1, name2, similarity in merge_candidates[:3]:  # Max 3 Merges pro Runde
             if name1 in consolidated and name2 in consolidated:
                 print(f"ðŸ”— Konsolidiere '{name1}' + '{name2}' (Ähnlichkeit: {similarity:.2f})")
@@ -360,8 +365,8 @@ class InductiveCoder:
             print(f"- Theoretische Sättigung: {saturation_metrics['theoretical_saturation']:.2f}")
             print(f"- Materialabdeckung: {saturation_metrics['material_coverage']:.1%}")
             print(f"- Stabile Batches: {saturation_metrics['stable_batches']}")
-            print(f"- KategorienqualitÄt: {saturation_metrics['category_quality']:.2f}")
-            print(f"- DiversitÄt: {saturation_metrics['category_diversity']:.2f}")
+            print(f"- Kategorienqualität: {saturation_metrics['category_quality']:.2f}")
+            print(f"- Di: {saturation_metrics['category_diversity']:.2f}")
             
             # Speichere Sättigungshistorie
             self.theoretical_saturation_history.append(saturation_metrics)
@@ -412,7 +417,7 @@ class InductiveCoder:
         """
         VERBESSERTE umfassende Sättigungsbeurteilung
         """
-        # 1. Theoretische Sättigung (KategorienqualitÄt und -vollstÄndigkeit)
+        # 1. Theoretische Sättigung (Kategorienqualität und -vollständigkeit)
         theoretical_saturation = self._calculate_theoretical_saturation(categories)
         
         # 2. Materialabdeckung
@@ -421,10 +426,10 @@ class InductiveCoder:
         # 3. StabilitÄt (Batches ohne neue Kategorien)
         stability_ratio = self.batches_without_new_categories / max(1, current_batch)
         
-        # 4. KategorienqualitÄt (Definition, Beispiele, Subkategorien)
+        # 4. Kategorienqualität (Definition, Beispiele, Subkategorien)
         category_quality = self._assess_category_quality(categories)
         
-        # 5. Kategorien-DiversitÄt (thematische Abdeckung)
+        # 5. Kategorien-Di (thematische Abdeckung)
         category_diversity = self._calculate_category_diversity(categories)
         
         return {
@@ -460,7 +465,7 @@ class InductiveCoder:
         
         avg_maturity = sum(maturity_scores) / len(maturity_scores)
         
-        # 2. Forschungsabdeckung (Anzahl und DiversitÄt der Kategorien)
+        # 2. Forschungsabdeckung (Anzahl und Di der Kategorien)
         # SchÄtze optimale Kategorienanzahl basierend auf Forschungsfrage
         estimated_optimal = 8  # Typisch fuer qualitative Analysen
         coverage_ratio = min(len(categories) / estimated_optimal, 1.0)
@@ -505,7 +510,7 @@ class InductiveCoder:
 
     def _calculate_category_diversity(self, categories: Dict[str, CategoryDefinition]) -> float:
         """
-        Berechnet thematische DiversitÄt der Kategorien
+        Berechnet thematische Di der Kategorien
         """
         if not categories:
             return 0.0
@@ -517,7 +522,7 @@ class InductiveCoder:
             keywords = [w for w in words if len(w) > 4]  # Nur lÄngere WÖrter
             all_keywords.update(keywords[:5])  # Top 5 pro Kategorie
         
-        # DiversitÄt = VerhÄltnis von einzigartigen Begriffen zu Kategorien
+        # Di = VerhÄltnis von einzigartigen Begriffen zu Kategorien
         diversity = len(all_keywords) / (len(categories) * 3)  # Normalisiert
         return min(diversity, 1.0)
 
@@ -559,7 +564,7 @@ class InductiveCoder:
 
     def _create_inductive_mode_prompt(self, segments_text: str, existing_categories: Dict[str, CategoryDefinition]) -> str:
         """
-        Erstellt spezifischen Prompt fuer INDUCTIVE MODE (vollstÄndige induktive Kategorienentwicklung)
+        Erstellt spezifischen Prompt fuer INDUCTIVE MODE (vollständige induktive Kategorienentwicklung)
         """
         # Formatiere bestehende induktive Kategorien als Kontext (aber nicht als EinschrÄnkung)
         existing_context = ""
@@ -574,23 +579,30 @@ class InductiveCoder:
             """
         
         return f"""
-        INDUCTIVE MODE: VollstÄndige induktive Kategorienentwicklung
+        FORSCHUNGSFRAGE (ZENTRALE ORIENTIERUNG):
+        {FORSCHUNGSFRAGE}
+
+        INDUCTIVE MODE: Vollständige induktive Kategorienentwicklung
 
         {existing_context}
 
+        WICHTIG - FORSCHUNGSFRAGE BERÜCKSICHTIGEN:
+        - Prüfe ZUERST, ob ein Textsegment zur Forschungsfrage relevant ist
+        - Entwickle NUR Kategorien für Aspekte, die zur Beantwortung der Forschungsfrage beitragen
+        - Kategoriennamen sollten Terminologie der Forschungsfrage aufgreifen, wo sinnvoll
+        - Irrelevante textliche Details NICHT kategorisieren
+
         AUFGABE: Entwickle voellig NEUE Hauptkategorien aus den folgenden Textsegmenten.
-        Dies ist ein eigenstÄndiges induktives Kategoriensystem, unabhÄngig von deduktiven Kategorien.
+        Dies ist ein eigenständiges induktives Kategoriensystem, unabhÄngig von deduktiven Kategorien.
 
         REGELN FÜR INDUCTIVE MODE:
         - Entwickle 1-{self.MAX_CATEGORIES_PER_BATCH} NEUE Hauptkategorien
         - Jede Kategorie muss mindestens {self.MIN_EXAMPLES} Textbelege haben
         - Konfidenz mindestens {self.MIN_CONFIDENCE}
-        - Kategorien mÜssen thematisch eigenstÄndig und relevant sein
+        - Kategorien mÜssen thematisch eigenständig und relevant für die Forschungsfrage sein
         - Erstelle auch 2-4 Subkategorien pro Hauptkategorie
         - Kategorien sollen neue Aspekte der Forschungsfrage beleuchten
         - Vermeide Redundanzen zu bereits entwickelten Kategorien
-
-        FORSCHUNGSFRAGE: {FORSCHUNGSFRAGE}
 
         TEXTSEGMENTE:
         {segments_text}
@@ -609,7 +621,7 @@ class InductiveCoder:
                             "definition": "Subkategorie Definition"
                         }}
                     ],
-                    "thematic_justification": "Warum diese Kategorie einen eigenstÄndigen Themenbereich abbildet"
+                    "thematic_justification": "Warum diese Kategorie einen eigenständigen Themenbereich abbildet und zur Forschungsfrage beiträgt"
                 }}
             ],
             "development_assessment": {{
@@ -683,9 +695,17 @@ class InductiveCoder:
             existing_context = f"Bestehende Kategorien: {', '.join(existing_names)}"
 
         return f"""
+        FORSCHUNGSFRAGE (ZENTRALE ORIENTIERUNG):
+        {FORSCHUNGSFRAGE}
+
         STANDARD INDUKTIVE KATEGORIENENTWICKLUNG
 
         {existing_context}
+
+        WICHTIG - FORSCHUNGSFRAGE BERÜCKSICHTIGEN:
+        - Prüfe ZUERST, ob ein Textsegment zur Forschungsfrage relevant ist
+        - Entwickle NUR Kategorien für Aspekte, die zur Beantwortung der Forschungsfrage beitragen
+        - Kategoriennamen sollten Terminologie der Forschungsfrage aufgreifen, wo sinnvoll
 
         AUFGABE: Entwickle neue Kategorien aus den folgenden Textsegmenten.
 
@@ -693,10 +713,8 @@ class InductiveCoder:
         - Entwickle 1-{self.MAX_CATEGORIES_PER_BATCH} neue Kategorien
         - Jede Kategorie braucht mindestens {self.MIN_EXAMPLES} Textbelege
         - Konfidenz mindestens {self.MIN_CONFIDENCE}
-        - Erstelle aussagekrÄftige Definitionen
-        - FÜge relevante Subkategorien hinzu
-
-        FORSCHUNGSFRAGE: {FORSCHUNGSFRAGE}
+        - Erstelle aussagekrÄftige Definitionen, die den Bezug zur Forschungsfrage verdeutlichen
+        - Füge relevante Subkategorien hinzu
 
         TEXTSEGMENTE:
         {segments_text}
@@ -827,8 +845,8 @@ class InductiveCoder:
         print(f"   🎯 Theoretische Sättigung: {saturation_metrics['theoretical_saturation']:.1%}")
         print(f"   ℹ️ Materialabdeckung: {saturation_metrics['material_coverage']:.1%}")
         print(f"   ℹ️ StabilitÄt: {saturation_metrics['stable_batches']} Batches ohne neue Kategorien")
-        print(f"   â­ KategorienqualitÄt: {saturation_metrics['category_quality']:.1%}")
-        print(f"   ðŸŒˆ DiversitÄt: {saturation_metrics['category_diversity']:.1%}")
+        print(f"   â­ Kategorienqualität: {saturation_metrics['category_quality']:.1%}")
+        print(f"   ðŸŒˆ Di: {saturation_metrics['category_diversity']:.1%}")
 
     def _show_development_summary(self, final_categories: Dict[str, CategoryDefinition], 
                                 initial_categories: Dict[str, CategoryDefinition]) -> None:
@@ -854,8 +872,8 @@ class InductiveCoder:
             final_saturation = self.theoretical_saturation_history[-1]
             print(f"\n🎯 Finale Sättigung:")
             print(f"   - Theoretische Sättigung: {final_saturation['theoretical_saturation']:.1%}")
-            print(f"   - KategorienqualitÄt: {final_saturation['category_quality']:.1%}")
-            print(f"   - DiversitÄt: {final_saturation['category_diversity']:.1%}")
+            print(f"   - Kategorienqualität: {final_saturation['category_quality']:.1%}")
+            print(f"   - Di: {final_saturation['category_diversity']:.1%}")
         
         # Entwicklungsphasen
         if self.category_development_phases:
@@ -1036,7 +1054,7 @@ class InductiveCoder:
                 # Einfache ASCII Progress Bar
                 bar_length = 30
                 filled_length = int(bar_length * material_percentage / 100)
-                bar = 'â–ˆ' * filled_length + 'â–‘' * (bar_length - filled_length)
+                bar ='=' * filled_length + '=   ' * (bar_length - filled_length)
                 
                 print(f"\nGesamtfortschritt Grounded-Analyse:")
                 print(f"[{bar}] {material_percentage:.1f}%")
@@ -1136,7 +1154,7 @@ class InductiveCoder:
                 collected_subcodes = self.analysis_manager.collected_subcodes
                 print(f"🧾 Verwende Subcodes aus AnalysisManager: {len(collected_subcodes)}")
             else:
-                print("❌ Keine gesammelten Subcodes gefunden - prÜfe verfÜgbare Attribute:")
+                print("❌ Keine gesammelten Subcodes gefunden - prÜfe verfügbare Attribute:")
                 for attr in dir(self):
                     if 'subcode' in attr.lower():
                         print(f"   - {attr}: {getattr(self, attr, 'N/A')}")
@@ -1237,7 +1255,7 @@ class InductiveCoder:
                     
                     # Zeige Details
                     characteristic_keywords = ', '.join(category_data.get('characteristic_keywords', [])[:5])
-                    print(f"   {i}. 🔀 '{name}': {len(subcategories)} Subcodes zugeordnet")
+                    print(f"   {i}. 🔀 '{name}': {len(subcategories)} Subcodes zugeordnet")
                     print(f"      Keywords: {characteristic_keywords}")
                     print(f"      Subcodes: {', '.join(assigned_subcodes[:3])}{'...' if len(assigned_subcodes) > 3 else ''}")
             
@@ -1404,11 +1422,11 @@ class InductiveCoder:
                 "|----------|-----------|"
             ]
             
-            # FÜge KategorienhÄufigkeiten hinzu
+            # Füge KategorienhÄufigkeiten hinzu
             for category, frequency in sorted(category_frequencies.items(), key=lambda x: x[1], reverse=True):
                 report.append(f"| {category} | {frequency} |")
             
-            # FÜge Empfehlungen hinzu
+            # Füge Empfehlungen hinzu
             report.extend([
                 "\n## Recommendations",
                 "Based on the reliability analysis, the following actions are suggested:"
@@ -1434,7 +1452,7 @@ class InductiveCoder:
                     "3. Consider using this category system as a template for future analyses"
                 ])
             
-            # FÜge detaillierte Analyse hinzu
+            # Füge detaillierte Analyse hinzu
             report.extend([
                 "\n## Detailed Analysis",
                 "### Interpretation of Krippendorff's Alpha",
@@ -1449,7 +1467,7 @@ class InductiveCoder:
                 "- Average segments per coder: " + f"{total_segments/total_coders:.1f}" if total_coders > 0 else "N/A"
             ])
             
-            # FÜge Zeitstempel hinzu
+            # Füge Zeitstempel hinzu
             report.append(f"\nReport generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
             
             return '\n'.join(report)
@@ -1557,7 +1575,7 @@ class InductiveCoder:
             
             # Fallback falls LLM-Merge fehlschlÄgt
             if len(merged_def.split()) < 15:
-                return f"{def1} ZusÄtzlich umfasst dies: {def2}"
+                return f"{def1} Zusätzlich umfasst dies: {def2}"
             
             return merged_def
             

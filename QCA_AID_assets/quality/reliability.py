@@ -58,8 +58,8 @@ class ReliabilityCalculator:
         # Basis-Statistiken (mit Fallback)
         statistics = self._calculate_basic_statistics(original_codings)
         
-        # 1. Overall Alpha (kombinierte Sets) - extrahiere Float-Wert
-        overall_alpha = self._calculate_combined_sets_alpha(original_codings)
+        # 1. Overall Alpha (kombinierte Sets) - FIX: Mit korrekter Mehrfachkodierungs-Behandlung
+        overall_alpha = self._calculate_multiple_coding_alpha(original_codings)
 
         # 2. Hauptkategorien Alpha - extrahiere Float-Wert
         main_categories_alpha = self._calculate_main_categories_alpha(original_codings)
@@ -345,10 +345,10 @@ class ReliabilityCalculator:
                         if overlap == 1.0:
                             total_agreements += 1
                     
-                    # FIX: Nur numerische Overlap-Werte hinzufÜgen, KEINE String-Werte
+                    # FIX: Nur numerische Overlap-Werte hinzuFügen, KEINE String-Werte
                     all_overlap_scores.append(overlap)
                     
-                    # FIX: Entfernt - keine String-Subkategorien zu all_overlap_scores hinzufÜgen
+                    # FIX: Entfernt - keine String-Subkategorien zu all_overlap_scores hinzuFügen
                     # all_overlap_scores.extend(list(set1))  # ENTFERNT
                     # all_overlap_scores.extend(list(set2))  # ENTFERNT
         
@@ -467,7 +467,7 @@ class ReliabilityCalculator:
         segment_data = self._group_by_original_segments(codings)
         
         agreement_stats = {
-            'VollstÄndige Übereinstimmung': 0,
+            'Vollständige Übereinstimmung': 0,
             'Hauptkategorie gleich, Subkat. unterschiedlich': 0,
             'Hauptkategorie unterschiedlich': 0
         }
@@ -495,7 +495,7 @@ class ReliabilityCalculator:
                     subcats2 = set(coding2.get('subcategories', []))
                     
                     if main_cat1 == main_cat2 and subcats1 == subcats2:
-                        agreement_stats['VollstÄndige Übereinstimmung'] += 1
+                        agreement_stats['Vollständige Übereinstimmung'] += 1
                     elif main_cat1 == main_cat2:
                         agreement_stats['Hauptkategorie gleich, Subkat. unterschiedlich'] += 1
                     else:
@@ -503,6 +503,132 @@ class ReliabilityCalculator:
         
         return agreement_stats
     
+    def _group_by_original_segments_with_multiple_codings(self, codings: List[Dict]) -> dict:
+        """
+        FIX: Gruppiert Kodierungen nach ursprünglicher Segment-ID MIT korrekter Mehrfachkodierungs-Behandlung
+        
+        Methodisch korrekte Behandlung:
+        - Jede Mehrfachkodierung wird als separate Kodierung behandelt
+        - Alle Kombinationen zwischen Kodierern werden verglichen
+        - Basis-Segment wird nur für Gruppierung verwendet
+        
+        Rückgabe: {base_segment_id: {coder_id: [actual_codings_with_full_segment_ids]}}
+        """
+        segment_data = {}
+        
+        for coding in codings:
+            # Extrahiere Basis-Segment-ID für Gruppierung
+            base_id = self._extract_base_segment_id(coding)
+            
+            if base_id not in segment_data:
+                segment_data[base_id] = {}
+            
+            coder_id = coding.get('coder_id', 'unknown')
+            if coder_id not in segment_data[base_id]:
+                segment_data[base_id][coder_id] = []
+            
+            # WICHTIG: Speichere die vollständige Kodierung mit tatsächlicher segment_id
+            segment_data[base_id][coder_id].append(coding)
+        
+        return segment_data
+    
+    def _calculate_multiple_coding_alpha(self, codings: List[Dict]) -> float:
+        """
+        FIX: Berechnet Alpha mit korrekter Mehrfachkodierungs-Behandlung
+        
+        Methodisch korrekte Behandlung nach Krippendorff (2011):
+        - Jede Mehrfachkodierung wird als separate Beobachtung behandelt
+        - Alle paarweisen Vergleiche zwischen Kodierern werden durchgeführt
+        - Jaccard-Ähnlichkeit für Set-basierte Vergleiche
+        """
+        segment_data = self._group_by_original_segments_with_multiple_codings(codings)
+        
+        all_overlap_scores = []
+        all_comparisons = 0
+        
+        print(f"🔍 DEBUG: Mehrfachkodierungs-Alpha für {len(segment_data)} Basis-Segmente")
+        
+        for base_segment_id, coders_data in segment_data.items():
+            if len(coders_data) < 2:
+                continue
+            
+            coders = list(coders_data.keys())
+            
+            # Paarweise Vergleiche zwischen allen Kodierern
+            for i in range(len(coders)):
+                for j in range(i + 1, len(coders)):
+                    coder1, coder2 = coders[i], coders[j]
+                    
+                    # Alle Kodierungen von beiden Kodierern für dieses Basis-Segment
+                    coder1_codings = coders_data[coder1]
+                    coder2_codings = coders_data[coder2]
+                    
+                    # METHODISCH KORREKT: Vergleiche alle Kombinationen von Mehrfachkodierungen
+                    for coding1 in coder1_codings:
+                        for coding2 in coder2_codings:
+                            # Sammle Sets für beide Kodierungen
+                            set1 = set()
+                            set2 = set()
+                            
+                            # Set 1 (Kodierung 1)
+                            main_cat1 = coding1.get('category', '')
+                            if main_cat1 and main_cat1 not in ['Nicht kodiert', 'Kein Kodierkonsens']:
+                                set1.add(main_cat1)
+                            
+                            subcats1 = coding1.get('subcategories', [])
+                            if isinstance(subcats1, (list, tuple)):
+                                set1.update(subcats1)
+                            
+                            # Set 2 (Kodierung 2)
+                            main_cat2 = coding2.get('category', '')
+                            if main_cat2 and main_cat2 not in ['Nicht kodiert', 'Kein Kodierkonsens']:
+                                set2.add(main_cat2)
+                            
+                            subcats2 = coding2.get('subcategories', [])
+                            if isinstance(subcats2, (list, tuple)):
+                                set2.update(subcats2)
+                            
+                            all_comparisons += 1
+                            
+                            # Jaccard-Ähnlichkeit
+                            if len(set1) == 0 and len(set2) == 0:
+                                overlap_score = 1.0
+                            elif len(set1) == 0 or len(set2) == 0:
+                                overlap_score = 0.0
+                            else:
+                                intersection = len(set1.intersection(set2))
+                                union = len(set1.union(set2))
+                                overlap_score = intersection / union if union > 0 else 0.0
+                            
+                            all_overlap_scores.append(overlap_score)
+                            
+                            # Debug für erste 3 Vergleiche
+                            if all_comparisons <= 3:
+                                print(f"  Vergleich {all_comparisons}: {coding1.get('segment_id')} vs {coding2.get('segment_id')}")
+                                print(f"    Set1: {list(set1)}, Set2: {list(set2)} -> {overlap_score:.3f}")
+        
+        if all_comparisons == 0:
+            return 0.0
+        
+        # Durchschnittliche Übereinstimmung
+        observed_agreement = sum(all_overlap_scores) / len(all_overlap_scores)
+        
+        # Erwartete Übereinstimmung
+        expected_agreement = 0.25  # Konservative Schätzung
+        
+        # Krippendorff's Alpha
+        if expected_agreement >= 1.0:
+            alpha = 1.0 if observed_agreement >= 1.0 else 0.0
+        else:
+            alpha = (observed_agreement - expected_agreement) / (1 - expected_agreement)
+        
+        print(f"🧾 Mehrfachkodierungs-Alpha Details:")
+        print(f"   - Vergleiche durchgeführt: {all_comparisons}")
+        print(f"   - Durchschnittliche Übereinstimmung: {observed_agreement:.3f}")
+        print(f"   - Mehrfachkodierungs-Alpha: {alpha:.3f}")
+        
+        return max(0.0, alpha)
+
     def _group_by_original_segments(self, codings: List[Dict]) -> dict:
         """
         FIX: Gruppiert Kodierungen nach ursprünglicher Segment-ID fuer ReliabilityCalculator
@@ -632,7 +758,7 @@ class ReliabilityCalculator:
     
     def _create_empty_reliability_report(self) -> dict:
         """
-        FIX: Erstellt vollstÄndigen leeren Bericht
+        FIX: Erstellt vollständigen leeren Bericht
         FÜr ReliabilityCalculator Klasse
         """
         return {
@@ -640,7 +766,7 @@ class ReliabilityCalculator:
             'main_categories_alpha': 0.0,
             'subcategories_alpha': 0.0,
             'agreement_analysis': {
-                'VollstÄndige Übereinstimmung': 0,
+                'Vollständige Übereinstimmung': 0,
                 'Hauptkategorie gleich, Subkat. unterschiedlich': 0,
                 'Hauptkategorie unterschiedlich': 0,
                 'Gesamt': 0

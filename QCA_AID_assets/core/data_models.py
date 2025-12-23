@@ -109,6 +109,60 @@ class CodingResult:
 
 
 @dataclass
+class ExtendedCodingResult:
+    """Extended coding result for intercoder reliability analysis."""
+    segment_id: str
+    coder_id: str
+    category: str
+    subcategories: List[str]
+    confidence: float
+    justification: str
+    analysis_mode: str
+    timestamp: datetime
+    is_manual: bool = False
+    metadata: Dict[str, Any] = None
+
+    def __post_init__(self):
+        """Initialize metadata dict if None."""
+        if self.metadata is None:
+            self.metadata = {}
+        # Ensure timestamp is datetime object
+        if isinstance(self.timestamp, str):
+            self.timestamp = datetime.fromisoformat(self.timestamp)
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert to dictionary for serialization."""
+        return {
+            'segment_id': self.segment_id,
+            'coder_id': self.coder_id,
+            'category': self.category,
+            'subcategories': self.subcategories,
+            'confidence': self.confidence,
+            'justification': self.justification,
+            'analysis_mode': self.analysis_mode,
+            'timestamp': self.timestamp.isoformat(),
+            'is_manual': self.is_manual,
+            'metadata': self.metadata
+        }
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> 'ExtendedCodingResult':
+        """Create instance from dictionary."""
+        return cls(
+            segment_id=data['segment_id'],
+            coder_id=data['coder_id'],
+            category=data['category'],
+            subcategories=data['subcategories'],
+            confidence=data['confidence'],
+            justification=data['justification'],
+            analysis_mode=data['analysis_mode'],
+            timestamp=datetime.fromisoformat(data['timestamp']) if isinstance(data['timestamp'], str) else data['timestamp'],
+            is_manual=data.get('is_manual', False),
+            metadata=data.get('metadata', {})
+        )
+
+
+@dataclass
 class CategoryChange:
     """Dokumentiert eine Änderung an einer Kategorie"""
     category_name: str

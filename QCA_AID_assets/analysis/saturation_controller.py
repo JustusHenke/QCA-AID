@@ -45,7 +45,7 @@ class ImprovedSaturationController:
         # Berechne theoretische Sättigung
         theoretical_saturation = self._calculate_theoretical_saturation(current_categories)
         
-        # Berechne KategorienqualitÄt
+        # Berechne Kategorienqualität
         category_quality = self._assess_category_quality(current_categories)
         
         # Prüfe alle Kriterien
@@ -109,7 +109,7 @@ class ImprovedSaturationController:
 
     def _assess_category_quality(self, categories: Dict) -> float:
         """
-        Bewertet KategorienqualitÄt
+        Bewertet Kategorienqualität
         """
         if not categories:
             return 0.0
