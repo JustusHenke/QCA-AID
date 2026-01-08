@@ -781,7 +781,7 @@ class UnifiedRelevanceAnalyzer:
                 continue
             
             batch_num = (i // batch_size) + 1
-            print(f"   📦 Kodierungs-Batch {batch_num}/{total_batches}: {len(batch)} Segmente")
+            print(f"   Kodierungs-Teil-Batch {batch_num}/{total_batches}: {len(batch)} Segmente")
                 
             try:
                 # Track API call

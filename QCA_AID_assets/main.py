@@ -414,29 +414,12 @@ async def main() -> None:
         # Erstelle diese Verzeichnisse, falls sie nicht existieren
         os.makedirs(CONFIG['OUTPUT_DIR'], exist_ok=True)
         os.makedirs(CONFIG['DATA_DIR'], exist_ok=True)
-        
-        # FIX: Console Logging initialisieren
-        console_logger = ConsoleLogger(CONFIG['OUTPUT_DIR'])
-        console_logger.start_logging()
 
         # Import version information
         from .__version__ import __version__, __version_date__
         
         print("=== Qualitative Inhaltsanalyse nach Mayring ===")
         print(f"QCA-AID Version {__version__} ({__version_date__})")
-        
-        # WICHTIGE BENUTZERWARNUNG für Cloud-Speicher
-        print("\n" + "="*60)
-        print("⚠️  WICHTIGER HINWEIS ZUR DATENSPEICHERUNG")
-        print("="*60)
-        print("📁 Ausgabeordner:", CONFIG['OUTPUT_DIR'])
-        print("\n🔄 Falls Sie Cloud-Synchronisation verwenden:")
-        print("   • Dropbox, OneDrive, Google Drive, etc.")
-        print("   • und es treten Probleme beim Zwischenspeichern von Kodierungen auf:")
-        print("   • PAUSIEREN Sie die Synchronisation während der Analyse")
-        print("   • Andernfalls können Kodierungen verloren gehen!")
-        print("\n💡 Die Analyse stoppt automatisch bei Speicherproblemen")
-        print("="*60)
 
         config_loader = ConfigLoader(script_dir, CONFIG)
         
@@ -445,9 +428,25 @@ async def main() -> None:
         else:
             print("Verwende Standard-Konfiguration")
         
+        # FIX: Console Logging NACH ConfigLoader initialisieren (mit korrektem OUTPUT_DIR)
+        console_logger = ConsoleLogger(CONFIG['OUTPUT_DIR'])
+        console_logger.start_logging()
+        
         # FIX: Respektiere die vom ConfigLoader gesetzten Verzeichnisnamen
         # (Keine Überschreibung mit hardcodierten Pfaden mehr!)
         # Die Verzeichnisse wurden bereits vom ConfigLoader gesetzt und validiert
+        
+        # WICHTIGE BENUTZERWARNUNG für Cloud-Speicher (NACH ConfigLoader!)
+        print("\n" + "="*60)
+        print("⚠️  WICHTIGER HINWEIS ZUR DATENSPEICHERUNG")
+        print("="*60)
+        print("📁 Ausgabeordner:", CONFIG['OUTPUT_DIR'])
+        print("\n🔄 Falls Sie Cloud-Synchronisation verwenden:")
+        print("   • Dropbox, OneDrive, Google Drive, etc.")
+        print("   • PAUSIEREN Sie die Synchronisation während der Analyse")
+        print("   • Andernfalls können Kodierungen verloren gehen!")
+        print("\n💡 Die Analyse stoppt automatisch bei Speicherproblemen")
+        print("="*60)
 
         category_builder = DeductiveCategoryBuilder()
         initial_categories = category_builder.load_theoretical_categories()

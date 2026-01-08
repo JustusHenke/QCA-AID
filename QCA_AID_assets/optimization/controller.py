@@ -557,9 +557,16 @@ class OptimizationController:
             category_preselections = {}
             for pref_result in category_preference_results:
                 seg_id = pref_result.get('segment_id', '')
+                # FIX: Fallback für unterschiedliche Feldnamen zwischen Modi
                 preferred_cats = pref_result.get('preferred_categories', [])
+                if not preferred_cats:
+                    preferred_cats = pref_result.get('top_categories', [])
+                
                 category_preferences = pref_result.get('category_preferences', {})
+                
                 reasoning = pref_result.get('reasoning', '')
+                if not reasoning:
+                    reasoning = pref_result.get('preference_reasoning', '')
                 
                 if seg_id:
                     category_preselections[seg_id] = {
@@ -1022,9 +1029,16 @@ class OptimizationController:
         for pref_result in category_preference_results:
             seg_id = pref_result.get('segment_id', '')
             if seg_id:
+                # FIX: Fallback für unterschiedliche Feldnamen zwischen Modi
                 top_categories = pref_result.get('top_categories', [])
+                if not top_categories:
+                    top_categories = pref_result.get('preferred_categories', [])
+                
                 category_preferences = pref_result.get('category_preferences', {})
+                
                 reasoning = pref_result.get('preference_reasoning', '')
+                if not reasoning:
+                    reasoning = pref_result.get('reasoning', '')
                 
                 category_preselections[seg_id] = {
                     'preferred_categories': top_categories,
@@ -2098,9 +2112,16 @@ class OptimizationController:
         for pref_result in category_preference_results:
             seg_id = pref_result.get('segment_id', '')
             if seg_id:  # Segment ist bereits als relevant bestätigt
+                # FIX: Fallback für unterschiedliche Feldnamen zwischen Modi
                 top_categories = pref_result.get('top_categories', [])
+                if not top_categories:
+                    top_categories = pref_result.get('preferred_categories', [])
+                
                 category_preferences = pref_result.get('category_preferences', {})
+                
                 reasoning = pref_result.get('preference_reasoning', '')
+                if not reasoning:
+                    reasoning = pref_result.get('reasoning', '')
                 
                 category_preselections[seg_id] = {
                     'preferred_categories': top_categories,
