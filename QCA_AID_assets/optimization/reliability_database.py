@@ -15,6 +15,13 @@ from datetime import datetime
 from pathlib import Path
 import os
 
+# Optional import for cloud sync detection
+try:
+    import psutil
+    PSUTIL_AVAILABLE = True
+except ImportError:
+    PSUTIL_AVAILABLE = False
+
 from ..core.data_models import ExtendedCodingResult
 
 
@@ -133,7 +140,12 @@ class ReliabilityDatabase:
                 # Keep default empty structure
     
     def _save_data(self) -> None:
-        """Save data to JSON file."""
+        """
+        Save data to JSON file with mandatory success requirement.
+        
+        This method MUST succeed before the analysis can continue.
+        If saving fails, the entire analysis will be halted to prevent data loss.
+        """
         try:
             # Update last_updated timestamp
             self.data['metadata']['last_updated'] = datetime.now().isoformat()
@@ -144,13 +156,48 @@ class ReliabilityDatabase:
                 json.dump(self.data, f, indent=2, ensure_ascii=False)
             
             # Atomic rename with retry mechanism for Windows/Dropbox compatibility
+            # This MUST succeed - if it fails, we raise an exception to halt analysis
             self._safe_replace_with_retry(temp_path, self.db_path)
             
+            logger.debug(f"✅ Kodierungen erfolgreich gespeichert: {self.db_path}")
+            
         except Exception as e:
-            logger.error(f"Failed to save data to {self.db_path}: {e}")
-            raise
+            logger.error(f"❌ KRITISCH: Speichern der Kodierungen fehlgeschlagen: {self.db_path}: {e}")
+            print(f"\n🚨 ANALYSE GESTOPPT: Kodierungen können nicht gespeichert werden!")
+            print(f"   📁 Datei: {self.db_path}")
+            print(f"   ❌ Fehler: {e}")
+            print(f"   \n🔧 Bitte behebe das Speicherproblem und starte die Analyse erneut.")
+            raise RuntimeError(f"Kodierungen können nicht gespeichert werden: {e}") from e
     
-    def _safe_replace_with_retry(self, temp_path: Path, target_path: Path, max_retries: int = 5) -> None:
+    def _detect_cloud_sync_processes(self) -> List[str]:
+        """
+        Detect running cloud synchronization processes that might interfere with file operations.
+        
+        Returns:
+            List of detected cloud sync process names
+        """
+        if not PSUTIL_AVAILABLE:
+            return []
+            
+        cloud_processes = [
+            'dropbox', 'onedrive', 'googledrivesync', 'googledrive', 'icloud',
+            'box', 'sync', 'backup', 'carbonite', 'crashplan'
+        ]
+        
+        detected = []
+        try:
+            for proc in psutil.process_iter(['name']):
+                proc_name = proc.info['name'].lower()
+                for cloud_proc in cloud_processes:
+                    if cloud_proc in proc_name:
+                        detected.append(proc.info['name'])
+                        break
+        except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
+            pass
+        
+        return detected
+
+    def _safe_replace_with_retry(self, temp_path: Path, target_path: Path, max_retries: int = 10) -> None:
         """
         Safely replace target file with temp file using retry mechanism.
         
@@ -160,37 +207,77 @@ class ReliabilityDatabase:
         Args:
             temp_path: Path to temporary file
             target_path: Path to target file
-            max_retries: Maximum number of retry attempts (default: 5)
+            max_retries: Maximum number of retry attempts (default: 10)
             
         Raises:
             PermissionError: If all retry attempts fail
         """
         last_error = None
+        cloud_sync_warning_shown = False
         
         for attempt in range(max_retries):
             try:
+                # Try to remove target file first if it exists (Windows compatibility)
+                if target_path.exists():
+                    try:
+                        target_path.unlink()
+                    except PermissionError:
+                        pass  # Will be handled by the replace operation
+                
                 temp_path.replace(target_path)
+                
+                # Success! Log if we had previous failures
+                if attempt > 0:
+                    logger.info(f"✅ File successfully saved after {attempt + 1} attempts")
+                
                 return  # Success!
                 
             except PermissionError as e:
                 last_error = e
                 
+                # Show cloud sync warning after first few attempts
+                if attempt == 2 and not cloud_sync_warning_shown:
+                    detected_processes = self._detect_cloud_sync_processes()
+                    
+                    print(f"\n⚠️  WARNUNG: Dateispeicherung blockiert!")
+                    print(f"   📁 Datei: {target_path}")
+                    print(f"   🔄 Mögliche Ursache: Cloud-Synchronisation")
+                    
+                    if detected_processes:
+                        print(f"   🔍 Erkannte Cloud-Prozesse: {', '.join(detected_processes)}")
+                        print(f"   💡 Lösung: Pausiere diese Cloud-Synchronisation temporär")
+                    else:
+                        print(f"   💡 Lösung: Pausiere Cloud-Synchronisation (Dropbox, OneDrive, etc.)")
+                    
+                    print(f"   ⏳ Versuche weiter automatisch zu speichern...")
+                    cloud_sync_warning_shown = True
+                
                 if attempt < max_retries - 1:
-                    # Exponential backoff with jitter
-                    base_delay = 2 ** attempt  # 1, 2, 4, 8, 16 seconds
-                    jitter = random.uniform(0, 1)  # Add randomness
+                    # Exponential backoff with jitter (longer delays for cloud sync)
+                    base_delay = min(2 ** attempt, 30)  # Cap at 30 seconds
+                    jitter = random.uniform(0, 2)  # More jitter for cloud sync
                     delay = base_delay + jitter
                     
                     logger.warning(
-                        f"File replace failed (attempt {attempt + 1}/{max_retries}), "
-                        f"retrying in {delay:.2f}s: {e}"
+                        f"💾 Speichern fehlgeschlagen (Versuch {attempt + 1}/{max_retries}), "
+                        f"wiederhole in {delay:.1f}s: {e}"
                     )
                     time.sleep(delay)
                 else:
-                    # Final attempt failed
+                    # Final attempt failed - show user guidance
+                    print(f"\n❌ KRITISCHER FEHLER: Kodierungen können nicht gespeichert werden!")
+                    print(f"   📁 Datei: {target_path}")
+                    print(f"   🔄 Nach {max_retries} Versuchen fehlgeschlagen")
+                    print(f"   \n🛠️  SOFORTIGE MASSNAHMEN:")
+                    print(f"   1. Pausiere Cloud-Synchronisation (Dropbox/OneDrive)")
+                    print(f"   2. Schließe alle Programme, die auf Ausgabedateien zugreifen")
+                    print(f"   3. Prüfe Schreibrechte im Ausgabeordner")
+                    print(f"   4. Starte die Analyse erneut")
+                    print(f"   \n⚠️  OHNE SPEICHERN GEHEN KODIERUNGEN VERLOREN!")
+                    
                     logger.error(
                         f"File replace failed after {max_retries} attempts. "
-                        f"This may be due to Dropbox sync or antivirus interference."
+                        f"Cloud sync or file access interference detected."
                     )
                     raise last_error
             
@@ -273,10 +360,16 @@ class ReliabilityDatabase:
         # Add new results
         self.data['coding_results'].extend(new_results)
         
-        # Save to file
-        self._save_data()
-        
-        logger.info(f"Stored {len(coding_results)} coding results")
+        # Save to file - THIS MUST SUCCEED
+        try:
+            self._save_data()
+            logger.info(f"✅ {len(coding_results)} Kodierungen erfolgreich gespeichert")
+        except Exception as e:
+            logger.error(f"❌ KRITISCH: Batch-Speicherung fehlgeschlagen: {e}")
+            print(f"\n🚨 ANALYSE GESTOPPT: {len(coding_results)} Kodierungen können nicht gespeichert werden!")
+            print(f"   🔧 Bitte behebe das Speicherproblem und starte die Analyse erneut.")
+            # Re-raise to halt the analysis
+            raise RuntimeError(f"Batch-Kodierungen können nicht gespeichert werden: {e}") from e
     
     def get_coding_results(self, 
                           segment_ids: Optional[List[str]] = None,

@@ -519,15 +519,20 @@ class DynamicCacheManager:
             logger.debug(f"Added reliability data for segment {segment_id}, coder {coding_result.coder_id}")
             # print(f"   ✅ DEBUG: Added to in-memory reliability data for {segment_id}")
         
-        # Store in persistent database
+        # Store in persistent database - THIS MUST SUCCEED
         try:
             # print(f"   💾 DEBUG: Storing to persistent database...")
             self.reliability_db.store_coding_result(coding_result)
             # print(f"   ✅ DEBUG: Successfully stored to persistent database")
         except Exception as e:
             # print(f"   ❌ DEBUG: Failed to store to persistent database: {e}")
+            logger.error(f"❌ KRITISCH: Kodierung kann nicht gespeichert werden: {e}")
+            print(f"\n🚨 ANALYSE GESTOPPT: Kodierung für Segment {coding_result.segment_id} kann nicht gespeichert werden!")
+            print(f"   🔧 Bitte behebe das Speicherproblem und starte die Analyse erneut.")
             import traceback
             traceback.print_exc()
+            # Re-raise to halt the analysis
+            raise RuntimeError(f"Kodierung kann nicht gespeichert werden: {e}") from e
         
         # Mark manual coders with "manual" ID if needed
         if coding_result.is_manual and coding_result.coder_id != "manual":

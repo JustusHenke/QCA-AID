@@ -25,6 +25,18 @@ UI VERBESSERUNG: ANALYSE BUTTONS
 - ✅ "Neue Analyse" Button umbenannt zu "Erneut versuchen" für bessere Klarheit
 - ✅ Intuitivere Benutzerführung bei Analyse-Fehlern und Abbrüchen
 
+BUGFIX: DATEI-OPERATIONEN ROBUSTHEIT
+- ✅ Retry-Mechanismus für Datei-Ersetzungs-Operationen implementiert
+- ✅ Exponential Backoff mit Jitter löst Windows/Dropbox Sperr-Probleme
+- ✅ Bis zu 5 automatische Wiederholungsversuche bei PermissionError
+- ✅ Detailliertes Logging für bessere Fehlerdiagnose
+
+VERBESSERUNG: BENUTZERDEFINIERTE CODEBOOK-NAMEN
+- ✅ JSON-Dateien erhalten automatisch passende Namen zu XLSX-Dateien
+- ✅ "01_QCA-AID-Codebook.xlsx" → "01_QCA-AID-Codebook.json"
+- ✅ Session State Tracking des aktuell geladenen Dateinamens
+- ✅ Konsistente Dateinamen für bessere Dateiverwaltung
+
 ### Neu in 0.12.0 (2025-12-20)
 
 DYNAMIC CACHE SYSTEM: INTELLIGENTE MULTI-CODER CACHE-OPTIMIERUNG

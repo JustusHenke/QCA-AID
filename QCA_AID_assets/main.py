@@ -424,6 +424,19 @@ async def main() -> None:
         
         print("=== Qualitative Inhaltsanalyse nach Mayring ===")
         print(f"QCA-AID Version {__version__} ({__version_date__})")
+        
+        # WICHTIGE BENUTZERWARNUNG für Cloud-Speicher
+        print("\n" + "="*60)
+        print("⚠️  WICHTIGER HINWEIS ZUR DATENSPEICHERUNG")
+        print("="*60)
+        print("📁 Ausgabeordner:", CONFIG['OUTPUT_DIR'])
+        print("\n🔄 Falls Sie Cloud-Synchronisation verwenden:")
+        print("   • Dropbox, OneDrive, Google Drive, etc.")
+        print("   • und es treten Probleme beim Zwischenspeichern von Kodierungen auf:")
+        print("   • PAUSIEREN Sie die Synchronisation während der Analyse")
+        print("   • Andernfalls können Kodierungen verloren gehen!")
+        print("\n💡 Die Analyse stoppt automatisch bei Speicherproblemen")
+        print("="*60)
 
         config_loader = ConfigLoader(script_dir, CONFIG)
         
