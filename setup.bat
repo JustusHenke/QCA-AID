@@ -19,8 +19,7 @@ if errorlevel 1 (
     echo WICHTIG: Wählen Sie Python Version 3.8 bis 3.12 ^(max. 3.12 wegen spaCy^)
     echo          Aktivieren Sie bei der Installation "Add Python to PATH"
     echo.
-    pause
-    exit /b 1
+    goto :error
 )
 
 REM --- 2. Python-Version prüfen ---
@@ -47,8 +46,7 @@ if %MAJOR% EQU 3 if %MINOR% LSS 8 (
     echo [WARNUNG] Python Version zu alt! Mindestens Python 3.8 erforderlich.
     echo           Bitte aktualisieren Sie Python auf Version 3.8-3.12
     echo.
-    pause
-    exit /b 1
+    goto :error
 )
 if %MAJOR% EQU 3 if %MINOR% GTR 12 (
     echo.
@@ -59,8 +57,7 @@ if %MAJOR% EQU 3 if %MINOR% GTR 12 (
     set /p CONTINUE=
     if /i not "!CONTINUE!"=="J" (
         echo Setup abgebrochen.
-        pause
-        exit /b 1
+        goto :error
     )
 )
 echo Python-Version OK: %PYTHON_VERSION%
@@ -76,8 +73,7 @@ if errorlevel 1 (
     python -m ensurepip --default-pip
     if errorlevel 1 (
         echo pip-Installation fehlgeschlagen. Bitte manuell installieren.
-        pause
-        exit /b 1
+        goto :error
     )
 )
 echo pip gefunden und bereit.
@@ -95,8 +91,7 @@ if not exist "!PYTHON_PATH!" (
 )
 if "!PYTHON_PATH!"=="" (
     echo [FEHLER] Python-Pfad konnte nicht ermittelt werden.
-    pause
-    exit /b 1
+    goto :error
 )
 echo Python-Pfad: !PYTHON_PATH!
 echo.
@@ -107,8 +102,7 @@ echo.
 
 if not exist requirements.txt (
     echo [FEHLER] requirements.txt nicht gefunden!
-    pause
-    exit /b 1
+    goto :error
 )
 
 REM Prüfe, ob requirements.txt gültige Pakete enthält
@@ -116,8 +110,7 @@ findstr /r /c:"^[^#][^ ]" "requirements.txt" >nul
 if errorlevel 1 (
     echo [WARNUNG] requirements.txt ist leer oder enthält keine gültigen Pakete.
     echo           Bitte stellen Sie sicher, dass die Datei Paketnamen enthält ^(z. B. "numpy==1.21.0"^).
-    pause
-    exit /b 1
+    goto :error
 )
 
 echo Starte Installation der Pakete...
@@ -128,8 +121,7 @@ if errorlevel 1 (
     echo [FEHLER] Installation der Pakete fehlgeschlagen!
     echo Bitte prüfen Sie die Fehlermeldungen oben.
     echo.
-    pause
-    exit /b 1
+    goto :error
 ) else (
     echo.
     echo [ERFOLG] Alle Pakete erfolgreich installiert!
@@ -138,6 +130,7 @@ if errorlevel 1 (
 
 
 REM --- 6. spaCy-Modell installieren (optional) ---
+echo.
 echo Möchten Sie das deutsche spaCy-Sprachmodell installieren? ^(empfohlen^) ^(J/N^)
 set /p INSTALL_SPACY=
 if /i "!INSTALL_SPACY!"=="J" (
@@ -147,14 +140,23 @@ if /i "!INSTALL_SPACY!"=="J" (
         echo [WARNUNG] Installation des spaCy-Modells fehlgeschlagen.
         echo           Sie können es später manuell installieren mit:
         echo             python -m spacy download de_core_news_sm
+        echo.
+        echo Das Setup wird trotzdem fortgesetzt...
+    ) else (
+        echo ✅ spaCy Deutsch-Modell erfolgreich installiert!
     )
+    echo.
+) else (
+    echo spaCy-Installation übersprungen.
     echo.
 )
 
-REM --- 7. Desktop-Verknüpfung erstellen ---
+REM --- 7. Desktop-Verknüpfung mit Icon erstellen ---
 echo [4/4] Erstelle Desktop-Verknüpfung...
 set SCRIPT_DIR=%~dp0
 set SCRIPT_PATH=%SCRIPT_DIR%start_QCA-AID-app.py
+set PNG_ICON=%SCRIPT_DIR%qca_aid_icon.png
+set ICO_ICON=%SCRIPT_DIR%qca_aid_icon.ico
 
 REM Prüfe beide mögliche Desktop-Pfade (lokal und OneDrive)
 set DESKTOP1=%USERPROFILE%\Desktop
@@ -167,11 +169,21 @@ if exist "!DESKTOP2!" (
     set DESKTOP=!DESKTOP1!
 ) else (
     echo [FEHLER] Kein Desktop-Pfad gefunden ^(weder %USERPROFILE%\Desktop noch %USERPROFILE%\OneDrive\Desktop^).
-    pause
-    exit /b 1
+    goto :error
 )
 
 set SHORTCUT_PATH=!DESKTOP!\QCA-AID.lnk
+
+REM Erstelle ICO-Icon aus PNG (falls vorhanden)
+if exist "!PNG_ICON!" (
+    echo Erstelle ICO-Icon aus PNG...
+    "!PYTHON_PATH!" -c "try: from PIL import Image; img = Image.open(r'!PNG_ICON!'); w, h = img.size; img = Image.new('RGBA', (max(w,h), max(w,h)), (0,0,0,0)) if w != h else img; img.paste(Image.open(r'!PNG_ICON!'), ((max(w,h)-w)//2, (max(w,h)-h)//2)) if w != h else None; img.save(r'!ICO_ICON!', format='ICO', sizes=[(16,16), (32,32), (48,48), (64,64), (128,128), (256,256)]); print('✅ ICO-Icon erstellt') except ImportError: print('⚠️ Pillow nicht installiert - Icon übersprungen') except Exception as e: print(f'⚠️ Icon-Erstellung fehlgeschlagen: {e}')" 2>nul
+    echo.
+) else (
+    echo PNG-Icon nicht gefunden: !PNG_ICON!
+    echo Verknüpfung wird ohne benutzerdefiniertes Icon erstellt.
+    echo.
+)
 
 REM Erstelle VBScript für Verknüpfung - OHNE Delayed Expansion in den Werten
 set VBS_PATH=%TEMP%\create_shortcut.vbs
@@ -183,6 +195,9 @@ set VBS_PATH=%TEMP%\create_shortcut.vbs
     echo oLink.Arguments = """!SCRIPT_PATH!"""
     echo oLink.WorkingDirectory = "!SCRIPT_DIR!"
     echo oLink.Description = "QCA-AID Webapp starten"
+    if exist "!ICO_ICON!" (
+        echo oLink.IconLocation = "!ICO_ICON!,0"
+    )
     echo oLink.Save
 ) > "!VBS_PATH!"
 
@@ -192,6 +207,9 @@ del "!VBS_PATH!"
 
 if exist "!SHORTCUT_PATH!" (
     echo Desktop-Verknüpfung erstellt: !SHORTCUT_PATH!
+    if exist "!ICO_ICON!" (
+        echo Mit benutzerdefiniertem Icon: !ICO_ICON!
+    )
 ) else (
     echo [WARNUNG] Desktop-Verknüpfung konnte nicht erstellt werden.
     echo Sie können die Anwendung manuell starten mit: "!PYTHON_PATH!" "!SCRIPT_PATH!"
@@ -209,4 +227,17 @@ echo   - Oder: "!PYTHON_PATH!" "!SCRIPT_PATH!"
 echo.
 echo Viel Erfolg mit QCA-AID!
 echo.
-pause
+goto :end
+
+:error
+echo.
+echo ========================================
+echo Setup wurde mit Fehlern beendet!
+echo ========================================
+echo.
+echo Bitte prüfen Sie die Fehlermeldungen oben und versuchen Sie es erneut.
+echo.
+
+:end
+echo Drücken Sie eine beliebige Taste zum Beenden...
+pause >nul

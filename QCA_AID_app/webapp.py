@@ -348,6 +348,28 @@ def main():
         initial_sidebar_state="expanded"
     )
     
+    # Add custom header with SVG icon
+    icon_path = Path(__file__).parent.parent / "qca_aid_icon.svg"
+    if icon_path.exists():
+        try:
+            with open(icon_path, 'r', encoding='utf-8') as f:
+                svg_content = f.read()
+            
+            # Display SVG icon in header with custom styling
+            st.markdown(f"""
+            <div style="display: flex; align-items: center; margin-bottom: 20px; padding: 10px 0;">
+                <div style="width: 40px; height: 40px; margin-right: 15px; flex-shrink: 0;">
+                    {svg_content}
+                </div>
+                <h1 style="margin: 0; color: #0078d4; font-family: 'Segoe UI', sans-serif;">QCA-AID Webapp</h1>
+            </div>
+            """, unsafe_allow_html=True)
+        except Exception as e:
+            # Fallback if SVG can't be loaded
+            st.title("🔬 QCA-AID Webapp")
+    else:
+        st.title("🔬 QCA-AID Webapp")
+    
     # Apply Fluent UI Design System
     st.markdown(get_fluent_css(), unsafe_allow_html=True)
     

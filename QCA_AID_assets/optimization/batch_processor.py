@@ -140,22 +140,21 @@ class BatchProcessor:
         Strategy: Single API call to analyze all segments against all categories.
         """
         config = self.config["deductive"]
-        max_batch_size = config["max_batch_size"]
+        batch_size = config["max_batch_size"]  # Batch-Größe für API-Calls, nicht Gesamtlimit
         
-        # Limit batch size
-        if len(segments) > max_batch_size:
-            segments = segments[:max_batch_size]
+        # KEIN Limit auf Gesamtanzahl der Segmente - verarbeite alle!
+        # Das max_batch_size ist nur für die API-Call-Batch-Größe gedacht
         
         start_time = asyncio.get_event_loop().time()
         
         try:
-            # Use unified analyzer for batch processing
+            # Use unified analyzer for batch processing - verarbeite alle Segmente in Batches
             results = await self.unified_analyzer.analyze_batch(
-                segments=segments,
+                segments=segments,  # Alle Segmente verarbeiten!
                 category_definitions=category_definitions,
                 research_question=research_question,
                 coding_rules=coding_rules,
-                batch_size=len(segments)
+                batch_size=batch_size  # Nur die API-Call-Batch-Größe
             )
             
             # Convert results to dict format

@@ -57,7 +57,7 @@ VERBESSERUNG: BENUTZERDEFINIERTE CODEBOOK-NAMEN
 
 DYNAMIC CACHE SYSTEM: INTELLIGENTE MULTI-CODER CACHE-OPTIMIERUNG
 
-**🚀 Revolutionäres Cache-System für Multi-Coder Analysen:**
+**🚀 Besseres Cache-System für Multi-Coder Analysen:**
 - **Deutliche API-Call Reduktion** bei Multi-Coder Szenarien durch intelligente Operation-Klassifikation
 - **Shared vs. Coder-Specific Caching**: Relevanzprüfung und Kategorienentwicklung werden zwischen Kodierern geteilt, Kodierung bleibt kodierer-spezifisch
 - **Methodologische Integrität**: Respektiert QCA-Prinzipien für alle Analysemodi (induktiv, abduktiv, grounded, deduktiv)
