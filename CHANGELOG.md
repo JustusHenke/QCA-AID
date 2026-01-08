@@ -4,6 +4,22 @@
 
 ### Neu in 0.12.1 (2025-01-08)
 
+BUGFIX: KATEGORIEPRÄFERENZEN IM DEDUKTIVEN MODUS
+- ✅ Robuste Typerkennung für verschiedene Kategorie-Datenstrukturen implementiert
+- ✅ CategoryDefinition-Objekte (abduktive Analyse) korrekt verarbeitet
+- ✅ Dictionary-Format (serialisiert) unterstützt
+- ✅ String-Format (deduktive Analyse) korrekt behandelt
+- ✅ "Keine starken Kategoriepräferenzen" Fehler im deduktiven Modus behoben
+- ✅ Kategoriepräferenzen funktionieren jetzt in beiden Modi identisch
+
+BUGFIX: ROBUSTE SPEICHERUNG FÜR CLOUD-SYNC
+- ✅ Blockierende Speicherung verhindert Datenverlust bei Cloud-Sync-Problemen
+- ✅ Erweiterte Retry-Logik (10 Versuche, bis 30s Wartezeit) für Windows/Dropbox
+- ✅ Automatische Cloud-Prozess-Erkennung (Dropbox, OneDrive, etc.)
+- ✅ Intelligente Benutzerwarnung bei Speicherproblemen mit Lösungsvorschlägen
+- ✅ Proaktive Warnung beim Analysestart über mögliche Cloud-Sync-Konflikte
+- ✅ Analyse stoppt automatisch bei dauerhaften Speicherproblemen
+
 BUGFIX: FEHLENDE CATEGORYLOADER MODULE
 - ✅ Fehlende `category_loader.py` Datei in `QCA_AID_assets/utils/config/` hinzugefügt
 - ✅ Import-Fehler beim Start der Webapp behoben
