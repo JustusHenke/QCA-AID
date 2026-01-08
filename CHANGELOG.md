@@ -2,6 +2,13 @@
 
 ## Versionen und Updates
 
+### Neu in 0.12.1 (2025-01-08)
+
+BUGFIX: FEHLENDE CATEGORYLOADER MODULE
+- ✅ Fehlende `category_loader.py` Datei in `QCA_AID_assets/utils/config/` hinzugefügt
+- ✅ Import-Fehler beim Start der Webapp behoben
+- ✅ CategoryLoader-Funktionalität für Explorer-Interface wiederhergestellt
+
 ### Neu in 0.12.0 (2025-12-20)
 
 DYNAMIC CACHE SYSTEM: INTELLIGENTE MULTI-CODER CACHE-OPTIMIERUNG
