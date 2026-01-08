@@ -318,6 +318,11 @@ def render_file_operations():
                         st.session_state.config_modified = False
                         st.session_state.config_loaded_from = "user"
                         
+                        # Speichere den aktuell geladenen Dateinamen für zukünftige Speicher-Operationen
+                        from pathlib import Path
+                        loaded_path = Path(actual_path)
+                        st.session_state.current_config_filename = loaded_path.name
+                        
                         # Requirement 8.5: Success confirmation with file info
                         from pathlib import Path
                         loaded_path = Path(actual_path)
@@ -378,7 +383,16 @@ def render_file_operations():
             with col_path:
                 # Show current path or default filename
                 current_path = st.session_state.selected_config_save_path
-                default_filename = f"QCA-AID-Codebook.{save_format}"
+                
+                # Bestimme Standard-Dateiname basierend auf aktuell geladener Datei
+                current_config_filename = st.session_state.get('current_config_filename', f"QCA-AID-Codebook.{save_format}")
+                if current_config_filename:
+                    # Verwende den Namen der aktuell geladenen Datei, aber mit der gewählten Erweiterung
+                    from pathlib import Path
+                    base_name = Path(current_config_filename).stem  # Name ohne Erweiterung
+                    default_filename = f"{base_name}.{save_format}"
+                else:
+                    default_filename = f"QCA-AID-Codebook.{save_format}"
                 
                 # Update file extension if format changed
                 from pathlib import Path

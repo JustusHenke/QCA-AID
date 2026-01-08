@@ -332,8 +332,10 @@ class ConfigManager:
             # Erstelle ConfigLoader mit dem Verzeichnis
             loader = ConfigLoader(script_dir, global_config)
             
-            # Überschreibe den hardcoded Excel-Pfad mit dem tatsächlichen Pfad
+            # Überschreibe die hardcoded Pfade mit den tatsächlichen Pfaden
             loader.excel_path = str(xlsx_path_obj)
+            # Leite JSON-Pfad vom XLSX-Pfad ab (gleicher Name, andere Erweiterung)
+            loader.json_path = str(xlsx_path_obj.with_suffix('.json'))
             
             success = loader.load_codebook()
             

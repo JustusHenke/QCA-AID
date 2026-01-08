@@ -8,6 +8,8 @@ Stores data as JSON in all_codings.json file.
 
 import json
 import logging
+import time
+import random
 from typing import Dict, List, Optional, Any, Set
 from datetime import datetime
 from pathlib import Path
@@ -141,12 +143,61 @@ class ReliabilityDatabase:
             with open(temp_path, 'w', encoding='utf-8') as f:
                 json.dump(self.data, f, indent=2, ensure_ascii=False)
             
-            # Atomic rename
-            temp_path.replace(self.db_path)
+            # Atomic rename with retry mechanism for Windows/Dropbox compatibility
+            self._safe_replace_with_retry(temp_path, self.db_path)
             
         except Exception as e:
             logger.error(f"Failed to save data to {self.db_path}: {e}")
             raise
+    
+    def _safe_replace_with_retry(self, temp_path: Path, target_path: Path, max_retries: int = 5) -> None:
+        """
+        Safely replace target file with temp file using retry mechanism.
+        
+        This method handles Windows/Dropbox file locking issues by implementing
+        exponential backoff with jitter for retry attempts.
+        
+        Args:
+            temp_path: Path to temporary file
+            target_path: Path to target file
+            max_retries: Maximum number of retry attempts (default: 5)
+            
+        Raises:
+            PermissionError: If all retry attempts fail
+        """
+        last_error = None
+        
+        for attempt in range(max_retries):
+            try:
+                temp_path.replace(target_path)
+                return  # Success!
+                
+            except PermissionError as e:
+                last_error = e
+                
+                if attempt < max_retries - 1:
+                    # Exponential backoff with jitter
+                    base_delay = 2 ** attempt  # 1, 2, 4, 8, 16 seconds
+                    jitter = random.uniform(0, 1)  # Add randomness
+                    delay = base_delay + jitter
+                    
+                    logger.warning(
+                        f"File replace failed (attempt {attempt + 1}/{max_retries}), "
+                        f"retrying in {delay:.2f}s: {e}"
+                    )
+                    time.sleep(delay)
+                else:
+                    # Final attempt failed
+                    logger.error(
+                        f"File replace failed after {max_retries} attempts. "
+                        f"This may be due to Dropbox sync or antivirus interference."
+                    )
+                    raise last_error
+            
+            except Exception as e:
+                # Non-permission errors should not be retried
+                logger.error(f"Unexpected error during file replace: {e}")
+                raise
     
     def store_coding_result(self, coding_result: ExtendedCodingResult) -> None:
         """
