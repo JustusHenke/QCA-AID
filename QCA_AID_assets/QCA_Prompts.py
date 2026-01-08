@@ -458,16 +458,25 @@ class QCAPrompts:
         for name, cat_def in categories.items():
             # FIX: Prüfe ob cat_def ein CategoryDefinition-Objekt ist
             if hasattr(cat_def, 'definition') and hasattr(cat_def, 'subcategories'):
+                # CategoryDefinition-Objekt (abduktive Analyse)
                 category_descriptions[name] = {
                     'definition': cat_def.definition,
                     'subcategories': list(cat_def.subcategories.keys()) if cat_def.subcategories else []
                 }
             else:
                 # FIX: Fallback für andere Datenstrukturen
-                category_descriptions[name] = {
-                    'definition': str(cat_def.get('definition', 'Keine Definition verfügbar')),
-                    'subcategories': []
-                }
+                if isinstance(cat_def, dict):
+                    # Dictionary-Format (bereits serialisiert)
+                    category_descriptions[name] = {
+                        'definition': cat_def.get('definition', 'Keine Definition verfügbar'),
+                        'subcategories': list(cat_def.get('subcategories', {}).keys()) if cat_def.get('subcategories') else []
+                    }
+                else:
+                    # String-Format (deduktive Analyse)
+                    category_descriptions[name] = {
+                        'definition': str(cat_def) if cat_def else 'Keine Definition verfügbar',
+                        'subcategories': []
+                    }
 
         # FIX: Verwende einheitliche Konfidenz-Skala
         confidence_guidelines = ConfidenceScales.get_confidence_guidelines(
@@ -540,16 +549,25 @@ class QCAPrompts:
         for name, cat_def in categories.items():
             # FIX: Prüfe ob cat_def ein CategoryDefinition-Objekt ist
             if hasattr(cat_def, 'definition') and hasattr(cat_def, 'subcategories'):
+                # CategoryDefinition-Objekt (abduktive Analyse)
                 category_descriptions[name] = {
                     'definition': cat_def.definition,
                     'subcategories': list(cat_def.subcategories.keys()) if cat_def.subcategories else []
                 }
             else:
                 # FIX: Fallback für andere Datenstrukturen
-                category_descriptions[name] = {
-                    'definition': str(cat_def.get('definition', 'Keine Definition verfügbar')),
-                    'subcategories': []
-                }
+                if isinstance(cat_def, dict):
+                    # Dictionary-Format (bereits serialisiert)
+                    category_descriptions[name] = {
+                        'definition': cat_def.get('definition', 'Keine Definition verfügbar'),
+                        'subcategories': list(cat_def.get('subcategories', {}).keys()) if cat_def.get('subcategories') else []
+                    }
+                else:
+                    # String-Format (deduktive Analyse)
+                    category_descriptions[name] = {
+                        'definition': str(cat_def) if cat_def else 'Keine Definition verfügbar',
+                        'subcategories': []
+                    }
 
         # FIX: Verwende einheitliche Konfidenz-Skala
         confidence_guidelines = ConfidenceScales.get_confidence_guidelines(
