@@ -323,32 +323,54 @@ class ConfigManager:
         try:
             # Verwende ConfigLoader zum Laden
             global_config = {}
-            loader = ConfigLoader(str(Path(xlsx_path).parent), global_config)
+            
+            # Bestimme Verzeichnis und Dateiname
+            xlsx_path_obj = Path(xlsx_path)
+            script_dir = str(xlsx_path_obj.parent)
+            filename = xlsx_path_obj.name
+            
+            # Erstelle ConfigLoader mit dem Verzeichnis
+            loader = ConfigLoader(script_dir, global_config)
+            
+            # Überschreibe den hardcoded Excel-Pfad mit dem tatsächlichen Pfad
+            loader.excel_path = str(xlsx_path_obj)
             
             success = loader.load_codebook()
             
             if not success:
-                return False, None, ["Fehler beim Laden der XLSX-Datei"]
+                return False, None, [f"Fehler beim Laden der XLSX-Datei: {filename}"]
+            
+            # Debug: Zeige geladene Konfigurationswerte
+            print(f"[DEBUG] Geladene Konfiguration aus {filename}:")
+            for key, value in global_config.items():
+                print(f"  {key}: {value}")
             
             # Extrahiere relevante Konfigurationswerte
+            # Priorität: Kleinbuchstaben-Keys (aktuelle Werte) vor Großbuchstaben-Keys (Standard-Werte)
             config_dict = {
-                'model_provider': global_config.get('MODEL_PROVIDER', 'OpenAI'),
-                'model_name': global_config.get('MODEL_NAME', 'gpt-4o-mini'),
-                'data_dir': global_config.get('DATA_DIR', 'input'),
-                'output_dir': global_config.get('OUTPUT_DIR', 'output'),
-                'chunk_size': global_config.get('CHUNK_SIZE', 1200),
-                'chunk_overlap': global_config.get('CHUNK_OVERLAP', 50),
-                'batch_size': global_config.get('BATCH_SIZE', 8),
-                'code_with_context': global_config.get('CODE_WITH_CONTEXT', False),
-                'multiple_codings': global_config.get('MULTIPLE_CODINGS', True),
-                'multiple_coding_threshold': global_config.get('MULTIPLE_CODING_THRESHOLD', 0.85),
-                'analysis_mode': global_config.get('ANALYSIS_MODE', 'deductive'),
-                'review_mode': global_config.get('REVIEW_MODE', 'consensus'),
-                'attribute_labels': global_config.get('ATTRIBUTE_LABELS', {}),
-                'coder_settings': global_config.get('CODER_SETTINGS', []),
-                'export_annotated_pdfs': global_config.get('EXPORT_ANNOTATED_PDFS', True),
-                'pdf_annotation_fuzzy_threshold': global_config.get('PDF_ANNOTATION_FUZZY_THRESHOLD', 0.85)
+                'model_provider': global_config.get('model_provider', global_config.get('MODEL_PROVIDER', 'OpenAI')),
+                'model_name': global_config.get('model_name', global_config.get('MODEL_NAME', 'gpt-4o-mini')),
+                'data_dir': global_config.get('data_dir', global_config.get('DATA_DIR', 'input')),
+                'output_dir': global_config.get('output_dir', global_config.get('OUTPUT_DIR', 'output')),
+                'chunk_size': int(global_config.get('chunk_size', global_config.get('CHUNK_SIZE', 1200))),
+                'chunk_overlap': int(global_config.get('chunk_overlap', global_config.get('CHUNK_OVERLAP', 50))),
+                'batch_size': int(global_config.get('batch_size', global_config.get('BATCH_SIZE', 8))),
+                'code_with_context': self._convert_to_bool(global_config.get('code_with_context', global_config.get('CODE_WITH_CONTEXT', False))),
+                'multiple_codings': self._convert_to_bool(global_config.get('multiple_codings', global_config.get('MULTIPLE_CODINGS', True))),
+                'multiple_coding_threshold': float(global_config.get('multiple_coding_threshold', global_config.get('MULTIPLE_CODING_THRESHOLD', 0.85))),
+                'analysis_mode': global_config.get('analysis_mode', global_config.get('ANALYSIS_MODE', 'deductive')),
+                'review_mode': global_config.get('review_mode', global_config.get('REVIEW_MODE', 'consensus')),
+                'attribute_labels': global_config.get('attribute_labels', global_config.get('ATTRIBUTE_LABELS', {})),
+                'coder_settings': global_config.get('coder_settings', global_config.get('CODER_SETTINGS', [])),
+                'export_annotated_pdfs': self._convert_to_bool(global_config.get('export_annotated_pdfs', global_config.get('EXPORT_ANNOTATED_PDFS', True))),
+                'pdf_annotation_fuzzy_threshold': float(global_config.get('pdf_annotation_fuzzy_threshold', global_config.get('PDF_ANNOTATION_FUZZY_THRESHOLD', 0.85)))
             }
+            
+            # Debug: Zeige welche Attribut-Labels verwendet werden
+            print(f"[DEBUG] Attribut-Labels Auswahl:")
+            print(f"  attribute_labels (Kleinbuchstaben): {global_config.get('attribute_labels', 'NICHT GEFUNDEN')}")
+            print(f"  ATTRIBUTE_LABELS (Großbuchstaben): {global_config.get('ATTRIBUTE_LABELS', 'NICHT GEFUNDEN')}")
+            print(f"  Verwendete Werte: {config_dict['attribute_labels']}")
             
             return True, config_dict, []
             
@@ -356,6 +378,25 @@ class ConfigManager:
             return False, None, [f"XLSX-Datei nicht gefunden: {str(e)}"]
         except Exception as e:
             return False, None, [f"Fehler beim Laden der XLSX-Datei: {str(e)}"]
+    
+    def _convert_to_bool(self, value) -> bool:
+        """
+        Konvertiert verschiedene Werte zu Boolean.
+        
+        Args:
+            value: Wert zum Konvertieren
+            
+        Returns:
+            bool: Konvertierter Boolean-Wert
+        """
+        if isinstance(value, bool):
+            return value
+        elif isinstance(value, (int, float)):
+            return bool(value) and value != 0
+        elif isinstance(value, str):
+            return value.lower() in ['true', '1', 'yes', 'ja', 'on', 'wahr']
+        else:
+            return bool(value)
     
     def _save_to_json(self, config_dict: Dict, json_path: str) -> Tuple[bool, List[str]]:
         """

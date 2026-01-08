@@ -446,13 +446,13 @@ def render_analysis_controls():
             if status.current_step == "Abgeschlossen" or status.output_file:
                 st.success("🎉 Abgeschlossen")
             elif status.current_step == "Abgebrochen":
-                if st.button("🔄 Neue Analyse", use_container_width=True, type="primary"):
-                    # Reset status für neue Analyse
+                if st.button("🔄 Erneut versuchen", use_container_width=True, type="primary"):
+                    # Reset status für erneuten Versuch
                     runner.status = runner.status.create_initial()
                     st.rerun()
             elif status.error:
-                if st.button("🔄 Neue Analyse", use_container_width=True, type="primary"):
-                    # Reset status für neue Analyse
+                if st.button("🔄 Erneut versuchen", use_container_width=True, type="primary"):
+                    # Reset status für erneuten Versuch
                     runner.status = runner.status.create_initial()
                     st.rerun()
             else:

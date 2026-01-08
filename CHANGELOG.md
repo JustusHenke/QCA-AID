@@ -9,6 +9,22 @@ BUGFIX: FEHLENDE CATEGORYLOADER MODULE
 - ✅ Import-Fehler beim Start der Webapp behoben
 - ✅ CategoryLoader-Funktionalität für Explorer-Interface wiederhergestellt
 
+VERBESSERUNG: CONFIG UI DATEIAUSWAHL
+- ✅ Dateiauswahl funktioniert jetzt mit benutzerdefinierten Dateinamen (z.B. "01_QCA-AID-Codebook.xlsx")
+- ✅ Automatische Formaterkennung - Radio Buttons werden ausgeblendet wenn Format erkannt wird
+- ✅ Korrekte Anzeige des ausgewählten Dateipfads im Textfeld
+- ✅ Verbesserte Session State Synchronisation für File Browser
+
+BUGFIX: CODEBOOK LADEN MIT BENUTZERDEFINIERTEN NAMEN
+- ✅ ConfigLoader unterstützt jetzt Codebook-Dateien mit beliebigen Namen
+- ✅ Korrekte Extraktion der CONFIG-Sheet Einstellungen
+- ✅ Verbesserte Datentyp-Konvertierung (Boolean, Integer, Float)
+- ✅ Priorität für aktuelle Werte aus CONFIG-Sheet vor Standard-Werten
+
+UI VERBESSERUNG: ANALYSE BUTTONS
+- ✅ "Neue Analyse" Button umbenannt zu "Erneut versuchen" für bessere Klarheit
+- ✅ Intuitivere Benutzerführung bei Analyse-Fehlern und Abbrüchen
+
 ### Neu in 0.12.0 (2025-12-20)
 
 DYNAMIC CACHE SYSTEM: INTELLIGENTE MULTI-CODER CACHE-OPTIMIERUNG

@@ -208,13 +208,19 @@ def render_file_operations():
                     # Show full path in tooltip
                     help_text = f"Vollständiger Pfad: {current_path}\n\n{help_text}"
                 
+                # Use a dynamic key to force widget recreation when file is selected
+                widget_key = f"config_load_path_input_{hash(st.session_state.selected_config_load_path)}"
+                
                 file_path = st.text_input(
                     "Dateipfad:",
-                    value=current_path,
+                    value=st.session_state.selected_config_load_path,
                     placeholder=placeholder_text,
                     help=help_text,
-                    key="config_load_path_input"
+                    key=widget_key
                 )
+                
+                # Update session state when user types in the field
+                st.session_state.selected_config_load_path = file_path
                 
                 # Requirement 8.4: Real-time path validation
                 if file_path and file_path.strip():
@@ -237,13 +243,15 @@ def render_file_operations():
                     )
                     
                     if selected_file:
+                        # Update session state - don't modify widget state directly
                         st.session_state.selected_config_load_path = str(selected_file)
+                        # Force rerun to update the text input with new value
                         st.rerun()
             
             # Auto-detect format from file extension
             detected_format = None
-            if file_path:
-                file_path_lower = file_path.lower()
+            if file_path and file_path.strip():
+                file_path_lower = file_path.strip().lower()
                 if file_path_lower.endswith('.json'):
                     detected_format = 'json'
                 elif file_path_lower.endswith('.xlsx'):
@@ -259,6 +267,7 @@ def render_file_operations():
                 load_format = detected_format
                 st.session_state.previous_load_format = detected_format
             else:
+                # Only show radio buttons if format cannot be auto-detected
                 load_format = st.radio(
                     "Format wählen:",
                     options=['json', 'xlsx'],
@@ -270,7 +279,7 @@ def render_file_operations():
                 # Update file extension if format changed manually
                 from pathlib import Path
                 if file_path and load_format != st.session_state.previous_load_format:
-                    path_obj = Path(file_path)
+                    path_obj = Path(file_path.strip())
                     old_ext = f".{st.session_state.previous_load_format}"
                     if path_obj.suffix.lower() == old_ext:
                         # Update extension to match new format
@@ -286,16 +295,20 @@ def render_file_operations():
                 if st.button("Laden", key="load_config_btn", use_container_width=True):
                     config_manager = st.session_state.config_manager
                     
-                    # Determine actual file path
-                    actual_path = file_path.strip() if file_path.strip() else f"QCA-AID-Codebook.{load_format}"
+                    # Use the file path from session state (which contains the selected file)
+                    selected_path = st.session_state.selected_config_load_path.strip()
                     
-                    # Load configuration
-                    if file_path.strip():
+                    # Determine actual file path
+                    if selected_path:
+                        actual_path = selected_path
+                        # Load configuration with specific file path
                         success, config_data, errors = config_manager.load_config(
-                            file_path=file_path.strip(),
+                            file_path=selected_path,
                             format=load_format
                         )
                     else:
+                        # Use default filename
+                        actual_path = f"QCA-AID-Codebook.{load_format}"
                         success, config_data, errors = config_manager.load_config(
                             format=load_format
                         )
@@ -403,13 +416,19 @@ def render_file_operations():
                 else:
                     display_value = display_path
                 
+                # Use a dynamic key to force widget recreation when file is selected
+                widget_key = f"config_save_path_input_{hash(st.session_state.selected_config_save_path)}"
+                
                 file_path = st.text_input(
                     "Dateipfad:",
-                    value=display_value,
+                    value=st.session_state.selected_config_save_path,
                     placeholder=placeholder_text,
                     help=help_text,
-                    key="config_save_path_input"
+                    key=widget_key
                 )
+                
+                # Update session state when user types in the field
+                st.session_state.selected_config_save_path = file_path
                 
                 # Requirement 8.4: Real-time path validation
                 if file_path and file_path.strip():
@@ -432,7 +451,9 @@ def render_file_operations():
                     )
                     
                     if selected_file:
+                        # Update session state - don't modify widget state directly
                         st.session_state.selected_config_save_path = str(selected_file)
+                        # Force rerun to update the text input with new value
                         st.rerun()
             
             col_save1, col_save2 = st.columns(2)
@@ -442,17 +463,21 @@ def render_file_operations():
                     config_manager = st.session_state.config_manager
                     config = st.session_state.config_data
                     
-                    # Determine actual file path
-                    actual_path = file_path.strip() if file_path.strip() else f"QCA-AID-Codebook.{save_format}"
+                    # Use the file path from session state (which contains the selected file)
+                    selected_path = st.session_state.selected_config_save_path.strip()
                     
-                    # Save configuration
-                    if file_path.strip():
+                    # Determine actual file path
+                    if selected_path:
+                        actual_path = selected_path
+                        # Save configuration with specific file path
                         success, errors = config_manager.save_config(
                             config=config,
-                            file_path=file_path.strip(),
+                            file_path=selected_path,
                             format=save_format
                         )
                     else:
+                        # Use default filename
+                        actual_path = f"QCA-AID-Codebook.{save_format}"
                         success, errors = config_manager.save_config(
                             config=config,
                             format=save_format
