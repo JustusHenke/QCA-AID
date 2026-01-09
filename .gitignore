@@ -47,6 +47,7 @@ token_stats.json
 .qca-aid-project.json
 optimization_cache.json
 tests/
+banner-qca-aid.psd
 
 # Config metadata (auto-generated)
 .config_metadata.json
