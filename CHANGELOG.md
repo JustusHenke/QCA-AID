@@ -28,6 +28,13 @@ PERFORMANCE: BATCH-SPEICHERUNG FÜR CLOUD-SPEICHER
 - **Atomare Speicherung**: Alle Kodierungen werden zusammen gespeichert oder gar nicht
 - **Rückwärtskompatibel**: Bestehende APIs und Konfigurationen bleiben unverändert
 
+BUGFIX: VERLORENE KODIERUNGEN DURCH FALSCHEN RELEVANZ-THRESHOLD
+- **Problem behoben**: 284 relevante Segmente wurden fälschlicherweise auf nur ~50 Kodierungen reduziert
+- **Ursache**: Zusätzliche Threshold-Filterung (research_rel >= 0.3) nach bereits erfolgter Relevanzprüfung
+- **Lösung**: Alle als relevant markierten Segmente werden jetzt kodiert (research_rel >= 0.0)
+- **Logik korrigiert**: Was in der Relevanzprüfung als relevant eingestuft wird, wird auch kodiert
+- **Vollständige Analyse**: Keine verlorenen Kodierungen mehr bei optimierter Analyse
+
 BUGFIX: FEHLENDE CATEGORYLOADER MODULE
 - Fehlende `category_loader.py` Datei in `QCA_AID_assets/utils/config/` hinzugefügt
 - Import-Fehler beim Start der Webapp behoben
