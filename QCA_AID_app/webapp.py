@@ -340,35 +340,177 @@ def main():
     Requirement 10.3: WHEN keine vorherige Konfiguration existiert 
                      THEN das System SHALL Standard-Werte aus config.py laden
     """
-    # Configure Streamlit page
+    # Configure Streamlit page with custom icon
+    # Note: Streamlit page_icon only supports emojis or URLs, not local files or base64
+    # We'll use the emoji for page_icon and show the custom icon in the header
+    
     st.set_page_config(
         page_title="QCA-AID Webapp",
-        page_icon="🔬",
+        page_icon="🔬",  # Keep emoji for browser tab (Streamlit limitation)
         layout="wide",
         initial_sidebar_state="expanded"
     )
     
-    # Add custom header with SVG icon
-    icon_path = Path(__file__).parent.parent / "qca_aid_icon.svg"
-    if icon_path.exists():
+    # Add custom header with PNG icon (more reliable than SVG)
+    # Robust icon path resolution - works regardless of current working directory
+    def find_icon_path():
+        """Find the QCA-AID icon files using multiple search strategies."""
+        # Strategy 1: Relative to script file (webapp.py is in QCA_AID_app/)
+        script_based_path = Path(__file__).resolve().parent.parent / "qca_aid_icon.png"
+        if script_based_path.exists():
+            return script_based_path
+        
+        # Strategy 2: Use project manager's root directory
+        if hasattr(st.session_state, 'project_manager'):
+            project_root = st.session_state.project_manager.get_root_directory()
+            project_based_path = Path(project_root) / "qca_aid_icon.png"
+            if project_based_path.exists():
+                return project_based_path
+        
+        # Strategy 3: Search in current working directory
+        cwd_path = Path.cwd() / "qca_aid_icon.png"
+        if cwd_path.exists():
+            return cwd_path
+        
+        # Strategy 4: Search upwards from current directory
+        current = Path.cwd()
+        for _ in range(5):  # Search up to 5 levels up
+            icon_path = current / "qca_aid_icon.png"
+            if icon_path.exists():
+                return icon_path
+            current = current.parent
+            if current == current.parent:  # Reached root
+                break
+        
+        return None
+    
+    png_icon_path = find_icon_path()
+    
+    if png_icon_path and png_icon_path.exists():
         try:
-            with open(icon_path, 'r', encoding='utf-8') as f:
-                svg_content = f.read()
+            import base64
+            with open(png_icon_path, 'rb') as f:
+                png_data = f.read()
+            png_base64 = base64.b64encode(png_data).decode()
             
-            # Display SVG icon in header with custom styling
+            # Display PNG icon in header with enhanced styling
             st.markdown(f"""
-            <div style="display: flex; align-items: center; margin-bottom: 20px; padding: 10px 0;">
-                <div style="width: 40px; height: 40px; margin-right: 15px; flex-shrink: 0;">
-                    {svg_content}
+            <div style="display: flex; align-items: center; margin-bottom: 25px; padding: 15px 0; border-bottom: 2px solid #2DD4BF;">
+                <div style="width: 68px; height: 68px; margin-right: 20px; flex-shrink: 0; background: linear-gradient(135deg, #2DD4BF, #6EE7B7); border-radius: 8px; padding: 4px; box-shadow: 0 2px 8px rgba(0,120,212,0.3);">
+                    <img src="data:image/png;base64,{png_base64}" 
+                         style="width: 60px; height: 60px; object-fit: contain; display: block; margin: auto;" 
+                         alt="QCA-AID Icon">
                 </div>
-                <h1 style="margin: 0; color: #0078d4; font-family: 'Segoe UI', sans-serif;">QCA-AID Webapp</h1>
+                <div>
+                    <h1 style="margin: 0; color: #0A1929; font-family: 'Segoe UI', sans-serif; font-size: 2.2em; font-weight: 600;">
+                        <span style='font-family: Arial, sans-serif; font-weight: 900;'>QCA</span><span style='font-family: Arial, sans-serif; font-weight: 600; font-style: italic;'>-AID</span>
+                        <span style='font-size: 0.6em; font-weight: normal;'>Webapp</span>
+                    </h1>
+                    <p style="margin: 0; color: #666; font-size: 0.9em; font-family: 'Segoe UI', sans-serif;">Qualitative Content Analysis with AI-Discovery</p>
+                </div>
             </div>
             """, unsafe_allow_html=True)
         except Exception as e:
-            # Fallback if SVG can't be loaded
-            st.title("🔬 QCA-AID Webapp")
+            # Fallback: Try SVG with same robust path resolution
+            def find_svg_icon_path():
+                """Find the QCA-AID SVG icon using multiple search strategies."""
+                # Strategy 1: Relative to script file
+                script_based_path = Path(__file__).resolve().parent.parent / "qca_aid_icon.svg"
+                if script_based_path.exists():
+                    return script_based_path
+                
+                # Strategy 2: Use project manager's root directory
+                if hasattr(st.session_state, 'project_manager'):
+                    project_root = st.session_state.project_manager.get_root_directory()
+                    project_based_path = Path(project_root) / "qca_aid_icon.svg"
+                    if project_based_path.exists():
+                        return project_based_path
+                
+                # Strategy 3: Search in current working directory
+                cwd_path = Path.cwd() / "qca_aid_icon.svg"
+                if cwd_path.exists():
+                    return cwd_path
+                
+                # Strategy 4: Search upwards from current directory
+                current = Path.cwd()
+                for _ in range(5):  # Search up to 5 levels up
+                    icon_path = current / "qca_aid_icon.svg"
+                    if icon_path.exists():
+                        return icon_path
+                    current = current.parent
+                    if current == current.parent:  # Reached root
+                        break
+                
+                return None
+            
+            svg_icon_path = find_svg_icon_path()
+            if svg_icon_path and svg_icon_path.exists():
+                try:
+                    with open(svg_icon_path, 'r', encoding='utf-8') as f:
+                        svg_content = f.read()
+                    
+                    # Inline SVG with enhanced styling
+                    st.markdown(f"""
+                    <div style="display: flex; align-items: center; margin-bottom: 25px; padding: 15px 0; border-bottom: 2px solid #2DD4BF;">
+                        <div style="width: 48px; height: 48px; margin-right: 20px; flex-shrink: 0; background: linear-gradient(135deg, #2DD4BF, #6EE7B7); border-radius: 8px; padding: 4px; box-shadow: 0 2px 8px rgba(0,120,212,0.3);">
+                            <div style="width: 60px; height: 60px;">
+                                {svg_content}
+                            </div>
+                        </div>
+                        <div>
+                            <h1 style="margin: 0; color: #0A1929; font-family: 'Segoe UI', sans-serif; font-size: 2.2em; font-weight: 600;">
+                                <span style='font-family: Arial, sans-serif; font-weight: 900;'>QCA</span><span style='font-family: Arial, sans-serif; font-weight: 600; font-style: italic;'>-AID</span>
+                                <span style='font-size: 0.6em; font-weight: normal;'>Webapp</span>
+                            </h1>
+                            <p style="margin: 0; color: #666; font-size: 0.9em; font-family: 'Segoe UI', sans-serif;">Qualitative Content Analysis with AI-Discovery</p>
+                        </div>
+                    </div>
+                    """, unsafe_allow_html=True)
+                except Exception as svg_e:
+                    st.markdown("""
+                    <div style="display: flex; align-items: center; margin-bottom: 25px; padding: 15px 0; border-bottom: 2px solid #2DD4BF;">
+                        <div style="width: 48px; height: 48px; margin-right: 20px; flex-shrink: 0; background: linear-gradient(135deg, #2DD4BF, #6EE7B7); border-radius: 8px; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 8px rgba(0,120,212,0.3);">
+                            <span style="font-size: 24px;">🔬</span>
+                        </div>
+                        <div>
+                            <h1 style="margin: 0; color: #0A1929; font-family: 'Segoe UI', sans-serif; font-size: 2.2em; font-weight: 600;">
+                                <span style='font-family: Arial, sans-serif; font-weight: 900;'>QCA</span><span style='font-family: Arial, sans-serif; font-weight: 600; font-style: italic;'>-AID</span>
+                                <span style='font-size: 0.6em; font-weight: normal;'>Webapp</span>
+                            </h1>
+                            <p style="margin: 0; color: #666; font-size: 0.9em; font-family: 'Segoe UI', sans-serif;">Qualitative Content Analysis with AI-Discovery</p>
+                        </div>
+                    </div>
+                    """, unsafe_allow_html=True)
+            else:
+                st.markdown("""
+                <div style="display: flex; align-items: center; margin-bottom: 25px; padding: 15px 0; border-bottom: 2px solid #2DD4BF;">
+                    <div style="width: 48px; height: 48px; margin-right: 20px; flex-shrink: 0; background: linear-gradient(135deg, #2DD4BF, #6EE7B7); border-radius: 8px; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 8px rgba(0,120,212,0.3);">
+                        <span style="font-size: 24px;">🔬</span>
+                    </div>
+                    <div>
+                        <h1 style="margin: 0; color: #0A1929; font-family: 'Segoe UI', sans-serif; font-size: 2.2em; font-weight: 600;">
+                            <span style='font-family: Arial, sans-serif; font-weight: 900;'>QCA</span><span style='font-family: Arial, sans-serif; font-weight: 600; font-style: italic;'>-AID</span>
+                            <span style='font-size: 0.6em; font-weight: normal;'>Webapp</span>
+                        </h1>
+                        <p style="margin: 0; color: #666; font-size: 0.9em; font-family: 'Segoe UI', sans-serif;">Qualitative Content Analysis with AI-Discovery</p>
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
     else:
-        st.title("🔬 QCA-AID Webapp")
+        st.markdown("""
+        <div style="display: flex; align-items: center; margin-bottom: 25px; padding: 15px 0; border-bottom: 2px solid #2DD4BF;">
+            <div style="width: 48px; height: 48px; margin-right: 20px; flex-shrink: 0; background: linear-gradient(135deg, #2DD4BF, #6EE7B7); border-radius: 8px; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 8px rgba(0,120,212,0.3);">
+                <span style="font-size: 24px;">🔬</span>
+            </div>
+            <div>
+                <h1 style="margin: 0; color: #0A1929; font-family: 'Segoe UI', sans-serif; font-size: 2.2em; font-weight: 600;">
+                    <span style='font-family: Arial, sans-serif; font-weight: 900;'>QCA</span><span style='font-family: Arial, sans-serif; font-weight: 600; font-style: italic;'>-AID</span>
+                    <span style='font-size: 0.6em; font-weight: normal;'>Webapp</span>
+                </h1>
+                <p style="margin: 0; color: #666; font-size: 0.9em; font-family: 'Segoe UI', sans-serif;">Qualitative Content Analysis with AI-Discovery</p>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
     
     # Apply Fluent UI Design System
     st.markdown(get_fluent_css(), unsafe_allow_html=True)
@@ -410,12 +552,12 @@ def main():
         st.markdown("[![GitHub](https://img.shields.io/badge/GitHub-QCA--AID-blue?logo=github)](https://github.com/JustusHenke/QCA-AID)", unsafe_allow_html=True)
     
     # Main content area with styled title
-    st.markdown("""
-    <h1 style='margin-bottom: 0;'>
-        <span style='font-family: Arial, sans-serif; font-weight: 900;'>QCA</span><span style='font-family: Arial, sans-serif; font-weight: 600; font-style: italic;'>-AID</span> 
-        <span style='font-size: 0.6em; font-weight: normal;'>Webapp</span>
-    </h1>
-    """, unsafe_allow_html=True)
+    # st.markdown("""
+    # <h1 style='margin-bottom: 0;'>
+    #     <span style='font-family: Arial, sans-serif; font-weight: 900;'>QCA</span><span style='font-family: Arial, sans-serif; font-weight: 600; font-style: italic;'>-AID</span> 
+    #     <span style='font-size: 0.6em; font-weight: normal;'>Webapp</span>
+    # </h1>
+    # """, unsafe_allow_html=True)
     st.markdown("Verwalten Sie Ihre qualitative Inhaltsanalyse mit KI-Unterstützung")
     
     # Render navigation tabs
