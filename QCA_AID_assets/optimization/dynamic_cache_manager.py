@@ -519,20 +519,14 @@ class DynamicCacheManager:
             logger.debug(f"Added reliability data for segment {segment_id}, coder {coding_result.coder_id}")
             # print(f"   ✅ DEBUG: Added to in-memory reliability data for {segment_id}")
         
-        # Store in persistent database - THIS MUST SUCCEED
-        try:
-            # print(f"   💾 DEBUG: Storing to persistent database...")
-            self.reliability_db.store_coding_result(coding_result)
-            # print(f"   ✅ DEBUG: Successfully stored to persistent database")
-        except Exception as e:
-            # print(f"   ❌ DEBUG: Failed to store to persistent database: {e}")
-            logger.error(f"❌ KRITISCH: Kodierung kann nicht gespeichert werden: {e}")
-            print(f"\n🚨 ANALYSE GESTOPPT: Kodierung für Segment {coding_result.segment_id} kann nicht gespeichert werden!")
-            print(f"   🔧 Bitte behebe das Speicherproblem und starte die Analyse erneut.")
-            import traceback
-            traceback.print_exc()
-            # Re-raise to halt the analysis
-            raise RuntimeError(f"Kodierung kann nicht gespeichert werden: {e}") from e
+        # OPTIMIERUNG: Sammle Kodierungen im Arbeitsspeicher, speichere erst am Ende
+        # Initialisiere pending_results falls noch nicht vorhanden
+        if not hasattr(self, 'pending_results'):
+            self.pending_results = []
+        
+        # Füge zur Liste der ausstehenden Ergebnisse hinzu
+        self.pending_results.append(coding_result)
+        logger.debug(f"Kodierung für Segment {segment_id} im Arbeitsspeicher gesammelt (Total: {len(self.pending_results)})")
         
         # Mark manual coders with "manual" ID if needed
         if coding_result.is_manual and coding_result.coder_id != "manual":
@@ -549,7 +543,36 @@ class DynamicCacheManager:
                 is_manual=True,
                 metadata={**coding_result.metadata, 'original_coder_id': coding_result.coder_id}
             )
-            self.reliability_db.store_coding_result(manual_result)
+            self.pending_results.append(manual_result)
+    
+    def flush_pending_results(self) -> None:
+        """
+        Speichere alle gesammelten Kodierungen auf einmal auf die Festplatte.
+        Diese Methode sollte am Ende der Kodierungsphase aufgerufen werden.
+        """
+        if not hasattr(self, 'pending_results') or not self.pending_results:
+            logger.debug("Keine ausstehenden Kodierungen zum Speichern")
+            return
+        
+        try:
+            logger.info(f"💾 Speichere {len(self.pending_results)} gesammelte Kodierungen...")
+            
+            # Verwende die effiziente Batch-Speicherung
+            self.reliability_db.store_multiple_results(self.pending_results)
+            
+            logger.info(f"✅ {len(self.pending_results)} Kodierungen erfolgreich gespeichert")
+            
+            # Lösche die ausstehenden Ergebnisse
+            self.pending_results.clear()
+            
+        except Exception as e:
+            logger.error(f"❌ KRITISCH: Batch-Speicherung fehlgeschlagen: {e}")
+            print(f"\n🚨 ANALYSE GESTOPPT: {len(self.pending_results)} gesammelte Kodierungen können nicht gespeichert werden!")
+            print(f"   🔧 Bitte behebe das Speicherproblem und starte die Analyse erneut.")
+            import traceback
+            traceback.print_exc()
+            # Re-raise to halt the analysis
+            raise RuntimeError(f"Batch-Kodierungen können nicht gespeichert werden: {e}") from e
     
     def get_reliability_data(self, segment_ids: Optional[List[str]] = None, exclude_non_relevant: bool = True) -> List[ExtendedCodingResult]:
         """

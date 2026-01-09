@@ -174,16 +174,6 @@ if exist "!DESKTOP2!" (
 
 set SHORTCUT_PATH=!DESKTOP!\QCA-AID.lnk
 
-REM Erstelle ICO-Icon aus PNG (falls vorhanden)
-if exist "!PNG_ICON!" (
-    echo Erstelle ICO-Icon aus PNG...
-    "!PYTHON_PATH!" -c "try: from PIL import Image; img = Image.open(r'!PNG_ICON!'); w, h = img.size; img = Image.new('RGBA', (max(w,h), max(w,h)), (0,0,0,0)) if w != h else img; img.paste(Image.open(r'!PNG_ICON!'), ((max(w,h)-w)//2, (max(w,h)-h)//2)) if w != h else None; img.save(r'!ICO_ICON!', format='ICO', sizes=[(16,16), (32,32), (48,48), (64,64), (128,128), (256,256)]); print('✅ ICO-Icon erstellt') except ImportError: print('⚠️ Pillow nicht installiert - Icon übersprungen') except Exception as e: print(f'⚠️ Icon-Erstellung fehlgeschlagen: {e}')" 2>nul
-    echo.
-) else (
-    echo PNG-Icon nicht gefunden: !PNG_ICON!
-    echo Verknüpfung wird ohne benutzerdefiniertes Icon erstellt.
-    echo.
-)
 
 REM Erstelle VBScript für Verknüpfung - OHNE Delayed Expansion in den Werten
 set VBS_PATH=%TEMP%\create_shortcut.vbs

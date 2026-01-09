@@ -527,15 +527,14 @@ class OptimizationController:
                 batch_size=batch_size
             )
             
-            # Filtere relevante Segmente
+            # Alle als relevant markierten Segmente werden kodiert (kein zusätzlicher Threshold)
             relevant_segments = []
             for rel_result in relevance_results:
                 seg_id = rel_result.get('segment_id', '')
-                research_rel = rel_result.get('research_relevance', 0.0)
-                if research_rel >= 0.3:
-                    seg = next((s for s in segments if s['segment_id'] == seg_id), None)
-                    if seg:
-                        relevant_segments.append(seg)
+                # Alle Segmente aus relevance_results sind bereits als relevant eingestuft
+                seg = next((s for s in segments if s['segment_id'] == seg_id), None)
+                if seg:
+                    relevant_segments.append(seg)
             
             if not relevant_segments:
                 print(f"   ✅ 0 von {len(segments)} Segmenten relevant - KEINE weiteren API Calls nötig")
@@ -892,7 +891,7 @@ class OptimizationController:
         # Process segments in batches
         total_batches = (len(relevant_segments) + batch_size - 1) // batch_size
         
-        for i in range(0, len(relevant_segments), total_batches):
+        for i in range(0, len(relevant_segments), batch_size):
             batch = relevant_segments[i:i + batch_size]
             batch_num = (i // batch_size) + 1
             
@@ -1000,15 +999,14 @@ class OptimizationController:
             batch_size=batch_size
         )
         
-        # Filtere relevante Segmente
+        # Alle als relevant markierten Segmente werden kodiert (kein zusätzlicher Threshold)
         relevant_segments = []
         for rel_result in relevance_results:
             seg_id = rel_result.get('segment_id', '')
-            research_rel = rel_result.get('research_relevance', 0.0)
-            if research_rel >= 0.3:
-                seg = next((s for s in segments if s['segment_id'] == seg_id), None)
-                if seg:
-                    relevant_segments.append(seg)
+            # Alle Segmente aus relevance_results sind bereits als relevant eingestuft
+            seg = next((s for s in segments if s['segment_id'] == seg_id), None)
+            if seg:
+                relevant_segments.append(seg)
         
         if not relevant_segments:
             print(f"   ✅ 0 von {len(segments)} Segmenten relevant - KEINE weiteren API Calls nötig")
@@ -1586,7 +1584,7 @@ class OptimizationController:
         for rel_result in relevance_results:
             seg_id = rel_result.get('segment_id', '')
             research_rel = rel_result.get('research_relevance', 0.0)
-            if research_rel >= 0.3:
+            if research_rel >= 0.0:  # ALLE als relevant markierten Segmente kodieren
                 seg = next((s for s in segments if s['segment_id'] == seg_id), None)
                 if seg:
                     relevant_segments.append(seg)
@@ -2067,8 +2065,8 @@ class OptimizationController:
             seg_id_short = seg_id[:30] + '...' if len(seg_id) > 30 else seg_id
             reasoning_short = reasoning[:80] + '...' if len(reasoning) > 80 else reasoning
             
-            status = "✅ RELEVANT" if research_rel >= 0.3 else "❌ NICHT RELEVANT"
-            if research_rel >= 0.3:
+            status = "✅ RELEVANT" if research_rel >= 0.0 else "❌ NICHT RELEVANT"
+            if research_rel >= 0.0:  # ALLE als relevant markierten Segmente kodieren
                 relevant_count += 1
             
             print(f"   🔍 Segment {i+1}: {seg_id_short}")
@@ -2084,7 +2082,7 @@ class OptimizationController:
         for rel_result in relevance_results:
             seg_id = rel_result.get('segment_id', '')
             research_rel = rel_result.get('research_relevance', 0.0)
-            if research_rel >= 0.3:
+            if research_rel >= 0.0:  # ALLE als relevant markierten Segmente kodieren
                 seg = next((s for s in segments if s['segment_id'] == seg_id), None)
                 if seg:
                     relevant_segments.append(seg)
@@ -2731,7 +2729,7 @@ class OptimizationController:
         for rel_result in relevance_results:
             seg_id = rel_result.get('segment_id', '')
             research_rel = rel_result.get('research_relevance', 0.0)
-            if research_rel >= 0.3:
+            if research_rel >= 0.0:  # ALLE als relevant markierten Segmente kodieren
                 seg = next((s for s in segments if s['segment_id'] == seg_id), None)
                 if seg:
                     relevant_segments.append(seg)

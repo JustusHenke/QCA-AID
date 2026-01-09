@@ -9,6 +9,7 @@ import os
 import asyncio
 import time
 import traceback
+import logging
 from collections import defaultdict, Counter
 from typing import Dict, List, Optional, Tuple, Set, Any
 from datetime import datetime
@@ -33,6 +34,9 @@ from ..optimization.controller import OptimizationController, AnalysisMode
 
 # Verwende globale Token-Counter Instanz
 token_counter = get_global_token_counter()
+
+# Logger für diese Datei
+logger = logging.getLogger(__name__)
 
 
 class IntegratedAnalysisManager:
@@ -1212,6 +1216,15 @@ class IntegratedAnalysisManager:
                     )
                     
                     print(f"✅ Optimierte Analyse abgeschlossen: {len(results)} Ergebnisse für {len(opt_segments)} Segmente")
+                    
+                    # Speichere alle gesammelten Kodierungen auf die Festplatte
+                    if self.dynamic_cache_manager:
+                        try:
+                            self.dynamic_cache_manager.flush_pending_results()
+                        except Exception as e:
+                            logger.error(f"Fehler beim Speichern der gesammelten Kodierungen: {e}")
+                            raise
+                    
                     print(f"   🔍 DEBUG: Checking reliability database after optimization...")
                     if self.dynamic_cache_manager:
                         try:
@@ -1311,6 +1324,14 @@ class IntegratedAnalysisManager:
                                 print(f"📝 Dokument '{doc_name}': {total_paraphrases} Paraphrasen gesammelt (davon werden max. {self.context_paraphrase_count} als Kontext genutzt)")
                     
                     print(f"\n✅ Optimierte Analyse abgeschlossen: {len(converted_results)} Kodierungen erstellt")
+                    
+                    # Speichere alle gesammelten Kodierungen auf die Festplatte
+                    if self.dynamic_cache_manager:
+                        try:
+                            self.dynamic_cache_manager.flush_pending_results()
+                        except Exception as e:
+                            logger.error(f"Fehler beim Speichern der gesammelten Kodierungen: {e}")
+                            raise
                     
                     # Finale Effizienz-Statistiken
                     final_stats = token_counter.session_stats

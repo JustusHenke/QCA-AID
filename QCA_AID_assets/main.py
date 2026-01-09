@@ -437,16 +437,16 @@ async def main() -> None:
         # Die Verzeichnisse wurden bereits vom ConfigLoader gesetzt und validiert
         
         # WICHTIGE BENUTZERWARNUNG für Cloud-Speicher (NACH ConfigLoader!)
-        print("\n" + "="*60)
-        print("⚠️  WICHTIGER HINWEIS ZUR DATENSPEICHERUNG")
-        print("="*60)
-        print("📁 Ausgabeordner:", CONFIG['OUTPUT_DIR'])
-        print("\n🔄 Falls Sie Cloud-Synchronisation verwenden:")
-        print("   • Dropbox, OneDrive, Google Drive, etc.")
-        print("   • PAUSIEREN Sie die Synchronisation während der Analyse")
-        print("   • Andernfalls können Kodierungen verloren gehen!")
-        print("\n💡 Die Analyse stoppt automatisch bei Speicherproblemen")
-        print("="*60)
+        # print("\n" + "="*60)
+        # print("⚠️  WICHTIGER HINWEIS ZUR DATENSPEICHERUNG")
+        # print("="*60)
+        # print("📁 Ausgabeordner:", CONFIG['OUTPUT_DIR'])
+        # print("\n🔄 Falls Sie Cloud-Synchronisation verwenden:")
+        # print("   • Dropbox, OneDrive, Google Drive, etc.")
+        # print("   • PAUSIEREN Sie die Synchronisation während der Analyse")
+        # print("   • Andernfalls können Kodierungen verloren gehen!")
+        # print("\n💡 Die Analyse stoppt automatisch bei Speicherproblemen")
+        # print("="*60)
 
         category_builder = DeductiveCategoryBuilder()
         initial_categories = category_builder.load_theoretical_categories()
@@ -1069,6 +1069,14 @@ async def main() -> None:
             if 'console_logger' in locals():
                 console_logger.stop_logging() 
         finally:
+            # Speichere alle gesammelten Kodierungen vor dem Beenden
+            if 'analysis_manager' in locals() and hasattr(analysis_manager, 'dynamic_cache_manager') and analysis_manager.dynamic_cache_manager:
+                try:
+                    analysis_manager.dynamic_cache_manager.flush_pending_results()
+                    print("💾 Gesammelte Kodierungen erfolgreich gespeichert")
+                except Exception as e:
+                    print(f"⚠️ Warnung: Kodierungen konnten nicht gespeichert werden: {e}")
+            
             # Stelle sicher, dass die FortschrittsÜberwachung beendet wird
             if not progress_task.done():
                 progress_task.cancel()
@@ -1090,6 +1098,14 @@ async def main() -> None:
         traceback.print_exc()
         if 'console_logger' in locals():
             console_logger.stop_logging() 
+
+        # Speichere alle gesammelten Kodierungen auch bei Fehlern
+        if 'analysis_manager' in locals() and hasattr(analysis_manager, 'dynamic_cache_manager') and analysis_manager.dynamic_cache_manager:
+            try:
+                analysis_manager.dynamic_cache_manager.flush_pending_results()
+                print("💾 Gesammelte Kodierungen trotz Fehler erfolgreich gespeichert")
+            except Exception as flush_error:
+                print(f"⚠️ Warnung: Kodierungen konnten auch bei Fehler nicht gespeichert werden: {flush_error}")
 
         try:
             if 'analysis_manager' in locals() and hasattr(analysis_manager, 'coding_results'):

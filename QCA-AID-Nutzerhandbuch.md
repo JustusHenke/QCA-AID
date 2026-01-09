@@ -387,8 +387,8 @@ QCA-AID unterstützt zwei Formate, die automatisch synchronisiert werden:
 
 ```json
 {
-  "CHUNK_SIZE": 1000,        // Textabschnittsgröße (800-1500)
-  "CHUNK_OVERLAP": 50,       // Überlappung zwischen Chunks (30-100)
+  "CHUNK_SIZE": 1000,        // Textabschnittsgröße (800-1500 Z.)
+  "CHUNK_OVERLAP": 50,       // Überlappung zwischen Chunks (30-100 Z.)
   "BATCH_SIZE": 5            // Parallel verarbeitete Chunks (3-12)
 }
 ```
@@ -408,7 +408,7 @@ QCA-AID unterstützt zwei Formate, die automatisch synchronisiert werden:
 
 ```json
 {
-  "ANALYSIS_MODE": "deductive",      // "deductive", "abductive", "full", "grounded"
+  "ANALYSIS_MODE": "deductive",      // "deductive", "abductive", "grounded"
   "CODE_WITH_CONTEXT": true,         // Kontextuelle Kodierung
   "MULTIPLE_CODINGS": true,          // Mehrfachkodierungen erlauben
   "MULTIPLE_CODING_THRESHOLD": 0.85  // Schwellwert für Mehrfachkodierung

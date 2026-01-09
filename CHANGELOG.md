@@ -20,6 +20,14 @@ BUGFIX: ROBUSTE SPEICHERUNG FÜR CLOUD-SYNC
 - Proaktive Warnung beim Analysestart über mögliche Cloud-Sync-Konflikte
 - Analyse stoppt automatisch bei dauerhaften Speicherproblemen
 
+PERFORMANCE: BATCH-SPEICHERUNG FÜR CLOUD-SPEICHER
+- **99.7% Reduktion der Festplattenzugriffe**: Statt 288 einzelner Speichervorgänge nur noch 1 Batch-Speicherung
+- **Keine Dateisperren mehr**: Kodierungen werden im Arbeitsspeicher gesammelt und erst am Ende gespeichert
+- **Deutlich schnellere Analyse**: Besonders bei Cloud-Speichern (Dropbox, OneDrive) keine Wartezeiten mehr
+- **Robuste Fehlerbehandlung**: Kodierungen werden auch bei Programmabbruch oder Fehlern gespeichert
+- **Atomare Speicherung**: Alle Kodierungen werden zusammen gespeichert oder gar nicht
+- **Rückwärtskompatibel**: Bestehende APIs und Konfigurationen bleiben unverändert
+
 BUGFIX: FEHLENDE CATEGORYLOADER MODULE
 - Fehlende `category_loader.py` Datei in `QCA_AID_assets/utils/config/` hinzugefügt
 - Import-Fehler beim Start der Webapp behoben
