@@ -97,7 +97,8 @@ class UnifiedRelevanceAnalyzer:
     async def analyze_relevance_simple(self,
                                       segments: List[Dict[str, str]],
                                       research_question: str,
-                                      batch_size: int = 5) -> List[Dict[str, Any]]:
+                                      batch_size: int = 5,
+                                      relevance_threshold: float = 0.0) -> List[Dict[str, Any]]:
         """
         Simple relevance check without category preferences (for inductive/abductive/grounded modes).
         Uses batching to respect batch_size limits.
@@ -106,11 +107,13 @@ class UnifiedRelevanceAnalyzer:
             segments: List of dicts with 'segment_id' and 'text'
             research_question: Research question context
             batch_size: Maximum segments per API call
+            relevance_threshold: Minimum confidence for relevant segments (default: 0.0)
             
         Returns:
-            List of dicts with relevance information
+            List of dicts with relevance information (only segments marked as relevant by LLM)
         """
-        results = []
+        all_results = []  # Alle LLM-Ergebnisse (relevant + nicht-relevant)
+        results = []      # Nur die finalen relevanten Ergebnisse
         
         # Process in batches
         total_batches = (len(segments) + batch_size - 1) // batch_size
@@ -165,38 +168,51 @@ class UnifiedRelevanceAnalyzer:
                         # Fallback if segment_number is out of range
                         segment_id = f"unknown_segment_{segment_number}"
                     
-                    # Use confidence as research_relevance and ensure it's a float
+                    # Extrahiere LLM-Entscheidung und Konfidenz
+                    is_relevant = std_result.get("is_relevant", False)
                     confidence = std_result.get("confidence", 0.0)
                     research_relevance = float(confidence) if confidence is not None else 0.0
                     
-                    adapted_result = {
+                    # Erstelle Ergebnis für alle LLM-Bewertungen (für Statistik)
+                    all_result = {
                         "segment_id": segment_id,
+                        "is_relevant": is_relevant,
                         "research_relevance": research_relevance,
                         "relevance_reasoning": std_result.get("justification", "Keine Begründung verfügbar")
                     }
-                    results.append(adapted_result)
+                    all_results.append(all_result)
+                    
+                    # Nur als relevant markierte Segmente mit hinreichender Konfidenz werden weitergegeben
+                    if is_relevant and research_relevance >= relevance_threshold:
+                        adapted_result = {
+                            "segment_id": segment_id,
+                            "research_relevance": research_relevance,
+                            "relevance_reasoning": std_result.get("justification", "Keine Begründung verfügbar")
+                        }
+                        results.append(adapted_result)
                     
             except Exception as e:
                 # Handle batch errors gracefully
                 print(f"   ⚠️ Fehler in Relevanzprüfung Batch {i//batch_size + 1}: {e}")
                 # Add default results for failed batch
                 for segment in batch:
-                    results.append({
+                    all_results.append({
                         "segment_id": segment["segment_id"],
+                        "is_relevant": False,
                         "research_relevance": 0.0,
                         "relevance_reasoning": f"Fehler bei der Analyse: {str(e)}"
                     })
         
-        # Debug logging for relevance results
-        print(f"   🔍 DEBUG: Relevance check returned {len(results)} results")
+        # Statistiken berechnen
+        llm_relevant_count = sum(1 for r in all_results if r.get('is_relevant', False))
+        final_relevant_count = len(results)
+        total_count = len(all_results)
         
-        # Count relevant vs non-relevant segments
-        relevant_count = sum(1 for r in results if r.get('research_relevance', 0.0) >= 0.3)
-        non_relevant_count = len(results) - relevant_count
+        # Verbesserte Log-Ausgabe
+        print(f"   🔍 DEBUG: Relevance check returned {total_count} total results")
+        print(f"   📊 {llm_relevant_count} Segmente vom LLM als relevant für die Forschungsfrage identifiziert, darunter {final_relevant_count} Segmente mit hinreichender Konfidenz (≥{relevance_threshold})")
         
-        print(f"   📊 Relevanz-Zusammenfassung: {relevant_count} relevant, {non_relevant_count} nicht-relevant")
-        
-        # Show all results in a compact format
+        # Show detailed results for relevant segments only
         for i, result in enumerate(results):
             seg_id = result.get('segment_id', 'MISSING')
             # Truncate long segment IDs for readability
@@ -206,7 +222,7 @@ class UnifiedRelevanceAnalyzer:
                 seg_id_display = seg_id
             
             relevance = result.get('research_relevance', 0.0)
-            status = "✅ RELEVANT" if relevance >= 0.3 else "❌ NICHT-RELEVANT"
+            status = "✅ RELEVANT"  # Alle Segmente in results sind relevant
             
             print(f"   🔍 Segment {i+1:2d}: {seg_id_display:<35} → {relevance:.1f} ({status})")
         
@@ -235,12 +251,13 @@ class UnifiedRelevanceAnalyzer:
                                                  segments: List[Dict[str, str]],
                                                  category_definitions: Dict[str, str],
                                                  research_question: str,
-                                                 coding_rules: List[str]) -> List[Dict[str, Any]]:
+                                                 coding_rules: List[str],
+                                                 relevance_threshold: float = 0.0) -> List[Dict[str, Any]]:
         """
         Analyze relevance of segments and determine category preferences.
         
         This API call provides:
-        - Research question relevance for each segment
+        - Research question relevance for each segment (only segments marked as relevant by LLM)
         - Category preferences (which categories are most relevant)
         - Initial relevance scores
         
@@ -249,10 +266,14 @@ class UnifiedRelevanceAnalyzer:
             category_definitions: Dictionary mapping category names to descriptions
             research_question: Research question context
             coding_rules: List of coding rules
+            relevance_threshold: Minimum confidence for relevant segments (default: 0.0)
             
         Returns:
-            List of dicts with relevance information and category preferences
+            List of dicts with relevance information and category preferences (only relevant segments)
         """
+        all_results = []  # Alle LLM-Ergebnisse (relevant + nicht-relevant)
+        results = []      # Nur die finalen relevanten Ergebnisse
+        
         try:
             start_time = asyncio.get_event_loop().time()
             token_counter.start_request()
@@ -303,7 +324,6 @@ class UnifiedRelevanceAnalyzer:
             if "segment_results" in result:
                 # Standard format adaptation
                 standard_results = result.get("segment_results", [])
-                adapted_results = []
                 
                 for std_result in standard_results:
                     # Map segment_number to actual segment_id
@@ -314,24 +334,47 @@ class UnifiedRelevanceAnalyzer:
                         # Fallback if segment_number is out of range
                         segment_id = f"unknown_segment_{segment_number}"
                     
-                    # The standard prompt returns is_relevant (boolean) not confidence (float)
+                    # Extrahiere LLM-Entscheidung und Konfidenz
                     is_relevant = std_result.get("is_relevant", False)
-                    research_relevance = 1.0 if is_relevant else 0.0  # Convert boolean to float
+                    confidence = std_result.get("confidence", 0.0)
+                    research_relevance = float(confidence) if confidence is not None else (1.0 if is_relevant else 0.0)
                     
                     # Get preferred categories (categories with score >= 0.6)
                     preferred_categories = std_result.get("preferred_categories", [])
                     category_preferences = std_result.get("relevance_scores", {})
                     
-                    adapted_result = {
+                    # Erstelle Ergebnis für alle LLM-Bewertungen (für Statistik)
+                    all_result = {
                         "segment_id": segment_id,
+                        "is_relevant": is_relevant,
                         "research_relevance": research_relevance,
                         "category_preferences": category_preferences,
                         "top_categories": preferred_categories,
                         "relevance_reasoning": std_result.get("reasoning", "Keine Begründung verfügbar")
                     }
-                    adapted_results.append(adapted_result)
+                    all_results.append(all_result)
+                    
+                    # Nur als relevant markierte Segmente mit hinreichender Konfidenz werden weitergegeben
+                    if is_relevant and research_relevance >= relevance_threshold:
+                        adapted_result = {
+                            "segment_id": segment_id,
+                            "research_relevance": research_relevance,
+                            "category_preferences": category_preferences,
+                            "top_categories": preferred_categories,
+                            "relevance_reasoning": std_result.get("reasoning", "Keine Begründung verfügbar")
+                        }
+                        results.append(adapted_result)
                 
-                return adapted_results
+                # Statistiken berechnen
+                llm_relevant_count = sum(1 for r in all_results if r.get('is_relevant', False))
+                final_relevant_count = len(results)
+                total_count = len(all_results)
+                
+                # Verbesserte Log-Ausgabe
+                print(f"   🔍 DEBUG: Relevance with preferences returned {total_count} total results")
+                print(f"   📊 {llm_relevant_count} Segmente vom LLM als relevant für die Forschungsfrage identifiziert, darunter {final_relevant_count} Segmente mit hinreichender Konfidenz (≥{relevance_threshold})")
+                
+                return results
             else:
                 # Fallback to original format if available
                 return result.get("results", [])

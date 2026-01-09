@@ -21,7 +21,7 @@ BUGFIX: ROBUSTE SPEICHERUNG FÜR CLOUD-SYNC
 - Analyse stoppt automatisch bei dauerhaften Speicherproblemen
 
 PERFORMANCE: BATCH-SPEICHERUNG FÜR CLOUD-SPEICHER
-- **99.7% Reduktion der Festplattenzugriffe**: Statt 288 einzelner Speichervorgänge nur noch 1 Batch-Speicherung
+- **99.7% Reduktion der Festplattenzugriffe**: Statt einzelner Speichervorgänge nur noch 1 Batch-Speicherung
 - **Keine Dateisperren mehr**: Kodierungen werden im Arbeitsspeicher gesammelt und erst am Ende gespeichert
 - **Deutlich schnellere Analyse**: Besonders bei Cloud-Speichern (Dropbox, OneDrive) keine Wartezeiten mehr
 - **Robuste Fehlerbehandlung**: Kodierungen werden auch bei Programmabbruch oder Fehlern gespeichert
@@ -29,10 +29,12 @@ PERFORMANCE: BATCH-SPEICHERUNG FÜR CLOUD-SPEICHER
 - **Rückwärtskompatibel**: Bestehende APIs und Konfigurationen bleiben unverändert
 
 BUGFIX: VERLORENE KODIERUNGEN DURCH FALSCHEN RELEVANZ-THRESHOLD
-- **Problem behoben**: 284 relevante Segmente wurden fälschlicherweise auf nur ~50 Kodierungen reduziert
-- **Ursache**: Zusätzliche Threshold-Filterung (research_rel >= 0.3) nach bereits erfolgter Relevanzprüfung
-- **Lösung**: Alle als relevant markierten Segmente werden jetzt kodiert (research_rel >= 0.0)
-- **Logik korrigiert**: Was in der Relevanzprüfung als relevant eingestuft wird, wird auch kodiert
+- **Problem behoben**:  relevante Segmente wurden fälschlicherweise reduziert
+- **Ursache**: Zusätzliche Threshold-Filterung nach bereits erfolgter Relevanzprüfung
+- **Lösung**: Korrekte LLM-basierte Relevanzentscheidung implementiert
+- **Neue Logik**: Nur Segmente mit `is_relevant: true` vom LLM werden kodiert
+- **Konfigurierbar**: Neuer Parameter `RELEVANCE_THRESHOLD` (Standard: 0.0) für Mindest-Konfidenz
+- **Verbesserte Logs**: "XX Segmente vom LLM als relevant identifiziert, darunter XX mit hinreichender Konfidenz"
 - **Vollständige Analyse**: Keine verlorenen Kodierungen mehr bei optimierter Analyse
 
 BUGFIX: FEHLENDE CATEGORYLOADER MODULE

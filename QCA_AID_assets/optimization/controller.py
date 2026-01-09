@@ -521,10 +521,13 @@ class OptimizationController:
             
             # Schritt 1a: Einfache Relevanzprüfung (SHARED)
             print(f"   🔍 API Call 1: Einfache Relevanzprüfung für {len(segments)} Segmente...")
+            from ..core.config import CONFIG
+            relevance_threshold = CONFIG.get('RELEVANCE_THRESHOLD', 0.0)
             relevance_results = await self.unified_analyzer.analyze_relevance_simple(
                 segments=segments,
                 research_question=research_question,
-                batch_size=batch_size
+                batch_size=batch_size,
+                relevance_threshold=relevance_threshold
             )
             
             # Alle als relevant markierten Segmente werden kodiert (kein zusätzlicher Threshold)
@@ -993,10 +996,13 @@ class OptimizationController:
         
         # Schritt 1a: Einfache Relevanzprüfung
         print(f"   🔍 API Call 1: Einfache Relevanzprüfung für {len(segments)} Segmente...")
+        from ..core.config import CONFIG
+        relevance_threshold = CONFIG.get('RELEVANCE_THRESHOLD', 0.0)
         relevance_results = await self.unified_analyzer.analyze_relevance_simple(
             segments=segments,
             research_question=research_question,
-            batch_size=batch_size
+            batch_size=batch_size,
+            relevance_threshold=relevance_threshold
         )
         
         # Alle als relevant markierten Segmente werden kodiert (kein zusätzlicher Threshold)
@@ -1572,10 +1578,13 @@ class OptimizationController:
         print(f"   📊 Schritt 1: Relevanzprüfung für {len(segments)} Segmente...")
         print(f"   📋 Forschungsfrage: {research_question}")
         print(f"   🔍 API Call 1: Einfache Relevanzprüfung für {len(segments)} Segmente...")
+        from ..core.config import CONFIG
+        relevance_threshold = CONFIG.get('RELEVANCE_THRESHOLD', 0.0)
         relevance_results = await self.unified_analyzer.analyze_relevance_simple(
             segments=segments,
             research_question=research_question,
-            batch_size=batch_size
+            batch_size=batch_size,
+            relevance_threshold=relevance_threshold
         )
         
         # Filtere relevante Segmente (Threshold: 0.3)
@@ -1583,11 +1592,10 @@ class OptimizationController:
         relevance_map = {}
         for rel_result in relevance_results:
             seg_id = rel_result.get('segment_id', '')
-            research_rel = rel_result.get('research_relevance', 0.0)
-            if research_rel >= 0.0:  # ALLE als relevant markierten Segmente kodieren
-                seg = next((s for s in segments if s['segment_id'] == seg_id), None)
-                if seg:
-                    relevant_segments.append(seg)
+            # Alle Segmente aus relevance_results sind bereits als relevant eingestuft
+            seg = next((s for s in segments if s['segment_id'] == seg_id), None)
+            if seg:
+                relevant_segments.append(seg)
                     relevance_map[seg_id] = rel_result
         
         print(f"   ✅ {len(relevant_segments)} von {len(segments)} Segmenten sind relevant")
@@ -2047,10 +2055,13 @@ class OptimizationController:
         print(f"   📊 Schritt 1: Relevanzprüfung für {len(segments)} Segmente...")
         print(f"   📋 Forschungsfrage: {research_question}")
         print(f"   🔍 API Call 1: Einfache Relevanzprüfung für {len(segments)} Segmente...")
+        from ..core.config import CONFIG
+        relevance_threshold = CONFIG.get('RELEVANCE_THRESHOLD', 0.0)
         relevance_results = await self.unified_analyzer.analyze_relevance_simple(
             segments=segments,
             research_question=research_question,
-            batch_size=batch_size
+            batch_size=batch_size,
+            relevance_threshold=relevance_threshold
         )
         
         # Debug: Show relevance results with better logging
@@ -2081,11 +2092,10 @@ class OptimizationController:
         
         for rel_result in relevance_results:
             seg_id = rel_result.get('segment_id', '')
-            research_rel = rel_result.get('research_relevance', 0.0)
-            if research_rel >= 0.0:  # ALLE als relevant markierten Segmente kodieren
-                seg = next((s for s in segments if s['segment_id'] == seg_id), None)
-                if seg:
-                    relevant_segments.append(seg)
+            # Alle Segmente aus relevance_results sind bereits als relevant eingestuft
+            seg = next((s for s in segments if s['segment_id'] == seg_id), None)
+            if seg:
+                relevant_segments.append(seg)
                     relevance_map[seg_id] = rel_result
         
         print(f"   ✅ {len(relevant_segments)} von {len(segments)} Segmenten sind relevant")
@@ -2717,10 +2727,13 @@ class OptimizationController:
         print(f"   📊 Schritt 1: Relevanzprüfung für {len(segments)} Segmente...")
         print(f"   📋 Forschungsfrage: {research_question}")
         print(f"   🔍 API Call 1: Einfache Relevanzprüfung für {len(segments)} Segmente...")
+        from ..core.config import CONFIG
+        relevance_threshold = CONFIG.get('RELEVANCE_THRESHOLD', 0.0)
         relevance_results = await self.unified_analyzer.analyze_relevance_simple(
             segments=segments,
             research_question=research_question,
-            batch_size=batch_size
+            batch_size=batch_size,
+            relevance_threshold=relevance_threshold
         )
         
         # Filtere relevante Segmente (Threshold: 0.3)
@@ -2728,11 +2741,10 @@ class OptimizationController:
         relevance_map = {}
         for rel_result in relevance_results:
             seg_id = rel_result.get('segment_id', '')
-            research_rel = rel_result.get('research_relevance', 0.0)
-            if research_rel >= 0.0:  # ALLE als relevant markierten Segmente kodieren
-                seg = next((s for s in segments if s['segment_id'] == seg_id), None)
-                if seg:
-                    relevant_segments.append(seg)
+            # Alle Segmente aus relevance_results sind bereits als relevant eingestuft
+            seg = next((s for s in segments if s['segment_id'] == seg_id), None)
+            if seg:
+                relevant_segments.append(seg)
                     relevance_map[seg_id] = rel_result
         
         print(f"   ✅ {len(relevant_segments)} von {len(segments)} Segmenten sind relevant")
