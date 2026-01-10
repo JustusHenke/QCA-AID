@@ -1596,7 +1596,7 @@ class OptimizationController:
             seg = next((s for s in segments if s['segment_id'] == seg_id), None)
             if seg:
                 relevant_segments.append(seg)
-                    relevance_map[seg_id] = rel_result
+                relevance_map[seg_id] = rel_result
         
         print(f"   ✅ {len(relevant_segments)} von {len(segments)} Segmenten sind relevant")
         
@@ -2096,7 +2096,7 @@ class OptimizationController:
             seg = next((s for s in segments if s['segment_id'] == seg_id), None)
             if seg:
                 relevant_segments.append(seg)
-                    relevance_map[seg_id] = rel_result
+                relevance_map[seg_id] = rel_result
         
         print(f"   ✅ {len(relevant_segments)} von {len(segments)} Segmenten sind relevant")
         
@@ -2745,7 +2745,7 @@ class OptimizationController:
             seg = next((s for s in segments if s['segment_id'] == seg_id), None)
             if seg:
                 relevant_segments.append(seg)
-                    relevance_map[seg_id] = rel_result
+                relevance_map[seg_id] = rel_result
         
         print(f"   ✅ {len(relevant_segments)} von {len(segments)} Segmenten sind relevant")
         

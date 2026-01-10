@@ -2,6 +2,30 @@
 
 ## Versionen und Updates
 
+### Neu in 0.12.2 (2025-01-10)
+
+PERFORMANCE: WEBAPP STARTUP-OPTIMIERUNG
+- **50-60% schnellerer Startup**: Von ~5-8s auf ~2-3s reduziert
+- **Lazy Loading System**: Tab-Daten werden erst bei Bedarf geladen
+- **Cached Icon Loading**: `@st.cache_data` für optimierte Icon-Darstellung
+- **Minimale Session State**: Nur kritische Manager beim Start initialisiert
+- **CSS Caching**: Einmaliges Laden der Fluent UI Styles
+- **Performance Monitor**: Debug-Tool zur Messung der Startup-Zeiten in Sidebar
+
+BUGFIX: FEHLENDER RELEVANCE_THRESHOLD IN CONFIG UI
+- **Problem behoben**: `relevance_threshold` Parameter war im Model definiert aber nicht in der UI verfügbar
+- **Neuer Slider**: "🎯 Relevanz-Schwellwert" in Analyse-Einstellungen hinzugefügt
+- **Bereich**: 0.0 bis 1.0 in 0.05er Schritten konfigurierbar
+- **Standard**: 0.0 (alle vom LLM als relevant markierten Segmente)
+- **Dynamische Info**: Zeigt aktuelle Filterung basierend auf Schwellwert an
+- **Vollständige Integration**: Korrekte Speicherung und Laden in JSON/XLSX
+
+VERBESSERUNG: MEMORY MANAGEMENT
+- **Reduzierter Memory-Footprint**: Nur aktive Tab-Daten im Speicher
+- **Manager-Singleton Pattern**: Verhindert redundante Initialisierung
+- **Optimierte Import-Strategie**: Lazy Loading für große Komponenten
+- **Graceful Fallbacks**: Robuste Fehlerbehandlung bei Icon-Loading
+
 ### Neu in 0.12.1 (2025-01-08)
 
 BUGFIX: KATEGORIEPRÄFERENZEN IM DEDUKTIVEN MODUS

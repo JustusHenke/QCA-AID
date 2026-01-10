@@ -1200,6 +1200,27 @@ def render_analysis_settings():
         if new_pdf_threshold != config.pdf_annotation_fuzzy_threshold:
             config.pdf_annotation_fuzzy_threshold = new_pdf_threshold
             st.session_state.config_modified = True
+    
+    # Relevance Threshold setting
+    st.markdown("---")
+    new_relevance_threshold = st.slider(
+        "🎯 Relevanz-Schwellwert",
+        min_value=0.0,
+        max_value=1.0,
+        value=config.relevance_threshold,
+        step=0.05,
+        help="Mindest-Konfidenz für relevante Segmente (0.0 = alle vom LLM als relevant markierten Segmente werden verwendet)"
+    )
+    
+    if new_relevance_threshold != config.relevance_threshold:
+        config.relevance_threshold = new_relevance_threshold
+        st.session_state.config_modified = True
+    
+    # Info about relevance threshold
+    if new_relevance_threshold > 0.0:
+        st.info(f"ℹ️ Nur Segmente mit Relevanz-Konfidenz ≥ {new_relevance_threshold:.2f} werden analysiert.")
+    else:
+        st.info("ℹ️ Alle vom LLM als relevant identifizierten Segmente werden analysiert (empfohlen).")
 
 
 def render_coder_settings():

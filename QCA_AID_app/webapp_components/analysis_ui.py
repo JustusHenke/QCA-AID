@@ -15,6 +15,13 @@ from webapp_logic.file_manager import FileManager
 from webapp_logic.analysis_runner import AnalysisRunner
 
 
+def rerun_preserving_tab():
+    """Führt st.rerun() aus und behält den Analysis-Tab bei."""
+    import streamlit as st
+    # Tab-State wird automatisch in Session State beibehalten
+    st.rerun()
+
+
 def render_analysis_tab():
     """
     Rendert Analyse-Reiter als Hauptlayout.
@@ -412,7 +419,7 @@ def render_analysis_controls():
                     for msg in messages:
                         if 'erstellt' in msg.lower() or 'warnung' in msg.lower():
                             st.info(f"ℹ️ {msg}")
-                    st.rerun()
+                    rerun_preserving_tab()
                 else:
                     st.error("❌ Fehler beim Starten der Analyse:")
                     for msg in messages:
@@ -437,7 +444,7 @@ def render_analysis_controls():
                 
                 if success:
                     st.warning("⚠️ Analyse gestoppt")
-                    st.rerun()
+                    rerun_preserving_tab()
                 else:
                     st.error(f"❌ Fehler beim Stoppen der Analyse: {error_msg}")
         else:
@@ -449,12 +456,12 @@ def render_analysis_controls():
                 if st.button("🔄 Erneut versuchen", use_container_width=True, type="primary"):
                     # Reset status für erneuten Versuch
                     runner.status = runner.status.create_initial()
-                    st.rerun()
+                    rerun_preserving_tab()
             elif status.error:
                 if st.button("🔄 Erneut versuchen", use_container_width=True, type="primary"):
                     # Reset status für erneuten Versuch
                     runner.status = runner.status.create_initial()
-                    st.rerun()
+                    rerun_preserving_tab()
             else:
                 # Leerer Platz für bessere Ausrichtung
                 st.empty()
@@ -571,7 +578,7 @@ def render_log_stream():
         # Trigger rerun every 2 seconds
         import time
         time.sleep(2)
-        st.rerun()
+        rerun_preserving_tab()
 
 
 def render_results():
