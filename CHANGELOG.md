@@ -2,6 +2,34 @@
 
 ## Versionen und Updates
 
+### Neu in 0.10.2 (2025-01-12)
+
+BUGFIX: RELEVANZ-BEWERTUNG INKONSISTENZEN BEHOBEN
+- **LLM-Prompt Klarstellung**: Explizite Konsistenz-Regel zwischen `is_relevant` und `reasoning` hinzugefügt
+- **Intelligente Inkonsistenz-Erkennung**: Automatische Warnung bei widersprüchlichen LLM-Antworten
+- **Verbesserte Begründungen**: Klarere Anweisungen für Relevanz-Begründungen (warum relevant/nicht relevant)
+- **Doppelte Feldunterstützung**: Unterstützt sowohl `justification` als auch `reasoning` Felder aus LLM-Antworten
+
+VERBESSERUNG: RELEVANZ-SCHWELLWERT SYSTEM
+- **Neuer Standard-Wert**: `RELEVANCE_THRESHOLD` von 0.0 auf 0.3 geändert (entspricht LLM-Verhalten)
+- **Intelligente Filterlogik**: 
+  - Werte < 0.3: Inkludiert auch LLM-verworfene Segmente basierend auf Confidence
+  - Werte ≥ 0.3: Standard LLM-Entscheidungen mit zusätzlicher Confidence-Filterung
+- **Verbesserte UI-Erklärung**: Klare Beschreibung der drei Modi in der Konfiguration
+- **Warnungen**: Automatische Hinweise bei niedrigen/hohen Schwellwerten
+
+VERBESSERUNG: LOGGING OPTIMIERUNG
+- **Vereinfachtes Relevanz-Logging**: Alle Segmente in einer übersichtlichen Liste statt doppelter Ausgabe
+- **Klareres Review-Logging**: "Vervollständige Export" statt verwirrende "Relevanzprüfung für fehlende Segmente"
+- **Entfernte Redundanz**: Keine doppelte Auflistung relevanter Segmente mehr
+- **Fokussierte Ausgabe**: Nur wesentliche Informationen, weniger technische Details
+
+CODE CLEANUP: UNGENUTZTE KOMPONENTEN ENTFERNT
+- **Datei entfernt**: `fluent_components.py` (300+ Zeilen ungenutzter Code)
+- **Bereinigte Imports**: Entfernung aller ungenutzten Fluent-Komponenten aus `__init__.py`
+- **Reduzierte Komplexität**: Nur tatsächlich verwendete Fluent UI Teile bleiben erhalten
+- **Sauberer Code**: Keine toten Code-Pfade mehr im webapp_components Modul
+
 ### Neu in 0.12.2 (2025-01-10)
 
 PERFORMANCE: WEBAPP STARTUP-OPTIMIERUNG

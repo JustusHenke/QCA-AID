@@ -638,7 +638,7 @@ async def main() -> None:
 
             # FIX: Stelle sicher, dass ALLE Segmente im Export enthalten sind
             # Erstelle "Nicht kodiert" Einträge für fehlende Segmente
-            print(f"\n🔍 Prüfe auf fehlende Segmente für vollständigen Export...")
+            print(f"\n📋 Vervollständige Export mit nicht-relevanten Segmenten...")
             coded_segment_ids = set(coding.get('segment_id', '') for coding in all_codings)
             
             # Sammle alle Segment-IDs aus chunks
@@ -657,19 +657,17 @@ async def main() -> None:
             non_relevant_codings = []
             
             if missing_segment_ids:
-                print(f"   📝 Füge {len(missing_segment_ids)} nicht kodierte Segmente hinzu...")
+                print(f"   📝 Ergänze {len(missing_segment_ids)} nicht-relevante Segmente für vollständigen Export...")
                 
-                # FIX: Führe Relevanzprüfung für alle fehlenden Segmente durch, um echte Begründungen zu bekommen
-                print(f"   🔍 Führe Relevanzprüfung für {len(missing_segment_ids)} fehlende Segmente durch...")
+                # Hole Begründungen aus bereits durchgeführter Relevanzprüfung
                 missing_segments_for_check = [(seg_id, text) for seg_id, text in all_segments_for_relevance if seg_id in missing_segment_ids]
                 
                 if missing_segments_for_check and hasattr(analysis_manager, 'relevance_checker'):
                     try:
-                        # Führe Relevanzprüfung durch
+                        # Führe Relevanzprüfung durch (nur für Begründungen)
                         relevance_results = await analysis_manager.relevance_checker.check_relevance_batch(missing_segments_for_check)
-                        print(f"   ✅ Relevanzprüfung für {len(relevance_results)} Segmente abgeschlossen")
                     except Exception as e:
-                        print(f"   ⚠️ Fehler bei Relevanzprüfung: {e}")
+                        print(f"   ⚠️ Fehler bei Begründungs-Extraktion: {e}")
                         relevance_results = {}
                 else:
                     relevance_results = {}
@@ -686,16 +684,13 @@ async def main() -> None:
                         if doc_name in chunks and chunk_idx < len(chunks[doc_name]):
                             segment_text = chunks[doc_name][chunk_idx]
                         
-                        # FIX: Hole echte Begründung aus der gerade durchgeführten Relevanzprüfung
+                        # Hole Begründung aus Relevanzprüfung
                         justification = 'Segment wurde als nicht relevant für die Forschungsfrage eingestuft'
                         if hasattr(analysis_manager, 'relevance_checker') and analysis_manager.relevance_checker:
                             relevance_details = analysis_manager.relevance_checker.get_relevance_details(segment_id)
                             if relevance_details and relevance_details.get('reasoning'):
-                                # Verwende die echte API-Begründung
                                 justification = relevance_details['reasoning']
-                                print(f"   📝 Echte Begründung für {segment_id}: {justification[:80]}...")
                             elif segment_id in relevance_results:
-                                # Fallback: Verwende Ergebnis aus aktueller Prüfung
                                 is_relevant = relevance_results[segment_id]
                                 if not is_relevant:
                                     justification = f"Segment als nicht relevant eingestuft (Relevanz-Score: 0.0)"
@@ -708,7 +703,7 @@ async def main() -> None:
                                 'category': 'Nicht kodiert',
                                 'subcategories': [],
                                 'confidence': {'total': 1.0, 'category': 1.0, 'subcategories': 1.0},
-                                'justification': justification,  # FIX: Echte API-Begründung
+                                'justification': justification,
                                 'text': segment_text,
                                 'document': doc_name,
                                 'chunk_id': chunk_idx,
@@ -721,12 +716,10 @@ async def main() -> None:
                             all_codings.append(not_coded_entry)
                             non_relevant_codings.append(not_coded_entry)
                 
-                print(f"   ✅ {len(missing_segment_ids)} nicht kodierte Segmente hinzugefügt")
+                print(f"   ✅ {len(missing_segment_ids)} nicht-relevante Segmente für Export ergänzt")
                 
-                # FIX: Speichere nicht-relevante Segmente auch in Reliability Database
+                # Speichere nicht-relevante Segmente auch in Reliability Database
                 if hasattr(analysis_manager, 'dynamic_cache_manager') and analysis_manager.dynamic_cache_manager:
-                    print(f"   💾 Speichere {len(non_relevant_codings)} nicht-relevante Segmente in Reliability Database...")
-                    
                     from .core.data_models import ExtendedCodingResult
                     
                     for not_coded in non_relevant_codings:
@@ -736,7 +729,7 @@ async def main() -> None:
                             category=not_coded['category'],
                             subcategories=not_coded.get('subcategories', []),
                             confidence=not_coded.get('confidence', {}).get('total', 1.0) if isinstance(not_coded.get('confidence'), dict) else 1.0,
-                            justification=not_coded['justification'],  # FIX: Echte API-Begründung
+                            justification=not_coded['justification'],
                             analysis_mode=CONFIG.get('ANALYSIS_MODE', 'deductive'),
                             timestamp=datetime.now(),
                             is_manual=False,
@@ -750,8 +743,6 @@ async def main() -> None:
                         )
                         
                         analysis_manager.dynamic_cache_manager.store_for_reliability(extended_result)
-                    
-                    print(f"   ✅ Nicht-relevante Segmente in Reliability Database gespeichert")
             else:
                 print(f"   ✅ Alle Segmente sind bereits kodiert")
 

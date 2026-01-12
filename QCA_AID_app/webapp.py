@@ -507,7 +507,7 @@ def main():
             </div>
             <div class="qca-header-text">
                 <h1 class="qca-title">
-                    <span class="qca-title-bold">QCA</span><span class="qca-title-italic">-AID</span>
+                    <span class="qca-title-bold">QCA</span><span class="qca-title-italic">-AID</span>&nbsp;&nbsp;
                     <span class="qca-title-sub">Webapp</span>
                 </h1>
                 <p class="qca-subtitle">Qualitative Content Analysis with AI-Discovery</p>

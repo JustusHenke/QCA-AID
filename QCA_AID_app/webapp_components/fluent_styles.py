@@ -338,17 +338,20 @@ def get_fluent_css() -> str:
     .qca-title-bold {{
         font-family: 'Segoe UI', sans-serif;
         font-weight: 900;
+        font-size: 2.2em;
     }}
     
     .qca-title-italic {{
         font-family: 'Segoe UI', sans-serif;
         font-weight: 600;
         font-style: italic;
+        font-size: 2.2em;
     }}
     
     .qca-title-sub {{
         font-size: 0.6em;
         font-weight: normal;
+        font-size: 2.2em;
         color: var(--text-secondary);            /* #334155 */
     }}
     
@@ -770,6 +773,12 @@ def get_fluent_css() -> str:
     }}
     
     /* ===== CUSTOM LAYOUT FIXES ===== */
+
+    .st-emotion-cache-8hk7nf h1 {{
+        font-size: inherit;
+        font-weight: inherit;
+        padding: inherit;
+    }}
     
     .st-emotion-cache-zy6yx3 {{
         width: 100%;

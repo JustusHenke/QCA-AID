@@ -423,7 +423,7 @@ class QCAPrompts:
                         "confidence": 0.0-1.0,
                         "text_type": "interview|dokument|protokoll|andere",
                         "key_aspects": ["konkrete", "für", "die", "Forschungsfrage", "relevante", "Aspekte"],
-                        "justification": "Begründung der Relevanz-Entscheidung (WICHTIG: Auch bei nicht-relevanten Segmenten erklären WARUM nicht relevant)"
+                        "justification": "WICHTIG: Erkläre deine Entscheidung klar und eindeutig. Bei NICHT-relevanten Segmenten: Erkläre konkret WARUM das Segment nicht relevant ist (z.B. 'zu allgemein', 'kein direkter Bezug', 'nur administrative Info'). Bei relevanten Segmenten: Erkläre konkret WAS das Segment relevant macht."
                     }},
                     ...
                 ]
@@ -606,6 +606,11 @@ class QCAPrompts:
         - Test-Segmente oder Beispiel-Texte sind NICHT relevant
         - Bei Zweifel: eher als NICHT relevant einstufen
         
+        KONSISTENZ-REGEL:
+        - Wenn du is_relevant: false setzt, dann erkläre in der Begründung WARUM es nicht relevant ist
+        - Wenn du is_relevant: true setzt, dann erkläre in der Begründung WAS es relevant macht
+        - Vermeide widersprüchliche Aussagen zwischen is_relevant und reasoning
+        
         WICHTIG FÜR KATEGORIE-VORAUSWAHL:
         - Sei konservativ aber nicht zu restriktiv
         - Lieber 2-3 Kategorien vorschlagen als nur eine, wenn mehrere plausibel sind
@@ -627,7 +632,7 @@ class QCAPrompts:
                     "is_relevant": true/false,
                     "relevance_scores": {{"Kategorie1": 0.8, "Kategorie2": 0.3, ...}},
                     "preferred_categories": ["Kategorie1", "Kategorie2"],
-                    "reasoning": "Konkrete Begründung mit Textbezug für Kategorie-Einschätzung (WICHTIG: Auch bei nicht-relevanten Segmenten erklären WARUM nicht relevant)"
+                    "reasoning": "WICHTIG: Erkläre deine Entscheidung klar und eindeutig. Bei NICHT-relevanten Segmenten: Erkläre konkret WARUM das Segment nicht relevant ist (z.B. 'zu allgemein', 'kein direkter Bezug', 'nur administrative Info'). Bei relevanten Segmenten: Erkläre konkret WAS das Segment relevant macht und welche Kategorien passen."
                 }}
             ]
         }}

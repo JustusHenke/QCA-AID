@@ -178,12 +178,48 @@ class UnifiedRelevanceAnalyzer:
                         "segment_id": segment_id,
                         "is_relevant": is_relevant,
                         "research_relevance": research_relevance,
-                        "relevance_reasoning": std_result.get("justification", "Keine Begründung verfügbar")
+                        "relevance_reasoning": std_result.get("justification", std_result.get("reasoning", "Keine Begründung verfügbar"))
                     }
                     all_results.append(all_result)
                     
-                    # Nur als relevant markierte Segmente mit hinreichender Konfidenz werden weitergegeben
-                    if is_relevant and research_relevance >= relevance_threshold:
+                    # DEBUG: Intelligente Inkonsistenz-Erkennung
+                    reasoning = all_result["relevance_reasoning"].lower()
+                    if not is_relevant:
+                        # Positive Relevanz-Indikatoren (sollten bei is_relevant=False nicht vorkommen)
+                        positive_indicators = [
+                            "ist relevant", "direkt relevant", "zentral für", "wichtig für die forschung",
+                            "behandelt relevante aspekte", "liefert relevante", "beiträgt zur forschung",
+                            "für die forschungsfrage relevant", "thematisiert relevante"
+                        ]
+                        # Negative Indikatoren (sind OK bei is_relevant=False)
+                        negative_indicators = [
+                            "nicht relevant", "keine relevanten", "keinen direkten bezug", "zu allgemein",
+                            "keine spezifischen", "administrative informationen", "lediglich kontakt",
+                            "ohne spezifischen bezug", "fehlt der bezug", "nicht zur forschungsfrage"
+                        ]
+                        
+                        has_positive = any(indicator in reasoning for indicator in positive_indicators)
+                        has_negative = any(indicator in reasoning for indicator in negative_indicators)
+                        
+                        # Nur warnen wenn positive Indikatoren ohne negative vorhanden sind
+                        if has_positive and not has_negative:
+                            print(f"   ⚠️ INKONSISTENZ {segment_id}: is_relevant=False aber reasoning beschreibt Relevanz")
+                            print(f"      Confidence: {confidence}, Reasoning: {all_result['relevance_reasoning'][:150]}...")
+                    
+                    # Filterlogik: Berücksichtige sowohl LLM-Entscheidung als auch Confidence-Schwelle
+                    # Bei niedrigen Schwellen (<0.3): Inkludiere auch LLM-verworfene Segmente mit ausreichender Confidence
+                    # Bei Standard-Schwelle (0.3): Verwende LLM-Entscheidungen
+                    # Bei hohen Schwellen (>0.3): Zusätzliche Filterung auch bei LLM-relevanten Segmenten
+                    
+                    include_segment = False
+                    if relevance_threshold < 0.3:
+                        # Niedrige Schwelle: Inkludiere basierend auf Confidence, ignoriere LLM is_relevant
+                        include_segment = research_relevance >= relevance_threshold
+                    else:
+                        # Standard/Hohe Schwelle: LLM muss relevant markiert haben UND Confidence-Schwelle erreichen
+                        include_segment = is_relevant and research_relevance >= relevance_threshold
+                    
+                    if include_segment:
                         adapted_result = {
                             "segment_id": segment_id,
                             "research_relevance": research_relevance,
@@ -208,23 +244,20 @@ class UnifiedRelevanceAnalyzer:
         final_relevant_count = len(results)
         total_count = len(all_results)
         
-        # Verbesserte Log-Ausgabe
+        # Verbesserte Log-Ausgabe mit allen Segmenten
         print(f"   🔍 DEBUG: Relevance check returned {total_count} total results")
-        print(f"   📊 {llm_relevant_count} Segmente vom LLM als relevant für die Forschungsfrage identifiziert, darunter {final_relevant_count} Segmente mit hinreichender Konfidenz (≥{relevance_threshold})")
         
-        # Show detailed results for relevant segments only
-        for i, result in enumerate(results):
-            seg_id = result.get('segment_id', 'MISSING')
-            # Truncate long segment IDs for readability
-            if len(seg_id) > 35:
-                seg_id_display = seg_id[:32] + '...'
-            else:
-                seg_id_display = seg_id
-            
-            relevance = result.get('research_relevance', 0.0)
-            status = "✅ RELEVANT"  # Alle Segmente in results sind relevant
-            
-            print(f"   🔍 Segment {i+1:2d}: {seg_id_display:<35} → {relevance:.1f} ({status})")
+        if relevance_threshold < 0.3:
+            print(f"   📊 {final_relevant_count} Segmente mit Confidence ≥{relevance_threshold} (inkl. {llm_relevant_count} LLM-relevante + {final_relevant_count - llm_relevant_count} LLM-verworfene)")
+        else:
+            print(f"   📊 {llm_relevant_count} Segmente vom LLM als relevant identifiziert, davon {final_relevant_count} mit Confidence ≥{relevance_threshold}")
+        
+        # Detailliertes Logging aller Ergebnisse
+        for i, result in enumerate(all_results, 1):
+            status = "✅ RELEVANT" if result.get('is_relevant', False) else "❌ NICHT RELEVANT"
+            confidence = result.get('research_relevance', 0.0)
+            segment_id = result.get('segment_id', f'unknown_{i}')
+            print(f"   🔍 Segment {i:3d}: {segment_id:<40} → {confidence:.1f} ({status})")
         
         return results
     
@@ -354,8 +387,16 @@ class UnifiedRelevanceAnalyzer:
                     }
                     all_results.append(all_result)
                     
-                    # Nur als relevant markierte Segmente mit hinreichender Konfidenz werden weitergegeben
-                    if is_relevant and research_relevance >= relevance_threshold:
+                    # Filterlogik für Kategorie-Präferenzen (analog zur einfachen Relevanzprüfung)
+                    include_segment = False
+                    if relevance_threshold < 0.3:
+                        # Niedrige Schwelle: Inkludiere basierend auf Confidence, ignoriere LLM is_relevant
+                        include_segment = research_relevance >= relevance_threshold
+                    else:
+                        # Standard/Hohe Schwelle: LLM muss relevant markiert haben UND Confidence-Schwelle erreichen
+                        include_segment = is_relevant and research_relevance >= relevance_threshold
+                    
+                    if include_segment:
                         adapted_result = {
                             "segment_id": segment_id,
                             "research_relevance": research_relevance,

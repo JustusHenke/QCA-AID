@@ -73,7 +73,7 @@ class ConfigData:
     manual_coding_enabled: bool = False
     export_annotated_pdfs: bool = True
     pdf_annotation_fuzzy_threshold: float = 0.85
-    relevance_threshold: float = 0.0  # Mindest-Konfidenz für relevante Segmente
+    relevance_threshold: float = 0.3  # Mindest-Konfidenz für relevante Segmente (LLM-Standard)
     enable_optimization: bool = True  # Neue effiziente Kodiermethode (Batching, Caching)
     
     def validate(self) -> Tuple[bool, List[str]]:
@@ -203,6 +203,6 @@ class ConfigData:
             manual_coding_enabled=data.get('manual_coding_enabled', False),
             export_annotated_pdfs=data.get('export_annotated_pdfs', True),
             pdf_annotation_fuzzy_threshold=data.get('pdf_annotation_fuzzy_threshold', 0.85),
-            relevance_threshold=data.get('relevance_threshold', 0.0),  # Default: 0.0
+            relevance_threshold=data.get('relevance_threshold', 0.3),  # Default: 0.3 (LLM-Standard)
             enable_optimization=data.get('enable_optimization', True)  # Default: True
         )

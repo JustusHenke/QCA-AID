@@ -1203,14 +1203,31 @@ def render_analysis_settings():
     
     # Relevance Threshold setting
     st.markdown("---")
+    
+    # Erklärung der LLM-Schwelle
+    st.markdown("### 🎯 Relevanz-Schwellwert")
+    st.info("""
+    **Wie funktioniert die Relevanz-Bewertung:**
+    - Das LLM wendet automatisch eine ~0.3-0.4 Schwelle an (basierend auf Training)
+    - **0.3 (Standard)**: Verwendet LLM-Entscheidungen wie sie sind
+    - **Höhere Werte (0.4-1.0)**: Strengere Filterung, weniger Segmente
+    - **Niedrigere Werte (0.0-0.2)**: Inkludiert auch vom LLM verworfene Segmente
+    """)
+    
     new_relevance_threshold = st.slider(
-        "🎯 Relevanz-Schwellwert",
+        "Relevanz-Schwellwert",
         min_value=0.0,
         max_value=1.0,
         value=config.relevance_threshold,
         step=0.05,
-        help="Mindest-Konfidenz für relevante Segmente (0.0 = alle vom LLM als relevant markierten Segmente werden verwendet)"
+        help="0.3 = LLM-Standard | Höher = strenger | Niedriger = inkludiert LLM-verworfene Segmente"
     )
+    
+    # Warnung bei niedrigen Werten
+    if new_relevance_threshold < 0.3:
+        st.warning(f"⚠️ Wert unter 0.3: Inkludiert Segmente die das LLM als nicht relevant eingestuft hat (Confidence {new_relevance_threshold:.1f}-0.3)")
+    elif new_relevance_threshold > 0.5:
+        st.info(f"ℹ️ Wert über 0.5: Sehr strenge Filterung, nur hochrelevante Segmente (Confidence ≥{new_relevance_threshold:.1f})")
     
     if new_relevance_threshold != config.relevance_threshold:
         config.relevance_threshold = new_relevance_threshold
