@@ -2,7 +2,8 @@
 
 ## Versionen und Updates
 
-### Neu in 0.10.2 (2025-01-12)
+
+### Neu in 0.12.2  (2025-01-12)
 
 BUGFIX: RELEVANZ-BEWERTUNG INKONSISTENZEN BEHOBEN
 - **LLM-Prompt Klarstellung**: Explizite Konsistenz-Regel zwischen `is_relevant` und `reasoning` hinzugefügt
@@ -30,7 +31,6 @@ CODE CLEANUP: UNGENUTZTE KOMPONENTEN ENTFERNT
 - **Reduzierte Komplexität**: Nur tatsächlich verwendete Fluent UI Teile bleiben erhalten
 - **Sauberer Code**: Keine toten Code-Pfade mehr im webapp_components Modul
 
-### Neu in 0.12.2 (2025-01-10)
 
 PERFORMANCE: WEBAPP STARTUP-OPTIMIERUNG
 - **50-60% schnellerer Startup**: Von ~5-8s auf ~2-3s reduziert
