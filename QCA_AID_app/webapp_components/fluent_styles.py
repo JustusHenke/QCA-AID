@@ -58,7 +58,7 @@ class FluentColors:
     
     # === RÄNDER UND STRICHE ===
     NEUTRAL_STROKE = "#e2e8f0"              # Helle Ränder
-    NEUTRAL_STROKE_ACCESSIBLE = "#cbd5e1"   # Mittlere Ränder (Kontrast: 1.6:1)
+    NEUTRAL_STROKE_ACCESSIBLE = "#0fcec6"   # Mittlere Ränder (Kontrast: 1.6:1)
     STROKE_PRIMARY = "#0d868b"              # LEITFARBE: Konturen (Kontrast: 3.8:1)
     STROKE_SECONDARY = "#0d9488"            # Dunkeltürkis für Akzente (Kontrast: 4.5:1)
     
@@ -410,6 +410,19 @@ def get_fluent_css() -> str:
         color: inherit;
         font-weight: inherit;
     }}
+
+    .st-d2 {{
+    border-bottom-color: var(--border-medium);
+    }}
+    .st-d1 {{
+    border-top-color: var(--border-medium);
+    }}
+    .st-d0 {{
+    border-right-color: var(--border-medium);
+    }}
+    .st-cz {{
+    border-left-color: var(--border-medium);
+    }}
     
     /* ===== BUTTONS ===== */
     
@@ -653,7 +666,7 @@ def get_fluent_css() -> str:
     
     [data-testid="stMetricValue"] {{
         color: var(--text-primary);
-        font-size: 2rem;
+        font-size: 1rem;
         font-weight: 600;
     }}
     

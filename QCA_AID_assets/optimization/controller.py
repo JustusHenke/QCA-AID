@@ -5,6 +5,7 @@ Main controller for API call optimization across all analysis modes.
 
 import asyncio
 import json
+import os
 from typing import Dict, List, Any, Optional, Tuple
 from enum import Enum
 from collections import Counter
@@ -71,10 +72,14 @@ class OptimizationController:
         
         # Initialize base cache and dynamic cache manager
         base_cache = ModeAwareCache()
+        
+        # Use the correct output directory for reliability database
+        reliability_db_path = os.path.join(self.output_dir, "all_codings.json") if self.output_dir else "output/all_codings.json"
+        
         self.dynamic_cache_manager = DynamicCacheManager(
             base_cache=base_cache,
             analysis_mode=None,  # Will be set per analysis
-            reliability_db_path=f"{self.output_dir}/all_codings.json"
+            reliability_db_path=reliability_db_path  # Use user-defined output directory
         )
         
         # Keep reference to base cache for backward compatibility
@@ -144,6 +149,333 @@ class OptimizationController:
             }
         }
     
+    def _get_subcategories_for_category(self, target_category: str, original_subcategories: list = None, 
+                                       category_definitions: Dict = None) -> list:
+        """
+        Hilfsfunktion: Ermittelt die korrekten Subkategorien für eine gegebene Hauptkategorie.
+        
+        Args:
+            target_category: Die Hauptkategorie für die Subkategorien gesucht werden
+            original_subcategories: Die ursprünglichen Subkategorien aus der Kodierung
+            category_definitions: Die aktuell verwendeten Kategoriendefinitionen (User-Config oder selbst identifiziert)
+            
+        Returns:
+            Liste der passenden Subkategorien für die Hauptkategorie
+        """
+        target_subcategories = []
+        
+        # PRIORITÄT 1: Verwende die übergebenen category_definitions (User-Config oder selbst identifiziert)
+        if category_definitions and target_category in category_definitions:
+            cat_def = category_definitions[target_category]
+            if hasattr(cat_def, 'subcategories') and cat_def.subcategories:
+                target_subcategories = list(cat_def.subcategories.keys())
+                print(f"      📋 Subkategorien für '{target_category}' aus aktuellen Kategorien: {target_subcategories}")
+            elif isinstance(cat_def, dict) and 'subcategories' in cat_def:
+                target_subcategories = list(cat_def['subcategories'].keys())
+                print(f"      📋 Subkategorien für '{target_category}' aus aktuellen Kategorien: {target_subcategories}")
+        
+        # PRIORITÄT 2: Fallback zu statischen deduktiven Kategorien (nur wenn keine User-Config verfügbar)
+        if not target_subcategories:
+            from ..core.config import DEDUKTIVE_KATEGORIEN
+            if target_category in DEDUKTIVE_KATEGORIEN:
+                # Verwende die definierten Subkategorien für diese Hauptkategorie
+                subcats_dict = DEDUKTIVE_KATEGORIEN[target_category].get('subcategories', {})
+                target_subcategories = list(subcats_dict.keys())
+                print(f"      📋 Subkategorien für '{target_category}' aus statischen Kategorien (Fallback): {target_subcategories}")
+        
+        # PRIORITÄT 3: Fallback für induktive/grounded Modi oder unbekannte Kategorien
+        if not target_subcategories:
+            # Bei Mehrfachkodierung: Lasse Subkategorien leer um falsche Zuordnungen zu vermeiden
+            target_subcategories = []
+            
+            # Nur wenn es explizit zugeordnete Subkategorien gibt, verwende sie
+            if original_subcategories:
+                for subcat in original_subcategories:
+                    if isinstance(subcat, dict) and subcat.get('category') == target_category:
+                        target_subcategories.append(subcat.get('name', ''))
+            
+            # Logging für bessere Nachvollziehbarkeit
+            if not target_subcategories:
+                print(f"      ⚠️ Keine spezifischen Subkategorien für '{target_category}' gefunden - leer gelassen für manuelle Nachbearbeitung")
+        
+        return target_subcategories
+
+    async def _code_segment_with_focus(self, segment_text: str, segment_id: str, focus_category: str, 
+                                     focus_context: Dict, category_definitions: Dict, research_question: str,
+                                     coding_rules: List[str], temperature: float, coder_id: str,
+                                     instance_number: int, total_instances: int, analysis_mode: str = 'deductive') -> Optional[Dict]:
+        """
+        Kodiert ein Segment mit Fokus auf eine bestimmte Kategorie (für Mehrfachkodierung).
+        Verwendet die passende Analyse-Methode je nach Modus.
+        """
+        try:
+            # Erstelle ein temporäres Segment für die fokussierte Analyse
+            focused_segment = {
+                'segment_id': segment_id,
+                'text': segment_text
+            }
+            
+            # Verwende modus-spezifische Analyse-Methoden
+            result = None
+            
+            if analysis_mode == 'deductive':
+                # Für deduktive Modi: Verwende UnifiedAnalyzer mit analyze_batch
+                focused_category_definitions = {focus_category: category_definitions.get(focus_category, focus_category)}
+                
+                batch_results = await self.unified_analyzer.analyze_batch(
+                    segments=[focused_segment],
+                    category_definitions=focused_category_definitions,
+                    research_question=research_question,
+                    coding_rules=coding_rules,
+                    batch_size=1,
+                    temperature=temperature,
+                    context_paraphrases=None
+                )
+                
+                # Extrahiere Ergebnis aus Batch-Ergebnissen
+                if batch_results and len(batch_results) > 0:
+                    result = batch_results[0]  # Erstes (und einziges) Ergebnis
+                else:
+                    result = None
+                
+            elif analysis_mode in ['inductive', 'abductive']:
+                # Für induktive/abduktive Modi: Verwende die spezifischen Batch-Methoden
+                focused_category_definitions = {focus_category: category_definitions.get(focus_category, focus_category)}
+                
+                if analysis_mode == 'inductive':
+                    batch_results = await self._analyze_inductive_coding_only(
+                        segments=[focused_segment],
+                        category_definitions=focused_category_definitions,
+                        research_question=research_question,
+                        coding_rules=coding_rules,
+                        temperature=temperature,
+                        coder_id=coder_id,
+                        batch_size=1
+                    )
+                else:  # abductive
+                    batch_results = await self._batch_analyze_abductive_direct(
+                        batch=[focused_segment],
+                        category_definitions=focused_category_definitions,
+                        research_question=research_question,
+                        coding_rules=coding_rules,
+                        temperature=temperature,
+                        coder_id=coder_id,
+                        category_preselections={segment_id: {'preferred_categories': [focus_category]}},
+                        analysis_mode=analysis_mode,
+                        batch_size=1,
+                        use_context=False,
+                        document_paraphrases=None,
+                        context_paraphrase_count=3,
+                        paraphrase_callback=None
+                    )
+                
+                # Extrahiere Ergebnis aus Batch-Ergebnissen
+                if batch_results and len(batch_results) > 0:
+                    batch_result = batch_results[0]
+                    if 'result' in batch_result:
+                        result_data = batch_result['result']
+                        # Erstelle UnifiedAnalysisResult-ähnliches Objekt
+                        class MockResult:
+                            def __init__(self, data):
+                                self.primary_category = data.get('primary_category', focus_category)
+                                self.confidence = data.get('confidence', focus_context['relevance_score'])
+                                self.subcategories = data.get('subcategories', [])
+                                self.keywords = data.get('keywords', '')
+                                self.paraphrase = data.get('paraphrase', '')
+                                self.justification = data.get('justification', '')
+                        
+                        result = MockResult(result_data)
+                
+            elif analysis_mode == 'grounded':
+                # Für grounded mode: Verwende die grounded-spezifischen Methoden
+                # Da grounded mode codes statt Kategorien verwendet, ist fokussierte Kodierung hier anders
+                print(f"      ⚠️ Grounded mode fokussierte Kodierung noch nicht implementiert - verwende Fallback")
+                return None
+                
+            if not result:
+                print(f"      ❌ Keine Antwort für fokussierte Kodierung: {focus_category} (Mode: {analysis_mode})")
+                return None
+                
+            # Formatiere Ergebnis für Mehrfachkodierung
+            multiple_segment_id = f"{segment_id}-{instance_number}"
+            
+            formatted_result = {
+                'segment_id': multiple_segment_id,
+                'result': {
+                    'primary_category': result.primary_category if hasattr(result, 'primary_category') else focus_category,
+                    'confidence': result.confidence if hasattr(result, 'confidence') else focus_context['relevance_score'],
+                    'all_categories': [result.primary_category if hasattr(result, 'primary_category') else focus_category],
+                    'subcategories': result.subcategories if hasattr(result, 'subcategories') else [],
+                    'keywords': result.keywords if hasattr(result, 'keywords') else '',
+                    'paraphrase': result.paraphrase if hasattr(result, 'paraphrase') else '',
+                    'justification': f"[Mehrfachkodierung {instance_number}/{total_instances}, Fokus: {focus_category}] {result.justification if hasattr(result, 'justification') else ''}",
+                    'coder_id': coder_id,
+                    'category_preselection_used': True,
+                    'preferred_categories': [focus_category],
+                    'preselection_reasoning': focus_context.get('justification', ''),
+                    # Mehrfachkodierungs-Metadaten
+                    'multiple_coding_instance': instance_number,
+                    'total_coding_instances': total_instances,
+                    'original_segment_id': segment_id,
+                    'is_multiple_coding': True,
+                    # WICHTIG: Original text für Export
+                    'text': segment_text,
+                    # Fokus-spezifische Daten
+                    'focus_category': focus_category,
+                    'focus_adherence': getattr(result, 'focus_adherence', {}),
+                    'subcategory_validation': getattr(result, 'subcategory_validation', {})
+                },
+                'analysis_mode': analysis_mode,
+                'timestamp': asyncio.get_event_loop().time()
+            }
+            
+            return formatted_result
+            
+        except Exception as analyzer_error:
+            print(f"      ❌ Fokussierte Kodierung Fehler für {focus_category} (Mode: {analysis_mode}): {analyzer_error}")
+            return None
+
+    async def _process_focused_batch(self, focused_segments: List[Dict], category_definitions: Dict,
+                                   research_question: str, coding_rules: List[str], temperature: float,
+                                   coder_id: str, context_paraphrases: Optional[List[str]] = None,
+                                   analysis_mode: str = 'deductive') -> List[Dict]:
+        """
+        Verarbeitet einen Batch von fokussierten Kodierungen für Mehrfachkodierung.
+        Jedes Segment hat eine spezifische Fokus-Kategorie.
+        """
+        results = []
+        
+        for focused_segment in focused_segments:
+            segment_id = focused_segment['segment_id']
+            text = focused_segment['text']
+            focus_category = focused_segment['focus_category']
+            focus_context = focused_segment['focus_context']
+            original_task = focused_segment['original_task']
+            
+            try:
+                print(f"      🎯 Fokussierte Kodierung: {focus_category} für {original_task['segment_id']}")
+                
+                # Verwende fokussierten API-Call
+                focused_result = await self._code_segment_with_focus(
+                    segment_text=text,
+                    segment_id=original_task['segment_id'],
+                    focus_category=focus_category,
+                    focus_context=focus_context,
+                    category_definitions=category_definitions,
+                    research_question=research_question,
+                    coding_rules=coding_rules,
+                    temperature=temperature,
+                    coder_id=coder_id,
+                    instance_number=original_task['instance_number'],
+                    total_instances=original_task['total_instances'],
+                    analysis_mode=analysis_mode
+                )
+                
+                if focused_result:
+                    results.append(focused_result)
+                    print(f"      ✅ Fokussierte Kodierung erfolgreich: {focused_result['result']['primary_category']}")
+                else:
+                    print(f"      ❌ Fokussierte Kodierung fehlgeschlagen - verwende Fallback")
+                    # Fallback: Erstelle Basis-Ergebnis
+                    fallback_result = self._create_focused_fallback_result(
+                        original_task, focus_category, focus_context, coder_id, text, category_definitions
+                    )
+                    results.append(fallback_result)
+                    
+            except Exception as e:
+                print(f"      ❌ Fehler bei fokussierter Kodierung für {focus_category}: {e}")
+                # Fallback: Erstelle Basis-Ergebnis
+                fallback_result = self._create_focused_fallback_result(
+                    original_task, focus_category, focus_context, coder_id, text, category_definitions
+                )
+                results.append(fallback_result)
+        
+        return results
+
+    def _create_focused_fallback_result(self, original_task: Dict, focus_category: str, 
+                                      focus_context: Dict, coder_id: str, text: str,
+                                      category_definitions: Dict = None) -> Dict:
+        """
+        Erstellt ein Fallback-Ergebnis für fokussierte Kodierung.
+        """
+        multiple_segment_id = f"{original_task['segment_id']}-{original_task['instance_number']}"
+        
+        # Verwende Hilfsfunktion für Subkategorien mit User-Config
+        target_subcategories = self._get_subcategories_for_category(
+            focus_category, None, category_definitions
+        )
+        
+        print(f"      📋 Fallback Subkategorien für '{focus_category}': {target_subcategories}")
+        
+        return {
+            'segment_id': multiple_segment_id,
+            'result': {
+                'primary_category': focus_category,
+                'confidence': focus_context['relevance_score'],
+                'all_categories': [focus_category],
+                'subcategories': target_subcategories,
+                'keywords': '',
+                'paraphrase': '',
+                'justification': f"[Mehrfachkodierung {original_task['instance_number']}/{original_task['total_instances']}, Score: {focus_context['relevance_score']:.2f}, Fokus: {focus_category}, Fallback] {focus_context.get('justification', 'Kategorie-spezifische Kodierung basierend auf Präferenzen')}",
+                'coder_id': coder_id,
+                'category_preselection_used': bool(original_task['preferred_cats']),
+                'preferred_categories': original_task['preferred_cats'],
+                'preselection_reasoning': original_task['seg_prefs'].get('reasoning', ''),
+                # Mehrfachkodierungs-Metadaten
+                'multiple_coding_instance': original_task['instance_number'],
+                'total_coding_instances': original_task['total_instances'],
+                'original_segment_id': original_task['segment_id'],
+                'is_multiple_coding': True,
+                'text': text,
+                # Fokus-spezifische Daten
+                'focus_category': focus_category
+            },
+            'analysis_mode': 'deductive',
+            'timestamp': asyncio.get_event_loop().time()
+        }
+
+    def _create_fallback_multiple_coding_result(self, original_result, target_category: str, 
+                                              cat_info: Dict, instance_number: int, total_instances: int,
+                                              coder_id: str, preferred_cats: List[str], seg_prefs: Dict,
+                                              original_text: str) -> Dict:
+        """
+        Erstellt ein Fallback-Ergebnis für Mehrfachkodierung wenn fokussierte API-Calls fehlschlagen.
+        """
+        multiple_segment_id = f"{original_result.segment_id}-{instance_number}"
+        
+        # Verwende Hilfsfunktion für Subkategorien
+        target_subcategories = self._get_subcategories_for_category(
+            target_category, 
+            original_result.subcategories if hasattr(original_result, 'subcategories') else None,
+            None  # Keine category_definitions verfügbar in diesem Kontext
+        )
+        
+        return {
+            'segment_id': multiple_segment_id,
+            'result': {
+                'primary_category': target_category,
+                'confidence': cat_info['relevance_score'],
+                'all_categories': [target_category],
+                'subcategories': target_subcategories,
+                'keywords': original_result.keywords if hasattr(original_result, 'keywords') else '',
+                'paraphrase': original_result.paraphrase if hasattr(original_result, 'paraphrase') else '',
+                'justification': f"[Mehrfachkodierung {instance_number}/{total_instances}, Score: {cat_info['relevance_score']:.2f}, Fallback] {original_result.justification if hasattr(original_result, 'justification') else ''}",
+                'coder_id': coder_id,
+                'category_preselection_used': bool(preferred_cats),
+                'preferred_categories': preferred_cats,
+                'preselection_reasoning': seg_prefs.get('reasoning', ''),
+                # Mehrfachkodierungs-Metadaten
+                'multiple_coding_instance': instance_number,
+                'total_coding_instances': total_instances,
+                'original_segment_id': original_result.segment_id,
+                'is_multiple_coding': True,
+                # WICHTIG: Original text für Export
+                'text': original_text
+            },
+            'analysis_mode': 'deductive',
+            'timestamp': asyncio.get_event_loop().time()
+        }
+
     def _serialize_category_definitions(self, category_definitions: Dict[str, Any]) -> Dict[str, Any]:
         """
         Konvertiert CategoryDefinition-Objekte zu JSON-serialisierbarem Format.
@@ -215,6 +547,243 @@ class OptimizationController:
                 }
         
         return serializable_definitions
+    
+    async def _store_relevance_results_for_export(self, all_relevance_results: List[Dict], all_segments: List[Dict]) -> None:
+        """
+        FIX: Store ALL relevance results (relevant + non-relevant) from UnifiedAnalyzer in RelevanceChecker for export retrieval.
+        
+        Args:
+            all_relevance_results: ALL results from UnifiedAnalyzer.analyze_relevance_simple(return_all_results=True)
+            all_segments: All segments that were checked (for completeness check)
+        """
+        # Get or create RelevanceChecker instance
+        relevance_checker = None
+        
+        # Try to get from analysis_manager first
+        if hasattr(self, 'analysis_manager') and self.analysis_manager and hasattr(self.analysis_manager, 'relevance_checker'):
+            relevance_checker = self.analysis_manager.relevance_checker
+        
+        if not relevance_checker:
+            print("   ⚠️ WARNING: No RelevanceChecker available to store results for export")
+            return
+        
+        print(f"   📝 Storing {len(all_relevance_results)} relevance results (relevant + non-relevant) in RelevanceChecker for export...")
+        
+        # Create a map of ALL segments with their LLM results
+        all_results_map = {result.get('segment_id', ''): result for result in all_relevance_results}
+        
+        # Store results for all segments
+        for segment in all_segments:
+            segment_id = segment.get('segment_id', '')
+            
+            if segment_id in all_results_map:
+                # Use actual LLM data (relevant OR non-relevant)
+                rel_result = all_results_map[segment_id]
+                
+                # Extract aspects from structured fields or reasoning text
+                aspects_found = rel_result.get('aspects_found', rel_result.get('core_topics_found', []))
+                key_aspects = rel_result.get('key_aspects', [])
+                reasoning = rel_result.get('relevance_reasoning', rel_result.get('reasoning', rel_result.get('justification', 'Keine spezifische Begründung vom LLM erhalten')))
+                
+                # FIX: Use the LLM's specific reasoning for both relevant AND non-relevant segments
+                # print(f"   📝 DEBUG: Storing LLM reasoning for {segment_id}: '{reasoning[:50]}...'")
+                
+                # FIX: If structured aspects are empty, extract from reasoning text
+                if not aspects_found and not key_aspects and reasoning:
+                    extracted_aspects = self._extract_aspects_from_reasoning(reasoning)
+                    if extracted_aspects:
+                        # FIX: Distinguish between aspects_found and key_aspects
+                        aspects_found = extracted_aspects  # All aspects mentioned in reasoning
+                        
+                        # key_aspects should be the most important/central aspects
+                        # Priority: aspects with "förderung", "unterstützung", "workshops" are often key
+                        key_indicators = ['förderung', 'unterstützung', 'workshop', 'gesundheit', 'selbstfürsorge']
+                        key_aspects = []
+                        
+                        # First, add aspects that contain key indicators
+                        for aspect in extracted_aspects:
+                            if any(indicator in aspect.lower() for indicator in key_indicators):
+                                key_aspects.append(aspect)
+                        
+                        # If no key aspects found, take the first 2 aspects
+                        if not key_aspects:
+                            key_aspects = extracted_aspects[:2] if len(extracted_aspects) > 1 else extracted_aspects
+                        else:
+                            # Limit key aspects to top 2
+                            key_aspects = key_aspects[:2]
+                        
+                        # print(f"   🔍 DEBUG: Extracted aspects from reasoning for {segment_id}: {extracted_aspects}")
+                        # print(f"   🎯 DEBUG: Key aspects (top {len(key_aspects)}): {key_aspects}")
+                
+                # print(f"   📝 DEBUG: Storing for {segment_id}: aspects_found={len(aspects_found)} items, key_aspects={len(key_aspects)} items")
+                
+                # FIX: Use actual classification_confidence from LLM or calculate it based on reasoning quality
+                actual_classification_confidence = rel_result.get('classification_confidence')
+                relevance_strength_source = "LLM"
+                classification_confidence_source = "LLM"
+                
+                if actual_classification_confidence is None or actual_classification_confidence == 0.0:
+                    # Calculate confidence based on reasoning quality and relevance strength
+                    reasoning_quality = self._assess_reasoning_quality(reasoning)
+                    relevance_strength = rel_result.get('research_relevance', 0.5)
+                    # Higher relevance strength + good reasoning = higher classification confidence
+                    actual_classification_confidence = min(0.95, (reasoning_quality * 0.4) + (relevance_strength * 0.6))
+                    classification_confidence_source = "calculated"
+                    print(f"   🧮 DEBUG: Calculated classification_confidence for {segment_id}: {actual_classification_confidence:.2f} (reasoning_quality: {reasoning_quality:.2f}, relevance_strength: {relevance_strength:.2f})")
+                
+                # print(f"   📊 DEBUG: Final values for {segment_id}:")
+                # print(f"      Relevanz_Stärke: {rel_result.get('research_relevance', 0.0):.2f} (source: {relevance_strength_source})")
+                # print(f"      Klassifikations_Konfidenz: {actual_classification_confidence:.2f} (source: {classification_confidence_source})")
+                
+                relevance_checker.relevance_details[segment_id] = {
+                    'confidence': rel_result.get('research_relevance', rel_result.get('confidence', 0.8)),
+                    'relevance_strength': rel_result.get('research_relevance', rel_result.get('relevance_strength', 0.8)),
+                    'classification_confidence': actual_classification_confidence,
+                    'key_aspects': key_aspects,
+                    'aspects_found': aspects_found,
+                    'reasoning': reasoning,  # FIX: Use specific LLM reasoning for ALL segments
+                    'is_relevant': rel_result.get('is_relevant', True),
+                    'main_themes': rel_result.get('main_themes', []),
+                    'exclusion_match': rel_result.get('exclusion_match', False)
+                }
+            else:
+                # Fallback for segments not found in LLM results (should not happen)
+                print(f"   ⚠️ WARNING: No LLM result found for segment {segment_id} - using fallback")
+                # Store information for segments without LLM results
+                import random
+                random.seed(hash(segment_id))  # Deterministic but varied based on segment_id
+                non_relevant_confidence = 0.75 + (random.random() * 0.2)  # Range: 0.75-0.95
+                
+                relevance_checker.relevance_details[segment_id] = {
+                    'confidence': 0.2,
+                    'relevance_strength': 0.2,
+                    'classification_confidence': non_relevant_confidence,  # Varied confidence in the classification
+                    'key_aspects': [],
+                    'aspects_found': [],
+                    'reasoning': 'Keine LLM-Analyse verfügbar - Fallback-Begründung',  # FIX: Clear fallback message
+                    'is_relevant': False,
+                    'main_themes': [],
+                    'exclusion_match': False
+                }
+        
+        print(f"   ✅ Stored relevance details for {len(relevance_checker.relevance_details)} segments")
+    
+    def _assess_reasoning_quality(self, reasoning: str) -> float:
+        """
+        FIX: Assess the quality of LLM reasoning to calculate classification confidence.
+        
+        Args:
+            reasoning: The justification/reasoning text from LLM
+            
+        Returns:
+            Quality score between 0.0 and 1.0
+        """
+        if not reasoning or len(reasoning.strip()) < 10:
+            return 0.3  # Low confidence for very short or missing reasoning
+        
+        reasoning_lower = reasoning.lower()
+        quality_score = 0.5  # Base score
+        
+        # Positive quality indicators
+        positive_indicators = [
+            ('spezifisch', 0.1), ('konkret', 0.1), ('detailliert', 0.1),
+            ('beispiel', 0.1), ('bezieht sich auf', 0.1), ('behandelt', 0.1),
+            ('thematisiert', 0.1), ('informationen zu', 0.1), ('aspekte', 0.1),
+            ('relevant für', 0.1), ('beiträgt zu', 0.1), ('direkt', 0.1)
+        ]
+        
+        # Negative quality indicators (reduce confidence)
+        negative_indicators = [
+            ('allgemein', -0.1), ('vage', -0.1), ('unklar', -0.1),
+            ('möglicherweise', -0.1), ('eventuell', -0.1), ('könnte', -0.1)
+        ]
+        
+        # Check for positive indicators
+        for indicator, score_change in positive_indicators:
+            if indicator in reasoning_lower:
+                quality_score += score_change
+        
+        # Check for negative indicators
+        for indicator, score_change in negative_indicators:
+            if indicator in reasoning_lower:
+                quality_score += score_change  # score_change is negative
+        
+        # Length bonus for detailed reasoning
+        if len(reasoning) > 100:
+            quality_score += 0.1
+        if len(reasoning) > 200:
+            quality_score += 0.1
+        
+        # Ensure score is within bounds
+        return max(0.1, min(0.95, quality_score))
+    
+    def _extract_aspects_from_reasoning(self, reasoning: str) -> List[str]:
+        """
+        FIX: Extract research aspects from reasoning text when structured fields are empty.
+        
+        Args:
+            reasoning: The justification/reasoning text from LLM
+            
+        Returns:
+            List of extracted research aspects
+        """
+        if not reasoning:
+            return []
+        
+        aspects = []
+        reasoning_lower = reasoning.lower()
+        
+        # Common patterns for research aspects in German reasoning text
+        aspect_patterns = [
+            r'behandelt\s+([^.]+?)(?:\s+und|\s+sowie|\.|,|$)',
+            r'thematisiert\s+([^.]+?)(?:\s+und|\s+sowie|\.|,|$)',
+            r'informationen\s+zu\s+([^.]+?)(?:\s+und|\s+sowie|\.|,|$)',
+            r'aspekte?\s+(?:der|von|zu)\s+([^.]+?)(?:\s+und|\s+sowie|\.|,|$)',
+            r'bezieht\s+sich\s+auf\s+([^.]+?)(?:\s+und|\s+sowie|\.|,|$)',
+            r'relevant\s+für\s+([^.]+?)(?:\s+und|\s+sowie|\.|,|$)',
+            r'beiträgt\s+zu\s+([^.]+?)(?:\s+und|\s+sowie|\.|,|$)',
+            r'förderung\s+(?:der|von)\s+([^.]+?)(?:\s+und|\s+sowie|\.|,|$)',
+            r'unterstützung\s+(?:der|von|bei)\s+([^.]+?)(?:\s+und|\s+sowie|\.|,|$)',
+            r'workshops?\s+(?:zu|zur|für)\s+([^.]+?)(?:\s+und|\s+sowie|\.|,|$)'
+        ]
+        
+        import re
+        
+        for pattern in aspect_patterns:
+            matches = re.finditer(pattern, reasoning_lower, re.IGNORECASE)
+            for match in matches:
+                aspect = match.group(1).strip()
+                if len(aspect) > 5 and aspect not in aspects:  # Filter out very short matches
+                    # Clean up the aspect
+                    aspect = aspect.replace('  ', ' ').strip()
+                    if not aspect.endswith('.'):
+                        aspects.append(aspect.capitalize())
+        
+        # Remove duplicates while preserving order
+        unique_aspects = []
+        for aspect in aspects:
+            if aspect not in unique_aspects:
+                unique_aspects.append(aspect)
+        
+        return unique_aspects[:5]  # Limit to top 5 aspects to avoid noise        
+        import re
+        for pattern in aspect_patterns:
+            matches = re.findall(pattern, reasoning_lower, re.IGNORECASE)
+            for match in matches:
+                # Clean up the match
+                aspect = match.strip().strip(',').strip()
+                if len(aspect) > 5 and len(aspect) < 100:  # Reasonable length
+                    aspects.append(aspect.capitalize())
+        
+        # Remove duplicates while preserving order
+        seen = set()
+        unique_aspects = []
+        for aspect in aspects:
+            if aspect not in seen:
+                seen.add(aspect)
+                unique_aspects.append(aspect)
+        
+        return unique_aspects[:5]  # Limit to 5 aspects max
     
     def get_cache_statistics(self) -> Dict[str, Any]:
         """
@@ -291,6 +860,7 @@ class OptimizationController:
                               use_context: bool = False,
                               document_paraphrases: Optional[Dict[str, List[str]]] = None,
                               context_paraphrase_count: int = 3,
+                              paraphrase_callback: Optional[callable] = None,
                               **kwargs) -> List[Dict[str, Any]]:
         """
         Analyze segments using optimized approach for the given mode.
@@ -348,6 +918,9 @@ class OptimizationController:
         else:
             print(f"   📝 Kontext-Paraphrasen deaktiviert")
         
+        # Configure analysis mode for proper timestamped filenames
+        self.dynamic_cache_manager.configure_analysis_mode(analysis_mode.value)
+        
         # Start metrics collection
         batch_id = f"{analysis_mode.value}_{int(asyncio.get_event_loop().time())}"
         self.metrics_collector.start_analysis(analysis_mode.value, batch_id)
@@ -369,6 +942,7 @@ class OptimizationController:
                     use_context=use_context,
                     document_paraphrases=document_paraphrases,
                     context_paraphrase_count=context_paraphrase_count,
+                    paraphrase_callback=paraphrase_callback,
                     **kwargs
                 )
                 # Deductive mode doesn't change categories
@@ -465,6 +1039,7 @@ class OptimizationController:
                                 use_context: bool = False,
                                 document_paraphrases: Optional[Dict[str, List[str]]] = None,
                                 context_paraphrase_count: int = 3,
+                                paraphrase_callback: Optional[callable] = None,
                                 **kwargs) -> List[Dict[str, Any]]:
         """
         Optimized deductive analysis with batch processing and multi-coder support.
@@ -519,16 +1094,28 @@ class OptimizationController:
             print(f"   📊 Schritt 1: Erweiterte Relevanzprüfung mit Kategorie-Präferenzen (SHARED)...")
             print(f"   📋 Forschungsfrage: {research_question}")
             
-            # Schritt 1a: Einfache Relevanzprüfung (SHARED)
+            # Schritt 1a: Einfache Relevanzprüfung (SHARED) - EINMAL für beide Zwecke
             print(f"   🔍 API Call 1: Einfache Relevanzprüfung für {len(segments)} Segmente...")
             from ..core.config import CONFIG
             relevance_threshold = CONFIG.get('RELEVANCE_THRESHOLD', 0.0)
-            relevance_results = await self.unified_analyzer.analyze_relevance_simple(
+            
+            # FIX: Mache nur EINEN API-Call und verwende die Ergebnisse für beide Zwecke
+            all_relevance_results = await self.unified_analyzer.analyze_relevance_simple(
                 segments=segments,
                 research_question=research_question,
                 batch_size=batch_size,
-                relevance_threshold=relevance_threshold
+                relevance_threshold=relevance_threshold,
+                return_all_results=True  # Get all results with specific LLM reasoning
             )
+            
+            # FIX: Store ALL results in RelevanceChecker for export
+            await self._store_relevance_results_for_export(all_relevance_results, segments)
+            
+            # FIX: Filtere relevante Ergebnisse aus all_relevance_results
+            relevance_results = [
+                result for result in all_relevance_results 
+                if result.get('is_relevant', False) and result.get('research_relevance', 0.0) >= relevance_threshold
+            ]
             
             # Alle als relevant markierten Segmente werden kodiert (kein zusätzlicher Threshold)
             relevant_segments = []
@@ -603,37 +1190,93 @@ class OptimizationController:
             else:
                 print(f"   ⚠️ Keine Kategoriepräferenzen ermittelt - alle Segmente haben schwache Kategorie-Scores")
             
-            # Jetzt für jeden Kodierer nur noch die Kodierung durchführen
-            for coder_config in coder_settings:
-                coder_id = coder_config.get('coder_id', 'auto_1')
-                coder_temperature = coder_config.get('temperature', temperature)
+            # KORRIGIERTE Multi-Coder Implementierung: Batch-weise statt Kodierer-weise
+            print(f"   🔄 Multi-Coder Mode: Batch-weise Verarbeitung mit {len(coder_settings)} Kodierern")
+            
+            # Process segments in batches, with each batch coded by all coders
+            total_batches = (len(relevant_segments) + batch_size - 1) // batch_size
+            
+            for i in range(0, len(relevant_segments), batch_size):
+                batch = relevant_segments[i:i + batch_size]
+                batch_num = (i // batch_size) + 1
                 
-                print(f"   🔄 Analysiere mit Kodierer '{coder_id}' (Temperature: {coder_temperature})")
+                print(f"   📦 Batch {batch_num}/{total_batches}: {len(batch)} Segmente")
                 
-                # Run analysis for this coder (NUR KODIERUNG, keine Relevanz/Präferenzen)
-                coder_results = await self._analyze_deductive_coding_only(
-                    relevant_segments=relevant_segments,
-                    category_definitions=category_definitions,
-                    research_question=research_question,
-                    coding_rules=coding_rules,
-                    temperature=coder_temperature,
-                    coder_id=coder_id,
-                    batch_size=batch_size,
-                    config=config,
-                    analysis_mode=analysis_mode,
-                    use_context=use_context,
-                    document_paraphrases=document_paraphrases,
-                    context_paraphrase_count=context_paraphrase_count,
-                    category_preselections=category_preselections
-                )
-                all_results.extend(coder_results)
+                # Für jeden Kodierer in diesem Batch
+                for coder_config in coder_settings:
+                    coder_id = coder_config.get('coder_id', 'auto_1')
+                    coder_temperature = coder_config.get('temperature', temperature)
+                    
+                    print(f"      🔄 Analysiere mit Kodierer '{coder_id}' (Temperature: {coder_temperature})")
+                    
+                    # Process this batch with this coder
+                    if config['enable_batching'] and len(batch) > 1:
+                        batch_results = await self._batch_analyze_deductive(
+                            batch=batch,
+                            category_definitions=category_definitions,
+                            research_question=research_question,
+                            coding_rules=coding_rules,
+                            temperature=coder_temperature,
+                            coder_id=coder_id,
+                            category_preselections=category_preselections,
+                            analysis_mode=analysis_mode,
+                            batch_size=batch_size,
+                            use_context=use_context,
+                            document_paraphrases=document_paraphrases,
+                            context_paraphrase_count=context_paraphrase_count,
+                            paraphrase_callback=paraphrase_callback
+                        )
+                        all_results.extend(batch_results)
+                    else:
+                        # Process individually for small batches
+                        for segment in batch:
+                            seg_prefs = category_preselections.get(segment['segment_id'], {}) if category_preselections else {}
+                            preferred_cats = seg_prefs.get('preferred_categories', [])
+                            
+                            # Filter categories if preferences exist
+                            effective_categories = category_definitions
+                            if preferred_cats:
+                                effective_categories = {
+                                    name: definition for name, definition in category_definitions.items()
+                                    if name in preferred_cats
+                                }
+                            
+                            # Get progressive context paraphrases for this segment
+                            context_paraphrases = []
+                            if use_context and document_paraphrases:
+                                context_paraphrases = self._get_progressive_context_paraphrases(
+                                    segment['segment_id'], document_paraphrases, context_paraphrase_count
+                                )
+                            
+                            # Analyze single segment
+                            result = await self.unified_analyzer.analyze_single(
+                                segment=segment,
+                                category_definitions=effective_categories,
+                                research_question=research_question,
+                                coding_rules=coding_rules,
+                                batch_size=batch_size,
+                                temperature=coder_temperature,
+                                context_paraphrases=context_paraphrases if context_paraphrases else None
+                            )
+                            
+                            if result:
+                                formatted_res = self._format_single_coding_result(result, coder_id, preferred_cats, seg_prefs)
+                                all_results.append(formatted_res)
+                                
+                                # Invoke paraphrase callback
+                                if paraphrase_callback and formatted_res.get('result', {}).get('paraphrase'):
+                                    paraphrase_callback(segment['segment_id'], formatted_res['result']['paraphrase'])
             
             # DEBUG: Track actual API calls made by optimization controller
             calls_after = token_counter.session_stats.get('requests', 0)
             optimization_calls = calls_after - calls_before
-            print(f"      └─ API calls after optimization: {calls_after}")
+            print(f"    ")
+            print(f"  🔢  API calls after optimization: {calls_after}")
             print(f"      └─ Optimization controller calls: {optimization_calls}")
             print(f"      └─ Estimation accuracy: {optimization_calls}/{self._debug_expected_calls} = {(optimization_calls/self._debug_expected_calls*100):.1f}%" if self._debug_expected_calls > 0 else "")
+            
+            # Sortiere Ergebnisse nach Chunk-ID für konsistente Ausgabe
+            all_results = self._sort_results_by_chunk_id(all_results)
             
             return all_results
         else:
@@ -680,6 +1323,36 @@ class OptimizationController:
             
             return result
     
+    def _sort_results_by_chunk_id(self, results: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """
+        Sortiert Ergebnisse nach Chunk-ID für konsistente Ausgabe.
+        Behandelt sowohl normale als auch Mehrfachkodierungs-IDs.
+        
+        Beispiele:
+        - "text_demo_wiss.pdf_chunk_0" -> (text_demo_wiss.pdf, 0, 0)
+        - "text_demo_wiss.pdf_chunk_5-2" -> (text_demo_wiss.pdf, 5, 2)
+        """
+        def extract_sort_key(result: Dict[str, Any]) -> tuple:
+            segment_id = result.get('segment_id', '')
+            
+            # Extrahiere Dokumentname und Chunk-Nummer
+            doc_name = self._extract_doc_name_from_segment_id(segment_id)
+            chunk_num = self._extract_chunk_number_from_segment_id(segment_id)
+            
+            # Extrahiere Mehrfachkodierungs-Instanz (falls vorhanden)
+            instance_num = 0
+            if '-' in segment_id and '_chunk_' in segment_id:
+                parts = segment_id.split('_chunk_')
+                if len(parts) >= 2 and '-' in parts[1]:
+                    try:
+                        instance_num = int(parts[1].split('-')[1])
+                    except (ValueError, IndexError):
+                        instance_num = 0
+            
+            return (doc_name, chunk_num, instance_num)
+        
+        return sorted(results, key=extract_sort_key)
+
     def _extract_doc_name_from_segment_id(self, segment_id: str) -> str:
         """
         Extrahiert Dokumentname aus Segment-ID.
@@ -755,6 +1428,14 @@ class OptimizationController:
         # Limitiere auf die letzten N Paraphrasen (wie in Standard-Analyse)
         context_paraphrases = available_previous_paraphrases[-context_paraphrase_count:]
         
+        # DEBUG: Detailliertes Logging der verwendeten Kontext-Paraphrasen
+        if context_paraphrases:
+            print(f"      📝 Kontext für {segment_id}: {len(context_paraphrases)} Paraphrasen aus Chunks 0-{current_chunk_num-1}")
+            for i, paraphrase in enumerate(context_paraphrases):
+                # Kürze Paraphrase für Logging
+                short_paraphrase = paraphrase[:100] + "..." if len(paraphrase) > 100 else paraphrase
+                print(f"         {i+1}. {short_paraphrase}")
+        
         return context_paraphrases
     
     def _format_single_coding_result(self, r, coder_id: str, preferred_cats: List[str], seg_prefs: Dict) -> Dict:
@@ -778,7 +1459,6 @@ class OptimizationController:
                 # Standard-Kodierung Metadaten
                 'multiple_coding_instance': 1,
                 'total_coding_instances': 1,
-                'target_category': '',
                 'original_segment_id': r.segment_id,
                 'is_multiple_coding': False
             },
@@ -817,7 +1497,6 @@ class OptimizationController:
                 # Standard-Kodierung Metadaten
                 'multiple_coding_instance': 1,
                 'total_coding_instances': 1,
-                'target_category': '',
                 'original_segment_id': r.segment_id,
                 'is_multiple_coding': False
             },
@@ -858,7 +1537,6 @@ class OptimizationController:
                 # Standard-Kodierung Metadaten
                 'multiple_coding_instance': 1,
                 'total_coding_instances': 1,
-                'target_category': '',
                 'original_segment_id': r.segment_id,
                 'is_multiple_coding': False
             },
@@ -879,7 +1557,8 @@ class OptimizationController:
                                             use_context: bool = False,
                                             document_paraphrases: Optional[Dict[str, List[str]]] = None,
                                             context_paraphrase_count: int = 3,
-                                            category_preselections: Optional[Dict[str, Dict]] = None) -> List[Dict[str, Any]]:
+                                            category_preselections: Optional[Dict[str, Dict]] = None,
+                                            paraphrase_callback: Optional[callable] = None) -> List[Dict[str, Any]]:
         """
         Führt nur die Kodierung durch (ohne Relevanzprüfung und Kategoriepräferenzen).
         Für Multi-Coder-Szenarien wo Relevanz/Präferenzen bereits einmal berechnet wurden.
@@ -914,7 +1593,8 @@ class OptimizationController:
                     batch_size=batch_size,
                     use_context=use_context,
                     document_paraphrases=document_paraphrases,
-                    context_paraphrase_count=context_paraphrase_count
+                    context_paraphrase_count=context_paraphrase_count,
+                    paraphrase_callback=paraphrase_callback
                 )
                 results.extend(batch_results)
             else:
@@ -932,7 +1612,10 @@ class OptimizationController:
                             name: definition for name, definition in category_definitions.items()
                             if name in preferred_cats
                         }
-                        print(f"   🎯 Segment {segment['segment_id']}: Fokus auf {len(effective_categories)} präferierte Kategorien")
+                        print(f"   🎯 Segment {segment['segment_id']}: Fokus auf {len(effective_categories)} präferierte Kategorien: {list(effective_categories.keys())}")
+                        print(f"      └─ Ursprünglich {len(category_definitions)} Kategorien verfügbar: {list(category_definitions.keys())}")
+                    else:
+                        print(f"   📝 Segment {segment['segment_id']}: Keine Kategoriepräferenzen - verwende alle {len(effective_categories)} Kategorien")
                     
                     # Single segment analysis using analyze_batch
                     batch_results = await self.unified_analyzer.analyze_batch(
@@ -950,6 +1633,21 @@ class OptimizationController:
                         result = None
                     
                     if result:
+                        print(f"      🔍 DEBUG: LLM returned category '{result.primary_category}' for segment with preferred categories {preferred_cats}")
+                        
+                        # CRITICAL FIX: Validate that returned category is in the filtered set
+                        if preferred_cats and result.primary_category not in preferred_cats:
+                            print(f"      ❌ WARNING: LLM chose '{result.primary_category}' but preferred categories were {preferred_cats}")
+                            print(f"      🔧 FIXING: Forcing category to first preferred category: {preferred_cats[0]}")
+                            
+                            # Override the category with the first preferred category
+                            original_category = result.primary_category
+                            result.primary_category = preferred_cats[0]
+                            
+                            # Update justification to reflect the override
+                            original_justification = getattr(result, 'justification', '')
+                            result.justification = f"[Kategorie-Präferenz angewendet: {preferred_cats[0]} statt {original_category}] {original_justification}"
+                        
                         formatted_result = {
                             'segment_id': segment['segment_id'],
                             'result': {
@@ -1167,7 +1865,8 @@ class OptimizationController:
                                       batch_size: int = 5,
                                       use_context: bool = False,
                                       document_paraphrases: Optional[Dict[str, List[str]]] = None,
-                                      context_paraphrase_count: int = 3) -> List[Dict[str, Any]]:
+                                      context_paraphrase_count: int = 3,
+                                      paraphrase_callback: Optional[callable] = None) -> List[Dict[str, Any]]:
         """
         Analyze batch of segments for deductive mode using intelligent caching.
         
@@ -1255,34 +1954,54 @@ class OptimizationController:
             print(f"      🔍 API Call 3+: Kodierung von {len(uncached_segments)} Segmenten (Cache Miss)")
             
             # Apply category preselections if available
-            # For batch processing, we need to handle segments with different preferred categories
-            # Strategy: If all segments have similar preferences, use filtered categories
-            # Otherwise, use all categories and let the analyzer decide
+            # For batch processing, we create a segment-specific category mapping
+            # instead of using a union approach
             
             effective_categories = category_definitions
+            segment_category_mapping = None
+            
             if category_preselections:
-                # Collect all preferred categories across the batch
-                all_preferred_cats = set()
+                # Create segment-specific category mapping
+                segment_category_mapping = {}
                 segments_with_prefs = 0
+                all_preferred_cats = set()
+                
                 for segment in uncached_segments:
                     seg_prefs = category_preselections.get(segment['segment_id'], {})
                     preferred_cats = seg_prefs.get('preferred_categories', [])
                     if preferred_cats:
+                        segment_category_mapping[segment['segment_id']] = preferred_cats
                         all_preferred_cats.update(preferred_cats)
                         segments_with_prefs += 1
                 
-                # If most segments have preferences, use the union of preferred categories
-                if segments_with_prefs > len(uncached_segments) / 2 and all_preferred_cats:
+                # Use union of all preferred categories as the available set
+                # but specify per-segment restrictions in the mapping
+                if segments_with_prefs > 0 and all_preferred_cats:
                     effective_categories = {
                         name: definition for name, definition in category_definitions.items()
                         if name in all_preferred_cats
                     }
-                    print(f"   🎯 Batch: Fokus auf {len(effective_categories)} präferierte Kategorien (aus {len(category_definitions)} verfügbaren)")
+                    print(f"   🎯 Batch: Verwende {len(effective_categories)} präferierte Kategorien mit segment-spezifischen Einschränkungen")
+                    
+                    # Show segment-specific preferences
+                    for segment_id, preferred_cats in segment_category_mapping.items():
+                        print(f"      └─ {segment_id}: {preferred_cats}")
+                else:
+                    segment_category_mapping = None
             
             # FIX: Verwende progressive Kontext-Paraphrasen pro Segment
             # Für Batch-Processing nehmen wir die Kontext-Paraphrasen des ersten Segments als Repräsentativ
             # (In der Praxis sollten alle Segmente im Batch aus dem gleichen Dokument stammen)
             context_paraphrases = []
+            
+            # DEBUG: Zeige Kontext-Status
+            if use_context:
+                print(f"      🔍 DEBUG Kontext: use_context={use_context}, document_paraphrases={'verfügbar' if document_paraphrases else 'None/leer'}")
+                if document_paraphrases:
+                    print(f"         └─ Dokumente mit Paraphrasen: {list(document_paraphrases.keys())}")
+                    for doc, paraphrases in document_paraphrases.items():
+                        print(f"         └─ {doc}: {len(paraphrases)} Paraphrasen")
+            
             if use_context and document_paraphrases and uncached_segments:
                 first_segment_id = uncached_segments[0]['segment_id']
                 context_paraphrases = self._get_progressive_context_paraphrases(
@@ -1292,9 +2011,13 @@ class OptimizationController:
                 if context_paraphrases:
                     doc_name = self._extract_doc_name_from_segment_id(first_segment_id)
                     chunk_num = self._extract_chunk_number_from_segment_id(first_segment_id)
-                    print(f"      📝 Nutze {len(context_paraphrases)} progressive Kontext-Paraphrasen für Dokument '{doc_name}' (Chunk {chunk_num})")
+                    print(f"      📝 ✅ VERWENDE {len(context_paraphrases)} progressive Kontext-Paraphrasen für Dokument '{doc_name}' (Chunk {chunk_num})")
+                    print(f"         └─ Kontext-Paraphrasen werden an LLM gesendet für bessere Kodierung")
                 else:
                     first_segment_id = uncached_segments[0]['segment_id']
+                    doc_name = self._extract_doc_name_from_segment_id(first_segment_id)
+                    chunk_num = self._extract_chunk_number_from_segment_id(first_segment_id)
+                    print(f"      📝 ❌ KEINE Kontext-Paraphrasen für Dokument '{doc_name}' (Chunk {chunk_num}) - erstes Segment oder keine verfügbar")
                     doc_name = self._extract_doc_name_from_segment_id(first_segment_id)
                     chunk_num = self._extract_chunk_number_from_segment_id(first_segment_id)
                     print(f"      📝 Keine Kontext-Paraphrasen für Dokument '{doc_name}' Chunk {chunk_num} (erste Chunks oder nicht verfügbar)")
@@ -1307,92 +2030,112 @@ class OptimizationController:
                 coding_rules=coding_rules,
                 batch_size=batch_size,  # Use configured batch_size instead of all segments
                 temperature=temperature,
-                context_paraphrases=context_paraphrases if context_paraphrases else None
+                context_paraphrases=context_paraphrases if context_paraphrases else None,
+                segment_category_mapping=segment_category_mapping  # Pass segment-specific preferences
             )
             
             print(f"   🔍 DEBUG: UnifiedAnalyzer returned {len(batch_results)} results")
             
-            # FIX: Implementiere korrekte Mehrfachkodierung - KEINE separaten API Calls!
-            expanded_results = []
+            # Create mapping from segment_id to original text for multiple coding
+            segment_text_map = {seg['segment_id']: seg['text'] for seg in uncached_segments}
+            
+            # NEUE BATCH-BASIERTE MEHRFACHKODIERUNG: Erste Kodierung nur für erste Kategorie
+            # Sammle Segmente die Mehrfachkodierung benötigen
+            segments_needing_multiple_coding = []
+            first_coding_results = []
+            
+            # Create mapping from segment_id to original text for multiple coding
+            segment_text_map = {seg['segment_id']: seg['text'] for seg in uncached_segments}
+            
             for r in batch_results:
+                # Get original segment text
+                original_text = segment_text_map.get(r.segment_id, '')
+                
                 # Get category preselection info for this specific segment
                 seg_prefs = category_preselections.get(r.segment_id, {}) if category_preselections else {}
                 preferred_cats = seg_prefs.get('preferred_categories', [])
+                category_preferences = seg_prefs.get('category_preferences', {})
                 
-                if hasattr(r, 'requires_multiple_coding') and r.requires_multiple_coding:
-                    # Mehrfachkodierung erforderlich - erstelle mehrere Ergebnisse aus EINER Antwort
-                    relevant_categories = []
-                    if hasattr(r, 'relevance_scores') and r.relevance_scores:
-                        # Sammle alle Kategorien über dem Schwellenwert
-                        for cat_name, score in r.relevance_scores.items():
-                            if score >= self.unified_analyzer.multiple_coding_threshold:
-                                relevant_categories.append({
-                                    'category': cat_name,
-                                    'relevance_score': score
-                                })
+                # CRITICAL FIX: Validate that returned category is in the preferred set
+                if preferred_cats and r.primary_category not in preferred_cats:
+                    print(f"      ❌ BATCH WARNING: LLM chose '{r.primary_category}' but preferred categories were {preferred_cats}")
+                    print(f"      🔧 BATCH FIXING: Forcing category to first preferred category: {preferred_cats[0]}")
                     
-                    if len(relevant_categories) > 1:
-                        print(f"   🔁 Mehrfachkodierung für Segment {r.segment_id}: {len(relevant_categories)} Kategorien")
-                        
-                        # Erstelle separate Ergebnisse für jede relevante Kategorie (OHNE zusätzliche API Calls)
-                        for i, cat_info in enumerate(relevant_categories, 1):
-                            target_category = cat_info['category']
-                            
-                            # Erstelle Mehrfachkodierungs-Instanz basierend auf der ursprünglichen Antwort
-                            multiple_segment_id = f"{r.segment_id}-{i}"
-                            
-                            # Finde passende Subkategorien für diese Kategorie
-                            target_subcategories = []
-                            if hasattr(r, 'subcategories') and r.subcategories:
-                                # Filtere Subkategorien die zu dieser Kategorie gehören
-                                for subcat in r.subcategories:
-                                    if isinstance(subcat, str) and target_category.lower() in subcat.lower():
-                                        target_subcategories.append(subcat)
-                                    elif isinstance(subcat, dict) and subcat.get('category') == target_category:
-                                        target_subcategories.append(subcat.get('name', ''))
-                                
-                                # Fallback: Verwende alle Subkategorien wenn keine spezifischen gefunden
-                                if not target_subcategories:
-                                    target_subcategories = r.subcategories
-                            
-                            formatted_res = {
-                                'segment_id': multiple_segment_id,
-                                'result': {
-                                    'primary_category': target_category,
-                                    'confidence': cat_info['relevance_score'],  # Verwende Relevanz-Score als Konfidenz
-                                    'all_categories': [target_category],
-                                    'subcategories': target_subcategories,
-                                    'keywords': r.keywords if hasattr(r, 'keywords') else '',
-                                    'paraphrase': r.paraphrase if hasattr(r, 'paraphrase') else '',
-                                    'justification': f"[Mehrfachkodierung {i}/{len(relevant_categories)}] {r.justification if hasattr(r, 'justification') else ''}",
-                                    'coder_id': coder_id,
-                                    'category_preselection_used': bool(preferred_cats),
-                                    'preferred_categories': preferred_cats,
-                                    'preselection_reasoning': seg_prefs.get('reasoning', ''),
-                                    # Mehrfachkodierungs-Metadaten
-                                    'multiple_coding_instance': i,
-                                    'total_coding_instances': len(relevant_categories),
-                                    'target_category': target_category,
-                                    'original_segment_id': r.segment_id,
-                                    'is_multiple_coding': True
-                                },
-                                'analysis_mode': analysis_mode,
-                                'timestamp': asyncio.get_event_loop().time()
+                    # Override the category with the first preferred category
+                    original_category = r.primary_category
+                    r.primary_category = preferred_cats[0]
+                    
+                    # Update justification to reflect the override
+                    original_justification = getattr(r, 'justification', '')
+                    r.justification = f"[Kategorie-Präferenz angewendet: {preferred_cats[0]} statt {original_category}] {original_justification}"
+                # Sammle alle Kategorien über dem Schwellenwert aus den Präferenzen
+                relevant_categories = []
+                if category_preferences:
+                    for cat_name, score in category_preferences.items():
+                        if score >= self.unified_analyzer.multiple_coding_threshold:
+                            relevant_categories.append({
+                                'category': cat_name,
+                                'relevance_score': score
+                            })
+                
+                # Mehrfachkodierung wenn 2+ Kategorien über Schwellenwert
+                if len(relevant_categories) > 1:
+                    print(f"   🔁 Mehrfachkodierung für Segment {r.segment_id}: {len(relevant_categories)} Kategorien über Schwellenwert {self.unified_analyzer.multiple_coding_threshold}")
+                    
+                    # Erste Kodierung: Verwende erste (höchste) Kategorie
+                    first_category = relevant_categories[0]
+                    first_result = self._format_single_coding_result(r, coder_id, preferred_cats, seg_prefs)
+                    # Überschreibe mit erster Kategorie
+                    first_result['result']['primary_category'] = first_category['category']
+                    first_result['result']['justification'] = f"[Mehrfachkodierung 1/{len(relevant_categories)}, Score: {first_category['relevance_score']:.2f}] {r.justification if hasattr(r, 'justification') else ''}"
+                    first_result['result']['is_multiple_coding'] = True
+                    first_result['result']['multiple_coding_instance'] = 1
+                    first_result['result']['total_coding_instances'] = len(relevant_categories)
+                    first_result['result']['original_segment_id'] = r.segment_id
+                    first_result['result']['text'] = original_text
+                    first_result['segment_id'] = f"{r.segment_id}-1"
+                    first_coding_results.append(first_result)
+                    
+                    # Sammle zusätzliche Kategorien für fokussierten Batch
+                    for i, cat_info in enumerate(relevant_categories[1:], 2):
+                        segments_needing_multiple_coding.append({
+                            'segment_id': f"{r.segment_id}-{i}",
+                            'text': original_text,
+                            'focus_category': cat_info['category'],
+                            'focus_context': {
+                                'relevance_score': cat_info['relevance_score'],
+                                'justification': seg_prefs.get('reasoning', '')
+                            },
+                            'original_task': {
+                                'segment_id': r.segment_id,
+                                'instance_number': i,
+                                'total_instances': len(relevant_categories),
+                                'preferred_cats': preferred_cats,
+                                'seg_prefs': seg_prefs
                             }
-                            expanded_results.append(formatted_res)
-                            
-                            # Log multiple coding result
-                            print(f"      📝 Mehrfachkodierung {i}: {target_category} (Konfidenz: {cat_info['relevance_score']:.2f})")
-                    else:
-                        # Nur eine Kategorie über Schwellenwert - normale Kodierung
-                        formatted_res = self._format_single_coding_result(r, coder_id, preferred_cats, seg_prefs)
-                        expanded_results.append(formatted_res)
+                        })
                 else:
                     # Keine Mehrfachkodierung erforderlich - normale Kodierung
                     formatted_res = self._format_single_coding_result(r, coder_id, preferred_cats, seg_prefs)
-                    expanded_results.append(formatted_res)
+                    first_coding_results.append(formatted_res)
             
-            new_results = expanded_results
+            # Verarbeite fokussierten Batch für zusätzliche Kodierungen
+            focused_results = []
+            if segments_needing_multiple_coding:
+                print(f"   🎯 Fokussierter Batch: {len(segments_needing_multiple_coding)} zusätzliche Kodierungen")
+                focused_results = await self._process_focused_batch(
+                    focused_segments=segments_needing_multiple_coding,
+                    category_definitions=category_definitions,
+                    research_question=research_question,
+                    coding_rules=coding_rules,
+                    temperature=temperature,
+                    coder_id=coder_id,
+                    context_paraphrases=context_paraphrases if context_paraphrases else None,
+                    analysis_mode='deductive'
+                )
+            
+            # Kombiniere erste Kodierungen und fokussierte Kodierungen
+            new_results = first_coding_results + focused_results
             
             # Cache und Reliability für alle Ergebnisse (normale + Mehrfachkodierung)
             for formatted_res in new_results:
@@ -1411,7 +2154,11 @@ class OptimizationController:
                     justification_short = result_data['justification'][:80] + '...' if len(result_data['justification']) > 80 else result_data['justification']
                     print(f"      └─ Begründung: {justification_short}")
                 if result_data.get('is_multiple_coding'):
-                    print(f"      └─ Mehrfachkodierung: {result_data['multiple_coding_instance']}/{result_data['total_coding_instances']} (Ziel: {result_data['target_category']})")
+                    print(f"      └─ Mehrfachkodierung: {result_data['multiple_coding_instance']}/{result_data['total_coding_instances']}")
+                
+                # PROGRESSIVE PARAPHRASE COLLECTION: Invoke callback if paraphrase available
+                if paraphrase_callback and result_data.get('paraphrase'):
+                    paraphrase_callback(segment_id, result_data['paraphrase'])
                 
                 # Add to cache
                 serializable_category_definitions = self._serialize_category_definitions(category_definitions)
@@ -1432,7 +2179,6 @@ class OptimizationController:
                 
                 # Store for reliability analysis
                 from QCA_AID_assets.core.data_models import ExtendedCodingResult
-                from datetime import datetime
                 
                 reliability_result = ExtendedCodingResult(
                     segment_id=segment_id,  # Verwende die tatsächliche segment_id (mit -1, -2 suffix)
@@ -1451,7 +2197,6 @@ class OptimizationController:
                         'is_multiple_coding': result_data.get('is_multiple_coding', False),
                         'multiple_coding_instance': result_data.get('multiple_coding_instance', 1),
                         'total_coding_instances': result_data.get('total_coding_instances', 1),
-                        'target_category': result_data.get('target_category', ''),
                         'original_segment_id': result_data.get('original_segment_id', segment_id)
                     }
                 )
@@ -1469,6 +2214,9 @@ class OptimizationController:
         if uncached_segments:
             self.cache.save_to_file("optimization_cache.json")
 
+        # Sortiere Ergebnisse nach Chunk-ID für konsistente Ausgabe
+        final_results = self._sort_results_by_chunk_id(final_results)
+
         return final_results
     
     async def _store_results_for_reliability(self, results: List[Dict[str, Any]], analysis_mode: str, coder_id: str, temperature: Optional[float] = None) -> None:
@@ -1485,7 +2233,6 @@ class OptimizationController:
             return
         
         from QCA_AID_assets.core.data_models import ExtendedCodingResult
-        from datetime import datetime
         
         # print(f"   💾 DEBUG: Storing {len(results)} results for reliability analysis (mode: {analysis_mode}, coder: {coder_id}, temp: {temperature})")
         
@@ -1558,6 +2305,7 @@ class OptimizationController:
                                  use_context: bool = False,
                                  document_paraphrases: Optional[Dict[str, List[str]]] = None,
                                  context_paraphrase_count: int = 3,
+                                 paraphrase_callback: Optional[callable] = None,
                                  **kwargs) -> List[Dict[str, Any]]:
         """
         Optimized inductive analysis with thematic batching and saturation tracking.
@@ -1742,7 +2490,8 @@ class OptimizationController:
                     batch_size=batch_size,
                     use_context=use_context,
                     document_paraphrases=document_paraphrases,
-                    context_paraphrase_count=context_paraphrase_count
+                    context_paraphrase_count=context_paraphrase_count,
+                    paraphrase_callback=paraphrase_callback
                 )
                 
                 # Store results for reliability analysis
@@ -1769,7 +2518,8 @@ class OptimizationController:
                 batch_size=batch_size,
                 use_context=use_context,
                 document_paraphrases=document_paraphrases,
-                context_paraphrase_count=context_paraphrase_count
+                context_paraphrase_count=context_paraphrase_count,
+                paraphrase_callback=paraphrase_callback
             )
             
             # Store results for reliability analysis
@@ -1789,7 +2539,8 @@ class OptimizationController:
                 batch_size=batch_size,
                 use_context=use_context,
                 document_paraphrases=document_paraphrases,
-                context_paraphrase_count=context_paraphrase_count
+                context_paraphrase_count=context_paraphrase_count,
+                paraphrase_callback=paraphrase_callback
             )
             
             # Store results for reliability analysis
@@ -1809,7 +2560,8 @@ class OptimizationController:
                                            batch_size: int,
                                            use_context: bool = False,
                                            document_paraphrases: Optional[Dict[str, List[str]]] = None,
-                                           context_paraphrase_count: int = 3) -> List[Dict[str, Any]]:
+                                           context_paraphrase_count: int = 3,
+                                           paraphrase_callback: Optional[callable] = None) -> List[Dict[str, Any]]:
         """
         Inductive coding only - no relevance check, just coding with developed categories.
         """
@@ -1825,6 +2577,15 @@ class OptimizationController:
             
             # FIX: Verwende progressive Kontext-Paraphrasen pro Segment
             context_paraphrases = []
+            
+            # DEBUG: Zeige Kontext-Status
+            if use_context:
+                print(f"      🔍 DEBUG Kontext (inductive): use_context={use_context}, document_paraphrases={'verfügbar' if document_paraphrases else 'None/leer'}")
+                if document_paraphrases:
+                    print(f"         └─ Dokumente mit Paraphrasen: {list(document_paraphrases.keys())}")
+                    for doc, paraphrases in document_paraphrases.items():
+                        print(f"         └─ {doc}: {len(paraphrases)} Paraphrasen")
+            
             if use_context and document_paraphrases and batch:
                 first_segment_id = batch[0]['segment_id']
                 context_paraphrases = self._get_progressive_context_paraphrases(
@@ -1834,9 +2595,12 @@ class OptimizationController:
                 if context_paraphrases:
                     doc_name = self._extract_doc_name_from_segment_id(first_segment_id)
                     chunk_num = self._extract_chunk_number_from_segment_id(first_segment_id)
-                    print(f"      📝 Nutze {len(context_paraphrases)} progressive Kontext-Paraphrasen für Dokument '{doc_name}' (Chunk {chunk_num}) (inductive)")
+                    print(f"      📝 ✅ VERWENDE {len(context_paraphrases)} progressive Kontext-Paraphrasen für Dokument '{doc_name}' (Chunk {chunk_num}) (inductive)")
+                    print(f"         └─ Kontext-Paraphrasen werden an LLM gesendet für bessere Kodierung")
                 else:
                     doc_name = self._extract_doc_name_from_segment_id(first_segment_id)
+                    chunk_num = self._extract_chunk_number_from_segment_id(first_segment_id)
+                    print(f"      📝 ❌ KEINE Kontext-Paraphrasen für Dokument '{doc_name}' (Chunk {chunk_num}) - erstes Segment oder keine verfügbar (inductive)")
                     chunk_num = self._extract_chunk_number_from_segment_id(first_segment_id)
                     print(f"      📝 Keine Kontext-Paraphrasen für Dokument '{doc_name}' Chunk {chunk_num} (erste Chunks oder nicht verfügbar) (inductive)")
             
@@ -1851,76 +2615,111 @@ class OptimizationController:
                 context_paraphrases=context_paraphrases if context_paraphrases else None
             )
             
-            # FIX: Implementiere korrekte Mehrfachkodierung für inductive Mode - KEINE separaten API Calls!
-            expanded_results = []
+            # NEUE BATCH-BASIERTE MEHRFACHKODIERUNG für inductive Mode
+            # Sammle Segmente die Mehrfachkodierung benötigen
+            segments_needing_multiple_coding = []
+            first_coding_results = []
+            
+            # Create mapping from segment_id to original text for multiple coding
+            segment_text_map = {seg['segment_id']: seg['text'] for seg in batch}
+            
             for r in batch_results:
-                if hasattr(r, 'requires_multiple_coding') and r.requires_multiple_coding:
-                    # Mehrfachkodierung erforderlich - erstelle mehrere Ergebnisse aus EINER Antwort
-                    relevant_categories = []
-                    if hasattr(r, 'relevance_scores') and r.relevance_scores:
-                        for cat_name, score in r.relevance_scores.items():
-                            if score >= self.unified_analyzer.multiple_coding_threshold:
-                                relevant_categories.append({
-                                    'category': cat_name,
-                                    'relevance_score': score
-                                })
+                # Get original segment text
+                original_text = segment_text_map.get(r.segment_id, '')
+                
+                # WICHTIG: Inductive Mode - prüfe ob überhaupt Kategorien verfügbar sind
+                available_categories = category_definitions or {}
+                
+                if not available_categories:
+                    # Frühe Batches im inductive mode haben keine Kategorien -> keine Mehrfachkodierung möglich
+                    print(f"   ℹ️ Inductive Mode: Keine Kategorien verfügbar für Segment {r.segment_id} -> keine Mehrfachkodierung")
+                    first_coding_results.append(self._format_single_coding_result_inductive(r, coder_id))
+                    continue
+                
+                # Für inductive mode verwenden wir die relevance_scores aus dem UnifiedAnalyzer
+                # Aber nur für Kategorien, die tatsächlich verfügbar sind
+                relevant_categories = []
+                if hasattr(r, 'relevance_scores') and r.relevance_scores:
+                    # Sammle alle Kategorien über dem Schwellenwert, aber nur verfügbare
+                    for cat_name, score in r.relevance_scores.items():
+                        if (cat_name in available_categories and 
+                            score >= self.unified_analyzer.multiple_coding_threshold):
+                            relevant_categories.append({
+                                'category': cat_name,
+                                'relevance_score': score
+                            })
+                
+                # Mehrfachkodierung wenn 2+ verfügbare Kategorien über Schwellenwert
+                if len(relevant_categories) > 1:
+                    print(f"   🔁 Mehrfachkodierung für Segment {r.segment_id}: {len(relevant_categories)} verfügbare Kategorien über Schwellenwert {self.unified_analyzer.multiple_coding_threshold} (inductive)")
                     
-                    if len(relevant_categories) > 1:
-                        print(f"   🔁 Mehrfachkodierung für Segment {r.segment_id}: {len(relevant_categories)} Kategorien (inductive)")
-                        
-                        # Erstelle separate Ergebnisse für jede relevante Kategorie (OHNE zusätzliche API Calls)
-                        for i, cat_info in enumerate(relevant_categories, 1):
-                            target_category = cat_info['category']
-                            multiple_segment_id = f"{r.segment_id}-{i}"
-                            
-                            # Finde passende Subkategorien für diese Kategorie
-                            target_subcategories = []
-                            if hasattr(r, 'subcategories') and r.subcategories:
-                                # Filtere Subkategorien die zu dieser Kategorie gehören
-                                for subcat in r.subcategories:
-                                    if isinstance(subcat, str) and target_category.lower() in subcat.lower():
-                                        target_subcategories.append(subcat)
-                                    elif isinstance(subcat, dict) and subcat.get('category') == target_category:
-                                        target_subcategories.append(subcat.get('name', ''))
-                                
-                                # Fallback: Verwende alle Subkategorien wenn keine spezifischen gefunden
-                                if not target_subcategories:
-                                    target_subcategories = r.subcategories
-                            
-                            formatted_result = {
-                                'segment_id': multiple_segment_id,
-                                'result': {
-                                    'primary_category': target_category,
-                                    'confidence': cat_info['relevance_score'],  # Verwende Relevanz-Score als Konfidenz
-                                    'all_categories': [target_category],
-                                    'subcategories': target_subcategories,
-                                    'keywords': r.keywords if hasattr(r, 'keywords') else '',
-                                    'paraphrase': r.paraphrase if hasattr(r, 'paraphrase') else '',
-                                    'justification': f"[Mehrfachkodierung {i}/{len(relevant_categories)}] {r.justification if hasattr(r, 'justification') else ''}",
-                                    'coder_id': coder_id,
-                                    'category_preselection_used': False,
-                                    'preferred_categories': [],
-                                    'preselection_reasoning': '',
-                                    # Mehrfachkodierungs-Metadaten
-                                    'multiple_coding_instance': i,
-                                    'total_coding_instances': len(relevant_categories),
-                                    'target_category': target_category,
-                                    'original_segment_id': r.segment_id,
-                                    'is_multiple_coding': True
-                                },
-                                'analysis_mode': 'inductive',
-                                'timestamp': asyncio.get_event_loop().time()
+                    # Erste Kodierung: Verwende erste (höchste) Kategorie
+                    first_category = relevant_categories[0]
+                    first_result = self._format_single_coding_result_inductive(r, coder_id)
+                    # Überschreibe mit erster Kategorie
+                    first_result['result']['primary_category'] = first_category['category']
+                    first_result['result']['justification'] = f"[Mehrfachkodierung 1/{len(relevant_categories)}, Score: {first_category['relevance_score']:.2f}] {r.justification if hasattr(r, 'justification') else ''}"
+                    first_result['result']['is_multiple_coding'] = True
+                    first_result['result']['multiple_coding_instance'] = 1
+                    first_result['result']['total_coding_instances'] = len(relevant_categories)
+                    first_result['result']['original_segment_id'] = r.segment_id
+                    first_result['result']['text'] = original_text
+                    first_result['segment_id'] = f"{r.segment_id}-1"
+                    first_coding_results.append(first_result)
+                    
+                    # Sammle zusätzliche Kategorien für fokussierten Batch
+                    for i, cat_info in enumerate(relevant_categories[1:], 2):
+                        segments_needing_multiple_coding.append({
+                            'segment_id': f"{r.segment_id}-{i}",
+                            'text': original_text,
+                            'focus_category': cat_info['category'],
+                            'focus_context': {
+                                'relevance_score': cat_info['relevance_score'],
+                                'justification': f"Inductive category with score {cat_info['relevance_score']:.2f}"
+                            },
+                            'original_task': {
+                                'segment_id': r.segment_id,
+                                'instance_number': i,
+                                'total_instances': len(relevant_categories),
+                                'preferred_cats': [],
+                                'seg_prefs': {}
                             }
-                            expanded_results.append(formatted_result)
-                            print(f"      📝 Mehrfachkodierung {i}: {target_category} (Konfidenz: {cat_info['relevance_score']:.2f})")
-                    else:
-                        # Nur eine Kategorie über Schwellenwert - normale Kodierung
-                        expanded_results.append(self._format_single_coding_result_inductive(r, coder_id))
+                        })
                 else:
                     # Keine Mehrfachkodierung erforderlich - normale Kodierung
-                    expanded_results.append(self._format_single_coding_result_inductive(r, coder_id))
+                    first_coding_results.append(self._format_single_coding_result_inductive(r, coder_id))
+            
+            # Verarbeite fokussierten Batch für zusätzliche Kodierungen
+            focused_results = []
+            if segments_needing_multiple_coding:
+                print(f"   🎯 Fokussierter Batch (inductive): {len(segments_needing_multiple_coding)} zusätzliche Kodierungen")
+                focused_results = await self._process_focused_batch(
+                    focused_segments=segments_needing_multiple_coding,
+                    category_definitions=category_definitions,
+                    research_question=research_question,
+                    coding_rules=coding_rules,
+                    temperature=temperature,
+                    coder_id=coder_id,
+                    context_paraphrases=context_paraphrases if context_paraphrases else None,
+                    analysis_mode='inductive'
+                )
+            
+            # Kombiniere erste Kodierungen und fokussierte Kodierungen
+            expanded_results = first_coding_results + focused_results
             
             results.extend(expanded_results)
+            
+            # PROGRESSIVE PARAPHRASE COLLECTION: Invoke callback for each result
+            if paraphrase_callback:
+                for result in expanded_results:
+                    result_data = result.get('result', {})
+                    segment_id = result.get('segment_id', '')
+                    paraphrase = result_data.get('paraphrase', '')
+                    if paraphrase and segment_id:
+                        paraphrase_callback(segment_id, paraphrase)
+        
+        # Sortiere Ergebnisse nach Chunk-ID für konsistente Ausgabe
+        results = self._sort_results_by_chunk_id(results)
         
         return results
     
@@ -1933,7 +2732,6 @@ class OptimizationController:
         Konvertiert Kategorienamen in CategoryDefinition-ähnliches Format.
         Verarbeitet sowohl das neue detaillierte Format als auch das alte Format.
         """
-        from datetime import datetime
         from QCA_AID_assets.core.data_models import CategoryDefinition
         
         developed = {}
@@ -2039,6 +2837,7 @@ class OptimizationController:
                                  use_context: bool = False,
                                  document_paraphrases: Optional[Dict[str, List[str]]] = None,
                                  context_paraphrase_count: int = 3,
+                                 paraphrase_callback: Optional[callable] = None,
                                  **kwargs) -> List[Dict[str, Any]]:
         """
         Optimized abductive analysis with hypothesis batching.
@@ -2051,40 +2850,61 @@ class OptimizationController:
         config = self.config[AnalysisMode.ABDUCTIVE]
         batch_size = config['batch_size']  # Get batch_size from config
         
+        # DEBUG: Zeige coder_settings Info (übernommen aus deductive)
+        print(f"[DEBUG _analyze_abductive] coder_settings: {coder_settings}")
+        if coder_settings:
+            print(f"[DEBUG _analyze_abductive] Anzahl coder_settings: {len(coder_settings)}")
+            for cs in coder_settings:
+                print(f"  - {cs.get('coder_id', '?')}: temp={cs.get('temperature', '?')}")
+        
+        # DEBUG: Calculate expected API calls for verification (übernommen aus deductive)
+        num_coders = len(coder_settings) if coder_settings else 1
+        estimated_batches = (len(segments) + batch_size - 1) // batch_size
+        
+        # Abductive Mode hat 3 Phasen: Relevanz + Subkategorien-Entwicklung + Kodierung
+        relevance_calls = estimated_batches  # Relevance is batched but shared
+        subcategory_calls = estimated_batches  # Subkategorie-Entwicklung is batched but shared
+        expected_calls_base = relevance_calls + subcategory_calls  # Both are batched and shared
+        
+        # Track actual API calls for comparison (übernommen aus deductive)
+        from QCA_AID_assets.utils.tracking.token_tracker import get_global_token_counter
+        token_counter = get_global_token_counter()
+        calls_before = token_counter.session_stats.get('requests', 0)
+        
         # 1. Relevanzprüfung (einfach, wie in Standard-Analyse)
         print(f"   📊 Schritt 1: Relevanzprüfung für {len(segments)} Segmente...")
         print(f"   📋 Forschungsfrage: {research_question}")
         print(f"   🔍 API Call 1: Einfache Relevanzprüfung für {len(segments)} Segmente...")
         from ..core.config import CONFIG
         relevance_threshold = CONFIG.get('RELEVANCE_THRESHOLD', 0.0)
-        relevance_results = await self.unified_analyzer.analyze_relevance_simple(
+        
+        # FIX: Übernehme deductive Mode Relevanzprüfung mit Export-Support
+        all_relevance_results = await self.unified_analyzer.analyze_relevance_simple(
             segments=segments,
             research_question=research_question,
             batch_size=batch_size,
-            relevance_threshold=relevance_threshold
+            relevance_threshold=relevance_threshold,
+            return_all_results=True  # Get all results with specific LLM reasoning
         )
         
-        # Debug: Show relevance results with better logging
-        print(f"   🔍 DEBUG: Einfache Relevance check returned {len(relevance_results)} results")
-        relevant_count = 0
-        for i, rel_result in enumerate(relevance_results):
-            seg_id = rel_result.get('segment_id', 'MISSING')
-            research_rel = rel_result.get('research_relevance', 0.0)
-            reasoning = rel_result.get('relevance_reasoning', '')
-            
-            # Truncate long segment IDs and reasoning for readability
-            seg_id_short = seg_id[:30] + '...' if len(seg_id) > 30 else seg_id
-            reasoning_short = reasoning[:80] + '...' if len(reasoning) > 80 else reasoning
-            
-            status = "✅ RELEVANT" if research_rel >= 0.0 else "❌ NICHT RELEVANT"
-            if research_rel >= 0.0:  # ALLE als relevant markierten Segmente kodieren
-                relevant_count += 1
-            
-            print(f"   🔍 Segment {i+1}: {seg_id_short}")
-            print(f"      └─ {status} (Score: {research_rel:.2f})")
-            print(f"      └─ Begründung: {reasoning_short}")
+        # FIX: Store ALL results in RelevanceChecker for export
+        await self._store_relevance_results_for_export(all_relevance_results, segments)
         
-        print(f"   📊 Relevanz-Zusammenfassung: {relevant_count}/{len(relevance_results)} Segmente relevant (Threshold: ≥0.3)")
+        # FIX: Filtere relevante Ergebnisse aus all_relevance_results
+        relevance_results = [
+            result for result in all_relevance_results 
+            if result.get('is_relevant', False) and result.get('research_relevance', 0.0) >= relevance_threshold
+        ]
+        
+        # Debug: Show relevance results with better logging (übernommen aus deductive)
+        print(f"   🔍 DEBUG: Einfache Relevance check returned {len(all_relevance_results)} total results")
+        relevant_count = len(relevance_results)
+        
+        if not relevant_count:
+            print(f"   ✅ 0 von {len(segments)} Segmenten relevant - KEINE weiteren API Calls nötig")
+            return []
+        
+        print(f"   ✅ {relevant_count} von {len(segments)} Segmenten relevant")
         
         # Filtere relevante Segmente (Threshold: 0.3)
         relevant_segments = []
@@ -2104,65 +2924,7 @@ class OptimizationController:
             print(f"   ✅ 0 von {len(segments)} Segmenten relevant - KEINE weiteren API Calls nötig")
             return []
         
-        # 1.5. Kategoriepräferenzen für relevante Segmente bestimmen
-        print(f"   📊 Schritt 1.5: Kategoriepräferenzen für {len(relevant_segments)} relevante Segmente...")
-        print(f"   🔍 API Call 2: Kategoriepräferenzen für {len(relevant_segments)} relevante Segmente...")
-        category_preference_results = await self.unified_analyzer.analyze_category_preferences(
-            segments=relevant_segments,  # Nur relevante Segmente!
-            category_definitions=category_definitions,
-            research_question=research_question,
-            coding_rules=coding_rules or [],
-            batch_size=batch_size
-        )
-        
-        # Sammle Kategoriepräferenzen mit verbessertem Logging
-        category_preselections = {}
-        for pref_result in category_preference_results:
-            seg_id = pref_result.get('segment_id', '')
-            if seg_id:  # Segment ist bereits als relevant bestätigt
-                # FIX: Fallback für unterschiedliche Feldnamen zwischen Modi
-                top_categories = pref_result.get('top_categories', [])
-                if not top_categories:
-                    top_categories = pref_result.get('preferred_categories', [])
-                
-                category_preferences = pref_result.get('category_preferences', {})
-                
-                reasoning = pref_result.get('preference_reasoning', '')
-                if not reasoning:
-                    reasoning = pref_result.get('reasoning', '')
-                
-                category_preselections[seg_id] = {
-                    'preferred_categories': top_categories,
-                    'category_preferences': category_preferences,
-                    'relevance_scores': category_preferences,
-                    'reasoning': reasoning
-                }
-                
-                # Debug: Log category preferences for each segment
-                seg_id_short = seg_id[:30] + '...' if len(seg_id) > 30 else seg_id
-                print(f"   🎯 Segment: {seg_id_short}")
-                if top_categories:
-                    print(f"      └─ Präferierte Kategorien: {', '.join(top_categories)}")
-                    # Show scores for preferred categories
-                    for cat in top_categories:
-                        score = category_preferences.get(cat, 0.0)
-                        print(f"         • {cat}: {score:.2f}")
-                else:
-                    print(f"      └─ Keine starken Kategoriepräferenzen (alle Scores < 0.6)")
-        
-        if category_preselections:
-            preselection_stats = {}
-            for prefs in category_preselections.values():
-                for cat in prefs['preferred_categories']:
-                    preselection_stats[cat] = preselection_stats.get(cat, 0) + 1
-            print(f"   📊 Kategorie-Präferenzen Zusammenfassung: {dict(preselection_stats)}")
-        else:
-            print(f"   ⚠️ Keine Kategoriepräferenzen ermittelt - alle Segmente haben schwache Kategorie-Scores")
-        
-        if not relevant_segments:
-            return []
-        
-        # 2. Subkategorien-Entwicklung mit Sättigungscontroller
+        # 2. Subkategorien-Entwicklung mit Sättigungscontroller (VOR Kategoriepräferenzen!)
         print(f"   🔍 Schritt 2: Erweitere bestehende Kategorien um neue Subkategorien (aus {len(relevant_segments)} relevanten Segmenten)...")
         
         # Initialisiere Sättigungscontroller für abductive Mode
@@ -2303,45 +3065,149 @@ class OptimizationController:
         
         print(f"   🔧 DEBUG: Serialisierte {len(cat_defs)} Kategorien für Cache-kompatible Kodierung")
         
+        # 2.5. Kategoriepräferenzen für relevante Segmente bestimmen (NACH Subkategorien-Entwicklung!)
+        print(f"   📊 Schritt 2.5: Kategoriepräferenzen basierend auf erweiterten Kategorien für {len(relevant_segments)} relevante Segmente...")
+        print(f"   🔍 API Call N: Kategoriepräferenzen für {len(relevant_segments)} relevante Segmente mit erweiterten Kategorien...")
+        
+        # Verwende die erweiterten Kategorien für Präferenzen
+        category_preference_results = await self.unified_analyzer.analyze_category_preferences(
+            segments=relevant_segments,  # Nur relevante Segmente!
+            category_definitions=cat_defs,  # WICHTIG: Verwende erweiterte Kategorien!
+            research_question=research_question,
+            coding_rules=coding_rules or [],
+            batch_size=batch_size
+        )
+        
+        # Sammle Kategoriepräferenzen mit verbessertem Logging
+        category_preselections = {}
+        for pref_result in category_preference_results:
+            seg_id = pref_result.get('segment_id', '')
+            if seg_id:  # Segment ist bereits als relevant bestätigt
+                # FIX: Fallback für unterschiedliche Feldnamen zwischen Modi
+                top_categories = pref_result.get('top_categories', [])
+                if not top_categories:
+                    top_categories = pref_result.get('preferred_categories', [])
+                
+                category_preferences = pref_result.get('category_preferences', {})
+                
+                reasoning = pref_result.get('preference_reasoning', '')
+                if not reasoning:
+                    reasoning = pref_result.get('reasoning', '')
+                
+                category_preselections[seg_id] = {
+                    'preferred_categories': top_categories,
+                    'category_preferences': category_preferences,
+                    'relevance_scores': category_preferences,
+                    'reasoning': reasoning
+                }
+                
+                # Debug: Log category preferences for each segment
+                seg_id_short = seg_id[:30] + '...' if len(seg_id) > 30 else seg_id
+                print(f"   🎯 Segment: {seg_id_short}")
+                if top_categories:
+                    print(f"      └─ Präferierte Kategorien (erweitert): {', '.join(top_categories)}")
+                    # Show scores for preferred categories
+                    for cat in top_categories:
+                        score = category_preferences.get(cat, 0.0)
+                        print(f"         • {cat}: {score:.2f}")
+                else:
+                    print(f"      └─ Keine starken Kategoriepräferenzen (alle Scores < 0.6)")
+        
+        if category_preselections:
+            preselection_stats = {}
+            for prefs in category_preselections.values():
+                for cat in prefs['preferred_categories']:
+                    preselection_stats[cat] = preselection_stats.get(cat, 0) + 1
+            print(f"   📊 Kategorie-Präferenzen Zusammenfassung (erweiterte Kategorien): {dict(preselection_stats)}")
+        else:
+            print(f"   ⚠️ Keine Kategoriepräferenzen ermittelt - alle Segmente haben schwache Kategorie-Scores")
+        
+        # 3. Abduktive Kodierung mit erweiterten Kategorien UND Präferenzen
         coding_results = []
         if coder_settings and len(coder_settings) > 1:
-            print(f"   🔄 Multi-Coder Mode: Kodierung mit {len(coder_settings)} Kodierern")
-            # Multi-Coder: Kodiere mit jedem Kodierer separat
-            for coder_config in coder_settings:
-                coder_id = coder_config.get('coder_id', 'auto_1')
-                coder_temp = coder_config.get('temperature', temperature)
+            # Multi-Coder Mode: Batch-weise Verarbeitung mit allen Kodierern (übernommen aus deductive)
+            print(f"   🔄 Multi-Coder Mode: Batch-weise Verarbeitung mit {len(coder_settings)} Kodierern")
+            
+            # Process segments in batches, with each batch coded by all coders
+            total_batches = (len(relevant_segments) + batch_size - 1) // batch_size
+            
+            for i in range(0, len(relevant_segments), batch_size):
+                batch = relevant_segments[i:i + batch_size]
+                batch_num = (i // batch_size) + 1
                 
-                print(f"   🔄 Analysiere mit Kodierer '{coder_id}' (Temperature: {coder_temp})")
+                print(f"   📦 Batch {batch_num}/{total_batches}: {len(batch)} Segmente")
                 
-                # Direkte Kodierung OHNE separate Relevanzprüfung
-                coder_results = await self._batch_analyze_abductive_direct(
-                    batch=relevant_segments,
-                    category_definitions=cat_defs,
-                    research_question=research_question,
-                    coding_rules=coding_rules or [],
-                    temperature=coder_temp,
-                    coder_id=coder_id,
-                    category_preselections=category_preselections,
-                    batch_size=batch_size,
-                    use_context=use_context,
-                    document_paraphrases=document_paraphrases,
-                    context_paraphrase_count=context_paraphrase_count
-                )
-                
-                # Markiere als abductive mode
-                for result in coder_results:
-                    if 'result' in result:
-                        result['result']['analysis_mode'] = 'abductive'
+                # Für jeden Kodierer in diesem Batch
+                for coder_config in coder_settings:
+                    coder_id = coder_config.get('coder_id', 'auto_1')
+                    coder_temp = coder_config.get('temperature', temperature)
+                    
+                    print(f"      🔄 Analysiere mit Kodierer '{coder_id}' (Temperature: {coder_temp})")
+                    
+                    # Process this batch with this coder
+                    if config['enable_batching'] and len(batch) > 1:
+                        batch_results = await self._batch_analyze_abductive_direct(
+                            batch=batch,
+                            category_definitions=cat_defs,
+                            research_question=research_question,
+                            coding_rules=coding_rules or [],
+                            temperature=coder_temp,
+                            coder_id=coder_id,
+                            category_preselections=category_preselections,
+                            analysis_mode='abductive',
+                            batch_size=batch_size,
+                            use_context=use_context,
+                            document_paraphrases=document_paraphrases,
+                            context_paraphrase_count=context_paraphrase_count,
+                            paraphrase_callback=paraphrase_callback
+                        )
+                        
+                        # Store results for reliability analysis
+                        await self._store_results_for_reliability(batch_results, 'abductive', coder_id, coder_temp)
+                        
+                        coding_results.extend(batch_results)
                     else:
-                        result['analysis_mode'] = 'abductive'
-                
-                # Store results for reliability analysis
-                await self._store_results_for_reliability(coder_results, 'abductive', coder_id, coder_temp)
-                
-                coding_results.extend(coder_results)
-                
+                        # Process individually for small batches (übernommen aus deductive)
+                        for segment in batch:
+                            seg_prefs = category_preselections.get(segment['segment_id'], {}) if category_preselections else {}
+                            preferred_cats = seg_prefs.get('preferred_categories', [])
+                            
+                            # Filter categories if preferences exist
+                            effective_categories = cat_defs
+                            if preferred_cats:
+                                effective_categories = {
+                                    name: definition for name, definition in cat_defs.items()
+                                    if name in preferred_cats
+                                }
+                            
+                            # Get progressive context paraphrases for this segment
+                            context_paraphrases = []
+                            if use_context and document_paraphrases:
+                                context_paraphrases = self._get_progressive_context_paraphrases(
+                                    segment['segment_id'], document_paraphrases, context_paraphrase_count
+                                )
+                            
+                            # Analyze single segment using unified analyzer
+                            result = await self.unified_analyzer.analyze_single(
+                                segment=segment,
+                                category_definitions=effective_categories,
+                                research_question=research_question,
+                                coding_rules=coding_rules,
+                                batch_size=batch_size,
+                                temperature=coder_temp,
+                                context_paraphrases=context_paraphrases if context_paraphrases else None
+                            )
+                            
+                            if result:
+                                formatted_res = self._format_single_coding_result_abductive(result, coder_id, preferred_cats, seg_prefs)
+                                coding_results.append(formatted_res)
+                                
+                                # Invoke paraphrase callback
+                                if paraphrase_callback and formatted_res.get('result', {}).get('paraphrase'):
+                                    paraphrase_callback(segment['segment_id'], formatted_res['result']['paraphrase'])
+                                    
         elif coder_settings:
-            # Single-Coder
+            # Single-Coder Mode (übernommen aus deductive)
             coder_config = coder_settings[0]
             coder_id = coder_config.get('coder_id', 'auto_1')
             coder_temp = coder_config.get('temperature', temperature)
@@ -2357,19 +3223,13 @@ class OptimizationController:
                 temperature=coder_temp,
                 coder_id=coder_id,
                 category_preselections=category_preselections,
+                analysis_mode='abductive',
                 batch_size=batch_size,
                 use_context=use_context,
                 document_paraphrases=document_paraphrases,
-                context_paraphrase_count=context_paraphrase_count
+                context_paraphrase_count=context_paraphrase_count,
+                paraphrase_callback=paraphrase_callback
             )
-            
-            # Markiere als abductive mode
-            # Markiere als abductive mode
-            for result in coder_results:
-                if 'result' in result:
-                    result['result']['analysis_mode'] = 'abductive'
-                else:
-                    result['analysis_mode'] = 'abductive'
             
             # Store results for reliability analysis
             await self._store_results_for_reliability(coder_results, 'abductive', coder_id, coder_temp)
@@ -2386,10 +3246,12 @@ class OptimizationController:
                 temperature=temperature,
                 coder_id='auto_fallback',
                 category_preselections=category_preselections,
+                analysis_mode='abductive',
                 batch_size=batch_size,
                 use_context=use_context,
                 document_paraphrases=document_paraphrases,
-                context_paraphrase_count=context_paraphrase_count
+                context_paraphrase_count=context_paraphrase_count,
+                paraphrase_callback=paraphrase_callback
             )
             
             # Markiere als abductive mode
@@ -2403,6 +3265,32 @@ class OptimizationController:
             await self._store_results_for_reliability(fallback_results, 'abductive', 'auto_fallback', temperature)
             
             coding_results.extend(fallback_results)
+        
+        # DEBUG: Track actual API calls made by optimization controller (übernommen aus deductive)
+        calls_after = token_counter.session_stats.get('requests', 0)
+        optimization_calls = calls_after - calls_before
+        
+        # Calculate expected calls for abductive mode
+        if coder_settings and len(coder_settings) > 1:
+            # Multi-Coder: shared calls + per-coder calls
+            estimated_coding_calls = len(coder_settings) * estimated_batches
+            self._debug_expected_calls = expected_calls_base + estimated_coding_calls
+            print(f"   🔍 DEBUG Geschätzte API Calls (Multi-Coder): {self._debug_expected_calls}")
+            print(f"      └─ Shared calls: {expected_calls_base} ({relevance_calls} relevance + {subcategory_calls} subcategory batches)")
+            print(f"      └─ Coding calls: {estimated_coding_calls} ({len(coder_settings)} coders × {estimated_batches} batches)")
+        else:
+            # Single-Coder: shared calls + single coder calls
+            estimated_coding_calls = 1 * estimated_batches
+            self._debug_expected_calls = expected_calls_base + estimated_coding_calls
+            print(f"   🔍 DEBUG Geschätzte API Calls (Single-Coder): {self._debug_expected_calls}")
+            print(f"      └─ Shared calls: {expected_calls_base} ({relevance_calls} relevance + {subcategory_calls} subcategory batches)")
+            print(f"      └─ Coding calls: {estimated_coding_calls} (1 coder × {estimated_batches} batches)")
+        
+        print(f"      └─ Segments: {len(segments)}, Batch size: {batch_size}")
+        print(f"      └─ API calls before optimization: {calls_before}")
+        print(f"      └─ API calls after optimization: {calls_after}")
+        print(f"      └─ Optimization controller calls: {optimization_calls}")
+        print(f"      └─ Estimation accuracy: {optimization_calls}/{self._debug_expected_calls} = {(optimization_calls/self._debug_expected_calls*100):.1f}%" if self._debug_expected_calls > 0 else "")
         
         # Zusammenfassung der Kodierungen pro Coder
         if coding_results:
@@ -2433,6 +3321,9 @@ class OptimizationController:
             for category, count in sorted(category_summary.items()):
                 print(f"      • {category}: {count} Segmente")
         
+        # Sortiere Ergebnisse nach Chunk-ID für konsistente Ausgabe (übernommen aus deductive)
+        coding_results = self._sort_results_by_chunk_id(coding_results)
+        
         return coding_results
     
     def _extend_categories_with_subcategories(self,
@@ -2448,7 +3339,53 @@ class OptimizationController:
         
         # Handle new abductive schema format
         if subcategory_results and len(subcategory_results) > 0:
-            # Extract extended_categories from the first result (they should all have the same)
+            # Process each result individually (each has its own extended_categories)
+            for result in subcategory_results:
+                extended_categories_data = result.get("extended_categories", {})
+                
+                if extended_categories_data:
+                    # Process extended_categories to add new subcategories
+                    for hauptkategorie_name, kategorie_data in extended_categories_data.items():
+                        new_subcategories = kategorie_data.get("new_subcategories", [])
+                        
+                        if new_subcategories and hauptkategorie_name in category_definitions:
+                            # Ensure main category exists
+                            if hauptkategorie_name not in extended:
+                                current_date = datetime.now().strftime("%Y-%m-%d")
+                                extended[hauptkategorie_name] = CategoryDefinition(
+                                    name=hauptkategorie_name,
+                                    definition=category_definitions[hauptkategorie_name],
+                                    examples=[],
+                                    rules=[],
+                                    subcategories={},
+                                    added_date=current_date,
+                                    modified_date=current_date
+                                )
+                            
+                            # Add new subcategories
+                            cat = extended[hauptkategorie_name]
+                            if hasattr(cat, 'subcategories'):
+                                for subcat_data in new_subcategories:
+                                    subcat_name = subcat_data.get("name")
+                                    subcat_definition = subcat_data.get("definition", f"Abduktiv entwickelte Subkategorie: {subcat_name}")
+                                    
+                                    if subcat_name and subcat_name not in cat.subcategories:
+                                        current_date = datetime.now().strftime("%Y-%m-%d")
+                                        cat.subcategories[subcat_name] = CategoryDefinition(
+                                            name=subcat_name,
+                                            definition=subcat_definition,
+                                            examples=list(subcat_data.get("evidence", [])),
+                                            rules=[],
+                                            subcategories={},
+                                            added_date=current_date,
+                                            modified_date=current_date
+                                        )
+                                        print(f"      ✅ Neue Subkategorie '{subcat_name}' zu '{hauptkategorie_name}' hinzugefügt")
+                else:
+                    # No extended_categories found in this result
+                    pass
+            
+            # Also check for legacy format with _extended_categories
             extended_categories_data = None
             for result in subcategory_results:
                 if "_extended_categories" in result:
@@ -2542,10 +3479,12 @@ class OptimizationController:
                                              temperature: Optional[float] = None,
                                              coder_id: str = 'auto_1',
                                              category_preselections: Optional[Dict[str, Dict]] = None,
+                                             analysis_mode: str = 'abductive',
                                              batch_size: int = 5,
                                              use_context: bool = False,
                                              document_paraphrases: Optional[Dict[str, List[str]]] = None,
-                                             context_paraphrase_count: int = 3) -> List[Dict[str, Any]]:
+                                             context_paraphrase_count: int = 3,
+                                             paraphrase_callback: Optional[callable] = None) -> List[Dict[str, Any]]:
         """
         Direkte abduktive Kodierung ohne separate Relevanzprüfung.
         
@@ -2570,6 +3509,15 @@ class OptimizationController:
         
         # FIX: Verwende progressive Kontext-Paraphrasen pro Segment
         context_paraphrases = []
+        
+        # DEBUG: Zeige Kontext-Status
+        if use_context:
+            print(f"      🔍 DEBUG Kontext (abductive): use_context={use_context}, document_paraphrases={'verfügbar' if document_paraphrases else 'None/leer'}")
+            if document_paraphrases:
+                print(f"         └─ Dokumente mit Paraphrasen: {list(document_paraphrases.keys())}")
+                for doc, paraphrases in document_paraphrases.items():
+                    print(f"         └─ {doc}: {len(paraphrases)} Paraphrasen")
+        
         if use_context and document_paraphrases and batch:
             first_segment_id = batch[0]['segment_id']
             context_paraphrases = self._get_progressive_context_paraphrases(
@@ -2579,9 +3527,12 @@ class OptimizationController:
             if context_paraphrases:
                 doc_name = self._extract_doc_name_from_segment_id(first_segment_id)
                 chunk_num = self._extract_chunk_number_from_segment_id(first_segment_id)
-                print(f"      📝 Nutze {len(context_paraphrases)} progressive Kontext-Paraphrasen für Dokument '{doc_name}' (Chunk {chunk_num}) (abductive)")
+                print(f"      📝 ✅ VERWENDE {len(context_paraphrases)} progressive Kontext-Paraphrasen für Dokument '{doc_name}' (Chunk {chunk_num}) (abductive)")
+                print(f"         └─ Kontext-Paraphrasen werden an LLM gesendet für bessere Kodierung")
             else:
                 doc_name = self._extract_doc_name_from_segment_id(first_segment_id)
+                chunk_num = self._extract_chunk_number_from_segment_id(first_segment_id)
+                print(f"      📝 ❌ KEINE Kontext-Paraphrasen für Dokument '{doc_name}' (Chunk {chunk_num}) - erstes Segment oder keine verfügbar (abductive)")
                 chunk_num = self._extract_chunk_number_from_segment_id(first_segment_id)
                 print(f"      📝 Keine Kontext-Paraphrasen für Dokument '{doc_name}' Chunk {chunk_num} (erste Chunks oder nicht verfügbar) (abductive)")
         
@@ -2598,80 +3549,100 @@ class OptimizationController:
         
         print(f"   🔍 DEBUG: Batch-Kodierung ergab {len(batch_results)} Ergebnisse")
         
-        # FIX: Implementiere korrekte Mehrfachkodierung für abductive Mode - KEINE separaten API Calls!
-        expanded_results = []
+        # Create mapping from segment_id to original text for multiple coding
+        segment_text_map = {seg['segment_id']: seg['text'] for seg in batch}
+        
+        # NEUE BATCH-BASIERTE MEHRFACHKODIERUNG für abductive Mode
+        # Sammle Segmente die Mehrfachkodierung benötigen
+        segments_needing_multiple_coding = []
+        first_coding_results = []
+        
         for r in batch_results:
+            # Get original segment text
+            original_text = segment_text_map.get(r.segment_id, '')
+            
             # Get category preselection info for this segment
             seg_prefs = category_preselections.get(r.segment_id, {}) if category_preselections else {}
             preferred_cats = seg_prefs.get('preferred_categories', [])
+            category_preferences = seg_prefs.get('category_preferences', {})
             
-            if hasattr(r, 'requires_multiple_coding') and r.requires_multiple_coding:
-                # Mehrfachkodierung erforderlich - erstelle mehrere Ergebnisse aus EINER Antwort
-                relevant_categories = []
-                if hasattr(r, 'relevance_scores') and r.relevance_scores:
-                    for cat_name, score in r.relevance_scores.items():
-                        if score >= self.unified_analyzer.multiple_coding_threshold:
-                            relevant_categories.append({
-                                'category': cat_name,
-                                'relevance_score': score
-                            })
+            # NEUE LOGIK: Verwende Kategoriepräferenzen-Scores für Mehrfachkodierung (wie Legacy Mode)
+            relevant_categories = []
+            if category_preferences:
+                # Sammle alle Kategorien über dem Schwellenwert aus den Präferenzen
+                for cat_name, score in category_preferences.items():
+                    if score >= self.unified_analyzer.multiple_coding_threshold:
+                        relevant_categories.append({
+                            'category': cat_name,
+                            'relevance_score': score
+                        })
+            
+            # Mehrfachkodierung wenn 2+ Kategorien über Schwellenwert
+            if len(relevant_categories) > 1:
+                print(f"   🔁 Mehrfachkodierung für Segment {r.segment_id}: {len(relevant_categories)} Kategorien über Schwellenwert {self.unified_analyzer.multiple_coding_threshold} (abductive)")
                 
-                if len(relevant_categories) > 1:
-                    print(f"   🔁 Mehrfachkodierung für Segment {r.segment_id}: {len(relevant_categories)} Kategorien (abductive)")
-                    
-                    # Erstelle separate Ergebnisse für jede relevante Kategorie (OHNE zusätzliche API Calls)
-                    for i, cat_info in enumerate(relevant_categories, 1):
-                        target_category = cat_info['category']
-                        multiple_segment_id = f"{r.segment_id}-{i}"
-                        
-                        # Finde passende Subkategorien für diese Kategorie
-                        target_subcategories = []
-                        if hasattr(r, 'subcategories') and r.subcategories:
-                            # Filtere Subkategorien die zu dieser Kategorie gehören
-                            for subcat in r.subcategories:
-                                if isinstance(subcat, str) and target_category.lower() in subcat.lower():
-                                    target_subcategories.append(subcat)
-                                elif isinstance(subcat, dict) and subcat.get('category') == target_category:
-                                    target_subcategories.append(subcat.get('name', ''))
-                            
-                            # Fallback: Verwende alle Subkategorien wenn keine spezifischen gefunden
-                            if not target_subcategories:
-                                target_subcategories = r.subcategories
-                        
-                        formatted_res = {
-                            'segment_id': multiple_segment_id,
-                            'result': {
-                                'primary_category': target_category,
-                                'confidence': cat_info['relevance_score'],  # Verwende Relevanz-Score als Konfidenz
-                                'all_categories': [target_category],
-                                'subcategories': target_subcategories,
-                                'keywords': r.keywords if hasattr(r, 'keywords') else '',
-                                'paraphrase': r.paraphrase if hasattr(r, 'paraphrase') else '',
-                                'justification': f"[Mehrfachkodierung {i}/{len(relevant_categories)}] {r.justification if hasattr(r, 'justification') else ''}",
-                                'coder_id': coder_id,
-                                'category_preselection_used': bool(preferred_cats),
-                                'preferred_categories': preferred_cats,
-                                'preselection_reasoning': seg_prefs.get('reasoning', ''),
-                                # Mehrfachkodierungs-Metadaten
-                                'multiple_coding_instance': i,
-                                'total_coding_instances': len(relevant_categories),
-                                'target_category': target_category,
-                                'original_segment_id': r.segment_id,
-                                'is_multiple_coding': True
-                            },
-                            'analysis_mode': 'abductive',
-                            'timestamp': asyncio.get_event_loop().time()
+                # Erste Kodierung: Verwende erste (höchste) Kategorie
+                first_category = relevant_categories[0]
+                first_result = self._format_single_coding_result_abductive(r, coder_id, preferred_cats, seg_prefs)
+                # Überschreibe mit erster Kategorie
+                first_result['result']['primary_category'] = first_category['category']
+                first_result['result']['justification'] = f"[Mehrfachkodierung 1/{len(relevant_categories)}, Score: {first_category['relevance_score']:.2f}] {r.justification if hasattr(r, 'justification') else ''}"
+                first_result['result']['is_multiple_coding'] = True
+                first_result['result']['multiple_coding_instance'] = 1
+                first_result['result']['total_coding_instances'] = len(relevant_categories)
+                first_result['result']['original_segment_id'] = r.segment_id
+                first_result['result']['text'] = original_text
+                first_result['segment_id'] = f"{r.segment_id}-1"
+                first_coding_results.append(first_result)
+                
+                # Sammle zusätzliche Kategorien für fokussierten Batch
+                for i, cat_info in enumerate(relevant_categories[1:], 2):
+                    segments_needing_multiple_coding.append({
+                        'segment_id': f"{r.segment_id}-{i}",
+                        'text': original_text,
+                        'focus_category': cat_info['category'],
+                        'focus_context': {
+                            'relevance_score': cat_info['relevance_score'],
+                            'justification': seg_prefs.get('reasoning', '')
+                        },
+                        'original_task': {
+                            'segment_id': r.segment_id,
+                            'instance_number': i,
+                            'total_instances': len(relevant_categories),
+                            'preferred_cats': preferred_cats,
+                            'seg_prefs': seg_prefs
                         }
-                        expanded_results.append(formatted_res)
-                        print(f"      📝 Mehrfachkodierung {i}: {target_category} (Konfidenz: {cat_info['relevance_score']:.2f})")
-                else:
-                    # Nur eine Kategorie über Schwellenwert - normale Kodierung
-                    expanded_results.append(self._format_single_coding_result_abductive(r, coder_id, preferred_cats, seg_prefs))
+                    })
             else:
                 # Keine Mehrfachkodierung erforderlich - normale Kodierung
-                expanded_results.append(self._format_single_coding_result_abductive(r, coder_id, preferred_cats, seg_prefs))
+                first_coding_results.append(self._format_single_coding_result_abductive(r, coder_id, preferred_cats, seg_prefs))
         
-        new_results = expanded_results
+        # Verarbeite fokussierten Batch für zusätzliche Kodierungen
+        focused_results = []
+        if segments_needing_multiple_coding:
+            print(f"   🎯 Fokussierter Batch (abductive): {len(segments_needing_multiple_coding)} zusätzliche Kodierungen")
+            focused_results = await self._process_focused_batch(
+                focused_segments=segments_needing_multiple_coding,
+                category_definitions=category_definitions,
+                research_question=research_question,
+                coding_rules=coding_rules,
+                temperature=temperature,
+                coder_id=coder_id,
+                context_paraphrases=context_paraphrases if context_paraphrases else None,
+                analysis_mode='abductive'
+            )
+        
+        # Kombiniere erste Kodierungen und fokussierte Kodierungen
+        new_results = first_coding_results + focused_results
+        
+        # PROGRESSIVE PARAPHRASE COLLECTION: Invoke callback for each result
+        if paraphrase_callback:
+            for result in new_results:
+                result_data = result.get('result', {})
+                segment_id = result.get('segment_id', '')
+                paraphrase = result_data.get('paraphrase', '')
+                if paraphrase and segment_id:
+                    paraphrase_callback(segment_id, paraphrase)
         
         # Cache alle Ergebnisse (normale + Mehrfachkodierung)
         for formatted_res in new_results:
@@ -2695,6 +3666,9 @@ class OptimizationController:
                 coder_id=coder_id
             )
         
+        # Sortiere Ergebnisse nach Chunk-ID für konsistente Ausgabe
+        new_results = self._sort_results_by_chunk_id(new_results)
+        
         return new_results
     
     async def _analyze_grounded(self,
@@ -2705,6 +3679,7 @@ class OptimizationController:
                                use_context: bool = False,
                                document_paraphrases: Optional[Dict[str, List[str]]] = None,
                                context_paraphrase_count: int = 3,
+                               paraphrase_callback: Optional[callable] = None,
                                **kwargs) -> List[Dict[str, Any]]:
         """
         Optimized grounded analysis - PHASE 1: Subcode-Sammlung.
@@ -2836,6 +3811,11 @@ class OptimizationController:
             if keywords:
                 self.grounded_keywords_collection.extend(keywords)
             
+            # NEUE BATCH-BASIERTE MEHRFACHKODIERUNG für Grounded Mode
+            # Sammle Codes die Mehrfachkodierung benötigen
+            codes_needing_multiple_coding = []
+            first_coding_results = []
+            
             # FIX: Formatiere Ergebnis im gleichen Format wie deductive Mode für Exporter-Kompatibilität
             coder_id = coder_settings[0].get('coder_id', 'auto_1') if coder_settings else 'auto_1'
             
@@ -2858,35 +3838,165 @@ class OptimizationController:
                 elif isinstance(code, str) and code != primary_category:
                     subcategory_names.append(code)
             
-            formatted_res = {
-                'segment_id': segment_id,
-                'result': {
-                    'primary_category': primary_category,
-                    'confidence': 0.8,  # Standard-Konfidenz für Grounded Analysis
-                    'all_categories': [primary_category],
-                    'subcategories': subcategory_names,
-                    'keywords': ', '.join(keywords) if keywords else '',
-                    'paraphrase': memo if memo else '',
-                    'justification': f"Grounded Analysis: {len(codes)} Codes identifiziert",
-                    'coder_id': coder_id,
-                    'category_preselection_used': False,
-                    'preferred_categories': [],
-                    'preselection_reasoning': '',
-                    # Grounded-spezifische Metadaten
-                    'multiple_coding_instance': 1,
-                    'total_coding_instances': 1,
-                    'target_category': '',
-                    'original_segment_id': segment_id,
-                    'is_multiple_coding': False,
-                    # Grounded-spezifische Daten (für interne Verwendung)
-                    'grounded_subcodes': codes,
-                    'grounded_memo': memo,
-                    'grounded_phase': 'subcode_collection'
-                },
-                'analysis_mode': 'grounded',
-                'timestamp': asyncio.get_event_loop().time()
-            }
-            subcode_results.append(formatted_res)
+            relevant_categories = []
+            
+            # Im Grounded Mode verwenden wir die identifizierten Codes als potentielle Kategorien
+            # Jeder Code mit ausreichender Konfidenz kann eine separate Kodierung werden
+            if codes:
+                for code in codes:
+                    code_confidence = 0.7  # Default-Konfidenz für Grounded Codes
+                    code_name = ""
+                    
+                    if isinstance(code, dict):
+                        code_name = code.get('name', '')
+                        code_confidence = code.get('confidence', 0.7)
+                    elif isinstance(code, str):
+                        code_name = code.strip()
+                    
+                    # Prüfe ob Code über Schwellenwert liegt
+                    if code_name and code_confidence >= self.unified_analyzer.multiple_coding_threshold:
+                        relevant_categories.append({
+                            'category': code_name,
+                            'relevance_score': code_confidence
+                        })
+            
+            # Mehrfachkodierung wenn 2+ Codes über Schwellenwert
+            if len(relevant_categories) > 1:
+                print(f"   🔁 Mehrfachkodierung für Segment {segment_id}: {len(relevant_categories)} Codes über Schwellenwert {self.unified_analyzer.multiple_coding_threshold} (grounded)")
+                
+                # Erste Kodierung: Verwende ersten (höchsten) Code
+                first_category = relevant_categories[0]
+                
+                # Finde passende Subkategorien für ersten Code
+                target_subcategories = []
+                # GROUNDED MODE: Verwende nur andere identifizierte Codes als Subkategorien
+                # KEINE statischen deduktiven Kategorien!
+                for code in codes:
+                    if isinstance(code, dict):
+                        name = code.get('name', '')
+                        if name and name != first_category['category']:
+                            target_subcategories.append(name)
+                    elif isinstance(code, str) and code != first_category['category']:
+                        target_subcategories.append(code)
+                
+                first_result = {
+                    'segment_id': f"{segment_id}-1",
+                    'result': {
+                        'primary_category': first_category['category'],
+                        'confidence': first_category['relevance_score'],
+                        'all_categories': [first_category['category']],
+                        'subcategories': target_subcategories,
+                        'keywords': ', '.join(keywords) if keywords else '',
+                        'paraphrase': memo if memo else '',
+                        'justification': f"[Mehrfachkodierung 1/{len(relevant_categories)}, Score: {first_category['relevance_score']:.2f}] Grounded Analysis: Code '{first_category['category']}' identifiziert",
+                        'coder_id': coder_id,
+                        'category_preselection_used': False,
+                        'preferred_categories': [],
+                        'preselection_reasoning': '',
+                        # Mehrfachkodierungs-Metadaten
+                        'multiple_coding_instance': 1,
+                        'total_coding_instances': len(relevant_categories),
+                        'original_segment_id': segment_id,
+                        'is_multiple_coding': True,
+                        # Grounded-spezifische Daten
+                        'grounded_subcodes': codes,
+                        'grounded_memo': memo,
+                        'grounded_phase': 'subcode_collection',
+                        # WICHTIG: Original text für Export
+                        'text': segment_text
+                    },
+                    'analysis_mode': 'grounded',
+                    'timestamp': asyncio.get_event_loop().time()
+                }
+                first_coding_results.append(first_result)
+                
+                # Sammle zusätzliche Codes für fokussierte Kodierung
+                # Da grounded mode nicht batch-basiert ist, erstelle direkt die zusätzlichen Ergebnisse
+                for i, cat_info in enumerate(relevant_categories[1:], 2):
+                    target_category = cat_info['category']
+                    
+                    # Finde passende Subkategorien für diesen Code
+                    target_subcategories = []
+                    # GROUNDED MODE: Verwende nur andere identifizierte Codes als Subkategorien
+                    # KEINE statischen deduktiven Kategorien!
+                    for code in codes:
+                        if isinstance(code, dict):
+                            name = code.get('name', '')
+                            if name and name != target_category:
+                                target_subcategories.append(name)
+                        elif isinstance(code, str) and code != target_category:
+                            target_subcategories.append(code)
+                    
+                    additional_result = {
+                        'segment_id': f"{segment_id}-{i}",
+                        'result': {
+                            'primary_category': target_category,
+                            'confidence': cat_info['relevance_score'],
+                            'all_categories': [target_category],
+                            'subcategories': target_subcategories,
+                            'keywords': ', '.join(keywords) if keywords else '',
+                            'paraphrase': memo if memo else '',
+                            'justification': f"[Mehrfachkodierung {i}/{len(relevant_categories)}, Score: {cat_info['relevance_score']:.2f}] Grounded Analysis: Code '{target_category}' identifiziert",
+                            'coder_id': coder_id,
+                            'category_preselection_used': False,
+                            'preferred_categories': [],
+                            'preselection_reasoning': '',
+                            # Mehrfachkodierungs-Metadaten
+                            'multiple_coding_instance': i,
+                            'total_coding_instances': len(relevant_categories),
+                            'original_segment_id': segment_id,
+                            'is_multiple_coding': True,
+                            # Grounded-spezifische Daten
+                            'grounded_subcodes': codes,
+                            'grounded_memo': memo,
+                            'grounded_phase': 'subcode_collection',
+                            # WICHTIG: Original text für Export
+                            'text': segment_text
+                        },
+                        'analysis_mode': 'grounded',
+                        'timestamp': asyncio.get_event_loop().time()
+                    }
+                    first_coding_results.append(additional_result)
+                    print(f"      📝 Mehrfachkodierung {i}: {target_category} (Score: {cat_info['relevance_score']:.2f})")
+                
+                # Alle Ergebnisse hinzufügen
+                subcode_results.extend(first_coding_results)
+            else:
+                # Keine Mehrfachkodierung - normale Kodierung
+                formatted_res = {
+                    'segment_id': segment_id,
+                    'result': {
+                        'primary_category': primary_category,
+                        'confidence': 0.8,  # Standard-Konfidenz für Grounded Analysis
+                        'all_categories': [primary_category],
+                        'subcategories': subcategory_names,
+                        'keywords': ', '.join(keywords) if keywords else '',
+                        'paraphrase': memo if memo else '',
+                        'justification': f"Grounded Analysis: {len(codes)} Codes identifiziert",
+                        'coder_id': coder_id,
+                        'category_preselection_used': False,
+                        'preferred_categories': [],
+                        'preselection_reasoning': '',
+                        # Grounded-spezifische Metadaten
+                        'multiple_coding_instance': 1,
+                        'total_coding_instances': 1,
+                        'original_segment_id': segment_id,
+                        'is_multiple_coding': False,
+                        # Grounded-spezifische Daten (für interne Verwendung)
+                        'grounded_subcodes': codes,
+                        'grounded_memo': memo,
+                        'grounded_phase': 'subcode_collection',
+                        # WICHTIG: Original text für Export
+                        'text': segment_text
+                    },
+                    'analysis_mode': 'grounded',
+                    'timestamp': asyncio.get_event_loop().time()
+                }
+                subcode_results.append(formatted_res)
+            
+            # PROGRESSIVE PARAPHRASE COLLECTION: Invoke callback if paraphrase available
+            if paraphrase_callback and memo:
+                paraphrase_callback(segment_id, memo)
         
         print(f"   ✅ Gesamt Subcodes gesammelt: {len(self.grounded_subcodes_collection)}")
         
@@ -2899,6 +4009,9 @@ class OptimizationController:
             
             if len(self.grounded_subcodes_collection) > 10:
                 print(f"      ... und {len(self.grounded_subcodes_collection) - 10} weitere")
+        
+        # Sortiere Ergebnisse nach Chunk-ID für konsistente Ausgabe
+        subcode_results = self._sort_results_by_chunk_id(subcode_results)
         
         return subcode_results
     

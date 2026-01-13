@@ -16,8 +16,10 @@ class ReviewManager:
     KORRIGIERT: Zentrale Verwaltung aller Review-Modi mit kategorie-zentrierter Mehrfachkodierungs-Behandlung
     """
     
-    def __init__(self, output_dir: str):
+    def __init__(self, output_dir: str, analysis_mode: str = None, timestamp: str = None):
         self.output_dir = output_dir
+        self.analysis_mode = analysis_mode or 'deductive'
+        self.timestamp = timestamp
         self.review_decisions = []  # Store all review decisions for logging
     
     def process_coding_review(self, all_codings: List[Dict], export_mode: str) -> List[Dict]:
@@ -112,8 +114,8 @@ class ReviewManager:
                 total_instances = len(sorted_categories)
                 
                 for i, category in enumerate(sorted_categories, 1):
-                    # Neue Segment-ID mit kategorie-spezifischem Suffix
-                    new_segment_id = f"{original_id}-{i:02d}"
+                    # FIX: Neue Segment-ID mit korrektem Mehrfachkodierungs-Suffix (einstellig, nicht zweistellig)
+                    new_segment_id = f"{original_id}-{i}"  # Korrekt: -1, -2, -3 (nicht -01, -02, -03)
                     
                     # Filtere Kodierungen fuer diese spezifische Kategorie
                     category_codings = [
@@ -145,16 +147,21 @@ class ReviewManager:
         Extrahiert die ursprüngliche Segment-ID (entfernt Mehrfachkodierungs-Suffixe)
         
         Beispiele:
-        - "TEDFWI-1-01" -> "TEDFWI-1"
-        - "TEDFWI-1" -> "TEDFWI-1"
-        - "doc_chunk_5-02" -> "doc_chunk_5"
+        - "Lei_Bera_02.pdf_chunk_3-1" -> "Lei_Bera_02.pdf_chunk_3" (interne ID)
+        - "Lei_Bera_02.pdf_chunk_3" -> "Lei_Bera_02.pdf_chunk_3" (interne ID)
         """
-        # Prüfe auf Mehrfachkodierungs-Suffix (Format: -XX wo XX eine Zahl ist)
-        if '-' in segment_id:
-            parts = segment_id.rsplit('-', 1)
-            if len(parts) == 2 and parts[1].isdigit() and len(parts[1]) <= 2:
-                return parts[0]
-        return segment_id
+        from ..core.segment_id_manager import SegmentIDManager
+        
+        # FIX: Prüfe ob es eine Display-ID ist - das sollte NICHT passieren!
+        if segment_id and not '_chunk_' in segment_id and '-' in segment_id:
+            print(f"   ❌ CRITICAL ERROR: Display-ID als segment_id im ReviewManager: {segment_id}")
+            print(f"   ❌ Das ist ein Bug - Display-IDs sollen niemals intern verwendet werden!")
+            print(f"   ❌ Quelle des Problems muss gefunden und behoben werden!")
+            # Gebe die Display-ID zurück um den Fehler sichtbar zu machen
+            return segment_id
+        
+        # Verwende SegmentIDManager für konsistente Extraktion
+        return SegmentIDManager.extract_base_segment_id(segment_id)
     
     def _consensus_review_process(self, category_segments: List[Dict]) -> List[Dict]:
         """
@@ -168,7 +175,24 @@ class ReviewManager:
             if len(codings) == 1:
                 # Nur eine Kodierung - Übernehme direkt
                 final_coding = codings[0].copy()
-                final_coding['segment_id'] = segment['segment_id']
+                
+                # FIX: Preserve original internal segment_id, don't overwrite with category-specific ID
+                # The segment['segment_id'] might be a category-specific ID like "TEDFWI-1-01"
+                # but we need to preserve the original internal format for text lookup
+                original_segment_id = segment.get('original_segment_id', segment['segment_id'])
+                
+                # For multiple coding, create proper multiple coding segment ID
+                if segment.get('is_multiple_coding', False):
+                    instance_number = segment.get('instance_info', {}).get('instance_number', 1)
+                    final_coding['segment_id'] = f"{original_segment_id}-{instance_number}"
+                else:
+                    final_coding['segment_id'] = original_segment_id
+                
+                # Store metadata for export
+                final_coding['original_segment_id'] = original_segment_id
+                final_coding['is_multiple_coding'] = segment.get('is_multiple_coding', False)
+                final_coding['multiple_coding_instance'] = segment.get('instance_info', {}).get('instance_number', 1)
+                final_coding['total_coding_instances'] = segment.get('instance_info', {}).get('total_instances', 1)
                 
                 # Log the decision (no actual review needed)
                 decision_reason = "Nur eine Kodierung verfügbar - keine Consensus-Entscheidung erforderlich"
@@ -195,7 +219,22 @@ class ReviewManager:
             if len(codings) == 1:
                 # Nur eine Kodierung - Übernehme direkt
                 final_coding = codings[0].copy()
-                final_coding['segment_id'] = segment['segment_id']
+                
+                # FIX: Preserve original internal segment_id, don't overwrite with category-specific ID
+                original_segment_id = segment.get('original_segment_id', segment['segment_id'])
+                
+                # For multiple coding, create proper multiple coding segment ID
+                if segment.get('is_multiple_coding', False):
+                    instance_number = segment.get('instance_info', {}).get('instance_number', 1)
+                    final_coding['segment_id'] = f"{original_segment_id}-{instance_number}"
+                else:
+                    final_coding['segment_id'] = original_segment_id
+                
+                # Store metadata for export
+                final_coding['original_segment_id'] = original_segment_id
+                final_coding['is_multiple_coding'] = segment.get('is_multiple_coding', False)
+                final_coding['multiple_coding_instance'] = segment.get('instance_info', {}).get('instance_number', 1)
+                final_coding['total_coding_instances'] = segment.get('instance_info', {}).get('total_instances', 1)
                 
                 # Log the decision (no actual review needed)
                 decision_reason = "Nur eine Kodierung verfügbar - keine Majority-Entscheidung erforderlich"
@@ -309,7 +348,22 @@ class ReviewManager:
                 # Segment ohne Review - verwende bestehende Logik
                 if len(segment['codings']) == 1:
                     final_coding = segment['codings'][0].copy()
-                    final_coding['segment_id'] = segment['segment_id']
+                    
+                    # FIX: Preserve original internal segment_id format
+                    original_segment_id = segment.get('original_segment_id', segment['segment_id'])
+                    
+                    # For multiple coding, create proper multiple coding segment ID
+                    if segment.get('is_multiple_coding', False):
+                        instance_number = segment.get('instance_info', {}).get('instance_number', 1)
+                        final_coding['segment_id'] = f"{original_segment_id}-{instance_number}"
+                    else:
+                        final_coding['segment_id'] = original_segment_id
+                    
+                    # Store metadata for export
+                    final_coding['original_segment_id'] = original_segment_id
+                    final_coding['is_multiple_coding'] = segment.get('is_multiple_coding', False)
+                    final_coding['multiple_coding_instance'] = segment.get('instance_info', {}).get('instance_number', 1)
+                    final_coding['total_coding_instances'] = segment.get('instance_info', {}).get('total_instances', 1)
                     
                     # Log the decision (no manual review needed)
                     decision_reason = "Nur eine Kodierung verfügbar - kein manueller Review erforderlich"
@@ -382,15 +436,29 @@ class ReviewManager:
         consensus_coding = best_coding.copy()
         
         # Aktualisiere mit Consensus-Informationen
+        # FIX: Preserve original internal segment_id format
+        original_segment_id = segment.get('original_segment_id', segment['segment_id'])
+        
+        # For multiple coding, create proper multiple coding segment ID
+        if segment.get('is_multiple_coding', False):
+            instance_number = segment.get('instance_info', {}).get('instance_number', 1)
+            final_segment_id = f"{original_segment_id}-{instance_number}"
+        else:
+            final_segment_id = original_segment_id
+        
         consensus_coding.update({
-            'segment_id': segment['segment_id'],
+            'segment_id': final_segment_id,
+            'original_segment_id': original_segment_id,
             'category': target_category,  # Bereits gefiltert
             'subcategories': consensus_subcats,
+            'is_multiple_coding': segment.get('is_multiple_coding', False),
+            'multiple_coding_instance': segment.get('instance_info', {}).get('instance_number', 1),
+            'total_coding_instances': segment.get('instance_info', {}).get('total_instances', 1),
             'consensus_info': {
                 'total_coders': total_coders,
                 'selection_type': 'consensus',
                 'subcat_consensus_threshold': consensus_threshold,
-                'original_segment_id': segment['original_segment_id'],
+                'original_segment_id': original_segment_id,
                 'is_multiple_coding_instance': segment['is_multiple_coding'],
                 'instance_info': segment['instance_info']
             }
@@ -424,14 +492,28 @@ class ReviewManager:
         majority_coding = best_coding.copy()
         
         # Aktualisiere mit Majority-Informationen
+        # FIX: Preserve original internal segment_id format
+        original_segment_id = segment.get('original_segment_id', segment['segment_id'])
+        
+        # For multiple coding, create proper multiple coding segment ID
+        if segment.get('is_multiple_coding', False):
+            instance_number = segment.get('instance_info', {}).get('instance_number', 1)
+            final_segment_id = f"{original_segment_id}-{instance_number}"
+        else:
+            final_segment_id = original_segment_id
+        
         majority_coding.update({
-            'segment_id': segment['segment_id'],
+            'segment_id': final_segment_id,
+            'original_segment_id': original_segment_id,
             'category': target_category,
+            'is_multiple_coding': segment.get('is_multiple_coding', False),
+            'multiple_coding_instance': segment.get('instance_info', {}).get('instance_number', 1),
+            'total_coding_instances': segment.get('instance_info', {}).get('total_instances', 1),
             'consensus_info': {
                 'total_coders': len(codings),
                 'selection_type': 'majority',
                 'confidence_based_selection': True,
-                'original_segment_id': segment['original_segment_id'],
+                'original_segment_id': original_segment_id,
                 'is_multiple_coding_instance': segment['is_multiple_coding'],
                 'instance_info': segment['instance_info']
             }
@@ -464,7 +546,7 @@ class ReviewManager:
     
     def _save_review_decisions(self, review_mode: str) -> None:
         """
-        Save review decisions to JSON file for transparency and auditability.
+        Save review decisions to JSON file with timestamped filename matching Excel export.
         """
         if not self.review_decisions:
             print("   ℹ️ Keine Review-Entscheidungen zu speichern")
@@ -483,13 +565,22 @@ class ReviewManager:
             "decisions": self.review_decisions
         }
         
-        decisions_file = os.path.join(self.output_dir, "review_decisions.json")
+        # Generate timestamped filename matching Excel export pattern
+        if self.timestamp:
+            # Use provided timestamp (matches Excel export)
+            filename = f"QCA-AID_Analysis_{self.analysis_mode}_{self.timestamp}_review_decisions.json"
+        else:
+            # Generate new timestamp
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            filename = f"QCA-AID_Analysis_{self.analysis_mode}_{timestamp}_review_decisions.json"
+        
+        decisions_file = os.path.join(self.output_dir, filename)
         
         try:
             with open(decisions_file, 'w', encoding='utf-8') as f:
                 json.dump(decisions_data, f, indent=2, ensure_ascii=False)
             
-            print(f"   💾 Review-Entscheidungen gespeichert: {decisions_file}")
+            print(f"   💾 Review-Entscheidungen gespeichert: {filename}")
             print(f"   📊 {len(self.review_decisions)} Entscheidungen dokumentiert")
             
             # Summary statistics

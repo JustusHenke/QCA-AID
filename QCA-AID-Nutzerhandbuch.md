@@ -3,7 +3,7 @@
 
 ![QCA-AID Banner](banner-qca-aid.png)
 
-**Version:** 0.11.1  
+**Version:** 0.12.3  
 **Zielgruppe:** Sozialwissenschaftler:innen mit Erfahrung in qualitativer Forschung  
 **Autor:** Justus Henke, Institut für Hochschulforschung Halle-Wittenberg
 
@@ -68,6 +68,19 @@ QCA-AID basiert auf etablierten Prinzipien der qualitativen Inhaltsanalyse:
 - **Flexibilität:** Unterstützung verschiedener LLM-Anbieter und Modelle
 - **Skalierbarkeit:** Batch-Verarbeitung für große Datenmengen
 - **Transparenz:** Vollständige Dokumentation aller Kodierentscheidungen
+
+### Methodische Grundlagen der Relevanzbestimmung
+
+Die Relevanzbestimmung der Textsegmente in QCA-AID erfolgt **forschungsfragengeleitet** und **informationslogisch**. Ausgangspunkt ist die Annahme, dass Relevanz nicht textimmanent, sondern ausschließlich in Bezug auf die jeweilige Forschungsfrage bestimmt werden kann. Entsprechend werden Textsegmente nicht danach bewertet, ob sie für sich genommen einen hohen Erkenntniswert oder eine besondere inhaltliche Tiefe aufweisen, sondern danach, ob sie relevante Informationen zur Beantwortung der Forschungsfrage liefern.
+
+**Theoretische Fundierung:**
+In Anlehnung an die qualitative Inhaltsanalyse nach **Mayring** sowie an thematische und informationslogische Auswertungsansätze nach **Kuckartz** sowie **Gläser und Laudel** wird Relevanz definiert als der inhaltliche Bezug eines Textsegments zu mindestens einem zentralen Aspekt der Forschungsfrage. Dabei werden auch kurze, beiläufige oder bestätigende Aussagen als relevant betrachtet, sofern sie einen nachvollziehbaren Informationsbeitrag zur Forschungsfrage leisten. Umfang, Ausführlichkeit oder Neuheitsgrad einer Aussage stellen kein Ausschlusskriterium dar.
+
+**Praktisches Vorgehen:**
+Die Forschungsfrage wird zu diesem Zweck in ihre inhaltlichen Aspekte zerlegt (z. B. zentrale Konzepte, Akteure, Prozesse oder Bedingungen), die als Referenzrahmen für die Relevanzprüfung dienen. Ein Textsegment wird als relevant eingestuft, wenn es explizite oder implizite Informationen zu mindestens einem dieser Aspekte enthält. Segmente, die ausschließlich allgemeinen Kontext, organisatorische Informationen oder thematisch verwandte, jedoch nicht forschungsfragenbezogene Inhalte aufweisen, werden als nicht relevant klassifiziert.
+
+**Methodische Einordnung:**
+Mit diesem Vorgehen wird einerseits eine systematische und regelgeleitete Materialreduktion ermöglicht, andererseits bleibt die Analyse offen für unterschiedliche Ausprägungen, Intensitäten und Formen relevanter Aussagen. Die Relevanzprüfung ist damit sowohl mit kategoriengeleiteten Ansätzen (Mayring) als auch mit thematisch-explorativen und informationslogischen Verfahren (Kuckartz; Gläser/Laudel) vereinbar.
 
 ---
 
@@ -411,9 +424,38 @@ QCA-AID unterstützt zwei Formate, die automatisch synchronisiert werden:
   "ANALYSIS_MODE": "deductive",      // "deductive", "abductive", "grounded"
   "CODE_WITH_CONTEXT": true,         // Kontextuelle Kodierung
   "MULTIPLE_CODINGS": true,          // Mehrfachkodierungen erlauben
-  "MULTIPLE_CODING_THRESHOLD": 0.85  // Schwellwert für Mehrfachkodierung
+  "MULTIPLE_CODING_THRESHOLD": 0.85, // Schwellwert für Mehrfachkodierung
+  "RELEVANCE_THRESHOLD": 0.3         // Relevanz-Schwellwert (0.0-1.0)
 }
 ```
+
+#### Relevanz-Schwellwert verstehen
+
+Der `RELEVANCE_THRESHOLD` steuert, welche Textsegmente in die Analyse einbezogen werden:
+
+**🎯 Standard-Wert (0.3):**
+- Entspricht dem natürlichen LLM-Verhalten
+- Verwendet LLM-Relevanzentscheidungen wie sie sind
+- **Empfohlen** für die meisten Analysen
+
+**📈 Höhere Werte (0.4-1.0):**
+- Strengere Filterung, nur hochrelevante Segmente
+- Reduziert Rauschen, kann aber wichtige Inhalte ausschließen
+- Geeignet bei sehr großen Datenmengen oder klaren Forschungsfragen
+
+**📉 Niedrigere Werte (0.0-0.2):**
+- Inkludiert auch vom LLM verworfene Segmente
+- "Rettung" von möglicherweise fälschlich ausgeschlossenen Inhalten
+- Nur bei Verdacht auf zu restriktive LLM-Bewertung verwenden
+
+**⚠️ Wichtige Abwägungen:**
+
+| Schwellwert | Vorteile | Nachteile | Anwendungsfall |
+|-------------|----------|-----------|----------------|
+| **0.0-0.2** | Vollständigkeit, keine verlorenen Inhalte | Mehr Rauschen, längere Analyse | Explorative Studien, unklare Forschungsfragen |
+| **0.3** | Ausgewogen, LLM-optimiert | - | Standard für die meisten Analysen |
+| **0.4-0.6** | Fokussiert, weniger Rauschen | Möglicher Informationsverlust | Große Datenmengen, klare Forschungsfragen |
+| **0.7-1.0** | Nur hochrelevante Inhalte | Hoher Informationsverlust | Sehr spezifische Analysen, Qualitätskontrolle |
 
 #### Coder-Einstellungen
 
@@ -742,6 +784,40 @@ mein-forschungsprojekt/
 - **Chunk-Größe:** Schieberegler für Textabschnittsgröße
 - **Batch-Größe:** Balance zwischen Geschwindigkeit und Qualität
 - **Kontextuelle Kodierung:** Toggle für erweiterten Kontext
+
+#### Relevanz-Schwellwert konfigurieren
+
+**[Screenshot-Platzhalter: Relevanz-Schwellwert Slider in der UI]**
+
+Der Relevanz-Schwellwert ist eine wichtige Einstellung, die bestimmt, welche Textsegmente in die Analyse einbezogen werden:
+
+**🎯 Relevanz-Schwellwert Slider (0.0-1.0):**
+- **Standard-Position:** 0.3 (empfohlen für die meisten Analysen)
+- **Echtzeit-Feedback:** Beschreibung der aktuellen Einstellung
+- **Warnungen:** Automatische Hinweise bei extremen Werten
+
+**Praktische Anwendung in der UI:**
+
+1. **Standard verwenden (0.3):**
+   - Slider bleibt auf Standard-Position
+   - Info-Text: "Verwendet LLM-Entscheidungen wie sie sind"
+   - Keine besonderen Warnungen
+
+2. **Strengere Filterung (0.4-1.0):**
+   - Slider nach rechts bewegen
+   - Info-Text: "Sehr strenge Filterung, nur hochrelevante Segmente"
+   - Blaue Info-Box erscheint
+
+3. **Inklusivere Filterung (0.0-0.2):**
+   - Slider nach links bewegen
+   - Warnung: "⚠️ Wert unter 0.3: Inkludiert LLM-verworfene Segmente"
+   - Orange Warnbox erscheint
+
+**Empfohlene Workflow:**
+1. **Erste Analyse:** Standard-Wert (0.3) verwenden
+2. **Ergebnisse prüfen:** Sind wichtige Inhalte ausgeschlossen?
+3. **Anpassung:** Bei Bedarf Schwellwert reduzieren (0.1-0.2)
+4. **Qualitätskontrolle:** Bei zu viel Rauschen Schwellwert erhöhen (0.4-0.5)
 
 ### 9.4 Codebook-Tab
 

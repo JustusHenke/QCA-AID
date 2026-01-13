@@ -191,7 +191,7 @@ class ConfigData:
             batch_size=data.get('batch_size', 8),
             code_with_context=data.get('code_with_context', False),
             multiple_codings=data.get('multiple_codings', True),
-            multiple_coding_threshold=data.get('multiple_coding_threshold', 0.85),
+            multiple_coding_threshold=data.get('multiple_coding_threshold', 0.65),
             analysis_mode=data.get('analysis_mode', 'deductive'),
             review_mode=data.get('review_mode', 'consensus'),
             attribute_labels=data.get('attribute_labels', {

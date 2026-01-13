@@ -224,7 +224,7 @@ class ReliabilityCalculator:
     
     def _calculate_main_categories_alpha(self, codings: List[Dict]) -> float:
         """
-        FIX: Hauptkategorien Alpha mit Jaccard-Ähnlichkeit (fuer Konsistenz)
+        FIX: Hauptkategorien Alpha mit Jaccard-Ähnlichkeit und korrekter Mehrfachkodierungs-Behandlung
         FÜr ReliabilityCalculator Klasse
         """
         segment_data = self._group_by_original_segments(codings)
@@ -242,7 +242,7 @@ class ReliabilityCalculator:
                 for j in range(i + 1, len(coders)):
                     coder1, coder2 = coders[i], coders[j]
                     
-                    # Nur Hauptkategorien sammeln
+                    # Sammle ALLE Hauptkategorien von allen Kodierungen eines Kodierers für dieses Segment
                     set1 = set()
                     set2 = set()
                     
@@ -375,7 +375,7 @@ class ReliabilityCalculator:
     
     def _calculate_subcategories_alpha(self, codings: List[Dict]) -> float:
         """
-        FIX: Subkategorien Alpha mit partieller Übereinstimmung (Jaccard-Ähnlich)
+        FIX: Subkategorien Alpha mit partieller Übereinstimmung und korrekter Mehrfachkodierungs-Behandlung
         FÜr ReliabilityCalculator Klasse
         
         Behandelt: "subcat1, subcat2" vs. "subcat1, subcat3" als partielle Übereinstimmung
@@ -398,7 +398,7 @@ class ReliabilityCalculator:
                 for j in range(i + 1, len(coders)):
                     coder1, coder2 = coders[i], coders[j]
                     
-                    # Sammle Subkategorien fuer beide Kodierer
+                    # Sammle ALLE Subkategorien von allen Kodierungen eines Kodierers für dieses Segment
                     set1 = set()
                     set2 = set()
                     
@@ -537,8 +537,8 @@ class ReliabilityCalculator:
         FIX: Berechnet Alpha mit korrekter Mehrfachkodierungs-Behandlung
         
         Methodisch korrekte Behandlung nach Krippendorff (2011):
-        - Jede Mehrfachkodierung wird als separate Beobachtung behandelt
-        - Alle paarweisen Vergleiche zwischen Kodierern werden durchgeführt
+        - Für Intercoder-Reliabilität werden nur Kodierungen zwischen verschiedenen Kodierern verglichen
+        - Mehrfachkodierungen desselben Kodierers werden als Set behandelt (alle Kategorien zusammengefasst)
         - Jaccard-Ähnlichkeit für Set-basierte Vergleiche
         """
         segment_data = self._group_by_original_segments_with_multiple_codings(codings)
@@ -554,58 +554,53 @@ class ReliabilityCalculator:
             
             coders = list(coders_data.keys())
             
-            # Paarweise Vergleiche zwischen allen Kodierern
+            # Paarweise Vergleiche zwischen verschiedenen Kodierern (NICHT innerhalb desselben Kodierers)
             for i in range(len(coders)):
                 for j in range(i + 1, len(coders)):
                     coder1, coder2 = coders[i], coders[j]
                     
-                    # Alle Kodierungen von beiden Kodierern für dieses Basis-Segment
-                    coder1_codings = coders_data[coder1]
-                    coder2_codings = coders_data[coder2]
+                    # Sammle ALLE Kategorien von allen Kodierungen eines Kodierers für dieses Segment
+                    set1 = set()
+                    set2 = set()
                     
-                    # METHODISCH KORREKT: Vergleiche alle Kombinationen von Mehrfachkodierungen
-                    for coding1 in coder1_codings:
-                        for coding2 in coder2_codings:
-                            # Sammle Sets für beide Kodierungen
-                            set1 = set()
-                            set2 = set()
-                            
-                            # Set 1 (Kodierung 1)
-                            main_cat1 = coding1.get('category', '')
-                            if main_cat1 and main_cat1 not in ['Nicht kodiert', 'Kein Kodierkonsens']:
-                                set1.add(main_cat1)
-                            
-                            subcats1 = coding1.get('subcategories', [])
-                            if isinstance(subcats1, (list, tuple)):
-                                set1.update(subcats1)
-                            
-                            # Set 2 (Kodierung 2)
-                            main_cat2 = coding2.get('category', '')
-                            if main_cat2 and main_cat2 not in ['Nicht kodiert', 'Kein Kodierkonsens']:
-                                set2.add(main_cat2)
-                            
-                            subcats2 = coding2.get('subcategories', [])
-                            if isinstance(subcats2, (list, tuple)):
-                                set2.update(subcats2)
-                            
-                            all_comparisons += 1
-                            
-                            # Jaccard-Ähnlichkeit
-                            if len(set1) == 0 and len(set2) == 0:
-                                overlap_score = 1.0
-                            elif len(set1) == 0 or len(set2) == 0:
-                                overlap_score = 0.0
-                            else:
-                                intersection = len(set1.intersection(set2))
-                                union = len(set1.union(set2))
-                                overlap_score = intersection / union if union > 0 else 0.0
-                            
-                            all_overlap_scores.append(overlap_score)
-                            
-                            # Debug für erste 3 Vergleiche
-                            if all_comparisons <= 3:
-                                print(f"  Vergleich {all_comparisons}: {coding1.get('segment_id')} vs {coding2.get('segment_id')}")
-                                print(f"    Set1: {list(set1)}, Set2: {list(set2)} -> {overlap_score:.3f}")
+                    # Set 1: Alle Kategorien von Kodierer 1 für dieses Basis-Segment
+                    for coding in coders_data[coder1]:
+                        main_cat = coding.get('category', '')
+                        if main_cat and main_cat not in ['Nicht kodiert', 'Kein Kodierkonsens']:
+                            set1.add(main_cat)
+                        
+                        subcats = coding.get('subcategories', [])
+                        if isinstance(subcats, (list, tuple)):
+                            set1.update(subcats)
+                    
+                    # Set 2: Alle Kategorien von Kodierer 2 für dieses Basis-Segment
+                    for coding in coders_data[coder2]:
+                        main_cat = coding.get('category', '')
+                        if main_cat and main_cat not in ['Nicht kodiert', 'Kein Kodierkonsens']:
+                            set2.add(main_cat)
+                        
+                        subcats = coding.get('subcategories', [])
+                        if isinstance(subcats, (list, tuple)):
+                            set2.update(subcats)
+                    
+                    all_comparisons += 1
+                    
+                    # Jaccard-Ähnlichkeit zwischen den kombinierten Sets
+                    if len(set1) == 0 and len(set2) == 0:
+                        overlap_score = 1.0
+                    elif len(set1) == 0 or len(set2) == 0:
+                        overlap_score = 0.0
+                    else:
+                        intersection = len(set1.intersection(set2))
+                        union = len(set1.union(set2))
+                        overlap_score = intersection / union if union > 0 else 0.0
+                    
+                    all_overlap_scores.append(overlap_score)
+                    
+                    # Debug für erste 3 Vergleiche
+                    if all_comparisons <= 3:
+                        print(f"  Vergleich {all_comparisons}: {base_segment_id} vs {base_segment_id}")
+                        print(f"    Set1: {list(set1)}, Set2: {list(set2)} -> {overlap_score:.3f}")
         
         if all_comparisons == 0:
             return 0.0
@@ -858,75 +853,6 @@ class ReliabilityCalculator:
         print(f"   - Durchschnittliche Jaccard-Übereinstimmung: {observed_agreement:.3f}")
         print(f"   - Erwartete ZufallsÜbereinstimmung: {expected_agreement:.3f}")
         print(f"   - Overall Alpha (Jaccard-basiert): {alpha:.3f}")
-        
-        return max(0.0, alpha)
-
-    def _calculate_main_categories_alpha(self, codings: List[Dict]) -> float:
-        """
-        FIX: Hauptkategorien Alpha mit Jaccard-Ähnlichkeit (fuer Konsistenz)
-        FÜr ReliabilityCalculator Klasse
-        """
-        segment_data = self._group_by_original_segments(codings)
-        
-        all_overlap_scores = []
-        all_comparisons = 0
-        
-        for segment_id, coders_data in segment_data.items():
-            if len(coders_data) < 2:
-                continue
-            
-            coders = list(coders_data.keys())
-            
-            for i in range(len(coders)):
-                for j in range(i + 1, len(coders)):
-                    coder1, coder2 = coders[i], coders[j]
-                    
-                    # Nur Hauptkategorien sammeln
-                    set1 = set()
-                    set2 = set()
-                    
-                    for coding in coders_data[coder1]:
-                        main_cat = coding.get('category', '')
-                        if main_cat and main_cat not in ['Nicht kodiert', 'Kein Kodierkonsens']:
-                            set1.add(main_cat)
-                    
-                    for coding in coders_data[coder2]:
-                        main_cat = coding.get('category', '')
-                        if main_cat and main_cat not in ['Nicht kodiert', 'Kein Kodierkonsens']:
-                            set2.add(main_cat)
-                    
-                    all_comparisons += 1
-                    
-                    # Jaccard-Ähnlichkeit
-                    if len(set1) == 0 and len(set2) == 0:
-                        overlap_score = 1.0
-                    elif len(set1) == 0 or len(set2) == 0:
-                        overlap_score = 0.0
-                    else:
-                        intersection = len(set1.intersection(set2))
-                        union = len(set1.union(set2))
-                        overlap_score = intersection / union if union > 0 else 0.0
-                    
-                    all_overlap_scores.append(overlap_score)
-        
-        if all_comparisons == 0:
-            return 0.0
-        
-        # Durchschnittliche Übereinstimmung
-        observed_agreement = sum(all_overlap_scores) / len(all_overlap_scores)
-        
-        # Erwartete Übereinstimmung
-        expected_agreement = 0.20  # FÜr Hauptkategorien
-        
-        # Krippendorff's Alpha
-        if expected_agreement >= 1.0:
-            alpha = 1.0 if observed_agreement >= 1.0 else 0.0
-        else:
-            alpha = (observed_agreement - expected_agreement) / (1 - expected_agreement)
-        
-        print(f"🧾 Hauptkategorien Alpha Details:")
-        print(f"   - Durchschnittliche Übereinstimmung: {observed_agreement:.3f}")
-        print(f"   - Hauptkategorien Alpha (Jaccard): {alpha:.3f}")
         
         return max(0.0, alpha)
 

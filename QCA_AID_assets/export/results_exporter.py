@@ -65,8 +65,157 @@ class ResultsExporter:
         self.relevance_checker = analysis_manager.relevance_checker if analysis_manager else None
         self.category_colors = {}
         self.current_categories = {}  # Wird von main() gesetzt
+        # FIX: Cache für Segment-Texte zur besseren Text-Extraktion
+        self._segment_text_cache = {}
 
         os.makedirs(output_dir, exist_ok=True)
+
+    def cache_segment_texts(self, codings: List[Dict], chunks: Dict[str, List[str]] = None) -> None:
+        """
+        FIX: Erstelle Cache für Segment-Texte zur besseren Text-Extraktion bei Mehrfachkodierung.
+        Nutzt sowohl codings als auch chunks für vollständige Text-Abdeckung.
+        """
+        # FIX: Erste Pass - sammle alle verfügbaren Texte aus codings
+        available_texts = {}
+        
+        for coding in codings:
+            segment_id = coding.get('segment_id', '')
+            
+            # FIX: Prüfe ob Display-IDs als segment_id verwendet werden - das sollte NICHT passieren!
+            if segment_id and not '_chunk_' in segment_id and '-' in segment_id:
+                print(f"   ❌ CRITICAL ERROR: Display-ID als segment_id im Cache: {segment_id}")
+                print(f"   ❌ Das ist ein Bug - Display-IDs sollen niemals intern verwendet werden!")
+                print(f"   ❌ Quelle des Problems muss gefunden und behoben werden!")
+                # Überspringe diese Kodierung um den Fehler sichtbar zu machen
+                continue
+            
+            # FIX: Robuste Text-Extraktion mit derselben Logik wie im Export
+            text = coding.get('text', '')
+            if not text and 'result' in coding:
+                text = coding['result'].get('text', '')
+            
+            if text and segment_id:
+                available_texts[segment_id] = text
+                
+                # Auch original_segment_id sammeln falls verfügbar
+                original_id = coding.get('original_segment_id', '')
+                if original_id and original_id != segment_id:
+                    available_texts[original_id] = text
+                
+                # Auch aus result-Feld sammeln
+                if 'result' in coding:
+                    result_original_id = coding['result'].get('original_segment_id', '')
+                    if result_original_id and result_original_id != segment_id:
+                        available_texts[result_original_id] = text
+        
+        # FIX: NEUE LOGIK - Nutze chunks für vollständige Text-Abdeckung
+        if chunks:
+            print(f"   📝 Ergänze Cache mit {len(chunks)} Dokumenten aus chunks...")
+            from ..core.segment_id_manager import SegmentIDManager
+            
+            chunks_added = 0
+            for doc_name, doc_chunks in chunks.items():
+                for chunk_idx, chunk_text in enumerate(doc_chunks):
+                    # Erstelle segment_id für diesen Chunk
+                    segment_id = SegmentIDManager.create_segment_id(doc_name, chunk_idx)
+                    
+                    # Füge zum Cache hinzu (überschreibt nicht vorhandene Texte)
+                    if segment_id not in available_texts and chunk_text:
+                        available_texts[segment_id] = chunk_text
+                        chunks_added += 1
+            
+            print(f"   📝 {chunks_added} zusätzliche Texte aus chunks hinzugefügt")
+        else:
+            print(f"   ⚠️ Keine chunks verfügbar - Cache nur aus codings erstellt")
+        
+        # FIX: Zweite Pass - erstelle umfassenden Cache mit Fallback-Strategien
+        for coding in codings:
+            segment_id = coding.get('segment_id', '')
+            if not segment_id:
+                continue
+                
+            # Versuche Text für dieses segment_id zu finden
+            text = None
+            
+            # Strategie 1: Direkter Text aus diesem coding
+            text = coding.get('text', '')
+            if not text and 'result' in coding:
+                text = coding['result'].get('text', '')
+            
+            # Strategie 2: Suche in available_texts
+            if not text:
+                text = available_texts.get(segment_id, '')
+            
+            # Strategie 3: Für Mehrfachkodierung - suche Base-ID
+            if not text and '-' in segment_id:
+                # Entferne Mehrfachkodierungs-Suffix: "document.ext_chunk_1-1" -> "document.ext_chunk_1"
+                base_id = segment_id.rsplit('-', 1)[0]  # Entferne nur das letzte Suffix
+                text = available_texts.get(base_id, '')
+                if text:
+                    # print(f"   📝 Found text for {segment_id} via base_id: {base_id}")
+                    pass
+            
+            # Strategie 4: Suche über original_segment_id
+            if not text:
+                original_id = coding.get('original_segment_id', '')
+                if original_id:
+                    text = available_texts.get(original_id, '')
+                    if text:
+                        # print(f"   📝 Found text for {segment_id} via original_segment_id: {original_id}")
+                        pass
+                    
+                    # Auch Base-ID von original_segment_id versuchen
+                    if not text and '-' in original_id:
+                        original_base_id = original_id.rsplit('-', 1)[0]
+                        text = available_texts.get(original_base_id, '')
+                        if text:
+                            # print(f"   📝 Found text for {segment_id} via original_base_id: {original_base_id}")
+                            pass
+            
+            # Cache den gefundenen Text unter verschiedenen IDs
+            if text:
+                # FIX: Use standardized segment IDs for consistent caching
+                standardized_id = self._standardize_segment_id(segment_id)
+                
+                # Cache under standardized ID
+                self._segment_text_cache[standardized_id] = text
+                
+                # Also cache under original segment_id if different
+                if segment_id != standardized_id:
+                    self._segment_text_cache[segment_id] = text
+                
+                # Also cache under original_segment_id if available
+                original_id = coding.get('original_segment_id', '')
+                if original_id and original_id != segment_id and original_id != standardized_id:
+                    self._segment_text_cache[original_id] = text
+                
+                # For multiple coding, also cache under base ID
+                if '-' in segment_id:
+                    base_id = segment_id.rsplit('-', 1)[0]
+                    if base_id not in self._segment_text_cache:
+                        self._segment_text_cache[base_id] = text
+                
+                # Also cache under original segment_id for backward compatibility
+                if segment_id != standardized_id:
+                    self._segment_text_cache[segment_id] = text
+                
+                # Cache under base ID for multiple coding lookups
+                if '-' in standardized_id:
+                    base_id = standardized_id.rsplit('-', 1)[0]
+                    self._segment_text_cache[base_id] = text
+                
+                # Cache under original_segment_id if different
+                original_id = coding.get('original_segment_id', '')
+                if original_id and original_id != segment_id:
+                    standardized_original = self._standardize_segment_id(original_id)
+                    self._segment_text_cache[standardized_original] = text
+                    if original_id != standardized_original:
+                        self._segment_text_cache[original_id] = text
+                
+                # print(f"   📝 Cached text for {standardized_id} (length: {len(text)})")
+                pass
+            else:
+                print(f"   ⚠️ No text found for {segment_id} during cache population")
 
     def _get_consensus_coding(self, segment_codes: List[Dict]) -> Dict:
         """
@@ -482,17 +631,13 @@ class ResultsExporter:
             for coding in codings_for_cat:
                 # Prüfe ob diese Kodierung wirklich fuer die aktuelle Hauptkategorie ist
                 if coding.get('category') == main_cat:
-                    # Prüfe ob es eine fokussierte Kodierung war
-                    target_category = coding.get('target_category', '')
-                    
-                    if target_category == main_cat or not target_category:
-                        # Diese Kodierung war fuer diese Hauptkategorie bestimmt
-                        subcats = coding.get('subcategories', [])
-                        if isinstance(subcats, (list, tuple)):
-                            relevant_subcats.extend(subcats)
-                        elif isinstance(subcats, str) and subcats:
-                            subcat_list = [s.strip() for s in subcats.split(',') if s.strip()]
-                            relevant_subcats.extend(subcat_list)
+                    # Diese Kodierung gehört zu dieser Hauptkategorie
+                    subcats = coding.get('subcategories', [])
+                    if isinstance(subcats, (list, tuple)):
+                        relevant_subcats.extend(subcats)
+                    elif isinstance(subcats, str) and subcats:
+                        subcat_list = [s.strip() for s in subcats.split(',') if s.strip()]
+                        relevant_subcats.extend(subcat_list)
             
             # Entferne Duplikate
             final_subcats = list(set(relevant_subcats))
@@ -515,8 +660,6 @@ class ResultsExporter:
             consolidated_coding['subcategories'] = final_subcats  # Nur relevante Subkategorien
             consolidated_coding['multiple_coding_instance'] = i
             consolidated_coding['total_coding_instances'] = len(category_groups)
-            consolidated_coding['target_category'] = main_cat
-            consolidated_coding['category_focus_used'] = True
             
             # Erweiterte Begründung
             original_justification = consolidated_coding.get('justification', '')
@@ -954,6 +1097,44 @@ class ResultsExporter:
             reliability: FIX: Bereits berechnete Reliabilität aus main()
         """
         try:
+            # FIX: Cache Segment-Texte für bessere Text-Extraktion
+            print("   📝 Erstelle Segment-Text-Cache für Export...")
+            self.cache_segment_texts(codings, chunks)
+            if original_codings:
+                self.cache_segment_texts(original_codings, chunks)
+            print(f"   📝 Cache erstellt mit {len(self._segment_text_cache)} Einträgen")
+            
+            # FIX: Debug - prüfe Relevance-Checker Verfügbarkeit
+            relevance_checker = None
+            if hasattr(self, 'relevance_checker') and self.relevance_checker:
+                relevance_checker = self.relevance_checker
+                print(f"   🔍 DEBUG: Relevance-Checker direkt verfügbar mit {len(relevance_checker.relevance_details)} Details")
+            elif hasattr(self, 'analysis_manager') and self.analysis_manager and hasattr(self.analysis_manager, 'relevance_checker'):
+                relevance_checker = self.analysis_manager.relevance_checker
+                if relevance_checker:
+                    print(f"   🔍 DEBUG: Relevance-Checker via analysis_manager verfügbar mit {len(relevance_checker.relevance_details)} Details")
+                    # Zeige Beispiel-Keys
+                    sample_keys = list(relevance_checker.relevance_details.keys())[:3]
+                    print(f"   🔍 DEBUG: Beispiel Relevance-Keys: {sample_keys}")
+                else:
+                    print("   ❌ DEBUG: analysis_manager.relevance_checker ist None")
+            else:
+                print("   ❌ DEBUG: Kein Relevance-Checker verfügbar")
+            
+            # FIX: Debug - zeige Beispiel-Kodierungen
+            multiple_codings = [c for c in codings if c.get('is_multiple_coding', False)]
+            if multiple_codings:
+                print(f"   🔍 DEBUG: {len(multiple_codings)} Mehrfachkodierungen gefunden")
+                for i, mc in enumerate(multiple_codings[:2]):  # Zeige erste 2
+                    segment_id = mc.get('segment_id', 'N/A')
+                    has_text = bool(mc.get('text', ''))
+                    has_result_text = bool(mc.get('result', {}).get('text', ''))
+                    original_id = mc.get('original_segment_id', 'N/A')
+                    print(f"     Beispiel {i+1}: {segment_id}")
+                    print(f"       - text: {has_text}")
+                    print(f"       - result.text: {has_result_text}")
+                    print(f"       - original_segment_id: {original_id}")
+            
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             analysis_mode = CONFIG.get('ANALYSIS_MODE', 'deductive')
             # FIX: Unterschiedliche Dateinamen fuer normale und Zwischenexporte
@@ -1102,11 +1283,83 @@ class ResultsExporter:
         data = []
         
         for coding in updated_codings:
+            # FIX: Definiere segment_id einheitlich für alle Segmente am Anfang
+            segment_id = coding.get('segment_id', '')
+            
+            # FIX: Normalisiere segment_id für konsistente Relevanz-Lookup
+            def normalize_segment_id_for_relevance(sid):
+                """Normalisiert segment_id für Relevanz-Lookup - uses standardized approach"""
+                if not sid:
+                    return sid
+                # Use the centralized standardization method instead of hardcoding .pdf
+                return self._standardize_segment_id(sid)
+            
+            # FIX: Hole Relevanz-Details einmal für alle Segmente (kodiert und nicht-kodiert)
+            relevance_details = None
+            if segment_id:
+                # FIX: Debug - zeige segment_id und Suchversuche
+                # print(f"   🔍 DEBUG: Suche Relevanz-Details für segment_id: '{segment_id}'")
+                
+                # Teste verschiedene segment_id Formate
+                test_ids = [
+                    segment_id,  # Original
+                    normalize_segment_id_for_relevance(segment_id),  # Normalisiert
+                    # Remove hardcoded .pdf replacements - use standardized approach
+                    self._standardize_segment_id(segment_id),
+                ]
+                
+                # FIX: Entferne Mehrfachkodierungs-Suffix für Relevanz-Lookup
+                base_segment_id = segment_id.split('-')[0] if '-' in segment_id else segment_id
+                if base_segment_id != segment_id:
+                    test_ids.extend([
+                        base_segment_id,
+                        normalize_segment_id_for_relevance(base_segment_id),
+                        # Remove hardcoded .pdf replacements - use standardized approach
+                        self._standardize_segment_id(base_segment_id),
+                    ])
+                
+                # print(f"   🔍 DEBUG: Test-IDs: {test_ids}")
+                pass
+                
+                for test_id in test_ids:
+                    if hasattr(self, 'relevance_checker') and self.relevance_checker:
+                        relevance_details = self.relevance_checker.get_relevance_details(test_id)
+                        if relevance_details:
+                            # print(f"   ✅ Relevanz-Details gefunden mit ID: '{test_id}'")
+                            break
+                    elif hasattr(self, 'analysis_manager') and self.analysis_manager and hasattr(self.analysis_manager, 'relevance_checker'):
+                        relevance_details = self.analysis_manager.relevance_checker.get_relevance_details(test_id)
+                        if relevance_details:
+                            # print(f"   ✅ Relevanz-Details gefunden mit ID: '{test_id}' (via analysis_manager)")
+                            break
+                
+                if not relevance_details:
+                    # print(f"   ❌ Keine Relevanz-Details gefunden für segment_id: '{segment_id}'")
+                    # FIX: Debug - zeige verfügbare Keys im relevance_checker
+                    if hasattr(self, 'relevance_checker') and self.relevance_checker:
+                        available_keys = list(self.relevance_checker.relevance_details.keys())[:5]
+                        # print(f"   🔍 Verfügbare Keys (erste 5): {available_keys}")
+                        # FIX: Suche nach ähnlichen Keys
+                        similar_keys = [k for k in self.relevance_checker.relevance_details.keys() if segment_id.replace('_chunk_', '_') in k or k.replace('_chunk_', '_') in segment_id]
+                        if similar_keys:
+                            # print(f"   🔍 Ähnliche Keys gefunden: {similar_keys[:3]}")
+                            pass
+                    elif hasattr(self, 'analysis_manager') and self.analysis_manager and hasattr(self.analysis_manager, 'relevance_checker'):
+                        available_keys = list(self.analysis_manager.relevance_checker.relevance_details.keys())[:5]
+                        # print(f"   🔍 Verfügbare Keys (erste 5): {available_keys}")
+                        # FIX: Suche nach ähnlichen Keys
+                        similar_keys = [k for k in self.analysis_manager.relevance_checker.relevance_details.keys() if segment_id.replace('_chunk_', '_') in k or k.replace('_chunk_', '_') in segment_id]
+                        if similar_keys:
+                            # print(f"   🔍 Ähnliche Keys gefunden: {similar_keys[:3]}")
+                            pass
+                else:
+                    # print(f"   📋 Relevanz-Details gefunden: reasoning='{relevance_details.get('reasoning', 'N/A')[:50]}...'")
+                    print(f"   ")
+            
             # FIX: Übernehme Dokumentname-Extraktion aus _prepare_coding_for_export
             doc_name = coding.get('document', '')
             if not doc_name:
                 # Fallback: Extrahiere aus segment_id
-                segment_id = coding.get('segment_id', '')
                 if segment_id and '_chunk_' in segment_id:
                     doc_name = segment_id.split('_chunk_')[0]
                 else:
@@ -1154,9 +1407,109 @@ class ResultsExporter:
                 except (ValueError, IndexError):
                     chunk_id = 0
             
-            # Haupt-Spalten
+            # FIX: Robuste Text-Extraktion für alle Kodierungstypen
             text = coding.get('text', '')
+            if not text and 'result' in coding:
+                text = coding['result'].get('text', '')
+            
+            # FIX: Use standardized segment ID for consistent text retrieval
+            if not text:
+                segment_id = coding.get('segment_id', '')
+                print(f"   🔍 DEBUG: Looking for text for segment {segment_id}...")
+                
+                # FIX: Check if segment_id looks like a display ID (this should NOT happen)
+                if segment_id and not '_chunk_' in segment_id and '-' in segment_id:
+                    print(f"   ❌ ERROR: segment_id appears to be a display ID: {segment_id}")
+                    print(f"   ❌ This indicates a bug where display_id overwrote segment_id!")
+                    print(f"   ❌ The root cause needs to be fixed - display_id should never replace segment_id!")
+                
+                # Standardize the segment ID for lookup
+                standardized_id = self._standardize_segment_id(segment_id)
+                
+                # Try standardized ID first
+                if hasattr(self, '_segment_text_cache'):
+                    text = self._segment_text_cache.get(standardized_id, '')
+                    if text:
+                        print(f"   ✅ Text found via standardized ID: {standardized_id}")
+                
+                # Try base ID (without multiple coding suffix)
+                if not text and '-' in standardized_id:
+                    base_id = standardized_id.rsplit('-', 1)[0]
+                    text = self._segment_text_cache.get(base_id, '')
+                    if text:
+                        print(f"   ✅ Text found via base ID: {base_id}")
+                
+                # Try original segment_id as fallback
+                if not text and segment_id != standardized_id:
+                    text = self._segment_text_cache.get(segment_id, '')
+                    if text:
+                        print(f"   ✅ Text found via original segment_id: {segment_id}")
+                
+                # Try original_segment_id from coding
+                if not text:
+                    original_id = coding.get('original_segment_id', '')
+                    if original_id:
+                        standardized_original = self._standardize_segment_id(original_id)
+                        text = self._segment_text_cache.get(standardized_original, '')
+                        if text:
+                            print(f"   ✅ Text found via standardized original ID: {standardized_original}")
+                        elif original_id != standardized_original:
+                            text = self._segment_text_cache.get(original_id, '')
+                            if text:
+                                print(f"   ✅ Text found via original_segment_id: {original_id}")
+                
+                # Try result.original_segment_id as final fallback
+                if not text and 'result' in coding:
+                    result_original_id = coding['result'].get('original_segment_id', '')
+                    if result_original_id:
+                        standardized_result = self._standardize_segment_id(result_original_id)
+                        text = self._segment_text_cache.get(standardized_result, '')
+                        if text:
+                            print(f"   ✅ Text found via standardized result original ID: {standardized_result}")
+                        elif result_original_id != standardized_result:
+                            text = self._segment_text_cache.get(result_original_id, '')
+                            if text:
+                                print(f"   ✅ Text found via result.original_segment_id: {result_original_id}")
+                
+                # Warning if still no text found
+                if not text:
+                    is_multiple = coding.get('is_multiple_coding', False)
+                    original_id = coding.get('original_segment_id', 'N/A')
+                    cache_size = len(self._segment_text_cache) if hasattr(self, '_segment_text_cache') else 0
+                    print(f"⚠️ WARNUNG: Kein Original-Text für Segment {segment_id} gefunden")
+                    print(f"   - Standardized ID: {standardized_id}")
+                    print(f"   - Mehrfachkodierung: {is_multiple}")
+                    print(f"   - Original ID: {original_id}")
+                    print(f"   - Cache Größe: {cache_size}")
+                    if hasattr(self, '_segment_text_cache') and cache_size > 0:
+                        sample_keys = list(self._segment_text_cache.keys())[:5]
+                        print(f"   - Sample Cache-Keys: {sample_keys}")
+                    text = "[Original-Text nicht verfügbar]"
+            
+            # FIX: Warnung bei fehlendem Text mit mehr Details
+            if not text:
+                segment_id = coding.get('segment_id', 'UNKNOWN')
+                is_multiple = coding.get('is_multiple_coding', False)
+                original_id = coding.get('original_segment_id', 'N/A')
+                cache_size = len(self._segment_text_cache) if hasattr(self, '_segment_text_cache') else 0
+                print(f"⚠️ WARNUNG: Kein Original-Text für Segment {segment_id} gefunden")
+                print(f"   - Mehrfachkodierung: {is_multiple}")
+                print(f"   - Original ID: {original_id}")
+                print(f"   - Cache Größe: {cache_size}")
+                if hasattr(self, '_segment_text_cache') and cache_size > 0:
+                    # Zeige ähnliche Keys im Cache
+                    if '-' in segment_id:
+                        base_id = segment_id.rsplit('-', 1)[0]
+                        similar_keys = [k for k in self._segment_text_cache.keys() if base_id in k]
+                        print(f"   - Ähnliche Cache-Keys: {similar_keys[:3]}")
+                    else:
+                        sample_keys = list(self._segment_text_cache.keys())[:3]
+                        print(f"   - Cache Beispiel-Keys: {sample_keys}")
+                text = "[Original-Text nicht verfügbar]"
+            
             paraphrase = coding.get('paraphrase', '')
+            if not paraphrase and 'result' in coding:
+                paraphrase = coding['result'].get('paraphrase', '')
             
             # FIX: Hole Kategorie und behandle leere Kategorien explizit
             category = coding.get('category', '')
@@ -1225,47 +1578,45 @@ class ResultsExporter:
             # FIX: VERBESSERTE BegründungSVERARBEITUNG - KERNFIX
             justification = ""
             
-            # ✅ VEREINFACHTES PRIORITÄTSSYSTEMfuer Begründungen
-            # 1. Zuerst normale justification (von DeductiveCoder bei Kodierung)
-            if coding.get('justification') and coding.get('justification').strip():
-                justification = coding.get('justification')
-            # 2. Fallback: RelevanceChecker reasoning (für nicht-kodierte Segmente)
-            elif coding.get('reasoning') and coding.get('reasoning').strip() and coding.get('reasoning') != 'NICHT VORHANDEN':
-                justification = coding.get('reasoning')
-            # 3. Fallback: original_justification
-            elif coding.get('original_justification') and coding.get('original_justification').strip() and coding.get('original_justification') != 'NICHT VORHANDEN':
-                justification = coding.get('original_justification')
-            else:
-                # ✅ NEUER CODE: Intelligente Begründungsermittlung für "Nicht kodiert"
-                if category in ["Nicht kodiert", ""] or display_category == "Nicht kodiert":
-                    segment_id = coding.get('segment_id', '')
-                    
-                    # Priorität 1: Hole RelevanceChecker-Begründung (wenn Segment initial als nicht-relevant markiert)
-                    relevance_details = None
-                    if hasattr(self, 'relevance_checker') and segment_id:
-                        relevance_details = self.relevance_checker.get_relevance_details(segment_id)
-                    elif hasattr(self, 'analysis_manager') and self.analysis_manager and hasattr(self.analysis_manager, 'relevance_checker'):
-                        relevance_details = self.analysis_manager.relevance_checker.get_relevance_details(segment_id)
-                    
-                    if relevance_details and relevance_details.get('reasoning') and relevance_details['reasoning'] != 'Keine Begründung verfügbar':
-                        justification = f"[Relevanzprüfung] {relevance_details['reasoning']}"
-                    else:
-                        # Priorität 2: Intelligente Fallback-Begründungen basierend auf Textanalyse
-                        text_content = text.lower() if text else ""
-                        text_length = len(text_content.strip())
-                        
-                        if text_length < 20:
-                            justification = "Segment zu kurz fuer sinnvolle Kodierung"
-                        elif any(pattern in text_content for pattern in ['seite ', 'page ', 'copyright', '©', 'inhaltsverzeichnis', 'table of contents']):
-                            justification = "Segment als Metadaten (z.B. Seitenzahl, Copyright) identifiziert"
-                        elif any(pattern in text_content for pattern in ['abstract', 'zusammenfassung', 'einleitung']):
-                            justification = "Segment auẞerhalb des Analysebereichs der Forschungsfrage"
-                        elif text_length < 100:
-                            justification = "Segment enthÄlt zu wenig Substanz fuer thematische Kodierung"
-                        else:
-                            justification = "Segment nicht relevant fuer die definierten Analysekategorien"
+            # ✅ SPEZIELLE BEHANDLUNG für nicht-kodierte Segmente
+            if category in ["Nicht kodiert", ""] or display_category == "Nicht kodiert":
+                # Priorität 1: Verwende Relevanz-Details Begründung (wichtigste Quelle für nicht-kodierte Segmente)
+                if relevance_details and relevance_details.get('reasoning') and relevance_details['reasoning'] != 'Keine Begründung verfügbar':
+                    justification = relevance_details['reasoning']
+                    print(f"   ✅ Spezifische LLM-Begründung verwendet für {segment_id}: {justification[:50]}...")
+                # Priorität 2: Fallback zu coding reasoning
+                elif coding.get('reasoning') and coding.get('reasoning').strip() and coding.get('reasoning') != 'NICHT VORHANDEN':
+                    justification = coding.get('reasoning')
+                    print(f"   ✅ Coding-Reasoning verwendet für {segment_id}: {justification[:50]}...")
                 else:
-                    # Fallback für andere Kategorien ohne Begründung
+                    # Priorität 3: Intelligente Fallback-Begründungen basierend auf Textanalyse
+                    text_content = text.lower() if text else ""
+                    text_length = len(text_content.strip())
+                    
+                    if text_length < 20:
+                        justification = "Segment zu kurz fuer sinnvolle Kodierung"
+                    elif any(pattern in text_content for pattern in ['seite ', 'page ', 'copyright', '©', 'inhaltsverzeichnis', 'table of contents']):
+                        justification = "Segment als Metadaten (z.B. Seitenzahl, Copyright) identifiziert"
+                    elif any(pattern in text_content for pattern in ['abstract', 'zusammenfassung', 'einleitung']):
+                        justification = "Segment auẞerhalb des Analysebereichs der Forschungsfrage"
+                    elif text_length < 100:
+                        justification = "Segment enthÄlt zu wenig Substanz fuer thematische Kodierung"
+                    else:
+                        justification = "Segment nicht relevant fuer die definierten Analysekategorien"
+                    print(f"   ⚠️ Fallback-Begründung verwendet für {segment_id}: {justification}")
+            else:
+                # ✅ NORMALE BEHANDLUNG für kodierte Segmente
+                # 1. Zuerst normale justification (von DeductiveCoder bei Kodierung)
+                if coding.get('justification') and coding.get('justification').strip():
+                    justification = coding.get('justification')
+                # 2. Fallback: RelevanceChecker reasoning
+                elif coding.get('reasoning') and coding.get('reasoning').strip() and coding.get('reasoning') != 'NICHT VORHANDEN':
+                    justification = coding.get('reasoning')
+                # 3. Fallback: original_justification
+                elif coding.get('original_justification') and coding.get('original_justification').strip() and coding.get('original_justification') != 'NICHT VORHANDEN':
+                    justification = coding.get('original_justification')
+                else:
+                    # Fallback für kodierte Segmente ohne Begründung
                     justification = "Kodierung ohne spezifische Begründung dokumentiert"
             
             # FIX: Konfidenz korrekt extrahieren
@@ -1279,7 +1630,7 @@ class ResultsExporter:
             
             # FIX: Mehrfachkodierungs-Info wie in _prepare_coding_for_export
             consensus_info = coding.get('consensus_info', {})
-            # FIX: Verwende Normalisierungsmethode für konsistente Original_Chunk_Nr
+            # FIX: Verwende Normalisierungsmethode für konsistente Original_Chunk_ID
             original_segment_id = consensus_info.get('original_segment_id', coding.get('segment_id', ''))
             original_chunk_id = self._normalize_segment_id(original_segment_id)
             is_multiple = consensus_info.get('is_multiple_coding_instance', False)
@@ -1328,17 +1679,31 @@ class ResultsExporter:
                 'Schlüsselwörter': sanitize_text_for_excel(keywords_text),
                 'Begründung': sanitize_text_for_excel(justification),
                 'Konfidenz': f"{confidence_value:.2f}",  # FIX: Korrekte Konfidenz-Formatierung
-                'Original_Chunk_Nr': original_chunk_id,  # FIX: HinzugefÜgt
                 'Mehrfachkodierung': mehrfachkodierung_status,  # FIX: Korrekte Mehrfachkodierung-Logik
                 'Instanz_Nr': instance_info.get('instance_number', 1) if is_multiple else 1,  # FIX: HinzugefÜgt
                 'Gesamt_Instanzen': instance_info.get('total_instances', 1) if is_multiple else 1,  # FIX: HinzugefÜgt
                 'Review_Typ': review_typ,
                 'Kodierer': coding.get('coder_id', 'Unbekannt'),  # FIX: HinzugefÜgt               
-                'Fokus_Kategorie': sanitize_text_for_excel(coding.get('target_category', '')),
-                'Fokus_verwendet': 'Ja' if coding.get('category_focus_used', False) else 'Nein',
                 'Kontext_verwendet': 'Ja' if coding.get('context_paraphrases_used', False) else 'Nein',  # NEU: Spalte für Kontext-Nutzung
-                'Original_Chunk_ID': f"{chunk_prefix}-{chunk_id}"
+                'Original_Chunk_ID': unique_chunk_id
             }
+            
+            # NEU: Relevanz-Details hinzufügen (bereits am Anfang geladen)
+            if relevance_details:
+                additional_fields.update({
+                    'Relevanz_Stärke': f"{relevance_details.get('relevance_strength', 0.0):.2f}",
+                    'Klassifikations_Konfidenz': f"{relevance_details.get('classification_confidence', 0.0):.2f}",
+                    'Forschungsaspekte_gefunden': sanitize_text_for_excel(', '.join(relevance_details.get('aspects_found', []))),
+                    'Relevanz_Aspekte': sanitize_text_for_excel(', '.join(relevance_details.get('key_aspects', [])))
+                })
+            else:
+                # Fallback-Werte wenn keine Relevanz-Details verfügbar
+                additional_fields.update({
+                    'Relevanz_Stärke': 'N/A',
+                    'Klassifikations_Konfidenz': 'N/A', 
+                    'Forschungsaspekte_gefunden': 'N/A',
+                    'Relevanz_Aspekte': 'N/A'
+                })
             
             row_data.update(additional_fields)
             
@@ -1433,92 +1798,87 @@ class ResultsExporter:
     def _normalize_segment_id(self, segment_id: str) -> str:
         """
         Normalisiert Segment-IDs zu einem einheitlichen Format.
+        Uses SegmentIDManager for consistent normalization.
         
         Args:
             segment_id: Original Segment-ID
             
         Returns:
-            Normalisierte Segment-ID im Format: dateiname_chunk_X
+            Normalisierte Segment-ID im Format: document_name.ext_chunk_0 (preserves file extension)
         """
+        from ..core.segment_id_manager import SegmentIDManager
+        
         if not segment_id:
             return 'unknown_segment'
         
-        # Bereits im korrekten Format?
-        if '_chunk_' in segment_id:
-            # Entferne mögliche Mehrfachkodierungs-Suffixe wie "-1", "-2"
-            if '-' in segment_id and segment_id.split('-')[-1].isdigit():
-                base_id = '-'.join(segment_id.split('-')[:-1])
-                return base_id
-            return segment_id
+        # Use SegmentIDManager for consistent normalization
+        return SegmentIDManager.extract_base_segment_id(segment_id)
+    
+    def _standardize_segment_id(self, segment_id: str, multiple_coding_suffix: str = None) -> str:
+        """
+        CENTRAL METHOD: Standardizes segment IDs across the entire system.
+        Uses SegmentIDManager for consistent ID operations.
         
-        # Fallback: Verwende die ID wie sie ist
-        return segment_id
+        Args:
+            segment_id: Original segment ID in any format
+            multiple_coding_suffix: Optional suffix for multiple coding (e.g., "1", "2")
+            
+        Returns:
+            Standardized segment ID: document.ext_chunk_0 or document.ext_chunk_0-1 (preserves file extension)
+        """
+        from ..core.segment_id_manager import SegmentIDManager
+        
+        if not segment_id:
+            return 'unknown_segment'
+        
+        # Use SegmentIDManager for standardization
+        base_id = SegmentIDManager.extract_base_segment_id(segment_id)
+        standardized_id = SegmentIDManager.standardize_segment_id(base_id)
+        
+        # Add multiple coding suffix if provided
+        if multiple_coding_suffix:
+            return SegmentIDManager.add_multiple_coding_suffix(standardized_id, int(multiple_coding_suffix))
+        
+        return standardized_id
 
     def _extract_document_from_segment_id(self, segment_id: str) -> str:
         """
-        Extrahiert Dokumentnamen aus segment_id falls document-Feld fehlt
+        Extrahiert Dokumentnamen aus segment_id falls document-Feld fehlt.
+        Uses SegmentIDManager for consistent extraction.
         """
+        from ..core.segment_id_manager import SegmentIDManager
+        
         if not segment_id:
             return 'Unbekanntes_Dokument'
         
-        # Segment-ID Format: "dokument_chunk_X" oder "dokument_chunk_X-Y"
-        parts = segment_id.split('_chunk_')
-        if len(parts) >= 2:
-            return parts[0]
-        
-        # Fallback: Nimm alles vor dem letzten Unterstrich
-        parts = segment_id.rsplit('_', 1)
-        return parts[0] if len(parts) > 1 else segment_id
+        return SegmentIDManager.extract_document_name(segment_id)
     
     def _extract_three_attributes_from_document(self, doc_name: str) -> tuple:
         """
+        Dynamically extracts document attributes without hardcoded extensions.
+        Uses SegmentIDManager for consistent attribute extraction.
         """
-        # Entferne Dateierweiterung
-        clean_name = doc_name
-        for ext in ['.txt', '.docx', '.pdf', '.doc']:
-            if clean_name.lower().endswith(ext.lower()):
-                clean_name = clean_name[:-len(ext)]
-                break
-        
-        # Teile am Unterstrich
-        parts = clean_name.split('_')
-        
-        attribut1 = parts[0] if len(parts) > 0 else ''
-        attribut2 = parts[1] if len(parts) > 1 else ''
-        attribut3 = parts[2] if len(parts) > 2 else ''
-        
-        return attribut1, attribut2, attribut3
+        # FIX: Use SegmentIDManager for dynamic extension handling
+        from ..core.segment_id_manager import SegmentIDManager
+        return SegmentIDManager.extract_document_attributes(doc_name)
     
     def _generate_correct_chunk_id(self, coding: Dict, attribut1: str, attribut2: str, attribut3: str) -> str:
         """
         PUNKT 4: Generiert korrekte Chunk-ID im Format AABBCC-01-01
+        Uses SegmentIDManager for consistent ID operations.
         
         Format: [Erste 2 Buchstaben Attr1][Erste 2 Buchstaben Attr2][Erste 2 Buchstaben Attr3]-[Segment-Nr]-[Mehrfachkodierungs-Nr]
         """
-        # Extrahiere erste 2 Buchstaben aus jedem Attribut
-        aa = self._extract_first_letters(attribut1, 2)
-        bb = self._extract_first_letters(attribut2, 2)
-        cc = self._extract_first_letters(attribut3, 2)
+        from ..core.segment_id_manager import SegmentIDManager
         
-        # Basis-PrÄfix
-        prefix = f"{aa}{bb}{cc}".upper()
-        
-        # Segment-Nummer aus ursprünglicher segment_id extrahieren
+        # Use SegmentIDManager to create display ID
         segment_id = coding.get('segment_id', '')
-        original_segment_id = coding.get('consensus_info', {}).get('original_segment_id', segment_id)
+        if not segment_id:
+            # Fallback to manual construction
+            original_segment_id = coding.get('consensus_info', {}).get('original_segment_id', '')
+            segment_id = original_segment_id or 'unknown_segment_0'
         
-        # Extrahiere Segment-Nummer
-        segment_nr = self._extract_segment_number(original_segment_id)
-        
-        # Mehrfachkodierungs-Nummer
-        consensus_info = coding.get('consensus_info', {})
-        instance_info = consensus_info.get('instance_info', {})
-        multiple_nr = instance_info.get('instance_number', 1)
-        
-        # Zusammenbauen: AABBCC-01-01
-        chunk_id = f"{prefix}-{segment_nr:02d}-{multiple_nr:02d}"
-        
-        return chunk_id
+        return SegmentIDManager.create_display_id(segment_id)
     
     def _extract_segment_number(self, segment_id: str) -> int:
         """
@@ -1838,12 +2198,11 @@ class ResultsExporter:
             11: 20,  # Schlüsselwörter - WICHTIG
             12: 40,  # Begründung - WICHTIG: Breit fuer Begründung
             13: 10,  # Konfidenz - WICHTIG
-            14: 15,  # Original_Chunk_Nr
-            15: 12,  # Mehrfachkodierung
-            16: 10,  # Instanz_Nr
-            17: 12,  # Gesamt_Instanzen
-            18: 12,  # Review_Typ
-            19: 15   # Kodierer
+            14: 12,  # Mehrfachkodierung
+            15: 10,  # Instanz_Nr
+            16: 12,  # Gesamt_Instanzen
+            17: 12,  # Review_Typ
+            18: 15   # Kodierer
         }
         
         for col, width in column_widths.items():
@@ -3951,7 +4310,7 @@ class ResultsExporter:
             try:
                 from ..__version__ import __version__, __version_date__
             except ImportError:
-                __version__ = "0.11.1"
+                __version__ = "0.12.3"
                 __version_date__ = "2025-12-01"
             
             # FIX: Alle wichtigen Konfigurationsparameter exportieren

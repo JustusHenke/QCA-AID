@@ -28,6 +28,7 @@ if sys.platform == 'win32':
 
 from .core.config import CONFIG, FORSCHUNGSFRAGE
 from .core.data_models import CategoryDefinition, CategoryChange
+from .core.segment_id_manager import SegmentIDManager
 from .preprocessing.material_loader import MaterialLoader
 from .analysis.deductive_coding import DeductiveCategoryBuilder, DeductiveCoder
 from .analysis.analysis_manager import IntegratedAnalysisManager, token_counter
@@ -158,7 +159,7 @@ async def perform_manual_coding(chunks, categories, manual_coders):
                             for i, single_coding in enumerate(coding_result, 1):
                                 # Erstelle Dictionary-Eintrag fuer jede Kodierung
                                 coding_entry = {
-                                    'segment_id': f"{document_name}_chunk_{chunk_id}",
+                                    'segment_id': SegmentIDManager.create_segment_id(document_name, chunk_id),
                                     'coder_id': manual_coder.coder_id,
                                     'category': single_coding.get('category', ''),
                                     'subcategories': single_coding.get('subcategories', []),
@@ -185,7 +186,7 @@ async def perform_manual_coding(chunks, categories, manual_coders):
                         else:
                             # Einzelkodierung (Dictionary)
                             coding_entry = {
-                                'segment_id': f"{document_name}_chunk_{chunk_id}",
+                                'segment_id': SegmentIDManager.create_segment_id(document_name, chunk_id),
                                 'coder_id': manual_coder.coder_id,
                                 'category': coding_result.get('category', ''),
                                 'subcategories': coding_result.get('subcategories', []),
@@ -646,7 +647,7 @@ async def main() -> None:
             all_segments_for_relevance = []  # Für Relevanzprüfung
             for doc_name, doc_chunks in chunks.items():
                 for chunk_idx, chunk_text in enumerate(doc_chunks):
-                    segment_id = f"{doc_name}_chunk_{chunk_idx}"
+                    segment_id = SegmentIDManager.create_segment_id(doc_name, chunk_idx)
                     all_segment_ids.add(segment_id)
                     all_segments_for_relevance.append((segment_id, chunk_text))
             
@@ -659,18 +660,8 @@ async def main() -> None:
             if missing_segment_ids:
                 print(f"   📝 Ergänze {len(missing_segment_ids)} nicht-relevante Segmente für vollständigen Export...")
                 
-                # Hole Begründungen aus bereits durchgeführter Relevanzprüfung
-                missing_segments_for_check = [(seg_id, text) for seg_id, text in all_segments_for_relevance if seg_id in missing_segment_ids]
-                
-                if missing_segments_for_check and hasattr(analysis_manager, 'relevance_checker'):
-                    try:
-                        # Führe Relevanzprüfung durch (nur für Begründungen)
-                        relevance_results = await analysis_manager.relevance_checker.check_relevance_batch(missing_segments_for_check)
-                    except Exception as e:
-                        print(f"   ⚠️ Fehler bei Begründungs-Extraktion: {e}")
-                        relevance_results = {}
-                else:
-                    relevance_results = {}
+                # KEINE Relevanzprüfung nötig - diese Segmente sind bereits als nicht-relevant identifiziert
+                # Verwende Standard-Begründung für nicht-kodierte Segmente
                 
                 # Erstelle "Nicht kodiert" Einträge für fehlende Segmente
                 for segment_id in missing_segment_ids:
@@ -684,16 +675,12 @@ async def main() -> None:
                         if doc_name in chunks and chunk_idx < len(chunks[doc_name]):
                             segment_text = chunks[doc_name][chunk_idx]
                         
-                        # Hole Begründung aus Relevanzprüfung
-                        justification = 'Segment wurde als nicht relevant für die Forschungsfrage eingestuft'
+                        # Hole Begründung aus bereits vorhandenen Relevanz-Daten (KEINE neue Prüfung)
+                        justification = 'Segment wurde in der initialen Relevanzprüfung als nicht relevant für die Forschungsfrage eingestuft'
                         if hasattr(analysis_manager, 'relevance_checker') and analysis_manager.relevance_checker:
                             relevance_details = analysis_manager.relevance_checker.get_relevance_details(segment_id)
                             if relevance_details and relevance_details.get('reasoning'):
                                 justification = relevance_details['reasoning']
-                            elif segment_id in relevance_results:
-                                is_relevant = relevance_results[segment_id]
-                                if not is_relevant:
-                                    justification = f"Segment als nicht relevant eingestuft (Relevanz-Score: 0.0)"
                         
                         # Erstelle "Nicht kodiert" Eintrag für jeden Kodierer
                         for coder_config in CONFIG['CODER_SETTINGS']:
@@ -853,7 +840,10 @@ async def main() -> None:
             print(f"🔀 Review-Modus: {review_mode}")
             print(f"📈 Eingabe: {len(all_codings)} ursprüngliche Kodierungen")
             
-            review_manager = ReviewManager(CONFIG['OUTPUT_DIR'])
+            review_manager = ReviewManager(
+                CONFIG['OUTPUT_DIR'], 
+                analysis_mode=CONFIG.get('ANALYSIS_MODE', 'deductive')
+            )
             
             try:
                 # Führe kategorie-zentrierten Review durch

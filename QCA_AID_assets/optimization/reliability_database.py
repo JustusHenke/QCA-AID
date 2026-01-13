@@ -77,21 +77,49 @@ class ReliabilityDatabase:
     - Human-readable format
     """
     
-    def __init__(self, db_path: str = "output/all_codings.json"):
+    def __init__(self, db_path: str = "output/all_codings.json", 
+                 use_timestamped_filename: bool = False, analysis_mode: str = None):
         """
         Initialize reliability database.
         
         Args:
             db_path: Path to JSON database file (default: output/all_codings.json)
                     Relative paths are resolved relative to the configured project root.
+            use_timestamped_filename: If True, use timestamped filename matching Excel export
+            analysis_mode: Analysis mode for timestamped filename
         """
         # Ensure the path is relative to configured project root
         if not os.path.isabs(db_path):
             # Get the configured project root (same logic as main.py)
             project_root = _get_project_root()
-            self.db_path = project_root / db_path
+            
+            # If using timestamped filename, generate it to match Excel export
+            if use_timestamped_filename:
+                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                analysis_mode = analysis_mode or 'deductive'
+                filename = f"QCA-AID_Analysis_{analysis_mode}_{timestamp}_all_codings.json"
+                
+                # Extract directory from db_path, use it instead of hardcoded "output"
+                if os.path.dirname(db_path):
+                    output_dir = os.path.dirname(db_path)
+                else:
+                    output_dir = "output"
+                
+                self.db_path = project_root / output_dir / filename
+            else:
+                self.db_path = project_root / db_path
         else:
-            self.db_path = Path(db_path)
+            # For absolute paths with timestamped filename
+            if use_timestamped_filename:
+                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                analysis_mode = analysis_mode or 'deductive'
+                filename = f"QCA-AID_Analysis_{analysis_mode}_{timestamp}_all_codings.json"
+                
+                # Use the directory from the absolute path
+                output_dir = os.path.dirname(db_path)
+                self.db_path = Path(output_dir) / filename
+            else:
+                self.db_path = Path(db_path)
         
         # Create parent directories if they don't exist
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
@@ -106,8 +134,10 @@ class ReliabilityDatabase:
             'coding_results': []
         }
         
-        # Load existing data if file exists
-        self._load_data()
+        # For timestamped files, start fresh (don't load existing data)
+        if not use_timestamped_filename:
+            # Load existing data if file exists
+            self._load_data()
         
         logger.info(f"ReliabilityDatabase initialized at {self.db_path}")
         logger.debug(f"Project root: {_get_project_root()}")
@@ -366,6 +396,53 @@ class ReliabilityDatabase:
             logger.info(f"✅ {len(coding_results)} Kodierungen erfolgreich gespeichert")
         except Exception as e:
             logger.error(f"❌ KRITISCH: Batch-Speicherung fehlgeschlagen: {e}")
+            print(f"\n🚨 ANALYSE GESTOPPT: {len(coding_results)} Kodierungen können nicht gespeichert werden!")
+            print(f"   🔧 Bitte behebe das Speicherproblem und starte die Analyse erneut.")
+            # Re-raise to halt the analysis
+            raise RuntimeError(f"Batch-Kodierungen können nicht gespeichert werden: {e}") from e
+    
+    def replace_all_results(self, coding_results: List[ExtendedCodingResult]) -> None:
+        """
+        Replace all coding results with new ones (clear and store).
+        This ensures the JSON file doesn't grow with each run.
+        
+        Args:
+            coding_results: List of coding results to store (replaces all existing)
+        """
+        if not coding_results:
+            # Clear all existing results
+            self.data['coding_results'] = []
+            self._save_data()
+            logger.info("✅ Alle Kodierungen gelöscht (leere Liste)")
+            return
+        
+        # Convert all results to dictionaries
+        new_results = []
+        for result in coding_results:
+            result_dict = {
+                'segment_id': result.segment_id,
+                'coder_id': result.coder_id,
+                'category': result.category,
+                'subcategories': result.subcategories or [],
+                'confidence': result.confidence,
+                'justification': result.justification or "",
+                'analysis_mode': result.analysis_mode,
+                'timestamp': result.timestamp.isoformat(),
+                'is_manual': result.is_manual,
+                'metadata': result.metadata or {},
+                'created_at': datetime.now().isoformat()
+            }
+            new_results.append(result_dict)
+        
+        # Replace all existing results
+        self.data['coding_results'] = new_results
+        
+        # Save to file - THIS MUST SUCCEED
+        try:
+            self._save_data()
+            logger.info(f"✅ {len(coding_results)} Kodierungen erfolgreich ersetzt (alle vorherigen gelöscht)")
+        except Exception as e:
+            logger.error(f"❌ KRITISCH: Batch-Ersetzung fehlgeschlagen: {e}")
             print(f"\n🚨 ANALYSE GESTOPPT: {len(coding_results)} Kodierungen können nicht gespeichert werden!")
             print(f"   🔧 Bitte behebe das Speicherproblem und starte die Analyse erneut.")
             # Re-raise to halt the analysis

@@ -77,7 +77,16 @@ class DynamicCacheManager:
         
         # Reliability database for intercoder analysis
         self.reliability_data: Dict[str, List[ExtendedCodingResult]] = {}
-        self.reliability_db = ReliabilityDatabase(reliability_db_path or "output/all_codings.json")
+        # Use timestamped filename to match Excel export naming
+        # Note: analysis_mode might be None at initialization, will be updated later
+        self.reliability_db = ReliabilityDatabase(
+            reliability_db_path or "output/all_codings.json",
+            use_timestamped_filename=True,
+            analysis_mode=analysis_mode or 'deductive'
+        )
+        
+        # Store parameters for potential re-initialization
+        self._reliability_db_path = reliability_db_path
         
         # Initialize with default strategy
         self._update_strategy()
@@ -160,6 +169,7 @@ class DynamicCacheManager:
     def configure_analysis_mode(self, analysis_mode: str) -> None:
         """
         Configure analysis mode and update cache strategy if needed.
+        Also re-initializes ReliabilityDatabase with correct timestamped filename.
         
         Args:
             analysis_mode: Analysis mode (inductive, abductive, grounded, deductive)
@@ -169,6 +179,26 @@ class DynamicCacheManager:
         
         if old_mode != self.analysis_mode:
             logger.info(f"Analysis mode changed: {old_mode} -> {self.analysis_mode}")
+            
+            # Re-initialize ReliabilityDatabase with correct analysis_mode for timestamped filename
+            if self.analysis_mode:
+                try:
+                    # Save any pending results before re-initializing
+                    if hasattr(self, 'pending_results') and self.pending_results:
+                        logger.info(f"Saving {len(self.pending_results)} pending results before mode change")
+                        self.reliability_db.replace_all_results(self.pending_results)
+                        self.pending_results.clear()
+                    
+                    # Re-initialize with correct analysis_mode
+                    self.reliability_db = ReliabilityDatabase(
+                        self._reliability_db_path or "output/all_codings.json",
+                        use_timestamped_filename=True,
+                        analysis_mode=self.analysis_mode
+                    )
+                    logger.info(f"ReliabilityDatabase re-initialized for mode: {self.analysis_mode}")
+                    
+                except Exception as e:
+                    logger.warning(f"Failed to re-initialize ReliabilityDatabase: {e}")
             
             # Update strategy to reflect new analysis mode
             self._update_strategy()
@@ -551,21 +581,25 @@ class DynamicCacheManager:
         Diese Methode sollte am Ende der Kodierungsphase aufgerufen werden.
         """
         if not hasattr(self, 'pending_results') or not self.pending_results:
+            print(f"   💾 DEBUG: Keine ausstehenden Kodierungen zum Speichern")
             logger.debug("Keine ausstehenden Kodierungen zum Speichern")
             return
         
         try:
-            logger.info(f"💾 Speichere {len(self.pending_results)} gesammelte Kodierungen...")
+            # print(f"   💾 DEBUG: Speichere {len(self.pending_results)} gesammelte Kodierungen in {self.reliability_db.db_path}...")
+            # logger.info(f"💾 Speichere {len(self.pending_results)} gesammelte Kodierungen...")
             
-            # Verwende die effiziente Batch-Speicherung
-            self.reliability_db.store_multiple_results(self.pending_results)
+            # Verwende die effiziente Batch-Ersetzung (ersetzt alle vorherigen Daten)
+            self.reliability_db.replace_all_results(self.pending_results)
             
+            print(f"   ✅ DEBUG: {len(self.pending_results)} Kodierungen erfolgreich in {self.reliability_db.db_path} gespeichert")
             logger.info(f"✅ {len(self.pending_results)} Kodierungen erfolgreich gespeichert")
             
             # Lösche die ausstehenden Ergebnisse
             self.pending_results.clear()
             
         except Exception as e:
+            print(f"   ❌ DEBUG: Batch-Speicherung fehlgeschlagen: {e}")
             logger.error(f"❌ KRITISCH: Batch-Speicherung fehlgeschlagen: {e}")
             print(f"\n🚨 ANALYSE GESTOPPT: {len(self.pending_results)} gesammelte Kodierungen können nicht gespeichert werden!")
             print(f"   🔧 Bitte behebe das Speicherproblem und starte die Analyse erneut.")

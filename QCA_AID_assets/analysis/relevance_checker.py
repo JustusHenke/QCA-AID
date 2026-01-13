@@ -320,12 +320,13 @@ class RelevanceChecker:
                         
                         # Cache-Aktualisierung
                         self.relevance_cache[segment_id] = is_relevant
-                        # Erweiterte Details-Speicherung mit Begründung
-                        # FIX: Vereinheitlicht auf 'reasoning' (kein 'justification' Duplikat)
-                        # 'reasoning' kommt direkt vom LLM und ist die Hauptbegründung
+                        # Erweiterte Details-Speicherung mit neuen Feldern (hybrid version)
                         self.relevance_details[segment_id] = {
                             'confidence': segment_result.get('confidence', 0.8),
+                            'relevance_strength': segment_result.get('relevance_strength', segment_result.get('confidence', 0.8)),
+                            'classification_confidence': segment_result.get('classification_confidence', segment_result.get('confidence', 0.8)),
                             'key_aspects': segment_result.get('key_aspects', []),
+                            'aspects_found': segment_result.get('aspects_found', segment_result.get('core_topics_found', [])),
                             'reasoning': segment_result.get('reasoning', segment_result.get('justification', 'Keine Begründung verfügbar')),
                             'is_relevant': is_relevant,
                             'main_themes': segment_result.get('main_themes', []),
@@ -405,11 +406,13 @@ class RelevanceChecker:
                                 is_relevant = segment_result.get('is_relevant', True)
                                 sub_batch_results[segment_id] = is_relevant
                                 
-                                # Erweiterte Details-Speicherung mit Begründung
-                                # FIX: Vereinheitlicht auf 'reasoning' (kein 'justification' Duplikat)
+                                # Erweiterte Details-Speicherung mit neuen Feldern (hybrid version)
                                 self.relevance_details[segment_id] = {
                                     'confidence': segment_result.get('confidence', 0.8),
+                                    'relevance_strength': segment_result.get('relevance_strength', segment_result.get('confidence', 0.8)),
+                                    'classification_confidence': segment_result.get('classification_confidence', segment_result.get('confidence', 0.8)),
                                     'key_aspects': segment_result.get('key_aspects', []),
+                                    'aspects_found': segment_result.get('aspects_found', segment_result.get('core_topics_found', [])),
                                     'reasoning': segment_result.get('reasoning', segment_result.get('justification', 'Keine Begründung verfügbar')),
                                     'is_relevant': is_relevant,
                                     'main_themes': segment_result.get('main_themes', []),

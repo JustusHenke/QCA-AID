@@ -345,11 +345,9 @@ class QCAPrompts:
             """
     
     def get_relevance_check_prompt(self, segments_text: str, exclusion_rules: List[str]) -> str:
-        """Prompt für Batch-Relevanzprüfung"""
-        # Platzhalter - vollständiger Prompt für Relevanzprüfung mit Ausschlussregeln
-        # FIX: Verwende spezialisierte Relevanz-Konfidenz-Skala
+        """Prompt für Batch-Relevanzprüfung mit methodologisch fundierter Relevanzbestimmung"""
         confidence_guidelines = ConfidenceScales.get_confidence_guidelines(
-            scale_type="relevance", 
+            scale_type="standard", 
             context="relevanz"
         )
         
@@ -359,84 +357,58 @@ class QCAPrompts:
             
             {confidence_guidelines}
 
-            PRÜFUNGSREIHENFOLGE - Analysiere jedes Segment in dieser Reihenfolge:
+            ZIEL: Bestimme, ob ein Textsegment relevante inhaltliche Informationen zur Forschungsfrage liefert.
 
-            1. THEMATISCHE VORPRÜFUNG:
-            
-            Führe ZUERST eine grundlegende thematische Analyse durch:
-            - Identifiziere den Gegenstand, die Kernthemen und zentralen Konzepte der Forschungsfrage
-            - Prüfe, ob der Text den Gegenstand und diese Kernthemen überhaupt behandelt
-            - Stelle fest, ob ein hinreichender inhaltlicher Zusammenhang zur Forschungsfrage besteht
-            - Falls NEIN: Sofort als nicht relevant markieren
-            - Falls JA: Weiter mit detaillierter Prüfung
+            METHODOLOGISCHE GRUNDLAGE (nach Mayring/Kuckartz/Gläser-Laudel):
+            Ein Textsegment ist relevant, wenn es explizite oder implizite Informationen zu mindestens einem Forschungsaspekt der Forschungsfrage enthält. Relevanz bemisst sich am Informationsbeitrag zur Beantwortung der Forschungsfrage, nicht an Umfang, Tiefe oder Neuheitsgrad der Aussage.
 
-            2. AUSSCHLUSSKRITERIEN:
+            VORGEHEN (IMMER IN DIESER REIHENFOLGE):
+
+            1. FORSCHUNGSASPEKTE-EXTRAKTION:
+            - Zerlege die Forschungsfrage in ihre inhaltlichen Forschungsaspekte (zentrale Konzepte, Akteure, Prozesse, Bedingungen)
+            - Diese Forschungsaspekte dienen als Referenz für die Relevanzprüfung
+
+            2. INFORMATIONSBEITRAG-PRÜFUNG JE SEGMENT:
+            Prüfe für jedes Segment:
+            - Enthält das Segment Informationen zu mindestens einem Forschungsaspekt?
+            - Ist der Bezug inhaltlich nachvollziehbar (explizit oder implizit)?
+            - Leistet das Segment einen Informationsbeitrag zur Forschungsfrage?
+
+            NICHT relevant sind Segmente, die:
+            - keinen inhaltlichen Bezug zu den Forschungsaspekten aufweisen
+            - ausschließlich allgemeinen Kontext, Hintergrund oder organisatorische Informationen liefern
+            - thematisch verwandt sind, aber keinen Informationsgehalt zur Forschungsfrage enthalten
+
+            3. AUSSCHLUSSKRITERIEN:
             {chr(10).join(f"- {rule}" for rule in exclusion_rules)}
-
-            3. TEXTSORTENSPEZIFISCHE PRÜFUNG:
-
-            INTERVIEWS/GESPRÄCHE:
-            - Direkte Erfahrungsberichte zum Forschungsthema
-            - Persönliche Einschätzungen relevanter Akteure
-            - Konkrete Beispiele aus der Praxis
-            - Implizites Erfahrungswissen zum Thema
-            - NICHT relevant: Interviewerfrage, sofern Sie nicht den Interviewten paraphrasiert
-
-            DOKUMENTE/BERICHTE:
-            - Faktische Informationen zum Forschungsgegenstand
-            - Formale Regelungen und Vorgaben
-            - Dokumentierte Prozesse und Strukturen
-            - Institutionelle Rahmenbedingungen
-
-            PROTOKOLLE/NOTIZEN:
-            - Beobachtete Handlungen und Interaktionen
-            - Situationsbeschreibungen zum Thema
-            - Dokumentierte Entscheidungen
-            - Relevante Kontextinformationen
-
-            4. QUALITÄTSKRITERIEN:
-
-            AUSSAGEKRAFT:
-            - Spezifische Information zum Forschungsthema
-            - Substanzielle, nicht-triviale Aussagen
-            - Präzise und gehaltvolle Information
-
-            ANWENDBARKEIT:
-            - Direkter Bezug zur Forschungsfrage
-            - Beitrag zur Beantwortung der Forschungsfrage
-            - Erkenntnispotenzial für die Untersuchung
-
-            KONTEXTRELEVANZ:
-            - Bedeutung für das Verständnis des Forschungsgegenstands
-            - Hilfe bei der Interpretation anderer Informationen
-            - Notwendigkeit für die thematische Einordnung
 
             TEXTSEGMENTE:
             {segments_text}
 
-            Antworte NUR mit einem JSON-Objekt:
+            ANTWORTE AUSSCHLIESSLICH MIT JSON:
             {{
+                "research_question_aspects": ["Forschungsaspekt1", "Forschungsaspekt2", "..."],
                 "segment_results": [
                     {{
                         "segment_number": 1,
                         "is_relevant": true/false,
-                        "confidence": 0.0-1.0,
-                        "text_type": "interview|dokument|protokoll|andere",
-                        "key_aspects": ["konkrete", "für", "die", "Forschungsfrage", "relevante", "Aspekte"],
-                        "justification": "WICHTIG: Erkläre deine Entscheidung klar und eindeutig. Bei NICHT-relevanten Segmenten: Erkläre konkret WARUM das Segment nicht relevant ist (z.B. 'zu allgemein', 'kein direkter Bezug', 'nur administrative Info'). Bei relevanten Segmenten: Erkläre konkret WAS das Segment relevant macht."
+                        "relevance_strength": 0.0-1.0,
+                        "classification_confidence": 0.0-1.0,
+                        "aspects_found": ["ForschungsaspektX", "ForschungsaspektY"],
+                        "justification": "Erkläre klar und textnah, ob und warum das Segment relevante Informationen zur Forschungsfrage enthält oder nicht. Bei relevanten Segmenten: benenne die Forschungsaspekte, zu denen Informationen geliefert werden. Bei nicht relevanten Segmenten: erkläre konkret, warum kein Informationsbeitrag zur Forschungsfrage vorliegt."
                     }},
                     ...
                 ]
             }}
 
-            WICHTIGE HINWEISE:
-            - Führe IMMER ZUERST die thematische Vorprüfung durch
-            - Identifiziere die Kernthemen der Forschungsfrage und prüfe deren Präsenz im Text
-            - Markiere Segmente als nicht relevant, wenn sie die Kernthemen nicht behandeln
-            - Bei Unsicherheit (confidence < 0.75) als nicht relevant markieren
-            - Gib bei JEDEM Segment eine klare Begründung (relevant UND nicht relevant)
-            - Bei nicht-relevanten Segmenten: Erkläre konkret warum nicht relevant (z.B. "Behandelt nur Metadaten", "Thematisch nicht passend zur Forschungsfrage", "Zu unspezifisch")
-            - Sei streng bei der thematischen Vorprüfung
+            BEWERTUNGSREGELN:
+            - Die Forschungsfrage ist das alleinige Relevanzkriterium
+            - Ohne Informationsbezug zu mindestens einem Forschungsaspekt → nicht relevant
+            - Relevanz ist informationslogisch, nicht qualitativ-wertend
+            - **Zwei separate Bewertungen:**
+              - `relevance_strength`: Wie stark ist der Informationsbeitrag zur Forschungsfrage? (0.0-1.0)
+              - `classification_confidence`: Wie sicher bist du bei deiner is_relevant Entscheidung? (0.0-1.0)
+            - Sei methodisch streng, aber textnah und nachvollziehbar
             """
 
     def get_category_preferences_prompt(self, segments_text: str, 
@@ -531,7 +503,7 @@ class QCAPrompts:
         }}
         """
 
-    # FIX: Neue Prompt-Methode für Kategorie-Vorauswahl hinzuFügen
+    # FIX: Neue Prompt-Methode für Kategorie-Vorauswahl hinzufügen
     def get_relevance_with_category_preselection_prompt(self, segments_text: str, 
                                                        categories: Dict[str, Any]) -> str:
         """
@@ -1506,9 +1478,16 @@ Erweitere das JSON-Format um folgende Felder:
         return base_prompt + comprehensive_extension
 
     def get_batch_deductive_prompt(self, segments: List[Dict[str, str]], categories_overview: List[Dict],
-                                 context_paraphrases: Optional[List[str]] = None) -> str:
+                                 context_paraphrases: Optional[List[str]] = None,
+                                 segment_category_mapping: Optional[Dict[str, List[str]]] = None) -> str:
         """
         Prompt für Batch-Verarbeitung deduktiver Kodierung.
+        
+        Args:
+            segments: Liste der zu analysierenden Segmente
+            categories_overview: Verfügbare Kategorien
+            context_paraphrases: Kontext-Paraphrasen
+            segment_category_mapping: Optional mapping von segment_id zu erlaubten Kategorien
         """
         
         # FIX: Verwende spezialisierte Coding-Konfidenz-Skala
@@ -1520,11 +1499,32 @@ Erweitere das JSON-Format um folgende Felder:
         # Kategorien formatieren
         categories_text = self._format_categories_for_prompt(categories_overview)
         
-        # Segmente formatieren
-        segments_text = "\n\n".join([
-            f"SEGMENT {i+1} (ID: {seg['segment_id']}):\n{seg['text']}"
-            for i, seg in enumerate(segments)
-        ])
+        # Segmente formatieren - mit segment-spezifischen Kategorieanweisungen
+        segments_text_parts = []
+        for i, seg in enumerate(segments):
+            segment_text = f"SEGMENT {i+1} (ID: {seg['segment_id']}):\n{seg['text']}"
+            
+            # Füge segment-spezifische Kategorieanweisungen hinzu
+            if segment_category_mapping and seg['segment_id'] in segment_category_mapping:
+                allowed_categories = segment_category_mapping[seg['segment_id']]
+                if allowed_categories:
+                    segment_text += f"\n>>> FÜR DIESES SEGMENT: Verwende NUR diese Kategorien: {', '.join(allowed_categories)} <<<"
+            
+            segments_text_parts.append(segment_text)
+        
+        segments_text = "\n\n".join(segments_text_parts)
+        
+        # Zusätzliche Disziplin-Anweisungen wenn segment-spezifische Kategorien verwendet werden
+        discipline_instructions = ""
+        if segment_category_mapping:
+            discipline_instructions = """
+        
+        ⚠️ WICHTIGE DISZIPLIN-REGEL:
+        - Jedes Segment hat spezifische erlaubte Kategorien (siehe >>> FÜR DIESES SEGMENT <<<)
+        - Verwende NUR die für das jeweilige Segment angegebenen Kategorien
+        - Ignoriere alle anderen Kategorien für dieses spezifische Segment
+        - Diese Regel hat höchste Priorität und überschreibt alle anderen Überlegungen
+        """
         
         return f"""
         Führe eine deduktive Kodierung für die folgenden {len(segments)} Segmente durch.
@@ -1539,6 +1539,7 @@ Erweitere das JSON-Format um folgende Felder:
         
         KATEGORIEN:
         {categories_text}
+        {discipline_instructions}
         
         {"KONTEXT-PARAPHRASEN:" if context_paraphrases else ""}
         {chr(10).join(f"- {para}" for para in (context_paraphrases or []))}
@@ -1550,6 +1551,7 @@ Erweitere das JSON-Format um folgende Felder:
         
         1. KATEGORIEZUORDNUNG:
         - Wähle die am besten passende Hauptkategorie
+        - BEACHTE: Falls segment-spezifische Kategorien angegeben sind (>>> FÜR DIESES SEGMENT <<<), verwende NUR diese!
         - Berücksichtige alle Kodierregeln und die Forschungsfrage
         - Bei Unsicherheit: Wähle die Kategorie mit dem stärksten Textbezug
         
@@ -1581,7 +1583,124 @@ Erweitere das JSON-Format um folgende Felder:
         }}
         """
 
-    def get_inductive_mode_instructions(self) -> str:
+    def get_batch_abductive_prompt(self, segments: List[Dict[str, str]], categories_overview: List[Dict],
+                                 context_paraphrases: Optional[List[str]] = None,
+                                 segment_category_mapping: Optional[Dict[str, List[str]]] = None) -> str:
+        """
+        Prompt für Batch-Verarbeitung abduktiver Analyse.
+        
+        Args:
+            segments: Liste der zu analysierenden Segmente
+            categories_overview: Verfügbare Hauptkategorien
+            context_paraphrases: Kontext-Paraphrasen
+            segment_category_mapping: Optional mapping von segment_id zu erlaubten Hauptkategorien
+        """
+        
+        # FIX: Verwende spezialisierte Coding-Konfidenz-Skala
+        confidence_guidelines = ConfidenceScales.get_confidence_guidelines(
+            scale_type="coding", 
+            context="kodierung"
+        )
+        
+        # Kategorien formatieren
+        categories_text = self._format_categories_for_prompt(categories_overview)
+        
+        # Segmente formatieren - mit segment-spezifischen Kategorieanweisungen
+        segments_text_parts = []
+        for i, seg in enumerate(segments):
+            segment_text = f"SEGMENT {i+1} (ID: {seg['segment_id']}):\n{seg['text']}"
+            
+            # Füge segment-spezifische Kategorieanweisungen hinzu
+            if segment_category_mapping and seg['segment_id'] in segment_category_mapping:
+                allowed_categories = segment_category_mapping[seg['segment_id']]
+                if allowed_categories:
+                    segment_text += f"\n>>> FÜR DIESES SEGMENT: Erweitere NUR diese Hauptkategorien: {', '.join(allowed_categories)} <<<"
+            
+            segments_text_parts.append(segment_text)
+        
+        segments_text = "\n\n".join(segments_text_parts)
+        
+        # Zusätzliche Disziplin-Anweisungen wenn segment-spezifische Kategorien verwendet werden
+        discipline_instructions = ""
+        if segment_category_mapping:
+            discipline_instructions = """
+        
+        ⚠️ WICHTIGE DISZIPLIN-REGEL FÜR ABDUKTIVEN MODUS:
+        - Jedes Segment hat spezifische erlaubte Hauptkategorien (siehe >>> FÜR DIESES SEGMENT <<<)
+        - Erweitere NUR die für das jeweilige Segment angegebenen Hauptkategorien
+        - KEINE neuen Hauptkategorien entwickeln - nur neue Subkategorien für die angegebenen Hauptkategorien
+        - Ignoriere alle anderen Hauptkategorien für dieses spezifische Segment
+        - Diese Regel hat höchste Priorität und überschreibt alle anderen Überlegungen
+        """
+        
+        return f"""
+        Führe eine abduktive Analyse für die folgenden {len(segments)} Segmente durch.
+        
+        ABDUKTIVER MODUS: Erweitere bestehende Hauptkategorien um neue Subkategorien
+        
+        FORSCHUNGSFRAGE:
+        {self.FORSCHUNGSFRAGE}
+        
+        KODIERREGELN:
+        {chr(10).join(f"- {regel}" for regel in self.KODIERREGELN)}
+        
+        {confidence_guidelines}
+        
+        BESTEHENDE HAUPTKATEGORIEN:
+        {categories_text}
+        {discipline_instructions}
+        
+        {"KONTEXT-PARAPHRASEN:" if context_paraphrases else ""}
+        {chr(10).join(f"- {para}" for para in (context_paraphrases or []))}
+        
+        ZU ANALYSIERENDE SEGMENTE:
+        {segments_text}
+        
+        STRIKTE REGELN FÜR ABDUKTIVEN MODUS:
+        
+        1. HAUPTKATEGORIEN-BESCHRÄNKUNG:
+        - KEINE neuen Hauptkategorien entwickeln
+        - BEACHTE: Falls segment-spezifische Hauptkategorien angegeben sind (>>> FÜR DIESES SEGMENT <<<), erweitere NUR diese!
+        - Verwende nur die bestehenden Hauptkategorien aus der Liste oben
+        
+        2. SUBKATEGORIEN-ENTWICKLUNG:
+        - Entwickle NEUE Subkategorien für die bestehenden Hauptkategorien
+        - Subkategorien müssen neue, relevante Themenaspekte der Hauptkategorie abbilden
+        - Mindestens 2 Textbelege pro neuer Subkategorie
+        - Maximal 3 neue Subkategorien pro Hauptkategorie pro Segment
+        
+        3. KONFIDENZ:
+        - Bewerte die Sicherheit der Subkategorien-Entwicklung (0.0-1.0)
+        - Mindestens 0.7 für neue Subkategorien
+        
+        4. BEGRÜNDUNG:
+        - Erkläre warum die neue Subkategorie einen neuen Aspekt der Hauptkategorie abbildet
+        - Nenne konkrete Textstellen als Belege
+        - Zeige thematische Neuheit gegenüber bestehenden Subkategorien
+        
+        Antworte NUR mit folgendem JSON-Format:
+        {{
+          "results": [
+            {{
+              "segment_id": "segment_id_from_text",
+              "extended_categories": {{
+                "hauptkategorie_name": {{
+                  "new_subcategories": [
+                    {{
+                      "name": "Neue Subkategorie",
+                      "definition": "Definition der neuen Subkategorie",
+                      "evidence": ["Textbeleg 1", "Textbeleg 2"],
+                      "confidence": 0.85,
+                      "thematic_novelty": "Warum diese Subkategorie einen neuen Aspekt abbildet"
+                    }}
+                  ]
+                }}
+              }},
+              "justification": "Gesamtbegründung für die Erweiterungen"
+            }}
+          ]
+        }}
+        """
         """Mode-spezifische Anweisungen für induktive Kategorienentwicklung."""
         return """
         INDUKTIVE KATEGORIENENTWICKLUNG:

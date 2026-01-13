@@ -2,6 +2,58 @@
 
 ## Versionen und Updates
 
+Hier ist eine **deutlich kompaktere, inhaltlich vollständige** Version des Changelogs, strukturiert auf Kernpunkte reduziert und Redundanzen entfernt:
+
+---
+
+## Neu in 0.12.3 (2026-01-13)
+
+### 🔧 Kritische Bugfixes (Mehrfachkodierung & Export)
+
+* **API-Fehler behoben**: Vereinheitlichte Analyse über `UnifiedAnalyzer.analyze_batch()`, entfernte nicht-existente Methoden/Klassen, robuste Fallbacks.
+* **Originaltext vollständig repariert**: Zuverlässige Text-Extraktion aus `result.text` inkl. Mehrfachkodierung, mehrstufige Fallbacks & Debugging.
+* **Relevanzdaten im Export korrigiert**: Relevanz-Details werden korrekt gespeichert und gemappt (keine `N/A` mehr).
+* **Begründungen für Nicht-Relevanz**: Segment-ID-Normalisierung behebt fehlende Justifications.
+* **Intercoder-Reliabilität korrekt**: Vergleich nur zwischen Kodierern (Set-basiert), konsistente Alpha-Werte.
+* **Datei- & Pfadprobleme behoben**: Einheitliche Zeitstempel/Namensschemata, korrektes Output-Verzeichnis, Indentation Error gefixt.
+
+### 🚀 Mehrfachkodierung: neue Architektur
+
+* **Batch-basierte Mehrfachkodierung** (2-phasig):
+
+  1. Basiskodierung aller Segmente
+  2. Fokussierte Batches je zusätzlicher Kategorie
+* **Fokussierte API-Calls pro Kategorie** → korrekte Subkategorien, methodisch sauber (kein Cross-Mapping).
+* **Alle Modi unterstützt**: deductive, inductive, abductive, grounded.
+* **Sortierte Ergebnisse**: konsistente Reihenfolge inkl. Mehrfachkodierungs-Suffixe.
+* **Realistischer Schwellenwert**: 0.85 → **0.65**, score-basiert und konsistent über alle Modi.
+
+### ⚙️ User-Config & Methodik
+
+* **User-Config vollständig integriert**: Forschungsfrage, Regeln & Kategorien priorisiert korrekt.
+* **Modus-spezifisches Verhalten**:
+
+  * Deduktiv → User-Kategorien
+  * Induktiv/Grounded → emergente Codes (keine Vorgaben)
+* **Grounded Theory korrekt umgesetzt** (keine vorgefassten Kategorien).
+
+### 📊 Relevanzbewertung & Tracking (erweitert)
+
+* **Neue Excel-Felder**: Relevanz-Stärke, Klassifikationskonfidenz, Forschungsaspekte, Relevanz-Aspekte.
+* **Methodisch fundiert** (Mayring / Kuckartz / Gläser-Laudel).
+* **Keine unnötigen Relevanz-Checks** nach Review → weniger API-Calls.
+
+### 🧠 Kontext & Paraphrasen
+
+* **Progressive Kontext-Paraphrasen** via Callback-System (batch-weise, dokument-spezifisch).
+* **Doppelte Sammlung entfernt** → effizienter, keine redundanten Calls.
+
+### 🛠️ Sonstiges
+
+* **Optimiertes Logging**: klarer, kategorienbasiert, weniger Rauschen.
+* **Dokumentation erweitert**: Methodische Grundlagen der Relevanzbestimmung ergänzt.
+
+
 
 ### Neu in 0.12.2  (2025-01-12)
 
@@ -30,7 +82,6 @@ CODE CLEANUP: UNGENUTZTE KOMPONENTEN ENTFERNT
 - **Bereinigte Imports**: Entfernung aller ungenutzten Fluent-Komponenten aus `__init__.py`
 - **Reduzierte Komplexität**: Nur tatsächlich verwendete Fluent UI Teile bleiben erhalten
 - **Sauberer Code**: Keine toten Code-Pfade mehr im webapp_components Modul
-
 
 PERFORMANCE: WEBAPP STARTUP-OPTIMIERUNG
 - **50-60% schnellerer Startup**: Von ~5-8s auf ~2-3s reduziert

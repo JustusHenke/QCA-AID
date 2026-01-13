@@ -260,7 +260,7 @@ class ConfigManager:
             'batch_size': DEFAULT_CONFIG.get('BATCH_SIZE', 8),
             'code_with_context': DEFAULT_CONFIG.get('CODE_WITH_CONTEXT', False),
             'multiple_codings': DEFAULT_CONFIG.get('MULTIPLE_CODINGS', True),
-            'multiple_coding_threshold': DEFAULT_CONFIG.get('MULTIPLE_CODING_THRESHOLD', 0.85),
+            'multiple_coding_threshold': DEFAULT_CONFIG.get('MULTIPLE_CODING_THRESHOLD', 0.65),
             'analysis_mode': DEFAULT_CONFIG.get('ANALYSIS_MODE', 'deductive'),
             'review_mode': DEFAULT_CONFIG.get('REVIEW_MODE', 'consensus'),
             'attribute_labels': DEFAULT_CONFIG.get('ATTRIBUTE_LABELS', {

@@ -153,7 +153,7 @@ CONFIG = {
     'CODE_WITH_CONTEXT': False,
     'CONTEXT_PARAPHRASE_COUNT': 3,  # Anzahl vorheriger Paraphrasen als Kontext (wenn CODE_WITH_CONTEXT aktiviert)
     'MULTIPLE_CODINGS': True, 
-    'MULTIPLE_CODING_THRESHOLD': 0.85,  # Schwellenwert für zusätzliche Relevanz
+    'MULTIPLE_CODING_THRESHOLD': 0.65,  # Schwellenwert für zusätzliche Relevanz
     'RELEVANCE_THRESHOLD': 0.3,  # Mindest-Konfidenz für relevante Segmente (0.3 = LLM-Standard, höhere Werte = strenger, niedrigere Werte = inkludieren auch LLM-verworfene Segmente)
     'ENABLE_OPTIMIZATION': True,  # Feature Flag für neue optimierte Analyse (Batching, Caching)
     'ANALYSIS_MODE': 'deductive',

@@ -49,7 +49,7 @@ Die KI-gestützte Datenverarbeitung kann auf zwei Arten erfolgen:
 - **Einrichtung:** 
   - LM Studio: [https://lmstudio.ai/](https://lmstudio.ai/)
   - Ollama: [https://ollama.ai/](https://ollama.ai/)
-  - Siehe [LOCAL_MODELS_GUIDE.md](LOCAL_MODELS_GUIDE.md) für detaillierte Anleitung
+  - Siehe [LOCAL_MODELS_GUIDE.md](QCA_AID_assets/docs/user_doc/LOCAL_MODELS_GUIDE.md) für detaillierte Anleitung
 - **Webapp-Integration:** Wählen Sie "Local (LM Studio/Ollama)" als Modell-Anbieter
 
 **Für hochsensible Daten wird die Nutzung lokaler Modelle ausdrücklich empfohlen!**
@@ -74,17 +74,16 @@ Die KI-gestützte Datenverarbeitung kann auf zwei Arten erfolgen:
 - [Installation](#installation)
 - [Speichern des API-Schlüssels](#speichern-des-api-schlüssels)
 
-### QCA-AID Webapp (NEU!)
-- [Webapp-Übersicht](#qca-aid-webapp)
-- [Webapp-Schnellstart](WEBAPP_QUICKSTART.md)
-- [Webapp-Benutzerhandbuch](WEBAPP_README.md)
-- [Webapp-Fehlerbehebung](WEBAPP_TROUBLESHOOTING.md)
-- [Webapp-API-Dokumentation](WEBAPP_API.md)
+### Dokumentation
 
+- **[📖 Vollständiges Nutzerhandbuch](QCA-AID-Nutzerhandbuch.md)**: Umfassende Anleitung zu QCA-AID mit methodischen Grundlagen
+- **[Webapp-Übersicht](#qca-aid-webapp)**: Webbasierte Benutzeroberfläche
+- **[Webapp-Schnellstart](QCA_AID_app/README.md)**: In 5 Minuten mit der Webapp loslegen
+- **[Webapp-Benutzerhandbuch](QCA_AID_app/WEBAPP.md)**: Detaillierte Webapp-Anleitung
+- **[Webapp-Fehlerbehebung](QCA_AID_app/WEBAPP.md#fehlerbehebung)**: Lösungen für häufige Probleme
+- **[Webapp-API-Dokumentation](QCA_AID_app/WEBAPP.md#api-dokumentation)**: Für Entwickler und Erweiterungen
 
-### Systemarchitektur
-|- [Architekturübersicht](#architekturübersicht)
-### Konfiguration und Nutzung
+📄 [Zur vollständigen Release-Historie](CHANGELOG.md)
 - [Unterstützte Eingabedateien](#unterstützte-eingabedateien)
 - [QCA-AID: Konfiguration und Nutzung](#qca-aid-konfiguration-und-nutzung)
   - [Konfigurationsformate: Excel vs. JSON](#konfigurationsformate-excel-vs-json)
@@ -175,10 +174,10 @@ python start_webapp.py
 
 ### Dokumentation
 
-- **[Schnellstart-Anleitung](WEBAPP_QUICKSTART.md)**: In 5 Minuten loslegen
-- **[Vollständiges Benutzerhandbuch](WEBAPP_README.md)**: Detaillierte Anleitung
-- **[Fehlerbehebung](WEBAPP_TROUBLESHOOTING.md)**: Lösungen für häufige Probleme
-- **[API-Dokumentation](WEBAPP_API.md)**: Für Entwickler und Erweiterungen
+- **[Schnellstart-Anleitung](QCA_AID_app/README.md)**: In 5 Minuten loslegen
+- **[Vollständiges Benutzerhandbuch](QCA_AID_app/WEBAPP.md)**: Detaillierte Anleitung
+- **[Fehlerbehebung](QCA_AID_app/WEBAPP.md#fehlerbehebung)**: Lösungen für häufige Probleme
+- **[API-Dokumentation](QCA_AID_app/WEBAPP.md#api-dokumentation)**: Für Entwickler und Erweiterungen
 - **[Beispielkonfigurationen](examples/)**: Vorkonfigurierte Templates
 
 ### Vorteile der Webapp
@@ -333,7 +332,7 @@ Für lokale Modelle:
    - ✅ **Offline** - Keine Internetverbindung erforderlich
    - ✅ **DSGVO-konform** - Ideal für sensible Forschungsdaten
 
-**Detaillierte Anleitung:** Siehe [LOCAL_MODELS_GUIDE.md](LOCAL_MODELS_GUIDE.md)
+**Detaillierte Anleitung:** Siehe [LOCAL_MODELS_GUIDE.md](QCA_AID_assets/docs/user_doc/LOCAL_MODELS_GUIDE.md)
 
 ### Kosten und Pricing
 

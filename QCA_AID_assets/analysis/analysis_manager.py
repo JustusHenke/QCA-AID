@@ -17,6 +17,7 @@ from datetime import datetime
 from ..core.config import CONFIG, FORSCHUNGSFRAGE, KODIERREGELN
 from ..core.data_models import CategoryDefinition, CodingResult
 from ..core.validators import CategoryValidator
+from ..core.segment_id_manager import SegmentIDManager
 from ..management import CategoryManager, CategoryRevisionManager
 from ..export.results_exporter import ResultsExporter
 from .relevance_checker import RelevanceChecker
@@ -157,6 +158,9 @@ class IntegratedAnalysisManager:
                     inductive_temperature=inductive_temp,   # Temperature aus Config für Inductive Mode
                     multiple_coding_threshold=multiple_coding_threshold  # Threshold aus Config
                 )
+                
+                # FIX: Pass analysis_manager reference to controller for relevance result storage
+                self.optimization_controller.analysis_manager = self
                 print(f"   🚀 OptimizationController initialisiert (Batching & Caching aktiviert)")
                 
                 # NEW: Initialize Dynamic Cache Manager if enabled
@@ -487,6 +491,12 @@ class IntegratedAnalysisManager:
             
             if context_paraphrases:
                 print(f"📝 Nutze {len(context_paraphrases)} Kontext-Paraphrasen für Dokument '{doc_name}'")
+                # DEBUG: Zeige erste Paraphrase als Beispiel
+                if context_paraphrases:
+                    first_paraphrase = context_paraphrases[0][:100] + "..." if len(context_paraphrases[0]) > 100 else context_paraphrases[0]
+                    print(f"   📝 Beispiel-Kontext: {first_paraphrase}")
+            else:
+                print(f"📝 Keine Kontext-Paraphrasen für Dokument '{doc_name}' verfügbar (erste Chunks oder leer)")
         else:
             context_paraphrases = []
         
@@ -599,7 +609,7 @@ class IntegratedAnalysisManager:
                         'category_preselection_used': bool(preferred_cats),
                         'preferred_categories': preferred_cats,
                         'preselection_reasoning': preselection.get('reasoning', ''),
-                        'context_paraphrases_used': bool(context_paraphrases)  # NEU: Ob Kontext-Paraphrasen verfügbar waren
+                        'context_paraphrases_used': bool(context_paraphrases)  # NEU: Ob Kontext-Paraphrasen tatsächlich verfügbar waren
                     }
                     not_coded_results.append(result)
                 return not_coded_results
@@ -753,7 +763,7 @@ class IntegratedAnalysisManager:
                             'category_in_enhanced': main_category in enhanced_categories,  # FIX: Verwende enhanced_categories
                             'enhanced_has_subcategories': main_category in enhanced_categories and hasattr(enhanced_categories[main_category], 'subcategories'),  # FIX: Neue Debug-Info
                             'focus_category_added': instance_info['target_category'] and instance_info['target_category'] not in effective_categories,  # FIX: Neue Info
-                            'context_paraphrases_used': bool(context_paraphrases) if 'context_paraphrases' in locals() else False  # NEU: Ob Kontext-Paraphrasen genutzt wurden
+                            'context_paraphrases_used': bool(context_paraphrases)  # NEU: Ob Kontext-Paraphrasen tatsächlich verfügbar waren
                         }
                         
                     else:
@@ -892,6 +902,117 @@ class IntegratedAnalysisManager:
             return (doc_name, int(chunk_id) if chunk_id.isdigit() else 0)
         except Exception:
             return (segment_id, 0)
+    
+    def _collect_existing_paraphrases_for_context(self, segments: List[Dict]) -> Dict[str, List[str]]:
+        """
+        Sammelt Paraphrasen aus bereits verarbeiteten Segmenten für Kontext-Verwendung.
+        
+        Args:
+            segments: Liste der zu verarbeitenden Segmente
+            
+        Returns:
+            Dict mit Dokumentnamen als Keys und Listen von Paraphrasen als Values
+        """
+        collected_paraphrases = {}
+        
+        if not self.use_context:
+            return collected_paraphrases
+        
+        # Sammle Paraphrasen aus dem Cache oder bereits verarbeiteten Segmenten
+        for segment in segments:
+            segment_id = segment['segment_id']
+            doc_name, chunk_id = self._extract_doc_and_chunk_id(segment_id)
+            
+            if doc_name not in collected_paraphrases:
+                collected_paraphrases[doc_name] = []
+            
+            # Versuche Paraphrase aus verschiedenen Quellen zu bekommen
+            paraphrase = None
+            
+            # 1. Aus bereits gesammelten document_paraphrases
+            if doc_name in self.document_paraphrases:
+                collected_paraphrases[doc_name].extend(self.document_paraphrases[doc_name])
+            
+            # 2. Aus dem Cache (falls verfügbar)
+            if hasattr(self, 'optimization_controller') and self.optimization_controller:
+                try:
+                    # Versuche aus dem Cache zu lesen
+                    cache_key = f"coding_{segment_id}"
+                    cached_result = self.optimization_controller.cache.get_by_key(cache_key)
+                    if cached_result and isinstance(cached_result, dict):
+                        cached_paraphrase = cached_result.get('paraphrase')
+                        if cached_paraphrase and cached_paraphrase not in collected_paraphrases[doc_name]:
+                            collected_paraphrases[doc_name].append(cached_paraphrase)
+                except Exception:
+                    pass  # Cache-Fehler ignorieren
+            
+            # 3. Aus coding_results (falls bereits verarbeitet)
+            if hasattr(self, 'coding_results') and self.coding_results:
+                for result in self.coding_results:
+                    if result.get('segment_id') == segment_id:
+                        result_paraphrase = result.get('paraphrase')
+                        if result_paraphrase and result_paraphrase not in collected_paraphrases[doc_name]:
+                            collected_paraphrases[doc_name].append(result_paraphrase)
+        
+        # Debug-Ausgabe
+        if collected_paraphrases:
+            print(f"      🔍 DEBUG: Gesammelte Paraphrasen für Kontext:")
+            for doc, paraphrases in collected_paraphrases.items():
+                print(f"         └─ {doc}: {len(paraphrases)} Paraphrasen verfügbar")
+        
+        return collected_paraphrases
+    
+    def _collect_paraphrase_for_context(self, segment_id: str, paraphrase: str) -> None:
+        """
+        Callback-Funktion zum progressiven Sammeln von Paraphrasen während der Analyse.
+        Wird vom OptimizationController nach jeder Kodierung aufgerufen.
+        
+        Args:
+            segment_id: ID des kodierten Segments
+            paraphrase: Generierte Paraphrase
+        """
+        if not paraphrase or not segment_id:
+            return
+        
+        doc_name, chunk_id = self._extract_doc_and_chunk_id(segment_id)
+        
+        # Initialisiere Liste falls nötig
+        if doc_name not in self.document_paraphrases:
+            self.document_paraphrases[doc_name] = []
+        
+        # Füge Paraphrase hinzu (vermeide Duplikate)
+        if paraphrase not in self.document_paraphrases[doc_name]:
+            self.document_paraphrases[doc_name].append(paraphrase)
+            print(f"      📝 ➕ Paraphrase gesammelt für {doc_name}: {len(self.document_paraphrases[doc_name])} verfügbar")
+    
+    def _should_have_context_paraphrases(self, segment_id: str) -> bool:
+        """
+        Prüft, ob für ein Segment Kontext-Paraphrasen verfügbar sein sollten.
+        
+        Args:
+            segment_id: ID des Segments
+            
+        Returns:
+            bool: True wenn Kontext verfügbar sein sollte
+        """
+        if not self.config.get('CODE_WITH_CONTEXT', False):
+            return False
+        
+        # Extrahiere Chunk-Nummer aus segment_id
+        try:
+            # Format: "doc_chunk_X" oder "DOC-X"
+            if '_chunk_' in segment_id:
+                chunk_num = int(segment_id.split('_chunk_')[-1].split('-')[0])
+            elif '-' in segment_id:
+                chunk_num = int(segment_id.split('-')[-1])
+            else:
+                return False
+            
+            # Erstes Segment (Chunk 0) hat keinen Kontext
+            return chunk_num > 0
+            
+        except (ValueError, IndexError):
+            return False
     
     async def _finalize_by_mode(self, analysis_mode: str, current_categories: Dict, 
                             deductive_categories: Dict, initial_categories: Dict) -> Dict:
@@ -1196,6 +1317,12 @@ class IntegratedAnalysisManager:
                     if self.dynamic_cache_manager:
                         print(f"   🔍 DEBUG: Reliability DB path: {self.dynamic_cache_manager.reliability_db.db_path}")
                     
+                    # PROGRESSIVE PARAPHRASE COLLECTION: Keine Vor-Sammlung nötig
+                    # Paraphrasen werden jetzt progressiv während der Kodierung über Callback gesammelt
+                    if self.use_context:
+                        print(f"   📝 Progressive Paraphrasen-Sammlung aktiviert (Callback-System)")
+                        # document_paraphrases bleibt leer zu Beginn - wird progressiv gefüllt
+                    
                     # FIX: Aktualisiere processed_segments VOR der Analyse für bessere Progress-Anzeige
                     # Dies zeigt dem Progress Monitor, dass die Segmente "in Bearbeitung" sind
                     for segment in opt_segments:
@@ -1212,7 +1339,9 @@ class IntegratedAnalysisManager:
                         coder_settings=coder_settings,
                         use_context=self.use_context,
                         document_paraphrases=self.document_paraphrases,
-                        context_paraphrase_count=self.context_paraphrase_count
+                        context_paraphrase_count=self.context_paraphrase_count,
+                        # NEU: Callback-Funktion für progressive Paraphrasen-Sammlung
+                        paraphrase_callback=self._collect_paraphrase_for_context if self.use_context else None
                     )
                     
                     print(f"✅ Optimierte Analyse abgeschlossen: {len(results)} Ergebnisse für {len(opt_segments)} Segmente")
@@ -1220,8 +1349,11 @@ class IntegratedAnalysisManager:
                     # Speichere alle gesammelten Kodierungen auf die Festplatte
                     if self.dynamic_cache_manager:
                         try:
+                            print(f"   💾 DEBUG: Versuche {len(getattr(self.dynamic_cache_manager, 'pending_results', []))} Kodierungen zu speichern...")
                             self.dynamic_cache_manager.flush_pending_results()
+                            print(f"   ✅ DEBUG: Kodierungen erfolgreich gespeichert")
                         except Exception as e:
+                            print(f"   ❌ DEBUG: Fehler beim Speichern: {e}")
                             logger.error(f"Fehler beim Speichern der gesammelten Kodierungen: {e}")
                             raise
                     
@@ -1286,42 +1418,19 @@ class IntegratedAnalysisManager:
                             'category_focus_used': False,
                             'category_preselection_used': False,
                             'preferred_categories': [],
-                            'context_paraphrases_used': False
+                            'context_paraphrases_used': self._should_have_context_paraphrases(segment_id)  # NEU: Korrekte Kontext-Erkennung basierend auf Segment-Position
                         }
                         converted_results.append(coding_result)
                     
                     # Für Inductive/Abductive: Kategorien wurden bereits aktualisiert
                     
-                    # FIX: Sammle Paraphrasen für Kontext (wie in Standard-Analyse)
-                    if self.use_context and converted_results:
-                        for result in converted_results:
-                            if result.get('paraphrase') and result.get('category') != 'Nicht kodiert':
-                                segment_id = result.get('segment_id')
-                                if segment_id:
-                                    doc_name, chunk_id = self._extract_doc_and_chunk_id(segment_id)
-                                    
-                                    # Initialisiere Liste falls nötig
-                                    if doc_name not in self.document_paraphrases:
-                                        self.document_paraphrases[doc_name] = []
-                                    
-                                    # Füge Paraphrase hinzu (vermeide Duplikate)
-                                    paraphrase = result['paraphrase']
-                                    if paraphrase and paraphrase not in self.document_paraphrases[doc_name]:
-                                        self.document_paraphrases[doc_name].append(paraphrase)
-                        
-                        # Debug-Ausgabe
-                        if converted_results:
-                            # Sammle alle Dokumente aus den Ergebnissen
-                            docs_in_results = set()
-                            for result in converted_results:
-                                segment_id = result.get('segment_id', '')
-                                if segment_id:
-                                    doc_name, _ = self._extract_doc_and_chunk_id(segment_id)
-                                    docs_in_results.add(doc_name)
-                            
-                            for doc_name in docs_in_results:
-                                total_paraphrases = len(self.document_paraphrases.get(doc_name, []))
-                                print(f"📝 Dokument '{doc_name}': {total_paraphrases} Paraphrasen gesammelt (davon werden max. {self.context_paraphrase_count} als Kontext genutzt)")
+                    # PROGRESSIVE PARAPHRASE COLLECTION: Paraphrasen wurden bereits über Callback gesammelt
+                    # Keine zusätzliche Sammlung nötig
+                    
+                    # Debug-Ausgabe der gesammelten Paraphrasen
+                    if self.use_context and self.document_paraphrases:
+                        for doc_name, paraphrases in self.document_paraphrases.items():
+                            print(f"📝 Dokument '{doc_name}': {len(paraphrases)} Paraphrasen gesammelt (davon werden max. {self.context_paraphrase_count} als Kontext genutzt)")
                     
                     print(f"\n✅ Optimierte Analyse abgeschlossen: {len(converted_results)} Kodierungen erstellt")
                     
@@ -1350,46 +1459,25 @@ class IntegratedAnalysisManager:
                         print(f"   • Tokens/Segment: {tokens_per_segment:.0f}")
                     
                     # DEBUG: Zeige coder_ids aus converted_results
-                    print(f"\n[DEBUG] Erste 3 converted_results:")
-                    for i, c in enumerate(converted_results[:3]):
-                        print(f"  {i+1}. coder_id={c.get('coder_id', '?')}, category={c.get('category', '?')}, segment_id={c.get('segment_id', '?')}")
+                    # print(f"\n[DEBUG] Erste 3 converted_results:")
+                    # for i, c in enumerate(converted_results[:3]):
+                    #     print(f"  {i+1}. coder_id={c.get('coder_id', '?')}, category={c.get('category', '?')}, segment_id={c.get('segment_id', '?')}")
                     
                     # Prüfe ob Multi-Coder verwendet wurde
                     unique_coders = set(c.get('coder_id', 'auto_1') for c in converted_results)
                     print(f"[DEBUG] unique_coders: {unique_coders}")
                     if len(unique_coders) > 1:
-                        print(f"\n📊 MULTI-CODER REVIEW:")
+                        print(f"\n📊 MULTI-CODER DETECTED:")
                         print(f"   • Anzahl Kodierer: {len(unique_coders)}")
                         print(f"   • Kodierer: {', '.join(sorted(unique_coders))}")
-                        
-                        # Import ReviewManager
-                        from ..quality.review_manager import ReviewManager
-                        review_manager = ReviewManager(self.output_dir)
-                        
-                        # Wende Review-Modus an (aus Config oder default: consensus)
-                        review_mode = self.config.get('REVIEW_MODE', 'consensus')
-                        print(f"   • Review-Modus: {review_mode}")
+                        # print(f"   • Review wird in main.py durchgeführt (Duplikation vermieden)")
                         
                         # CRITICAL FIX: Speichere ursprüngliche Kodierungen für Reliabilitätsberechnung
                         # Diese müssen in self.coding_results für Intercoder-Reliabilität verfügbar sein!
-                        original_codings = converted_results.copy()
-                        # print(f"   🔍 [INTERCODER-FIX] Speichere {len(original_codings)} ursprüngliche Multi-Coder Kodierungen für Reliabilität")
+                        # KEINE Review-Durchführung hier - das passiert in main.py
+                        self.coding_results = converted_results  # Ursprüngliche Multi-Coder Ergebnisse für main.py Review
                         
-                        # Konsolidiere Kodierungen für Export/Weiterverarbeitung
-                        consolidated_results = review_manager.process_coding_review(
-                            all_codings=original_codings,
-                            export_mode=review_mode
-                        )
-                        
-                        print(f"   • Nach Review: {len(consolidated_results)} konsolidierte Kodierungen")
-                        
-                        # CRITICAL FIX: Gebe BEIDE zurück - ursprüngliche für Reliabilität, konsolidierte für Export
-                        # Setze coding_results auf ursprüngliche Multi-Coder Ergebnisse für Intercoder-Reliabilität
-                        self.coding_results = original_codings  # Für Intercoder-Reliabilität
-                        self.consolidated_results = consolidated_results  # Für Export
-                        
-                        # print(f"   🔍 [INTERCODER-FIX] coding_results enthält {len(self.coding_results)} ursprüngliche Kodierungen")
-                        # print(f"   🔍 [INTERCODER-FIX] consolidated_results enthält {len(self.consolidated_results)} konsolidierte Kodierungen")
+                        # print(f"   🔍 [INTERCODER-FIX] {len(self.coding_results)} ursprüngliche Multi-Coder Kodierungen für main.py Review bereitgestellt")
                         
                     else:
                         print(f"\n📊 SINGLE-CODER MODE:")
@@ -1402,17 +1490,12 @@ class IntegratedAnalysisManager:
                         else:
                             print(f"   • Keine Kodierungen erstellt")
                         print(f"   • Kein Review erforderlich")
+                        self.coding_results = converted_results
                     
                     # FIX: processed_segments wurden bereits oben aktualisiert, keine doppelte Aktualisierung nötig
                     
-                    # CRITICAL FIX: Für Multi-Coder, gebe ursprüngliche Kodierungen zurück
-                    # damit Intercoder-Reliabilität berechnet werden kann
-                    if len(unique_coders) > 1:
-                        # print(f"   🔍 [INTERCODER-FIX] Gebe {len(self.coding_results)} ursprüngliche Multi-Coder Kodierungen zurück")
-                        return current_categories, self.coding_results  # Ursprüngliche Multi-Coder Ergebnisse
-                    else:
-                        self.coding_results = converted_results
-                        return current_categories, self.coding_results
+                    # Gebe immer die ursprünglichen Kodierungen zurück - Review passiert in main.py
+                    return current_categories, self.coding_results
                     
                 except Exception as e:
                     print(f"❌ Fehler in optimierter Analyse: {e}")
@@ -1790,7 +1873,7 @@ class IntegratedAnalysisManager:
                             'category_focus_used': False,
                             'category_preselection_used': result_data.get('category_preselection_used', False) if 'result' in opt_result else False,
                             'preferred_categories': result_data.get('preferred_categories', []) if 'result' in opt_result else [],
-                            'context_paraphrases_used': False
+                            'context_paraphrases_used': self._should_have_context_paraphrases(segment_id)  # NEU: Korrekte Kontext-Erkennung basierend auf Segment-Position
                         }
                         converted_coding_results.append(coding_result)
                     
@@ -1845,7 +1928,7 @@ class IntegratedAnalysisManager:
                             'category_focus_used': False,
                             'category_preselection_used': False,
                             'preferred_categories': [],
-                            'context_paraphrases_used': False
+                            'context_paraphrases_used': self._should_have_context_paraphrases(segment_id)  # NEU: Korrekte Kontext-Erkennung basierend auf Segment-Position
                         }
                         converted_subcode_results.append(coding_result)
                     
@@ -1900,7 +1983,7 @@ class IntegratedAnalysisManager:
                         'category_focus_used': False,
                         'category_preselection_used': False,
                         'preferred_categories': [],
-                        'context_paraphrases_used': False
+                        'context_paraphrases_used': self._should_have_context_paraphrases(segment_id)  # NEU: Korrekte Kontext-Erkennung basierend auf Segment-Position
                     }
                     converted_subcode_results.append(coding_result)
                 
@@ -2147,7 +2230,7 @@ class IntegratedAnalysisManager:
         all_segments_to_recode = []
         for doc_name, doc_chunks in chunks.items():
             for chunk_id, chunk_text in enumerate(doc_chunks):
-                segment_id = f"{doc_name}_chunk_{chunk_id}"
+                segment_id = SegmentIDManager.create_segment_id(doc_name, chunk_id)
                 all_segments_to_recode.append((segment_id, chunk_text))
         
         print(f"🧾 Kodiere {len(all_segments_to_recode)} Segmente mit Grounded-Kategorien")
@@ -2442,7 +2525,7 @@ class IntegratedAnalysisManager:
         for doc_name in sorted(chunks.keys()):
             doc_chunks = chunks[doc_name]
             for chunk_idx, chunk in enumerate(doc_chunks):
-                segment_id = f"{doc_name}_chunk_{chunk_idx}"
+                segment_id = SegmentIDManager.create_segment_id(doc_name, chunk_idx)
                 segments.append((segment_id, chunk))
         return segments
 
@@ -2556,7 +2639,7 @@ class IntegratedAnalysisManager:
         for doc_name in sorted(chunks.keys()):
             doc_chunks = chunks[doc_name]
             for chunk_idx, chunk in enumerate(doc_chunks):
-                segment_id = f"{doc_name}_chunk_{chunk_idx}"
+                segment_id = SegmentIDManager.create_segment_id(doc_name, chunk_idx)
                 segments.append((segment_id, chunk))
         return segments
 
