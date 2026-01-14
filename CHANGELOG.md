@@ -6,6 +6,30 @@ Hier ist eine **deutlich kompaktere, inhaltlich vollständige** Version des Chan
 
 ---
 
+## Neu in 0.12.4 (2026-01-14)
+
+### 🎨 UI-Verbesserungen
+
+* **Explorer UI**: Button "📂 Ordner öffnen" hinzugefügt
+  * Nach erfolgreicher Analyse wird neben dem Ausgabepfad ein Button angezeigt
+  * In der Dateiliste gibt es Buttons zum Öffnen des Ordners und Kopieren des Pfads
+  * Im Explorer-View (Ergebnisansicht) wird eine Erfolgsmeldung mit Pfad und Button angezeigt
+  * Konsistente Implementierung über alle Bereiche
+
+* **Explorer-View**: Konfidenz-Verteilung verbessert
+  * Lesbare Bin-Labels (z.B. "0.80-0.85" statt kryptischer Intervall-Notation)
+  * Zusätzliche Statistiken: Durchschnitt, Median, Standardabweichung
+  * Bessere Visualisierung mit 20 gleichmäßigen Bins von 0 bis 1
+
+### 🐛 Bugfixes
+
+* **Explorer UI**: Kategorienprüfung korrigiert
+  * Kategorien werden jetzt aus der ausgewählten Analysedatei geladen
+  * Bessere Fehlerbehandlung und Debugging-Ausgaben
+  * Warnung wenn Kategorien-Sheet leer ist oder nicht gefunden wird
+
+---
+
 ## Neu in 0.12.3 (2026-01-13)
 
 ### 🔧 Kritische Bugfixes (Mehrfachkodierung & Export)

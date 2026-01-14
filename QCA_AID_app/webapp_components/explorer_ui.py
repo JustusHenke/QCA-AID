@@ -9,6 +9,9 @@ Requirements: 1.2, 7.1, 7.2, 7.3, 7.4, 11.1, 11.2, 11.3, 11.4, 11.5
 import streamlit as st
 import json
 import asyncio
+import os
+import subprocess
+import platform
 from pathlib import Path
 from typing import Optional, Dict, List, Any
 import pandas as pd
@@ -190,7 +193,7 @@ def render_explorer_model_settings():
             "Keyword-Harmonisierung aktivieren",
             value=current_clean_keywords,
             key="explorer_clean_keywords",
-            help="Harmonisiert ähnliche Schlüsselwörter automatisch (z.B. 'Nachhaltigkeit' und 'nachhaltig')"
+            help="Harmonisiert ähnliche Schlüsselwörter automatisch, um Variationen zusammenzufassen. Beispiel: 'Nachhaltigkeit', 'nachhaltig' und 'Sustainability' werden als ein Konzept behandelt. Dies verbessert die Netzwerk-Visualisierungen und Analysen."
         )
         
         if new_clean_keywords != current_clean_keywords:
@@ -213,7 +216,7 @@ def render_explorer_model_settings():
             value=float(current_threshold),
             step=0.05,
             key="explorer_similarity_threshold",
-            help="Schwellenwert für die Keyword-Harmonisierung (höher = strenger)",
+            help="Bestimmt, wie ähnlich Schlüsselwörter sein müssen, um harmonisiert zu werden. Höhere Werte (z.B. 0.85) = nur sehr ähnliche Wörter werden zusammengefasst. Niedrigere Werte (z.B. 0.65) = auch weniger ähnliche Wörter werden harmonisiert. Empfohlen: 0.70-0.75",
             disabled=not new_clean_keywords
         )
         
@@ -382,14 +385,42 @@ def render_explorer_config_view():
         st.info("💡 Wählen Sie eine Analysedatei aus, um fortzufahren.")
         return
     
-    # Zeige Kategorie-Informationen falls verfügbar
+    # Load categories from selected file
     explorer_config_manager = st.session_state.get('explorer_config_manager')
+    if explorer_config_manager:
+        # Check if we need to reload categories (file changed)
+        current_file = st.session_state.get('explorer_current_file')
+        if current_file != selected_file:
+            # File changed - reload categories
+            try:
+                from webapp_logic.category_loader import CategoryLoader
+                explorer_config_manager.category_loader = CategoryLoader(selected_file)
+                st.session_state.explorer_current_file = selected_file
+                
+                # Debug: Check if categories were loaded
+                if explorer_config_manager.category_loader.is_loaded:
+                    stats = explorer_config_manager.category_loader.get_statistics()
+                    if stats['total_main_categories'] == 0:
+                        st.warning("⚠️ Kategorien-Sheet gefunden, aber keine Kategorien darin. Verwende Freitext-Eingabe.")
+                else:
+                    st.warning("⚠️ Kein Kategorien-Sheet in der Analysedatei gefunden. Verwende Freitext-Eingabe.")
+            except Exception as e:
+                # Failed to load categories - that's OK, we'll use text input
+                explorer_config_manager.category_loader = None
+                st.session_state.explorer_current_file = selected_file
+                st.warning(f"⚠️ Fehler beim Laden der Kategorien: {str(e)}. Verwende Freitext-Eingabe.")
+    
+    # Zeige Kategorie-Informationen falls verfügbar
     category_loader = explorer_config_manager.get_category_loader() if explorer_config_manager else None
     
     if category_loader and category_loader.is_loaded:
-        with st.expander("📊 Verfügbare Kategorien", expanded=False):
-            from webapp_components.smart_filter_controls import render_category_statistics
-            render_category_statistics(category_loader)
+        stats = category_loader.get_statistics()
+        if stats['total_main_categories'] > 0:
+            with st.expander("📊 Verfügbare Kategorien", expanded=False):
+                from webapp_components.smart_filter_controls import render_category_statistics
+                render_category_statistics(category_loader)
+        else:
+            st.info("ℹ️ **Keine Kategorien verfügbar** - Filter verwenden Freitext-Eingabe. Das Kategorien-Sheet ist leer.")
     else:
         st.info("ℹ️ **Keine Kategorien verfügbar** - Filter verwenden Freitext-Eingabe. Stellen Sie sicher, dass Ihre Analysedatei ein 'Kategorien'-Sheet enthält.")
     
@@ -1202,6 +1233,7 @@ def handle_reorder_analysis(from_index: int, to_index: int):
 def render_explorer_view():
     """Rendert die aktive Explorer-Ansicht mit Datenvisualisierung"""
     file_path = st.session_state.explorer_file_path
+    output_dir = st.session_state.get('explorer_output_dir')
     
     # Header with back button
     col1, col2 = st.columns([4, 1])
@@ -1215,6 +1247,39 @@ def render_explorer_view():
             st.rerun()
     
     st.markdown("---")
+    
+    # Show success message with output directory and log
+    if output_dir:
+        st.success("✅ Alle Analysen erfolgreich abgeschlossen!")
+        
+        # Action buttons for output directory
+        col_info, col_btn = st.columns([3, 1])
+        
+        with col_info:
+            st.info(f"📁 Ergebnisse gespeichert in: {output_dir}")
+        
+        with col_btn:
+            # Open folder button
+            if st.button("📂 Ordner öffnen", key="open_explorer_results_folder"):
+                try:
+                    if platform.system() == 'Windows':
+                        os.startfile(output_dir)
+                    elif platform.system() == 'Darwin':  # macOS
+                        subprocess.run(['open', output_dir])
+                    else:  # Linux
+                        subprocess.run(['xdg-open', output_dir])
+                    
+                    st.success("✅ Ordner geöffnet")
+                except Exception as e:
+                    st.error(f"❌ Fehler: {str(e)}")
+        
+        # Show analysis log in expander
+        if st.session_state.get('explorer_analysis_log'):
+            log_data = st.session_state.explorer_analysis_log
+            with st.expander("📋 Analyse-Log anzeigen", expanded=False):
+                st.text_area("Log", log_data['log_text'], height=300, key="explorer_log_display_success", label_visibility="collapsed")
+        
+        st.markdown("---")
     
     # Load and display data
     try:
@@ -1236,60 +1301,87 @@ def render_explorer_view():
                 df = df[df['Konfidenz'] >= min_confidence]
                 st.info(f"🔍 Filter angewendet: Minimale Konfidenz {min_confidence:.2f} → {len(df)} Kodierungen")
         
-        # Display visualizations
+        # Show statistics FIRST (before charts to prevent auto-scroll)
+        st.subheader("📊 Statistiken")
+        
+        col1, col2, col3 = st.columns(3)
+        
+        with col1:
+            st.metric("Gesamt Kodierungen", len(df))
+        
+        with col2:
+            if 'Hauptkategorie' in df.columns:
+                st.metric("Kategorien", df['Hauptkategorie'].nunique())
+        
+        with col3:
+            if 'Dokument' in df.columns:
+                st.metric("Dokumente", df['Dokument'].nunique())
+        
+        st.markdown("---")
+        
+        # Display visualizations in expanders to prevent auto-scroll
         config = st.session_state.explorer_config_data
         
         if 'category_distribution' in config.enabled_charts:
-            st.subheader("📊 Kategorieverteilung")
-            if 'Hauptkategorie' in df.columns:
-                category_counts = df['Hauptkategorie'].value_counts()
-                st.bar_chart(category_counts)
-            else:
-                st.warning("Spalte 'Hauptkategorie' nicht gefunden")
+            with st.expander("📊 Kategorieverteilung", expanded=True):
+                if 'Hauptkategorie' in df.columns:
+                    category_counts = df['Hauptkategorie'].value_counts()
+                    st.bar_chart(category_counts)
+                else:
+                    st.warning("Spalte 'Hauptkategorie' nicht gefunden")
         
         if 'confidence_histogram' in config.enabled_charts:
-            st.subheader("📈 Konfidenz-Verteilung")
-            if 'Konfidenz' in df.columns:
-                # Create histogram using pandas
-                hist_data = df['Konfidenz'].value_counts(bins=20, sort=False).sort_index()
-                st.bar_chart(hist_data)
-            else:
-                st.warning("Spalte 'Konfidenz' nicht gefunden")
+            with st.expander("📈 Konfidenz-Verteilung", expanded=True):
+                st.caption("Die Konfidenz gibt an, wie sicher das LLM-Modell bei der Zuordnung einer Kodierung war (0 = unsicher, 1 = sehr sicher).")
+                
+                if 'Konfidenz' in df.columns:
+                    # Create histogram with better binning
+                    import numpy as np
+                    
+                    # Create bins from 0 to 1 with 0.05 steps (20 bins)
+                    bins = np.linspace(0, 1, 21)
+                    bin_labels = [f"{bins[i]:.2f}-{bins[i+1]:.2f}" for i in range(len(bins)-1)]
+                    
+                    # Cut data into bins
+                    df['Konfidenz_Bin'] = pd.cut(df['Konfidenz'], bins=bins, labels=bin_labels, include_lowest=True)
+                    
+                    # Count values per bin
+                    hist_data = df['Konfidenz_Bin'].value_counts().sort_index()
+                    
+                    # Create a more readable chart
+                    st.bar_chart(hist_data)
+                    
+                    # Show statistics
+                    col1, col2, col3 = st.columns(3)
+                    with col1:
+                        st.metric("Durchschnitt", f"{df['Konfidenz'].mean():.3f}")
+                    with col2:
+                        st.metric("Median", f"{df['Konfidenz'].median():.3f}")
+                    with col3:
+                        st.metric("Std. Abweichung", f"{df['Konfidenz'].std():.3f}")
+                else:
+                    st.warning("Spalte 'Konfidenz' nicht gefunden")
         
-        # Show statistics
-        if st.session_state.get('show_statistics', True):
-            st.subheader("📊 Statistiken")
-            
-            col1, col2, col3 = st.columns(3)
-            
-            with col1:
-                st.metric("Gesamt Kodierungen", len(df))
-            
-            with col2:
-                if 'Hauptkategorie' in df.columns:
-                    st.metric("Kategorien", df['Hauptkategorie'].nunique())
-            
-            with col3:
-                if 'Dokument' in df.columns:
-                    st.metric("Dokumente", df['Dokument'].nunique())
+        st.markdown("---")
         
-        # Data table
-        st.subheader("📋 Kodierungsdaten")
-        
-        # Column selection
-        if len(df.columns) > 10:
-            display_cols = st.multiselect(
-                "Anzuzeigende Spalten:",
-                options=df.columns.tolist(),
-                default=df.columns.tolist()[:5],
-                key="display_columns"
-            )
-            if display_cols:
-                st.dataframe(df[display_cols], use_container_width=True)
+        # Data table - in expander to prevent auto-scroll
+        with st.expander("📋 Kodierungsdaten anzeigen", expanded=False):
+            st.markdown("**Datentabelle**")
+            
+            # Column selection
+            if len(df.columns) > 10:
+                display_cols = st.multiselect(
+                    "Anzuzeigende Spalten:",
+                    options=df.columns.tolist(),
+                    default=df.columns.tolist()[:5],
+                    key="display_columns"
+                )
+                if display_cols:
+                    st.dataframe(df[display_cols], use_container_width=True)
+                else:
+                    st.dataframe(df, use_container_width=True)
             else:
                 st.dataframe(df, use_container_width=True)
-        else:
-            st.dataframe(df, use_container_width=True)
         
         # Export options
         st.markdown("---")
@@ -1523,18 +1615,15 @@ def render_explorer_controls(selected_file: str):
         if st.button("▶️ Explorer starten", use_container_width=True, type="primary", key="start_explorer_btn"):
             start_explorer_analysis(selected_file)
     
-    # Display log outside of columns (full width)
+    # Display log ONLY if analysis failed (not on success - success goes to explorer view)
     if st.session_state.get('explorer_analysis_log'):
-        st.markdown("---")
         log_data = st.session_state.explorer_analysis_log
-        st.text_area("📋 Analyse-Log", log_data['log_text'], height=300, key="explorer_log_display")
         
-        if log_data.get('success'):
-            st.success("✅ Alle Analysen erfolgreich abgeschlossen!")
-            if log_data.get('output_dir'):
-                st.info(f"📁 Ergebnisse gespeichert in: {log_data['output_dir']}")
-        else:
-            st.warning("⚠️ Analysen abgeschlossen mit Warnungen. Siehe Log für Details.")
+        # Only show log here if analysis failed
+        if not log_data.get('success'):
+            st.markdown("---")
+            st.error("❌ Analyse fehlgeschlagen")
+            st.text_area("📋 Analyse-Log", log_data['log_text'], height=300, key="explorer_log_display_error")
 
 
 def render_add_analysis_dialog():
@@ -1708,7 +1797,7 @@ def start_explorer_analysis(file_path: str):
                 st.session_state.explorer_file_path = file_path
                 st.session_state.explorer_output_dir = str(runner.analyzer.output_dir)
             
-            # Trigger rerun to display log outside columns
+            # Trigger rerun to display results view (which starts at top)
             st.rerun()
                 
         except Exception as e:
@@ -1778,6 +1867,34 @@ def render_output_files():
         # Performance Optimization: Pagination for long file lists
         total_files = len(files)
         st.markdown(f"**{total_files} Datei(en) gefunden**")
+        
+        # Action buttons at the top (appear once for all files)
+        col_btn1, col_btn2 = st.columns(2)
+        
+        with col_btn1:
+            # Open file location button - opens the output directory
+            if st.button("📂 Ordner öffnen", key="open_explorer_folder_top"):
+                import subprocess
+                import platform
+                
+                try:
+                    if platform.system() == 'Windows':
+                        os.startfile(output_dir)
+                    elif platform.system() == 'Darwin':  # macOS
+                        subprocess.run(['open', output_dir])
+                    else:  # Linux
+                        subprocess.run(['xdg-open', output_dir])
+                    
+                    st.success("✅ Ordner geöffnet")
+                except Exception as e:
+                    st.error(f"❌ Fehler: {str(e)}")
+        
+        with col_btn2:
+            # Show directory path button
+            if st.button("📋 Pfad kopieren", key="copy_explorer_path_top"):
+                st.code(output_dir, language=None)
+        
+        st.markdown("---")
         
         # Pagination controls
         if total_files > st.session_state.files_per_page:
