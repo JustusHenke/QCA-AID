@@ -6,6 +6,26 @@ Hier ist eine **deutlich kompaktere, inhaltlich vollständige** Version des Chan
 
 ---
 
+## Neu in 0.12.5 (2026-01-14)
+
+### 🎨 Visualisierungen
+
+* **Statische Visualisierungen**: Sunburst und Treemap jetzt mit matplotlib statt Plotly
+  * Sunburst: Kreisförmige hierarchische Darstellung mit konzentrischen Ringen
+  * Treemap: Rechteckige Darstellung mit squarify-Layout + detaillierte Subkategorie-Ansicht
+  * Ausgabe als hochauflösende PNG-Dateien (300 DPI)
+  * Keine weißen/leeren HTML-Dateien mehr
+  * Fallback auf Balkendiagramm wenn squarify nicht installiert
+  * Neue Abhängigkeit: squarify>=0.4.3
+
+### 🐛 Bugfixes
+
+* **Explorer**: Output-Verzeichnis wird jetzt korrekt aus der Konfiguration gelesen
+  * Kategorie-Loader verwendet jetzt das konfigurierte output_dir statt hardkodiertem "output"
+  * Unterstützt benutzerdefinierte Output-Verzeichnisse aus der Config-UI
+
+---
+
 ## Neu in 0.12.4 (2026-01-14)
 
 ### 🎨 UI-Verbesserungen
@@ -14,12 +34,43 @@ Hier ist eine **deutlich kompaktere, inhaltlich vollständige** Version des Chan
   * Nach erfolgreicher Analyse wird neben dem Ausgabepfad ein Button angezeigt
   * In der Dateiliste gibt es Buttons zum Öffnen des Ordners und Kopieren des Pfads
   * Im Explorer-View (Ergebnisansicht) wird eine Erfolgsmeldung mit Pfad und Button angezeigt
-  * Konsistente Implementierung über alle Bereiche
+  * Plattformspezifische Implementierung (Windows/macOS/Linux)
 
 * **Explorer-View**: Konfidenz-Verteilung verbessert
   * Lesbare Bin-Labels (z.B. "0.80-0.85" statt kryptischer Intervall-Notation)
   * Zusätzliche Statistiken: Durchschnitt, Median, Standardabweichung
+  * Erklärungstext zur Bedeutung der Konfidenzwerte
   * Bessere Visualisierung mit 20 gleichmäßigen Bins von 0 bis 1
+
+* **Explorer-View**: Scroll-Position optimiert
+  * Ergebnisseite startet jetzt oben beim Titel
+  * Dataframe und Charts in ausklappbaren Expandern (standardmäßig eingeklappt)
+  * Analyse-Log in Expander verschoben
+  * Statistiken prominent oben platziert
+
+* **Filter-Dropdowns erweitert**
+  * Dokument-Filter mit tatsächlichen Werten aus Excel
+  * Attribut 1 & 2 Filter mit dynamischen Werten
+  * Labels werden aus Konfiguration-Sheet gelesen (ATTRIBUT1_LABEL, ATTRIBUT2_LABEL)
+  * Fallback auf Texteingabe wenn Werte nicht verfügbar
+
+* **Heatmap-Parameter verbessert**
+  * X/Y/Z-Achsen jetzt mit Dropdowns (verfügbare Spalten aus Excel)
+  * Zahlenformat-Dropdown mit 8 vordefinierten Formaten
+  * Expander mit 6 empfohlenen Heatmap-Analysen für QCA-Daten
+
+* **Netzwerkanalyse-Parameter**
+  * Tooltips mit größenabhängigen Empfehlungen (klein/mittel/groß)
+  * Abschätzung von Knoten und Kanten basierend auf gefilterten Daten
+  * Spezifische Empfehlungen basierend auf geschätzter Netzwerkgröße
+
+* **Analysename vorausgefüllt**
+  * Standardnamen basierend auf Analysetyp (z.B. "Netzwerkanalyse", "Heatmap-Analyse")
+  * Gilt für alle Analysetypen inkl. Sunburst und Treemap
+
+* **Tooltips verbessert**
+  * Keyword-Harmonisierung: Detaillierte Erklärung mit Beispielen
+  * Ähnlichkeitsschwelle: Konkrete Empfehlungen für verschiedene Szenarien
 
 ### 🐛 Bugfixes
 
@@ -27,6 +78,29 @@ Hier ist eine **deutlich kompaktere, inhaltlich vollständige** Version des Chan
   * Kategorien werden jetzt aus der ausgewählten Analysedatei geladen
   * Bessere Fehlerbehandlung und Debugging-Ausgaben
   * Warnung wenn Kategorien-Sheet leer ist oder nicht gefunden wird
+
+* **JSON-Konfiguration**: Laden/Speichern repariert
+  * Entfernte fehlerhafte Prüfung die neue Konfigurationen ablehnte
+  * `enabled_charts` und `color_scheme` sind Teil des neuen Formats
+  * Konfigurationen können jetzt erfolgreich gespeichert und geladen werden
+
+* **Sunburst & Treemap**: Datenvisualisierung korrigiert
+  * Hierarchische Struktur wird jetzt korrekt aufgebaut
+  * Werte werden während der Strukturerstellung gezählt (nicht nachträglich)
+  * Duplikate werden vermieden durch Verwendung von Tupel-Keys
+  * HTML-Ausgabe zeigt jetzt Daten korrekt an
+
+### 🔧 Technische Verbesserungen
+
+* **Versionsverwaltung konsolidiert**
+  * `__version__.py` ist jetzt die einzige Quelle für Versionsnummern
+  * `__init__.py` importiert aus `__version__.py`
+  * Keine Duplikation mehr
+
+* **CategoryLoader erweitert**
+  * Lädt Werte aus Kodierungsergebnisse-Sheet
+  * Liest Attribut-Labels aus Konfiguration-Sheet
+  * Verwendet dynamische Spaltennamen basierend auf Labels
 
 ---
 

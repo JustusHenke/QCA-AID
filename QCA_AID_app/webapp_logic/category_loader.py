@@ -41,7 +41,13 @@ class CategoryLoader:
         self.category_mapping = {}
         self.is_loaded = False
         
+        # Additional filter values from Kodierungsergebnisse sheet
+        self.documents = []
+        self.attribut1_values = []
+        self.attribut2_values = []
+        
         self._load_categories()
+        self._load_filter_values()
     
     def _load_categories(self) -> None:
         """
@@ -332,3 +338,74 @@ class CategoryLoader:
             'categories_with_least_subcategories': categories_with_min,
             'main_categories': self.main_categories
         }
+    
+    def _load_filter_values(self) -> None:
+        """
+        Lädt verfügbare Werte für Filter aus dem Kodierungsergebnisse-Sheet.
+        
+        Extrahiert eindeutige Werte für:
+        - Dokument
+        - Attribut1 (über ATTRIBUT1_LABEL aus Konfiguration)
+        - Attribut2 (über ATTRIBUT2_LABEL aus Konfiguration)
+        """
+        try:
+            # Lade zuerst die Attribut-Labels aus dem Konfiguration-Sheet
+            config_df = pd.read_excel(self.excel_path, sheet_name='Konfiguration', header=None)
+            
+            # Finde die Labels für Attribut1 und Attribut2
+            attribut1_label = None
+            attribut2_label = None
+            
+            for idx, row in config_df.iterrows():
+                if row[0] == 'ATTRIBUT1_LABEL':
+                    attribut1_label = str(row[1]) if pd.notna(row[1]) else None
+                elif row[0] == 'ATTRIBUT2_LABEL':
+                    attribut2_label = str(row[1]) if pd.notna(row[1]) else None
+            
+            # Lade Kodierungsergebnisse-Sheet
+            df = pd.read_excel(self.excel_path, sheet_name='Kodierungsergebnisse')
+            
+            # Extrahiere eindeutige Dokumente
+            if 'Dokument' in df.columns:
+                self.documents = sorted([str(doc) for doc in df['Dokument'].dropna().unique()])
+            
+            # Extrahiere eindeutige Attribut1-Werte (mit dynamischem Spaltennamen)
+            if attribut1_label and attribut1_label in df.columns:
+                self.attribut1_values = sorted([str(val) for val in df[attribut1_label].dropna().unique()])
+            
+            # Extrahiere eindeutige Attribut2-Werte (mit dynamischem Spaltennamen)
+            if attribut2_label and attribut2_label in df.columns:
+                self.attribut2_values = sorted([str(val) for val in df[attribut2_label].dropna().unique()])
+                
+        except Exception as e:
+            # Fehler beim Laden - verwende leere Listen
+            self.documents = []
+            self.attribut1_values = []
+            self.attribut2_values = []
+    
+    def get_documents(self) -> List[str]:
+        """
+        Gibt die Liste aller verfügbaren Dokumente zurück.
+        
+        Returns:
+            Liste der Dokumentnamen, alphabetisch sortiert
+        """
+        return self.documents.copy()
+    
+    def get_attribut1_values(self) -> List[str]:
+        """
+        Gibt die Liste aller verfügbaren Attribut1-Werte zurück.
+        
+        Returns:
+            Liste der Attribut1-Werte, alphabetisch sortiert
+        """
+        return self.attribut1_values.copy()
+    
+    def get_attribut2_values(self) -> List[str]:
+        """
+        Gibt die Liste aller verfügbaren Attribut2-Werte zurück.
+        
+        Returns:
+            Liste der Attribut2-Werte, alphabetisch sortiert
+        """
+        return self.attribut2_values.copy()

@@ -281,6 +281,8 @@ class AnalysisConfig:
             type_names = {
                 'netzwerk': 'Netzwerkanalyse',
                 'heatmap': 'Heatmap-Analyse',
+                'sunburst': 'Sunburst-Diagramm',
+                'treemap': 'Treemap-Diagramm',
                 'summary_paraphrase': 'Zusammenfassung (Paraphrase)',
                 'summary_reasoning': 'Zusammenfassung (Reasoning)',
                 'custom_summary': 'Benutzerdefinierte Zusammenfassung',
@@ -314,6 +316,14 @@ class AnalysisConfig:
                 'figsize': [10, 8],
                 'annot': True,
                 'fmt': '.2f'
+            }
+        elif analysis_type == 'sunburst':
+            params = {
+                'hierarchy_levels': ['Hauptkategorie', 'Subkategorie', 'Schlüsselwort']
+            }
+        elif analysis_type == 'treemap':
+            params = {
+                'hierarchy_levels': ['Hauptkategorie', 'Subkategorie', 'Schlüsselwort']
             }
         elif analysis_type == 'summary_paraphrase':
             params = {

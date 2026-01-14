@@ -124,7 +124,7 @@ QCA-AID bietet vier verschiedene Analysemodi, die sich in ihrer Offenheit für n
 - Hauptkategorien bleiben fix
 - Begrenzte theoretische Innovation
 
-### 3.3 Induktiver Modus (`full`)
+### 3.3 Induktiver Modus (`inductive`)
 
 **Prinzip:** Vollständige Erweiterung um neue Haupt- und Subkategorien
 

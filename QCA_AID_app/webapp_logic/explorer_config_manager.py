@@ -71,14 +71,7 @@ class ExplorerConfigManager:
             # Load from JSON
             config_data = ConfigConverter.load_json(str(config_path))
             
-            # Check if this is the old format (enabled_charts, color_scheme, etc.)
-            if 'enabled_charts' in config_data or 'color_scheme' in config_data:
-                raise ValueError(
-                    "Die JSON-Datei verwendet das alte Format. "
-                    "Bitte erstellen Sie eine neue Konfiguration oder konvertieren Sie die Datei zum neuen Format."
-                )
-            
-            # Validate JSON structure
+            # Validate JSON structure (but allow enabled_charts and color_scheme - they are part of the new format!)
             is_valid_structure, structure_errors = ConfigValidator.validate_json_config(config_data)
             if not is_valid_structure:
                 error_msg = "JSON configuration is invalid:\n" + "\n".join(f"  - {e}" for e in structure_errors)
@@ -551,12 +544,35 @@ class ExplorerConfigManager:
         """
         Lädt Kategorien aus verfügbaren Analyseergebnissen.
         
-        Sucht nach QCA-AID_Analysis_*.xlsx Dateien im output-Verzeichnis
+        Sucht nach QCA-AID_Analysis_*.xlsx Dateien im konfigurierten output-Verzeichnis
         und versucht, Kategorien aus dem "Kategorien"-Sheet zu laden.
         """
         try:
-            # Suche nach Analyseergebnissen im output-Verzeichnis
-            output_dir = self.project_dir / "output"
+            # Versuche zuerst, output_dir aus der Konfiguration zu lesen
+            output_dir_name = "output"  # Default
+            
+            # Prüfe ob eine Konfigurationsdatei existiert
+            if self.xlsx_path.exists():
+                try:
+                    import pandas as pd
+                    base_df = pd.read_excel(str(self.xlsx_path), sheet_name='Basis')
+                    for _, row in base_df.iterrows():
+                        if str(row['Parameter']) == 'output_dir':
+                            output_dir_name = str(row['Wert'])
+                            break
+                except Exception:
+                    pass  # Verwende Default
+            elif self.json_path.exists():
+                try:
+                    import json
+                    with open(self.json_path, 'r', encoding='utf-8') as f:
+                        config_data = json.load(f)
+                        output_dir_name = config_data.get('base_config', {}).get('output_dir', 'output')
+                except Exception:
+                    pass  # Verwende Default
+            
+            # Suche nach Analyseergebnissen im konfigurierten output-Verzeichnis
+            output_dir = self.project_dir / output_dir_name
             if not output_dir.exists():
                 return
             

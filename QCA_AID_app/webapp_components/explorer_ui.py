@@ -595,13 +595,10 @@ def render_analysis_tab(analysis: AnalysisConfig, index: int):
         render_network_parameters(analysis, index)
     elif analysis.analysis_type == 'heatmap':
         render_heatmap_parameters(analysis, index)
-    elif analysis.analysis_type in ('sunburst', 'treemap'):
-        st.info("ℹ️ Diese Visualisierung benötigt keine zusätzlichen Parameter. Sie wird automatisch aus den gefilterten Daten erstellt.")
-        st.markdown("""
-        **Hinweis:** Es werden zwei Versionen erstellt:
-        - Standard-Version (nur Labels)
-        - Version mit Werten (_with_values.html)
-        """)
+    elif analysis.analysis_type == 'sunburst':
+        render_sunburst_parameters(analysis, index)
+    elif analysis.analysis_type == 'treemap':
+        render_treemap_parameters(analysis, index)
     elif analysis.analysis_type in ('summary_paraphrase', 'summary_reasoning', 'custom_summary'):
         render_summary_parameters(analysis, index)
     elif analysis.analysis_type == 'sentiment_analysis':
@@ -810,6 +807,66 @@ def render_network_parameters(analysis: AnalysisConfig, index: int):
     params = analysis.params.copy()
     updated = False
     
+    # Estimate network size based on filters
+    try:
+        explorer_config_manager = st.session_state.get('explorer_config_manager')
+        category_loader = explorer_config_manager.get_category_loader() if explorer_config_manager else None
+        
+        if category_loader:
+            # Get the selected file path
+            selected_file = st.session_state.get('selected_analysis_file')
+            if selected_file:
+                import pandas as pd
+                
+                # Load data and apply filters
+                df = pd.read_excel(category_loader.excel_path, sheet_name='Kodierungsergebnisse')
+                
+                # Apply filters
+                filters = analysis.filters
+                if filters.get('Dokument'):
+                    df = df[df['Dokument'] == filters['Dokument']]
+                if filters.get('Hauptkategorie'):
+                    df = df[df['Hauptkategorie'] == filters['Hauptkategorie']]
+                if filters.get('Subkategorien'):
+                    subcats = [s.strip() for s in filters['Subkategorien'].split(',')]
+                    df = df[df['Subkategorie'].isin(subcats)]
+                
+                # Estimate nodes and edges
+                num_records = len(df)
+                num_main_categories = df['Hauptkategorie'].nunique() if 'Hauptkategorie' in df.columns else 0
+                num_subcategories = df['Subkategorie'].nunique() if 'Subkategorie' in df.columns else 0
+                num_keywords = df['Schlüsselwort'].nunique() if 'Schlüsselwort' in df.columns else 0
+                
+                # Estimate total nodes (categories + subcategories + keywords)
+                estimated_nodes = num_main_categories + num_subcategories + num_keywords
+                
+                # Estimate edges (rough approximation based on co-occurrences)
+                # Typically: edges ≈ 1.5 * nodes for sparse networks, up to nodes² for dense networks
+                # We use a conservative estimate
+                estimated_edges = min(num_records, estimated_nodes * 3)
+                
+                # Display estimation
+                st.info(f"""
+📊 **Geschätzte Netzwerkgröße** (basierend auf Filtern):
+- **{num_records} Kodierungen** gefiltert
+- **~{estimated_nodes} Knoten** ({num_main_categories} Haupt-, {num_subcategories} Sub-, {num_keywords} Keywords)
+- **~{estimated_edges} Kanten** (geschätzt)
+
+💡 **Empfohlene Parameter für diese Größe:**
+""")
+                
+                # Provide recommendations based on size
+                if estimated_nodes < 20:
+                    st.success("✓ Kleines Netzwerk - Standardwerte sind optimal")
+                elif estimated_nodes < 50:
+                    st.warning("⚠️ Mittleres Netzwerk - Erwägen Sie: Node Size 0.5-1.0, Iterations 50-100")
+                else:
+                    st.error("⚠️ Großes Netzwerk - Empfohlen: Node Size 0.3-0.7, Iterations 100-200, Scaling 0.5-1.0")
+                
+    except Exception as e:
+        # Silently fail if estimation doesn't work
+        pass
+    
     # Node size factor
     new_node_size = st.number_input(
         "Node Size Factor:",
@@ -818,7 +875,14 @@ def render_network_parameters(analysis: AnalysisConfig, index: int):
         value=float(params.get('node_size_factor', 1.0)),
         step=0.1,
         key=f"node_size_{index}",
-        help="Skalierungsfaktor für Knotengröße"
+        help="""Skalierungsfaktor für Knotengröße. 
+        
+Empfehlungen:
+• Kleine Netzwerke (< 20 Knoten): 1.0 - 2.0
+• Mittlere Netzwerke (20-50 Knoten): 0.5 - 1.0
+• Große Netzwerke (> 50 Knoten): 0.3 - 0.7
+
+Höhere Werte = größere Knoten (besser lesbar, aber mehr Überlappung)"""
     )
     if new_node_size != params.get('node_size_factor'):
         params['node_size_factor'] = new_node_size
@@ -832,7 +896,15 @@ def render_network_parameters(analysis: AnalysisConfig, index: int):
         value=int(params.get('layout_iterations', 50)),
         step=10,
         key=f"iterations_{index}",
-        help="Anzahl der Iterationen für Layout-Berechnung"
+        help="""Anzahl der Iterationen für Layout-Berechnung (Force-Directed Algorithm).
+
+Empfehlungen:
+• Kleine Netzwerke (< 20 Knoten): 30-50 Iterationen
+• Mittlere Netzwerke (20-50 Knoten): 50-100 Iterationen
+• Große Netzwerke (> 50 Knoten): 100-200 Iterationen
+• Sehr dichte Netzwerke: 200-300 Iterationen
+
+Mehr Iterationen = besseres Layout, aber längere Berechnungszeit"""
     )
     if new_iterations != params.get('layout_iterations'):
         params['layout_iterations'] = new_iterations
@@ -849,7 +921,16 @@ def render_network_parameters(analysis: AnalysisConfig, index: int):
             value=float(params.get('gravity', 0.1)),
             step=0.05,
             key=f"gravity_{index}",
-            help="Anziehungskraft zwischen Knoten"
+            help="""Anziehungskraft zum Zentrum des Graphen.
+
+Empfehlungen:
+• Lockere Netzwerke (wenige Kanten): 0.1 - 0.3
+• Dichte Netzwerke (viele Kanten): 0.0 - 0.1
+• Sehr dichte Netzwerke: -0.1 - 0.0 (abstoßend)
+
+Positive Werte = Knoten werden zum Zentrum gezogen
+Negative Werte = Knoten werden vom Zentrum abgestoßen
+0 = keine Gravitation"""
         )
         if new_gravity != params.get('gravity'):
             params['gravity'] = new_gravity
@@ -864,7 +945,16 @@ def render_network_parameters(analysis: AnalysisConfig, index: int):
             value=float(params.get('scaling', 1.0)),
             step=0.1,
             key=f"scaling_{index}",
-            help="Gesamtskalierung des Graphen"
+            help="""Gesamtskalierung des Graphen (Abstand zwischen Knoten).
+
+Empfehlungen:
+• Kleine Netzwerke (< 20 Knoten): 1.0 - 2.0
+• Mittlere Netzwerke (20-50 Knoten): 0.8 - 1.5
+• Große Netzwerke (> 50 Knoten): 0.5 - 1.0
+• Sehr große Netzwerke (> 100 Knoten): 0.3 - 0.7
+
+Höhere Werte = mehr Abstand zwischen Knoten (weniger Überlappung)
+Niedrigere Werte = kompakteres Layout"""
         )
         if new_scaling != params.get('scaling'):
             params['scaling'] = new_scaling
@@ -887,36 +977,110 @@ def render_heatmap_parameters(analysis: AnalysisConfig, index: int):
     params = analysis.params.copy()
     updated = False
     
-    # X, Y, Z attributes
-    new_x = st.text_input(
-        "X-Achse Attribut:",
-        value=params.get('x_attribute', 'Hauptkategorie'),
-        key=f"x_attr_{index}",
-        help="Spaltenname für X-Achse"
-    )
-    if new_x != params.get('x_attribute'):
-        params['x_attribute'] = new_x
-        updated = True
+    # Show recommendations for heatmap analyses
+    with st.expander("💡 Empfohlene Heatmap-Analysen", expanded=False):
+        st.markdown("""
+        **Sinnvolle Kombinationen für Ihre QCA-Daten:**
+        
+        1. **Kategorien × Dokumente** (Häufigkeitsverteilung)
+           - X: Hauptkategorie, Y: Dokument, Z: count
+           - Zeigt, welche Kategorien in welchen Dokumenten vorkommen
+        
+        2. **Hauptkategorien × Subkategorien** (Hierarchie-Übersicht)
+           - X: Hauptkategorie, Y: Subkategorie, Z: count
+           - Zeigt die Verteilung der Subkategorien pro Hauptkategorie
+        
+        3. **Kategorien × Attribut 1** (z.B. demografische Verteilung)
+           - X: Hauptkategorie, Y: Attribut1, Z: count
+           - Zeigt Verteilung nach Geschlecht, Alter, etc.
+        
+        4. **Kategorien × Attribut 2**
+           - X: Hauptkategorie, Y: Attribut2, Z: count
+        
+        5. **Attribut 1 × Attribut 2** (Kreuztabelle)
+           - X: Attribut1, Y: Attribut2, Z: count
+           - Zeigt Zusammenhänge zwischen zwei Attributen
+        
+        6. **Kategorien × Coder** (Intercoder-Vergleich)
+           - X: Hauptkategorie, Y: Coder_ID, Z: count
+           - Zeigt Kodierungsverteilung pro Coder
+        
+        **Tipp:** Verwenden Sie Filter, um die Analyse auf bestimmte Dokumente oder Kategorien einzugrenzen!
+        """)
     
-    new_y = st.text_input(
-        "Y-Achse Attribut:",
-        value=params.get('y_attribute', 'Subkategorien'),
-        key=f"y_attr_{index}",
-        help="Spaltenname für Y-Achse"
-    )
-    if new_y != params.get('y_attribute'):
-        params['y_attribute'] = new_y
-        updated = True
+    # Get available columns from the selected file
+    available_columns = []
+    try:
+        explorer_config_manager = st.session_state.get('explorer_config_manager')
+        category_loader = explorer_config_manager.get_category_loader() if explorer_config_manager else None
+        
+        if category_loader:
+            import pandas as pd
+            df = pd.read_excel(category_loader.excel_path, sheet_name='Kodierungsergebnisse')
+            available_columns = df.columns.tolist()
+    except:
+        pass
     
-    new_z = st.text_input(
-        "Werte Attribut:",
-        value=params.get('z_attribute', 'count'),
-        key=f"z_attr_{index}",
-        help="Spaltenname für Werte (z.B. 'count' für Häufigkeiten)"
-    )
-    if new_z != params.get('z_attribute'):
-        params['z_attribute'] = new_z
-        updated = True
+    # Common heatmap columns
+    common_columns = ['Hauptkategorie', 'Subkategorie', 'Schlüsselwort', 'Dokument', 'Coder_ID', 'count']
+    
+    # Merge available and common columns
+    if available_columns:
+        column_options = available_columns
+    else:
+        column_options = common_columns
+    
+    # X, Y, Z attributes with dropdowns
+    col1, col2, col3 = st.columns(3)
+    
+    with col1:
+        # X-Achse
+        current_x = params.get('x_attribute', 'Hauptkategorie')
+        x_index = column_options.index(current_x) if current_x in column_options else 0
+        
+        new_x = st.selectbox(
+            "X-Achse Attribut:",
+            options=column_options,
+            index=x_index,
+            key=f"x_attr_{index}",
+            help="Spalte für X-Achse der Heatmap"
+        )
+        if new_x != params.get('x_attribute'):
+            params['x_attribute'] = new_x
+            updated = True
+    
+    with col2:
+        # Y-Achse
+        current_y = params.get('y_attribute', 'Subkategorie')
+        y_index = column_options.index(current_y) if current_y in column_options else (1 if len(column_options) > 1 else 0)
+        
+        new_y = st.selectbox(
+            "Y-Achse Attribut:",
+            options=column_options,
+            index=y_index,
+            key=f"y_attr_{index}",
+            help="Spalte für Y-Achse der Heatmap"
+        )
+        if new_y != params.get('y_attribute'):
+            params['y_attribute'] = new_y
+            updated = True
+    
+    with col3:
+        # Z-Werte (mit 'count' als spezielle Option)
+        z_options = ['count'] + [col for col in column_options if col != 'count']
+        current_z = params.get('z_attribute', 'count')
+        z_index = z_options.index(current_z) if current_z in z_options else 0
+        
+        new_z = st.selectbox(
+            "Werte Attribut:",
+            options=z_options,
+            index=z_index,
+            key=f"z_attr_{index}",
+            help="Werte für Heatmap-Zellen. 'count' = Häufigkeiten zählen"
+        )
+        if new_z != params.get('z_attribute'):
+            params['z_attribute'] = new_z
+            updated = True
     
     col1, col2 = st.columns(2)
     
@@ -974,16 +1138,373 @@ def render_heatmap_parameters(analysis: AnalysisConfig, index: int):
         params['figsize'] = [new_width, new_height]
         updated = True
     
-    # Format string
-    new_fmt = st.text_input(
+    # Format string with dropdown
+    format_options = {
+        '.0f': 'Ganzzahl (z.B. 42)',
+        '.1f': '1 Dezimalstelle (z.B. 42.5)',
+        '.2f': '2 Dezimalstellen (z.B. 42.50)',
+        '.3f': '3 Dezimalstellen (z.B. 42.500)',
+        'd': 'Integer (z.B. 42)',
+        '.0%': 'Prozent ohne Dezimalen (z.B. 42%)',
+        '.1%': 'Prozent mit 1 Dezimale (z.B. 42.5%)',
+        '.2%': 'Prozent mit 2 Dezimalen (z.B. 42.50%)'
+    }
+    
+    current_fmt = params.get('fmt', '.2f')
+    fmt_keys = list(format_options.keys())
+    fmt_index = fmt_keys.index(current_fmt) if current_fmt in fmt_keys else 2  # Default to '.2f'
+    
+    new_fmt = st.selectbox(
         "Zahlenformat:",
-        value=params.get('fmt', '.2f'),
+        options=fmt_keys,
+        index=fmt_index,
+        format_func=lambda x: format_options[x],
         key=f"fmt_{index}",
-        help="Format für Zahlendarstellung (z.B. '.2f' für 2 Dezimalstellen)"
+        help="Format für die Darstellung der Werte in den Heatmap-Zellen"
     )
     if new_fmt != params.get('fmt'):
         params['fmt'] = new_fmt
         updated = True
+    
+    if updated:
+        handle_update_analysis(index, {'params': params})
+
+
+def render_sunburst_parameters(analysis: AnalysisConfig, index: int):
+    """
+    Renders sunburst-specific parameters.
+    
+    Args:
+        analysis: AnalysisConfig to render parameters for
+        index: Index of the analysis
+    """
+    params = analysis.params.copy()
+    updated = False
+    
+    st.markdown("""
+    **📊 Sunburst-Visualisierung**
+    
+    Erstellt eine kreisförmige hierarchische Darstellung mit konzentrischen Ringen.
+    Ausgabe als hochauflösende PNG-Datei.
+    """)
+    
+    with st.expander("🎨 Erweiterte Parameter", expanded=False):
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            # DPI
+            new_dpi = st.number_input(
+                "Auflösung (DPI):",
+                min_value=72,
+                max_value=600,
+                value=int(params.get('dpi', 300)),
+                step=50,
+                key=f"sunburst_dpi_{index}",
+                help="""Auflösung der PNG-Datei in Dots Per Inch.
+
+**Empfehlungen:**
+• 72-150 DPI: Bildschirmanzeige, Web
+• 300 DPI: Druckqualität (Standard)
+• 600 DPI: Hochauflösender Druck
+
+Höhere Werte = größere Dateien, aber schärfere Bilder."""
+            )
+            if new_dpi != params.get('dpi'):
+                params['dpi'] = new_dpi
+                updated = True
+            
+            # Font size
+            new_font_size = st.number_input(
+                "Schriftgröße Labels:",
+                min_value=4,
+                max_value=20,
+                value=int(params.get('font_size', 8)),
+                key=f"sunburst_font_{index}",
+                help="""Schriftgröße für die Labels in den Ringen.
+
+**Empfehlungen:**
+• 6-8: Viele kleine Labels
+• 8-10: Standard (gut lesbar)
+• 10-14: Wenige große Labels
+• 14+: Sehr große, prominente Labels
+
+Bei vielen Knoten kleinere Schrift verwenden."""
+            )
+            if new_font_size != params.get('font_size'):
+                params['font_size'] = new_font_size
+                updated = True
+            
+            # Max label length
+            new_max_label = st.number_input(
+                "Max. Label-Länge:",
+                min_value=5,
+                max_value=50,
+                value=int(params.get('max_label_length', 15)),
+                key=f"sunburst_maxlabel_{index}",
+                help="""Maximale Zeichenanzahl für Labels.
+
+Längere Labels werden abgeschnitten und mit '...' versehen.
+
+**Empfehlungen:**
+• 10-15: Kompakte Darstellung
+• 15-20: Standard (gut lesbar)
+• 20-30: Ausführliche Labels
+• 30+: Sehr lange Labels (nur bei wenigen Knoten)"""
+            )
+            if new_max_label != params.get('max_label_length'):
+                params['max_label_length'] = new_max_label
+                updated = True
+        
+        with col2:
+            # Ring width
+            new_ring_width = st.number_input(
+                "Ring-Breite:",
+                min_value=0.5,
+                max_value=3.0,
+                value=float(params.get('ring_width', 1.5)),
+                step=0.1,
+                key=f"sunburst_ring_{index}",
+                help="""Breite der konzentrischen Ringe (Hierarchieebenen).
+
+**Empfehlungen:**
+• 1.0-1.3: Schmale Ringe (viele Ebenen)
+• 1.5: Standard (ausgewogen)
+• 1.8-2.5: Breite Ringe (wenige Ebenen)
+• 2.5+: Sehr breite Ringe (max. 2-3 Ebenen)
+
+Kleinere Werte = mehr Platz für tiefe Hierarchien."""
+            )
+            if new_ring_width != params.get('ring_width'):
+                params['ring_width'] = new_ring_width
+                updated = True
+            
+            # Color scheme
+            color_schemes = ['Set3', 'Pastel1', 'Pastel2', 'Set1', 'Set2', 'tab10', 'tab20']
+            new_color_scheme = st.selectbox(
+                "Farbschema:",
+                options=color_schemes,
+                index=color_schemes.index(params.get('color_scheme', 'Set3')) if params.get('color_scheme', 'Set3') in color_schemes else 0,
+                key=f"sunburst_colors_{index}",
+                help="""Matplotlib Farbschema für Hauptkategorien.
+
+**Verfügbare Schemata:**
+• Set3: Pastellfarben, gut unterscheidbar (Standard)
+• Pastel1/2: Sanfte Pastelltöne
+• Set1/2: Kräftige, gesättigte Farben
+• tab10: 10 unterschiedliche Farben
+• tab20: 20 unterschiedliche Farben (viele Kategorien)
+
+Unterkategorien werden automatisch heller eingefärbt."""
+            )
+            if new_color_scheme != params.get('color_scheme'):
+                params['color_scheme'] = new_color_scheme
+                updated = True
+            
+            # Show values
+            new_show_values = st.checkbox(
+                "Werte anzeigen",
+                value=params.get('show_values', True),
+                key=f"sunburst_values_{index}",
+                help="""Anzahl der Kodierungen in Labels anzeigen.
+
+**Aktiviert:** "Label (5)" - zeigt Anzahl
+**Deaktiviert:** "Label" - nur Text
+
+Nützlich um die Häufigkeit von Codes zu sehen."""
+            )
+            if new_show_values != params.get('show_values'):
+                params['show_values'] = new_show_values
+                updated = True
+        
+        # Label background settings
+        st.markdown("**Label-Hintergrund:**")
+        col3, col4 = st.columns(2)
+        
+        with col3:
+            # Label background color
+            new_label_bg = st.color_picker(
+                "Hintergrundfarbe:",
+                value=params.get('label_bg_color', '#FFFFFF'),
+                key=f"sunburst_labelbg_{index}",
+                help="""Hintergrundfarbe für Label-Boxen (HEX-Wert).
+
+**Empfehlungen:**
+• #FFFFFF (Weiß): Standard, gute Lesbarkeit
+• #000000 (Schwarz): Für helle Schrift
+• Transparent (Alpha 0): Kein Hintergrund
+• Beliebige Farbe: Für spezielle Designs
+
+Kombinieren Sie mit Transparenz für beste Ergebnisse."""
+            )
+            if new_label_bg != params.get('label_bg_color'):
+                params['label_bg_color'] = new_label_bg
+                updated = True
+        
+        with col4:
+            # Label background alpha
+            new_label_bg_alpha = st.slider(
+                "Transparenz:",
+                min_value=0.0,
+                max_value=1.0,
+                value=float(params.get('label_bg_alpha', 0.7)),
+                step=0.05,
+                key=f"sunburst_labelalpha_{index}",
+                help="""Transparenz des Label-Hintergrunds.
+
+**Werte:**
+• 0.0: Vollständig durchsichtig (kein Hintergrund)
+• 0.5-0.7: Halbtransparent (Standard, gute Balance)
+• 1.0: Vollständig deckend
+
+Niedrigere Werte zeigen mehr von den Farben darunter."""
+            )
+            if new_label_bg_alpha != params.get('label_bg_alpha'):
+                params['label_bg_alpha'] = new_label_bg_alpha
+                updated = True
+    
+    if updated:
+        handle_update_analysis(index, {'params': params})
+
+
+def render_treemap_parameters(analysis: AnalysisConfig, index: int):
+    """
+    Renders treemap-specific parameters.
+    
+    Args:
+        analysis: AnalysisConfig to render parameters for
+        index: Index of the analysis
+    """
+    params = analysis.params.copy()
+    updated = False
+    
+    st.markdown("""
+    **📊 Treemap-Visualisierung**
+    
+    Erstellt eine rechteckige hierarchische Darstellung mit optimiertem Layout.
+    Ausgabe als hochauflösende PNG-Dateien (Übersicht + Detail pro Kategorie).
+    """)
+    
+    with st.expander("🎨 Erweiterte Parameter", expanded=False):
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            # DPI
+            new_dpi = st.number_input(
+                "Auflösung (DPI):",
+                min_value=72,
+                max_value=600,
+                value=int(params.get('dpi', 300)),
+                step=50,
+                key=f"treemap_dpi_{index}",
+                help="""Auflösung der PNG-Dateien in Dots Per Inch.
+
+**Empfehlungen:**
+• 72-150 DPI: Bildschirmanzeige, Web
+• 300 DPI: Druckqualität (Standard)
+• 600 DPI: Hochauflösender Druck
+
+Gilt für Übersicht und Detail-Ansichten."""
+            )
+            if new_dpi != params.get('dpi'):
+                params['dpi'] = new_dpi
+                updated = True
+            
+            # Font size
+            new_font_size = st.number_input(
+                "Schriftgröße:",
+                min_value=6,
+                max_value=20,
+                value=int(params.get('font_size', 10)),
+                key=f"treemap_font_{index}",
+                help="""Schriftgröße für Labels in der Hauptansicht.
+
+**Empfehlungen:**
+• 8-10: Viele Kategorien
+• 10-12: Standard (gut lesbar)
+• 12-16: Wenige Kategorien
+• 16+: Sehr große, prominente Labels"""
+            )
+            if new_font_size != params.get('font_size'):
+                params['font_size'] = new_font_size
+                updated = True
+            
+            # Detail font size
+            new_detail_font = st.number_input(
+                "Schriftgröße Detail:",
+                min_value=6,
+                max_value=20,
+                value=int(params.get('detail_font_size', 9)),
+                key=f"treemap_detailfont_{index}",
+                help="""Schriftgröße für Labels in der Detail-Ansicht.
+
+**Empfehlungen:**
+• 7-9: Viele Subkategorien
+• 9-11: Standard (gut lesbar)
+• 11-14: Wenige Subkategorien
+
+Detail-Ansicht zeigt Subkategorien pro Hauptkategorie."""
+            )
+            if new_detail_font != params.get('detail_font_size'):
+                params['detail_font_size'] = new_detail_font
+                updated = True
+        
+        with col2:
+            # Color scheme
+            color_schemes = ['Set3', 'Pastel1', 'Pastel2', 'Set1', 'Set2', 'tab10', 'tab20']
+            new_color_scheme = st.selectbox(
+                "Farbschema:",
+                options=color_schemes,
+                index=color_schemes.index(params.get('color_scheme', 'Set3')) if params.get('color_scheme', 'Set3') in color_schemes else 0,
+                key=f"treemap_colors_{index}",
+                help="""Matplotlib Farbschema für Hauptansicht.
+
+**Verfügbare Schemata:**
+• Set3: Pastellfarben, gut unterscheidbar (Standard)
+• Pastel1/2: Sanfte Pastelltöne
+• Set1/2: Kräftige, gesättigte Farben
+• tab10: 10 unterschiedliche Farben
+• tab20: 20 unterschiedliche Farben (viele Kategorien)"""
+            )
+            if new_color_scheme != params.get('color_scheme'):
+                params['color_scheme'] = new_color_scheme
+                updated = True
+            
+            # Detail color scheme
+            detail_schemes = ['Pastel1', 'Pastel2', 'Set3', 'Set1', 'Set2']
+            new_detail_scheme = st.selectbox(
+                "Farbschema Detail:",
+                options=detail_schemes,
+                index=detail_schemes.index(params.get('detail_color_scheme', 'Pastel1')) if params.get('detail_color_scheme', 'Pastel1') in detail_schemes else 0,
+                key=f"treemap_detailcolors_{index}",
+                help="""Farbschema für Detail-Ansicht (Subkategorien).
+
+**Empfehlungen:**
+• Pastel1/2: Sanfte Farben (Standard)
+• Set3: Pastellfarben mit guter Unterscheidbarkeit
+• Set1/2: Kräftige Farben für Kontrast
+
+Wird für Balkendiagramme der Subkategorien verwendet."""
+            )
+            if new_detail_scheme != params.get('detail_color_scheme'):
+                params['detail_color_scheme'] = new_detail_scheme
+                updated = True
+            
+            # Show values
+            new_show_values = st.checkbox(
+                "Werte anzeigen",
+                value=params.get('show_values', True),
+                key=f"treemap_values_{index}",
+                help="""Anzahl der Kodierungen in Labels anzeigen.
+
+**Aktiviert:** "Label (5)" - zeigt Anzahl
+**Deaktiviert:** "Label" - nur Text
+
+Nützlich um die Häufigkeit von Codes zu sehen.
+Gilt für Hauptansicht und Detail-Ansicht."""
+            )
+            if new_show_values != params.get('show_values'):
+                params['show_values'] = new_show_values
+                updated = True
     
     if updated:
         handle_update_analysis(index, {'params': params})

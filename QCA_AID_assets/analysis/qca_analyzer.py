@@ -119,11 +119,15 @@ class QCAAnalyzer:
             'Attribut_3': self.df.columns[3] if len(self.df.columns) > 3 else None,  # Column D (Index 3)
         }
         
-        # Show mapping for debugging
-        print("\nSpalten-Mapping:")
-        for attr, col in attribute_mapping.items():
-            if col:
-                print(f"  {attr} → {col}")
+        # Check if any generic attributes are used in filters
+        uses_generic_attributes = any(col in attribute_mapping for col in filters.keys())
+        
+        # Show mapping only if generic attributes are actually used
+        if uses_generic_attributes:
+            print("\nSpalten-Mapping:")
+            for attr, col in attribute_mapping.items():
+                if col:
+                    print(f"  {attr} → {col}")
         
         # Check which filters can be applied
         applicable_filters = {}
@@ -136,7 +140,8 @@ class QCAAnalyzer:
             actual_col = col
             if col in attribute_mapping and attribute_mapping[col]:
                 actual_col = attribute_mapping[col]
-                print(f"Filter '{col}' wird auf Spalte '{actual_col}' angewendet")
+                if uses_generic_attributes:
+                    print(f"Filter '{col}' wird auf Spalte '{actual_col}' angewendet")
                 
             # Check if column exists
             if actual_col not in self.df.columns:
@@ -174,9 +179,10 @@ class QCAAnalyzer:
                     filtered_df = filtered_df[filtered_df[col].astype(str) == value_str]
         
         # Debug output
-        print(f"\nFilter angewendet:")
-        for col, value in applicable_filters.items():
-            print(f"- {col}: {value}")
+        if applicable_filters:
+            print(f"\nFilter angewendet:")
+            for col, value in applicable_filters.items():
+                print(f"- {col}: {value}")
         print(f"Anzahl der ursprünglichen Zeilen: {len(self.df)}")
         print(f"Anzahl der gefilterten Zeilen: {len(filtered_df)}")
         
@@ -1109,121 +1115,229 @@ class QCAAnalyzer:
 
     def create_sunburst(self, filtered_df: pd.DataFrame, output_filename: str, params: Dict[str, Any] = None):
         """
-        Create a sunburst chart visualization showing hierarchical relationships.
+        Create a static sunburst-style visualization using matplotlib.
         
-        Creates two versions:
-        1. Standard version without values in labels
-        2. Version with values in labels (filename_with_values)
+        Creates a circular hierarchical visualization showing relationships between
+        main categories, subcategories, and keywords.
         
         Args:
             filtered_df: Filtered DataFrame to visualize
             output_filename: Base name for output files
-            params: Optional parameters for customization
+            params: Optional parameters for customization:
+                - figure_size: Tuple (width, height) in inches, default (16, 16)
+                - dpi: Resolution in dots per inch, default 300
+                - font_size: Font size for labels, default 8
+                - title_font_size: Font size for title, default 16
+                - max_label_length: Maximum characters for labels, default 15
+                - ring_width: Width of each ring level, default 1.5
+                - color_scheme: Matplotlib colormap name, default 'Set3'
+                - show_values: Show count values in labels, default True
+                - label_alpha: Transparency of label backgrounds, default 0.7
+                - label_bg_color: Background color for labels (HEX), default 'white'
+                - label_bg_alpha: Transparency of label background (0-1), default 0.7
         """
-        try:
-            import plotly.express as px
-            import plotly.graph_objects as go
-        except ImportError:
-            print("❌ Plotly ist nicht installiert. Bitte installieren Sie es mit: pip install plotly")
-            return
-        
-        print("Erstelle Sunburst-Visualisierung...")
+        print("Erstelle statische Sunburst-Visualisierung...")
         
         if filtered_df.empty:
             print("WARNUNG: Keine Daten nach Filterung vorhanden!")
             return
         
-        # Use parameters from configuration or default values
         if params is None:
             params = {}
         
-        # Prepare data for sunburst
-        # Create hierarchical structure: Hauptkategorie -> Subkategorien -> Schlüsselwörter
-        sunburst_data = []
+        # Extract parameters with defaults
+        figure_size = params.get('figure_size', (16, 16))
+        dpi = int(params.get('dpi', 300))
+        font_size = int(params.get('font_size', 8))
+        title_font_size = int(params.get('title_font_size', 16))
+        max_label_length = int(params.get('max_label_length', 15))
+        ring_width = float(params.get('ring_width', 1.5))
+        color_scheme = params.get('color_scheme', 'Set3')
+        show_values = params.get('show_values', True)
+        label_alpha = float(params.get('label_alpha', 0.7))
+        label_bg_color = params.get('label_bg_color', 'white')
+        label_bg_alpha = float(params.get('label_bg_alpha', 0.7))
+        max_label_length = int(params.get('max_label_length', 15))
+        ring_width = float(params.get('ring_width', 1.5))
+        color_scheme = params.get('color_scheme', 'Set3')
+        show_values = params.get('show_values', True)
+        label_alpha = float(params.get('label_alpha', 0.7))
+        
+        # Prepare hierarchical data
+        hierarchy_data = []
         
         for _, row in filtered_df.iterrows():
             if pd.isna(row['Hauptkategorie']):
                 continue
             
-            main_cat = str(row['Hauptkategorie'])
+            main_cat = str(row['Hauptkategorie']).strip()
+            hierarchy_data.append({'labels': main_cat, 'parents': '', 'values': 1})
             
-            # Add main category
-            sunburst_data.append({
-                'labels': main_cat,
-                'parents': '',
-                'values': 1
-            })
-            
-            # Handle subcategories
             if pd.notna(row['Subkategorien']):
                 sub_cats = [cat.strip() for cat in str(row['Subkategorien']).split(',') if cat.strip()]
                 
                 for sub_cat in sub_cats:
-                    sunburst_data.append({
-                        'labels': sub_cat,
-                        'parents': main_cat,
-                        'values': 1
-                    })
+                    hierarchy_data.append({'labels': sub_cat, 'parents': main_cat, 'values': 1})
                     
-                    # Handle keywords
                     if pd.notna(row['Schlüsselwörter']):
                         keywords = [kw.strip() for kw in str(row['Schlüsselwörter']).split(',') if kw.strip()]
                         
                         for keyword in keywords:
-                            # Use harmonized version if available
                             harmonized_keyword = self.keyword_mappings.get(keyword, keyword)
-                            
-                            sunburst_data.append({
-                                'labels': harmonized_keyword,
-                                'parents': sub_cat,
-                                'values': 1
-                            })
+                            hierarchy_data.append({'labels': harmonized_keyword, 'parents': sub_cat, 'values': 1})
         
-        # Convert to DataFrame and aggregate
-        sunburst_df = pd.DataFrame(sunburst_data)
-        sunburst_df = sunburst_df.groupby(['labels', 'parents'], as_index=False).sum()
+        if not hierarchy_data:
+            print("WARNUNG: Keine Sunburst-Daten erstellt!")
+            return
         
-        # Create standard sunburst (without values in labels)
-        fig = px.sunburst(
-            sunburst_df,
-            names='labels',
-            parents='parents',
-            values='values',
-            title='Hierarchische Code-Struktur (Sunburst)'
-        )
+        sunburst_df = pd.DataFrame(hierarchy_data)
+        sunburst_df = sunburst_df.groupby(['labels', 'parents'], as_index=False)['values'].sum()
         
-        fig.update_traces(textinfo='label')
-        fig.update_layout(
-            width=1000,
-            height=1000,
-            font=dict(size=12)
-        )
+        print(f"📊 Sunburst-Daten: {len(sunburst_df)} eindeutige Knoten")
         
-        # Save standard version
-        output_path = self.output_dir / f"{output_filename}.html"
-        fig.write_html(str(output_path))
+        # Create matplotlib figure
+        fig, ax = plt.subplots(figsize=figure_size, subplot_kw=dict(aspect="equal"))
+        
+        # Build hierarchy tree
+        from collections import defaultdict
+        children = defaultdict(list)
+        node_values = {}
+        
+        for _, row in sunburst_df.iterrows():
+            label = row['labels']
+            parent = row['parents']
+            value = row['values']
+            node_values[label] = value
+            if parent:
+                children[parent].append(label)
+        
+        # Find root nodes
+        roots = sunburst_df[sunburst_df['parents'] == '']['labels'].tolist()
+        
+        # Color palette
+        try:
+            cmap = plt.cm.get_cmap(color_scheme)
+            colors = cmap(np.linspace(0, 1, len(roots)))
+        except Exception as e:
+            print(f"⚠️ Warnung: Farbschema '{color_scheme}' nicht verfügbar, verwende 'Set3'")
+            # Fallback to Set3 if color scheme is invalid
+            colors = plt.cm.Set3(np.linspace(0, 1, len(roots)))
+        
+        root_colors = dict(zip(roots, colors))
+        
+        print(f"Zeichne {len(roots)} Hauptkategorien...")
+        
+        # Maximum recursion depth to prevent infinite loops
+        MAX_DEPTH = 10
+        
+        # Draw concentric rings with recursion protection
+        def draw_ring(nodes, inner_radius, outer_radius, start_angle, end_angle, parent_color, level, path=None):
+            if not nodes:
+                return
+            
+            # Initialize path on first call (tracks current branch only)
+            if path is None:
+                path = []
+            
+            # Prevent infinite recursion
+            if level >= MAX_DEPTH:
+                print(f"⚠️ Warnung: Maximale Hierarchietiefe ({MAX_DEPTH}) erreicht")
+                return
+            
+            angle_per_node = (end_angle - start_angle) / len(nodes)
+            
+            for i, node in enumerate(nodes):
+                # Check for circular references in current path only
+                if node in path:
+                    print(f"⚠️ Warnung: Zirkuläre Referenz erkannt bei '{node}' im Pfad {' -> '.join(path + [node])}")
+                    continue
+                
+                node_start = start_angle + i * angle_per_node
+                node_end = node_start + angle_per_node
+                
+                # Determine color
+                if level == 0:  # Root level
+                    color = root_colors.get(node, [0.5, 0.5, 0.5, 0.8])
+                else:
+                    # Lighter shade of parent color
+                    color = [min(1.0, c + 0.15 * level) for c in parent_color[:3]] + [0.8]
+                
+                # Draw wedge
+                theta = np.linspace(node_start, node_end, 100)
+                x_inner = inner_radius * np.cos(theta)
+                y_inner = inner_radius * np.sin(theta)
+                x_outer = outer_radius * np.cos(theta)
+                y_outer = outer_radius * np.sin(theta)
+                
+                verts = list(zip(x_inner, y_inner)) + list(zip(x_outer[::-1], y_outer[::-1]))
+                poly = plt.Polygon(verts, facecolor=color, edgecolor='white', linewidth=2)
+                ax.add_patch(poly)
+                
+                # Add label
+                mid_angle = (node_start + node_end) / 2
+                mid_radius = (inner_radius + outer_radius) / 2
+                label_x = mid_radius * np.cos(mid_angle)
+                label_y = mid_radius * np.sin(mid_angle)
+                
+                # Truncate long labels
+                display_label = node if len(node) <= max_label_length else node[:max_label_length-3] + '...'
+                value = node_values.get(node, 0)
+                
+                # Format label text
+                if show_values:
+                    label_text = f'{display_label}\n({value})'
+                else:
+                    label_text = display_label
+                
+                rotation = np.degrees(mid_angle)
+                if rotation > 90 and rotation < 270:
+                    rotation = rotation - 180
+                
+                try:
+                    ax.text(label_x, label_y, label_text, 
+                           ha='center', va='center', fontsize=font_size, rotation=rotation,
+                           bbox=dict(boxstyle='round,pad=0.3', facecolor=label_bg_color, alpha=label_bg_alpha, edgecolor='none'))
+                except Exception:
+                    # Skip problematic labels but continue
+                    pass
+                
+                # Recursively draw children
+                if node in children:
+                    # Add current node to path for circular reference detection
+                    new_path = path + [node]
+                    draw_ring(children[node], outer_radius, outer_radius + ring_width, 
+                             node_start, node_end, color, level + 1, new_path)
+        
+        try:
+            # Start drawing from roots
+            draw_ring(roots, 0, 2, 0, 2 * np.pi, None, 0)
+            
+            ax.set_xlim(-12, 12)
+            ax.set_ylim(-12, 12)
+            ax.axis('off')
+            ax.set_title('Hierarchische Code-Struktur (Sunburst)', fontsize=title_font_size, pad=20)
+            
+            print("Speichere Visualisierung...")
+            # Save figure
+            output_path = self.output_dir / f"{output_filename}.png"
+            plt.tight_layout()
+            plt.savefig(output_path, dpi=dpi, bbox_inches='tight', facecolor='white')
+            plt.close()
+            print(f"✅ Sunburst-Visualisierung gespeichert: {output_path}")
+            
+        except Exception as e:
+            plt.close()
+            print(f"❌ Fehler beim Erstellen der Sunburst-Visualisierung: {str(e)}")
+            import traceback
+            traceback.print_exc()
+            return
+        
+        # Export data
+        excel_output_path = self.output_dir / f"{output_filename}_data.xlsx"
+        sunburst_df.to_excel(excel_output_path, index=False)
+        print(f"✅ Daten exportiert: {excel_output_path}")
+        plt.close()
         print(f"✅ Sunburst-Visualisierung gespeichert: {output_path}")
-        
-        # Create version with values in labels
-        fig_with_values = px.sunburst(
-            sunburst_df,
-            names='labels',
-            parents='parents',
-            values='values',
-            title='Hierarchische Code-Struktur mit Werten (Sunburst)'
-        )
-        
-        fig_with_values.update_traces(textinfo='label+value')
-        fig_with_values.update_layout(
-            width=1000,
-            height=1000,
-            font=dict(size=12)
-        )
-        
-        # Save version with values
-        output_path_with_values = self.output_dir / f"{output_filename}_with_values.html"
-        fig_with_values.write_html(str(output_path_with_values))
-        print(f"✅ Sunburst-Visualisierung mit Werten gespeichert: {output_path_with_values}")
         
         # Export data
         excel_output_path = self.output_dir / f"{output_filename}_data.xlsx"
@@ -1232,120 +1346,181 @@ class QCAAnalyzer:
 
     def create_treemap(self, filtered_df: pd.DataFrame, output_filename: str, params: Dict[str, Any] = None):
         """
-        Create a treemap visualization showing hierarchical relationships.
+        Create a static treemap visualization using matplotlib and squarify.
         
-        Creates two versions:
-        1. Standard version without values in labels
-        2. Version with values in labels (filename_with_values)
+        Creates a rectangular hierarchical visualization showing relationships between
+        main categories, subcategories, and keywords.
         
         Args:
             filtered_df: Filtered DataFrame to visualize
             output_filename: Base name for output files
-            params: Optional parameters for customization
+            params: Optional parameters for customization:
+                - figure_size: Tuple (width, height) in inches, default (20, 12)
+                - detail_figure_height: Height per category for detail view, default 4
+                - dpi: Resolution in dots per inch, default 300
+                - font_size: Font size for labels, default 10
+                - detail_font_size: Font size for detail labels, default 9
+                - title_font_size: Font size for title, default 16
+                - color_scheme: Matplotlib colormap name, default 'Set3'
+                - detail_color_scheme: Colormap for detail view, default 'Pastel1'
+                - show_values: Show count values in labels, default True
+                - alpha: Transparency of rectangles, default 0.8
         """
-        try:
-            import plotly.express as px
-            import plotly.graph_objects as go
-        except ImportError:
-            print("❌ Plotly ist nicht installiert. Bitte installieren Sie es mit: pip install plotly")
-            return
-        
-        print("Erstelle Treemap-Visualisierung...")
+        print("Erstelle statische Treemap-Visualisierung...")
         
         if filtered_df.empty:
             print("WARNUNG: Keine Daten nach Filterung vorhanden!")
             return
         
-        # Use parameters from configuration or default values
         if params is None:
             params = {}
         
-        # Prepare data for treemap (same structure as sunburst)
-        treemap_data = []
+        # Extract parameters with defaults
+        figure_size = params.get('figure_size', (20, 12))
+        detail_figure_height = int(params.get('detail_figure_height', 4))
+        dpi = int(params.get('dpi', 300))
+        font_size = int(params.get('font_size', 10))
+        detail_font_size = int(params.get('detail_font_size', 9))
+        title_font_size = int(params.get('title_font_size', 16))
+        color_scheme = params.get('color_scheme', 'Set3')
+        detail_color_scheme = params.get('detail_color_scheme', 'Pastel1')
+        show_values = params.get('show_values', True)
+        alpha = float(params.get('alpha', 0.8))
+        
+        # Try to import squarify
+        try:
+            import squarify
+        except ImportError:
+            print("⚠️ squarify nicht installiert. Installiere mit: pip install squarify")
+            print("Erstelle alternative Visualisierung...")
+            squarify = None
+        
+        # Prepare hierarchical data
+        value_counts = {}
         
         for _, row in filtered_df.iterrows():
             if pd.isna(row['Hauptkategorie']):
                 continue
             
-            main_cat = str(row['Hauptkategorie'])
+            main_cat = str(row['Hauptkategorie']).strip()
+            key_main = (main_cat, '')
+            value_counts[key_main] = value_counts.get(key_main, 0) + 1
             
-            # Add main category
-            treemap_data.append({
-                'labels': main_cat,
-                'parents': '',
-                'values': 1
-            })
-            
-            # Handle subcategories
             if pd.notna(row['Subkategorien']):
                 sub_cats = [cat.strip() for cat in str(row['Subkategorien']).split(',') if cat.strip()]
                 
                 for sub_cat in sub_cats:
-                    treemap_data.append({
-                        'labels': sub_cat,
-                        'parents': main_cat,
-                        'values': 1
-                    })
+                    key_sub = (sub_cat, main_cat)
+                    value_counts[key_sub] = value_counts.get(key_sub, 0) + 1
                     
-                    # Handle keywords
                     if pd.notna(row['Schlüsselwörter']):
                         keywords = [kw.strip() for kw in str(row['Schlüsselwörter']).split(',') if kw.strip()]
                         
                         for keyword in keywords:
-                            # Use harmonized version if available
                             harmonized_keyword = self.keyword_mappings.get(keyword, keyword)
-                            
-                            treemap_data.append({
-                                'labels': harmonized_keyword,
-                                'parents': sub_cat,
-                                'values': 1
-                            })
+                            key_kw = (harmonized_keyword, sub_cat)
+                            value_counts[key_kw] = value_counts.get(key_kw, 0) + 1
         
-        # Convert to DataFrame and aggregate
+        treemap_data = []
+        for (label, parent), count in value_counts.items():
+            treemap_data.append({'labels': label, 'parents': parent, 'values': count})
+        
+        if not treemap_data:
+            print("WARNUNG: Keine Treemap-Daten erstellt!")
+            return
+        
         treemap_df = pd.DataFrame(treemap_data)
-        treemap_df = treemap_df.groupby(['labels', 'parents'], as_index=False).sum()
+        print(f"📊 Treemap-Daten: {len(treemap_df)} Knoten")
         
-        # Create standard treemap (without values in labels)
-        fig = px.treemap(
-            treemap_df,
-            names='labels',
-            parents='parents',
-            values='values',
-            title='Hierarchische Code-Struktur (Treemap)'
-        )
+        # Create visualization
+        fig, ax = plt.subplots(figsize=figure_size)
         
-        fig.update_traces(textinfo='label')
-        fig.update_layout(
-            width=1200,
-            height=800,
-            font=dict(size=12)
-        )
+        # Get root nodes (main categories)
+        roots = treemap_df[treemap_df['parents'] == '']
         
-        # Save standard version
-        output_path = self.output_dir / f"{output_filename}.html"
-        fig.write_html(str(output_path))
+        # Get color scheme
+        try:
+            cmap = plt.cm.get_cmap(color_scheme)
+            colors = cmap(np.linspace(0, 1, len(roots)))
+        except:
+            colors = plt.cm.Set3(np.linspace(0, 1, len(roots)))
+        
+        if squarify:
+            # Use squarify for better layout
+            sizes = roots['values'].tolist()
+            if show_values:
+                labels = [f"{row['labels']}\n({row['values']})" for _, row in roots.iterrows()]
+            else:
+                labels = [row['labels'] for _, row in roots.iterrows()]
+            
+            squarify.plot(sizes=sizes, label=labels, color=colors, alpha=alpha, 
+                         text_kwargs={'fontsize': font_size, 'weight': 'bold'}, ax=ax)
+            
+            ax.set_title('Hierarchische Code-Struktur (Treemap)', fontsize=title_font_size, pad=20)
+            ax.axis('off')
+        else:
+            # Fallback: Simple bar chart
+            roots_sorted = roots.sort_values('values', ascending=True)
+            
+            y_pos = np.arange(len(roots_sorted))
+            ax.barh(y_pos, roots_sorted['values'], color=colors, alpha=alpha)
+            ax.set_yticks(y_pos)
+            ax.set_yticklabels(roots_sorted['labels'])
+            ax.set_xlabel('Anzahl', fontsize=font_size)
+            ax.set_title('Hierarchische Code-Struktur (Balkendiagramm)', fontsize=title_font_size)
+            ax.grid(axis='x', alpha=0.3)
+            
+            # Add value labels
+            if show_values:
+                for i, (_, row) in enumerate(roots_sorted.iterrows()):
+                    ax.text(row['values'], i, f" {row['values']}", 
+                           va='center', fontsize=font_size, weight='bold')
+        
+        # Save figure
+        output_path = self.output_dir / f"{output_filename}.png"
+        plt.tight_layout()
+        plt.savefig(output_path, dpi=dpi, bbox_inches='tight', facecolor='white')
+        plt.close()
         print(f"✅ Treemap-Visualisierung gespeichert: {output_path}")
         
-        # Create version with values in labels
-        fig_with_values = px.treemap(
-            treemap_df,
-            names='labels',
-            parents='parents',
-            values='values',
-            title='Hierarchische Code-Struktur mit Werten (Treemap)'
-        )
+        # Create detailed subcategory visualization
+        fig, axes = plt.subplots(len(roots), 1, figsize=(16, detail_figure_height * len(roots)))
+        if len(roots) == 1:
+            axes = [axes]
         
-        fig_with_values.update_traces(textinfo='label+value')
-        fig_with_values.update_layout(
-            width=1200,
-            height=800,
-            font=dict(size=12)
-        )
+        # Get detail color scheme
+        try:
+            detail_cmap = plt.cm.get_cmap(detail_color_scheme)
+        except:
+            detail_cmap = plt.cm.Pastel1
         
-        # Save version with values
-        output_path_with_values = self.output_dir / f"{output_filename}_with_values.html"
-        fig_with_values.write_html(str(output_path_with_values))
-        print(f"✅ Treemap-Visualisierung mit Werten gespeichert: {output_path_with_values}")
+        for idx, (_, root) in enumerate(roots.iterrows()):
+            main_cat = root['labels']
+            subcats = treemap_df[treemap_df['parents'] == main_cat]
+            
+            if len(subcats) > 0:
+                subcats_sorted = subcats.sort_values('values', ascending=True)
+                detail_colors = detail_cmap(np.linspace(0, 1, len(subcats_sorted)))
+                
+                y_pos = np.arange(len(subcats_sorted))
+                axes[idx].barh(y_pos, subcats_sorted['values'], color=detail_colors, alpha=alpha)
+                axes[idx].set_yticks(y_pos)
+                axes[idx].set_yticklabels(subcats_sorted['labels'], fontsize=detail_font_size)
+                axes[idx].set_xlabel('Anzahl', fontsize=detail_font_size)
+                axes[idx].set_title(f'{main_cat} - Subkategorien', fontsize=font_size, weight='bold')
+                axes[idx].grid(axis='x', alpha=0.3)
+                
+                # Add value labels
+                if show_values:
+                    for i, (_, row) in enumerate(subcats_sorted.iterrows()):
+                        axes[idx].text(row['values'], i, f" {row['values']}", 
+                                      va='center', fontsize=detail_font_size)
+        
+        output_path_detail = self.output_dir / f"{output_filename}_detail.png"
+        plt.tight_layout()
+        plt.savefig(output_path_detail, dpi=dpi, bbox_inches='tight', facecolor='white')
+        plt.close()
+        print(f"✅ Detaillierte Visualisierung gespeichert: {output_path_detail}")
         
         # Export data
         excel_output_path = self.output_dir / f"{output_filename}_data.xlsx"

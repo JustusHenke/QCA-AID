@@ -29,16 +29,51 @@ def render_smart_filter_controls(analysis: AnalysisConfig, index: int, category_
     filters = analysis.filters.copy()
     updated = False
     
-    # Document filter (bleibt als Textfeld)
-    new_dokument = st.text_input(
-        "Dokument:",
-        value=filters.get('Dokument') or '',
-        key=f"filter_dokument_{index}",
-        help="Leer lassen für alle Dokumente"
-    )
-    if (new_dokument or None) != filters.get('Dokument'):
-        filters['Dokument'] = new_dokument if new_dokument else None
-        updated = True
+    # Check if we have a category loader with filter values
+    has_filter_values = category_loader is not None
+    
+    # Document filter - with dropdown if values available
+    if has_filter_values:
+        documents = category_loader.get_documents()
+        if documents:
+            doc_options = ["(Alle Dokumente)"] + documents
+            current_doc = filters.get('Dokument')
+            doc_index = documents.index(current_doc) + 1 if current_doc and current_doc in documents else 0
+            
+            selected_doc = st.selectbox(
+                "Dokument:",
+                options=doc_options,
+                index=doc_index,
+                key=f"filter_dokument_dropdown_{index}",
+                help="Wählen Sie ein Dokument oder lassen Sie 'Alle' für keine Filterung"
+            )
+            
+            new_dokument = selected_doc if selected_doc != "(Alle Dokumente)" else None
+            if new_dokument != filters.get('Dokument'):
+                filters['Dokument'] = new_dokument
+                updated = True
+        else:
+            # Fallback to text input
+            new_dokument = st.text_input(
+                "Dokument:",
+                value=filters.get('Dokument') or '',
+                key=f"filter_dokument_{index}",
+                help="Leer lassen für alle Dokumente"
+            )
+            if (new_dokument or None) != filters.get('Dokument'):
+                filters['Dokument'] = new_dokument if new_dokument else None
+                updated = True
+    else:
+        # Fallback to text input
+        new_dokument = st.text_input(
+            "Dokument:",
+            value=filters.get('Dokument') or '',
+            key=f"filter_dokument_{index}",
+            help="Leer lassen für alle Dokumente"
+        )
+        if (new_dokument or None) != filters.get('Dokument'):
+            filters['Dokument'] = new_dokument if new_dokument else None
+            updated = True
     
     # Intelligente Kategorie-Filter
     if category_loader and category_loader.is_loaded:
@@ -151,32 +186,96 @@ def render_smart_filter_controls(analysis: AnalysisConfig, index: int, category_
             filters['Subkategorien'] = new_subkat if new_subkat else None
             updated = True
     
-    # Attribute Filter (bleiben als Textfelder)
+    # Attribute Filter - with dropdowns if values available
     col1, col2 = st.columns(2)
     
     with col1:
-        # Attribute 1 filter
-        new_attr1 = st.text_input(
-            "Attribut 1:",
-            value=filters.get('Attribut_1') or '',
-            key=f"filter_attr1_{index}",
-            help="Leer lassen für alle Werte"
-        )
-        if (new_attr1 or None) != filters.get('Attribut_1'):
-            filters['Attribut_1'] = new_attr1 if new_attr1 else None
-            updated = True
+        # Attribut1 filter - with dropdown if values available
+        if has_filter_values:
+            attribut1_values = category_loader.get_attribut1_values()
+            if attribut1_values:
+                attr1_options = ["(Alle Werte)"] + attribut1_values
+                current_attr1 = filters.get('Attribut_1')
+                attr1_index = attribut1_values.index(current_attr1) + 1 if current_attr1 and current_attr1 in attribut1_values else 0
+                
+                selected_attr1 = st.selectbox(
+                    "Attribut 1:",
+                    options=attr1_options,
+                    index=attr1_index,
+                    key=f"filter_attr1_dropdown_{index}",
+                    help="Wählen Sie einen Wert für Attribut 1 oder lassen Sie 'Alle' für keine Filterung"
+                )
+                
+                new_attr1 = selected_attr1 if selected_attr1 != "(Alle Werte)" else None
+                if new_attr1 != filters.get('Attribut_1'):
+                    filters['Attribut_1'] = new_attr1
+                    updated = True
+            else:
+                # Fallback to text input
+                new_attr1 = st.text_input(
+                    "Attribut 1:",
+                    value=filters.get('Attribut_1') or '',
+                    key=f"filter_attr1_{index}",
+                    help="Leer lassen für alle Werte"
+                )
+                if (new_attr1 or None) != filters.get('Attribut_1'):
+                    filters['Attribut_1'] = new_attr1 if new_attr1 else None
+                    updated = True
+        else:
+            # Fallback to text input
+            new_attr1 = st.text_input(
+                "Attribut 1:",
+                value=filters.get('Attribut_1') or '',
+                key=f"filter_attr1_{index}",
+                help="Leer lassen für alle Werte"
+            )
+            if (new_attr1 or None) != filters.get('Attribut_1'):
+                filters['Attribut_1'] = new_attr1 if new_attr1 else None
+                updated = True
     
     with col2:
-        # Attribute 2 filter
-        new_attr2 = st.text_input(
-            "Attribut 2:",
-            value=filters.get('Attribut_2') or '',
-            key=f"filter_attr2_{index}",
-            help="Leer lassen für alle Werte"
-        )
-        if (new_attr2 or None) != filters.get('Attribut_2'):
-            filters['Attribut_2'] = new_attr2 if new_attr2 else None
-            updated = True
+        # Attribut2 filter - with dropdown if values available
+        if has_filter_values:
+            attribut2_values = category_loader.get_attribut2_values()
+            if attribut2_values:
+                attr2_options = ["(Alle Werte)"] + attribut2_values
+                current_attr2 = filters.get('Attribut_2')
+                attr2_index = attribut2_values.index(current_attr2) + 1 if current_attr2 and current_attr2 in attribut2_values else 0
+                
+                selected_attr2 = st.selectbox(
+                    "Attribut 2:",
+                    options=attr2_options,
+                    index=attr2_index,
+                    key=f"filter_attr2_dropdown_{index}",
+                    help="Wählen Sie einen Wert für Attribut 2 oder lassen Sie 'Alle' für keine Filterung"
+                )
+                
+                new_attr2 = selected_attr2 if selected_attr2 != "(Alle Werte)" else None
+                if new_attr2 != filters.get('Attribut_2'):
+                    filters['Attribut_2'] = new_attr2
+                    updated = True
+            else:
+                # Fallback to text input
+                new_attr2 = st.text_input(
+                    "Attribut 2:",
+                    value=filters.get('Attribut_2') or '',
+                    key=f"filter_attr2_{index}",
+                    help="Leer lassen für alle Werte"
+                )
+                if (new_attr2 or None) != filters.get('Attribut_2'):
+                    filters['Attribut_2'] = new_attr2 if new_attr2 else None
+                    updated = True
+        else:
+            # Fallback to text input
+            new_attr2 = st.text_input(
+                "Attribut 2:",
+                value=filters.get('Attribut_2') or '',
+                key=f"filter_attr2_{index}",
+                help="Leer lassen für alle Werte"
+            )
+            if (new_attr2 or None) != filters.get('Attribut_2'):
+                filters['Attribut_2'] = new_attr2 if new_attr2 else None
+                updated = True
     
     # Validierung anzeigen (falls Kategorien verfügbar)
     if category_loader and category_loader.is_loaded and updated:
