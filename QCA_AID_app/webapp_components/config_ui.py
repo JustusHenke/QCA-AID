@@ -1008,6 +1008,10 @@ def render_model_settings():
     if new_output_dir != config.output_dir:
         config.output_dir = new_output_dir
         st.session_state.config_modified = True
+        
+        # Sync output_dir to Explorer config if it exists
+        if 'explorer_config_data' in st.session_state:
+            st.session_state.explorer_config_data.base_config['output_dir'] = new_output_dir
     
     # Validate output directory
     if new_output_dir:

@@ -131,11 +131,17 @@ def lazy_load_tab_data(tab_name: str):
             if success and config_data:
                 if not config_data.base_config.get('script_dir'):
                     config_data.base_config['script_dir'] = str(project_root)
+                # Sync output_dir from main config if available
+                if 'config_data' in st.session_state and hasattr(st.session_state.config_data, 'output_dir'):
+                    config_data.base_config['output_dir'] = st.session_state.config_data.output_dir
                 st.session_state.explorer_config_data = config_data
                 st.session_state.explorer_config_loaded_from = "file"
             else:
                 st.session_state.explorer_config_data = ExplorerConfigData.create_default()
                 st.session_state.explorer_config_data.base_config['script_dir'] = str(project_root)
+                # Sync output_dir from main config if available
+                if 'config_data' in st.session_state and hasattr(st.session_state.config_data, 'output_dir'):
+                    st.session_state.explorer_config_data.base_config['output_dir'] = st.session_state.config_data.output_dir
                 st.session_state.explorer_config_loaded_from = "default"
                 if errors:
                     st.session_state.explorer_config_load_errors = errors
