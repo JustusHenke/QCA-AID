@@ -433,9 +433,12 @@ def render_file_operations():
                 # Use a dynamic key to force widget recreation when file is selected
                 widget_key = f"config_save_path_input_{hash(st.session_state.selected_config_save_path)}"
                 
+                # FIX: Verwende Standard-Dateiname als Wert, wenn kein Pfad ausgewählt wurde
+                input_value = st.session_state.selected_config_save_path if st.session_state.selected_config_save_path else default_filename
+                
                 file_path = st.text_input(
                     "Dateipfad:",
-                    value=st.session_state.selected_config_save_path,
+                    value=input_value,
                     placeholder=placeholder_text,
                     help=help_text,
                     key=widget_key
@@ -447,7 +450,13 @@ def render_file_operations():
                 # Requirement 8.4: Real-time path validation
                 if file_path and file_path.strip():
                     path_resolver = project_manager.path_resolver
-                    show_real_time_path_validation(file_path, path_resolver, check_writable=True)
+                    # FIX: Resolve relative path to absolute path for validation
+                    from pathlib import Path
+                    file_path_obj = Path(file_path)
+                    if not file_path_obj.is_absolute():
+                        # Prepend project root for validation
+                        file_path_obj = Path(project_manager.get_root_directory()) / file_path
+                    show_real_time_path_validation(str(file_path_obj), path_resolver, check_writable=True)
             
             with col_browse:
                 st.markdown("<br>", unsafe_allow_html=True)  # Spacing

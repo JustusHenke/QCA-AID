@@ -491,6 +491,9 @@ class ConfigLoader:
                                 kategorien[current_category]['examples'].append(value)
                                 
                         elif sub_key == 'subcategories' and sub_sub_key:
+                            # FIX: Auch leere Werte akzeptieren (für Subcategories ohne Beschreibung)
+                            if value is None:
+                                value = ""  # Leere Beschreibung
                             kategorien[current_category]['subcategories'][sub_sub_key] = value
                                 
                 except Exception as e:
