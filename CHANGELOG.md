@@ -6,7 +6,7 @@ Hier ist eine **deutlich kompaktere, inhaltlich vollständige** Version des Chan
 
 ---
 
-## Neu in 0.12.5 (2026-01-14)
+## Neu in 0.12.4 (2026-01-14)
 
 ### 🎨 Visualisierungen
 
@@ -23,10 +23,6 @@ Hier ist eine **deutlich kompaktere, inhaltlich vollständige** Version des Chan
 * **Explorer**: Output-Verzeichnis wird jetzt korrekt aus der Konfiguration gelesen
   * Kategorie-Loader verwendet jetzt das konfigurierte output_dir statt hardkodiertem "output"
   * Unterstützt benutzerdefinierte Output-Verzeichnisse aus der Config-UI
-
----
-
-## Neu in 0.12.4 (2026-01-14)
 
 ### 🎨 UI-Verbesserungen
 

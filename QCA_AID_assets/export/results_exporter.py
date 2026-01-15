@@ -1230,7 +1230,7 @@ class ResultsExporter:
                 doc_name = coding.get('document', '')
                 
                 # Extrahiere Attribute aus Dokumentname
-                attribut1, attribut2 = self._extract_attributes_from_document(doc_name)
+                attribut1, attribut2, attribut3 = self._extract_attributes_from_document(doc_name)
                 
                 # Grunddaten
                 row_data = {
@@ -1243,6 +1243,10 @@ class ResultsExporter:
                     'Subkategorien': ', '.join(coding.get('subcategories', [])),
                     'Konfidenz': self._extract_confidence_from_coding(coding)
                 }
+                
+                # FIX: Füge attribut3 hinzu, wenn es definiert ist
+                if 'attribut3' in self.attribute_labels and self.attribute_labels['attribut3']:
+                    row_data[self.attribute_labels['attribut3']] = attribut3
                 
                 data.append(row_data)
             
@@ -2828,11 +2832,19 @@ class ResultsExporter:
             cross_tab_df = cross_tab.copy().reset_index()
             cross_tab_df.columns.name = None
             
+            # FIX: Spaltenüberschriften korrekt exportieren
+            # Erste Zeile: Spaltenüberschriften
+            col_headers = [attribut1_label] + list(cross_tab_df.columns[1:])
+            for col_idx, header in enumerate(col_headers):
+                worksheet.cell(row=current_row, column=col_idx+1, value=header)
+            current_row += 1
+            
+            # Datenzeilen
             for row_idx, (index, row) in enumerate(cross_tab_df.iterrows()):
                 for col_idx, value in enumerate(row):
                     worksheet.cell(row=current_row + row_idx, column=col_idx+1, value=value)
             
-            self._apply_professional_formatting_to_range(worksheet, current_row, 1, len(cross_tab_df), len(cross_tab_df.columns))
+            self._apply_professional_formatting_to_range(worksheet, current_row - 1, 1, len(cross_tab_df) + 1, len(cross_tab_df.columns))
             current_row += len(cross_tab_df) + 3
 
             # Weitere Kreuztabellen fuer Attribut 3, wenn vorhanden
@@ -2848,11 +2860,17 @@ class ResultsExporter:
                 cross_tab_1_3_df = cross_tab_1_3.copy().reset_index()
                 cross_tab_1_3_df.columns.name = None
                 
+                # FIX: Spaltenüberschriften korrekt exportieren
+                col_headers_1_3 = [attribut1_label] + list(cross_tab_1_3_df.columns[1:])
+                for col_idx, header in enumerate(col_headers_1_3):
+                    worksheet.cell(row=current_row, column=col_idx+1, value=header)
+                current_row += 1
+                
                 for row_idx, (index, row) in enumerate(cross_tab_1_3_df.iterrows()):
                     for col_idx, value in enumerate(row):
                         worksheet.cell(row=current_row + row_idx, column=col_idx+1, value=value)
                 
-                self._apply_professional_formatting_to_range(worksheet, current_row, 1, len(cross_tab_1_3_df), len(cross_tab_1_3_df.columns))
+                self._apply_professional_formatting_to_range(worksheet, current_row - 1, 1, len(cross_tab_1_3_df) + 1, len(cross_tab_1_3_df.columns))
                 current_row += len(cross_tab_1_3_df) + 3
                 
                 # Kreuztabelle 2-3
@@ -2866,11 +2884,17 @@ class ResultsExporter:
                 cross_tab_2_3_df = cross_tab_2_3.copy().reset_index()
                 cross_tab_2_3_df.columns.name = None
                 
+                # FIX: Spaltenüberschriften korrekt exportieren
+                col_headers_2_3 = [attribut2_label] + list(cross_tab_2_3_df.columns[1:])
+                for col_idx, header in enumerate(col_headers_2_3):
+                    worksheet.cell(row=current_row, column=col_idx+1, value=header)
+                current_row += 1
+                
                 for row_idx, (index, row) in enumerate(cross_tab_2_3_df.iterrows()):
                     for col_idx, value in enumerate(row):
                         worksheet.cell(row=current_row + row_idx, column=col_idx+1, value=value)
                 
-                self._apply_professional_formatting_to_range(worksheet, current_row, 1, len(cross_tab_2_3_df), len(cross_tab_2_3_df.columns))
+                self._apply_professional_formatting_to_range(worksheet, current_row - 1, 1, len(cross_tab_2_3_df) + 1, len(cross_tab_2_3_df.columns))
                 current_row += len(cross_tab_2_3_df) + 3
             
             print("✅ Häufigkeitsanalysen erfolgreich mit standardisierter Formatierung exportiert")
@@ -3978,10 +4002,9 @@ class ResultsExporter:
     
     def _extract_attributes_from_document(self, doc_name: str) -> tuple:
         """
-        Extrahiert erste 2 Attribute (fuer RÜckwÄrtskompatibilitÄt)
+        Extrahiert alle 3 Attribute aus Dokumentname
         """
-        attr1, attr2, _ = self._extract_three_attributes_from_document(doc_name)
-        return attr1, attr2
+        return self._extract_three_attributes_from_document(doc_name)
     
     def _prepare_dataframe_for_frequency_analysis(self, codings: List[Dict]) -> pd.DataFrame:
         """
