@@ -279,10 +279,6 @@ class QCAAnalyzer:
             print("Warnung: Spalte 'Hauptkategorie' nicht gefunden - kann 'Nicht kodiert' nicht filtern")
         
         return df
-                unique_values = self.df[col].value_counts().head(3)
-                for val, count in unique_values.items():
-                    val_display = str(val)[:50] + "..." if len(str(val)) > 50 else str(val)
-                    print(f"    - {val_display} ({count} Vorkommen)")
 
     async def generate_summary(self, 
                              text: str, 
