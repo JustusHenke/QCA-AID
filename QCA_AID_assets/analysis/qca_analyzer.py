@@ -566,6 +566,24 @@ class QCAAnalyzer:
         if params is None:
             params = {}
         
+        # Filter out "nicht kodiert" entries (default: True for visualizations)
+        exclude_not_coded = params.get('exclude_not_coded', True)
+        
+        if exclude_not_coded:
+            original_count = len(filtered_df)
+            filtered_df = filtered_df[
+                ~filtered_df['Hauptkategorie'].str.lower().isin(['nicht kodiert', 'kein kodierkonsens'])
+            ].copy()
+            
+            if len(filtered_df) < original_count:
+                print(f"Hinweis: {original_count - len(filtered_df)} 'Nicht kodiert' Einträge wurden automatisch ausgeschlossen")
+            
+            # Check again if filtered_df is empty after removing "nicht kodiert"
+            if filtered_df.empty:
+                print("WARNUNG: Keine kodierten Daten vorhanden (nur 'Nicht kodiert' Einträge)!")
+                print("Der Graph kann nicht erstellt werden.")
+                return
+        
         # Auto-adjust parameters based on data characteristics
         params = self._adjust_network_parameters(filtered_df, params)
         
@@ -883,6 +901,26 @@ class QCAAnalyzer:
         if params is None:
             params = {}
         
+        # Filter out "nicht kodiert" entries (default: True for visualizations)
+        exclude_not_coded = params.get('exclude_not_coded', True)
+        
+        if exclude_not_coded:
+            original_count = len(filtered_df)
+            filtered_df = filtered_df[
+                ~filtered_df['Hauptkategorie'].str.lower().isin(['nicht kodiert', 'kein kodierkonsens'])
+            ].copy()
+            
+            if len(filtered_df) < original_count:
+                print(f"Hinweis: {original_count - len(filtered_df)} 'Nicht kodiert' Einträge wurden automatisch ausgeschlossen")
+            
+            if filtered_df.empty:
+                print("WARNUNG: Keine kodierten Daten vorhanden!")
+                return
+        
+        # Use parameters from configuration or default values
+        if params is None:
+            params = {}
+        
         # Extract parameters with fallback values
         x_attribute = params.get('x_attribute', 'Dokument')
         y_attribute = params.get('y_attribute', 'Hauptkategorie')
@@ -1135,11 +1173,32 @@ class QCAAnalyzer:
                 - label_alpha: Transparency of label backgrounds, default 0.7
                 - label_bg_color: Background color for labels (HEX), default 'white'
                 - label_bg_alpha: Transparency of label background (0-1), default 0.7
+                - exclude_not_coded: Exclude "nicht kodiert" entries, default True
         """
         print("Erstelle statische Sunburst-Visualisierung...")
         
-        if filtered_df.empty:
+        # Use parameters from configuration or default values
+        if params is None:
+            params = {}
+        
+        # Filter out "nicht kodiert" entries (default: True for visualizations)
+        exclude_not_coded = params.get('exclude_not_coded', True)
+        
+        if exclude_not_coded:
+            original_count = len(filtered_df)
+            filtered_df = filtered_df[
+                ~filtered_df['Hauptkategorie'].str.lower().isin(['nicht kodiert', 'kein kodierkonsens'])
+            ].copy()
+            
+            if len(filtered_df) < original_count:
+                print(f"Hinweis: {original_count - len(filtered_df)} 'Nicht kodiert' Einträge wurden automatisch ausgeschlossen")
+            
+            if filtered_df.empty:
+                print("WARNUNG: Keine kodierten Daten vorhanden!")
+                return
+        elif filtered_df.empty:
             print("WARNUNG: Keine Daten nach Filterung vorhanden!")
+            return
             return
         
         if params is None:
@@ -1365,10 +1424,30 @@ class QCAAnalyzer:
                 - detail_color_scheme: Colormap for detail view, default 'Pastel1'
                 - show_values: Show count values in labels, default True
                 - alpha: Transparency of rectangles, default 0.8
+                - exclude_not_coded: Exclude "nicht kodiert" entries, default True
         """
         print("Erstelle statische Treemap-Visualisierung...")
         
-        if filtered_df.empty:
+        # Use parameters from configuration or default values
+        if params is None:
+            params = {}
+        
+        # Filter out "nicht kodiert" entries (default: True for visualizations)
+        exclude_not_coded = params.get('exclude_not_coded', True)
+        
+        if exclude_not_coded:
+            original_count = len(filtered_df)
+            filtered_df = filtered_df[
+                ~filtered_df['Hauptkategorie'].str.lower().isin(['nicht kodiert', 'kein kodierkonsens'])
+            ].copy()
+            
+            if len(filtered_df) < original_count:
+                print(f"Hinweis: {original_count - len(filtered_df)} 'Nicht kodiert' Einträge wurden automatisch ausgeschlossen")
+            
+            if filtered_df.empty:
+                print("WARNUNG: Keine kodierten Daten vorhanden!")
+                return
+        elif filtered_df.empty:
             print("WARNUNG: Keine Daten nach Filterung vorhanden!")
             return
         

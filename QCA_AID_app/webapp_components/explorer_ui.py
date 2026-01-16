@@ -958,6 +958,18 @@ Niedrigere Werte = kompakteres Layout"""
             params['scaling'] = new_scaling
             updated = True
     
+    # Exclude "nicht kodiert" checkbox
+    st.markdown("---")
+    new_exclude = st.checkbox(
+        "❌ 'Nicht kodiert' ausschließen",
+        value=params.get('exclude_not_coded', True),
+        key=f"exclude_not_coded_{index}",
+        help="Wenn aktiviert, werden Einträge mit 'Nicht kodiert' oder 'Kein Kodierkonsens' automatisch aus der Visualisierung ausgeschlossen."
+    )
+    if new_exclude != params.get('exclude_not_coded', True):
+        params['exclude_not_coded'] = new_exclude
+        updated = True
+    
     if updated:
         handle_update_analysis(index, {'params': params})
 
@@ -1164,6 +1176,18 @@ def render_heatmap_parameters(analysis: AnalysisConfig, index: int):
         params['fmt'] = new_fmt
         updated = True
     
+    # Exclude "nicht kodiert" checkbox
+    st.markdown("---")
+    new_exclude = st.checkbox(
+        "❌ 'Nicht kodiert' ausschließen",
+        value=params.get('exclude_not_coded', True),
+        key=f"exclude_not_coded_heatmap_{index}",
+        help="Wenn aktiviert, werden Einträge mit 'Nicht kodiert' oder 'Kein Kodierkonsens' automatisch aus der Visualisierung ausgeschlossen."
+    )
+    if new_exclude != params.get('exclude_not_coded', True):
+        params['exclude_not_coded'] = new_exclude
+        updated = True
+    
     if updated:
         handle_update_analysis(index, {'params': params})
 
@@ -1360,6 +1384,18 @@ Niedrigere Werte zeigen mehr von den Farben darunter."""
                 params['label_bg_alpha'] = new_label_bg_alpha
                 updated = True
     
+    # Exclude "nicht kodiert" checkbox
+    st.markdown("---")
+    new_exclude = st.checkbox(
+        "❌ 'Nicht kodiert' ausschließen",
+        value=params.get('exclude_not_coded', True),
+        key=f"exclude_not_coded_sunburst_{index}",
+        help="Wenn aktiviert, werden Einträge mit 'Nicht kodiert' oder 'Kein Kodierkonsens' automatisch aus der Visualisierung ausgeschlossen."
+    )
+    if new_exclude != params.get('exclude_not_coded', True):
+        params['exclude_not_coded'] = new_exclude
+        updated = True
+    
     if updated:
         handle_update_analysis(index, {'params': params})
 
@@ -1504,6 +1540,18 @@ Gilt für Hauptansicht und Detail-Ansicht."""
                 params['show_values'] = new_show_values
                 updated = True
     
+    # Exclude "nicht kodiert" checkbox
+    st.markdown("---")
+    new_exclude = st.checkbox(
+        "❌ 'Nicht kodiert' ausschließen",
+        value=params.get('exclude_not_coded', True),
+        key=f"exclude_not_coded_treemap_{index}",
+        help="Wenn aktiviert, werden Einträge mit 'Nicht kodiert' oder 'Kein Kodierkonsens' automatisch aus der Visualisierung ausgeschlossen."
+    )
+    if new_exclude != params.get('exclude_not_coded', True):
+        params['exclude_not_coded'] = new_exclude
+        updated = True
+    
     if updated:
         handle_update_analysis(index, {'params': params})
 
@@ -1556,6 +1604,18 @@ def render_summary_parameters(analysis: AnalysisConfig, index: int):
     
     if new_prompt != current_prompt:
         params['prompt_template'] = new_prompt
+        updated = True
+    
+    # Exclude "nicht kodiert" checkbox - default FALSE for LLM analyses
+    st.markdown("---")
+    new_exclude = st.checkbox(
+        "❌ 'Nicht kodiert' ausschließen",
+        value=params.get('exclude_not_coded', False),
+        key=f"exclude_not_coded_summary_{index}",
+        help="Wenn aktiviert, werden Einträge mit 'Nicht kodiert' oder 'Kein Kodierkonsens' aus der Analyse ausgeschlossen. Für LLM-Analysen standardmäßig deaktiviert, da auch nicht-kodierte Texte relevant sein können."
+    )
+    if new_exclude != params.get('exclude_not_coded', False):
+        params['exclude_not_coded'] = new_exclude
         updated = True
     
     if updated:
