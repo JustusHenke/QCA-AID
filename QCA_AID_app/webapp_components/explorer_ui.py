@@ -824,16 +824,45 @@ def render_network_parameters(analysis: AnalysisConfig, index: int):
                 if filters.get('Dokument'):
                     df = df[df['Dokument'] == filters['Dokument']]
                 if filters.get('Hauptkategorie'):
-                    df = df[df['Hauptkategorie'] == filters['Hauptkategorie']]
+                    # Support multiple main categories (comma-separated)
+                    main_cats = [s.strip() for s in filters['Hauptkategorie'].split(',') if s.strip()]
+                    if main_cats:
+                        df = df[df['Hauptkategorie'].isin(main_cats)]
                 if filters.get('Subkategorien'):
-                    subcats = [s.strip() for s in filters['Subkategorien'].split(',')]
-                    df = df[df['Subkategorie'].isin(subcats)]
+                    # Support multiple subcategories (comma-separated)
+                    subcats = [s.strip() for s in filters['Subkategorien'].split(',') if s.strip()]
+                    if subcats:
+                        # Check if Subkategorie column exists, otherwise try Subkategorien
+                        if 'Subkategorie' in df.columns:
+                            df = df[df['Subkategorie'].isin(subcats)]
+                        elif 'Subkategorien' in df.columns:
+                            # For comma-separated subcategories in a single column
+                            df = df[df['Subkategorien'].fillna('').str.split(',').apply(
+                                lambda x: any(subcat in [item.strip() for item in x] for subcat in subcats)
+                            )]
                 
                 # Estimate nodes and edges
                 num_records = len(df)
                 num_main_categories = df['Hauptkategorie'].nunique() if 'Hauptkategorie' in df.columns else 0
-                num_subcategories = df['Subkategorie'].nunique() if 'Subkategorie' in df.columns else 0
-                num_keywords = df['Schlüsselwort'].nunique() if 'Schlüsselwort' in df.columns else 0
+                num_subcategories = 0
+                if 'Subkategorie' in df.columns:
+                    num_subcategories = df['Subkategorie'].nunique()
+                elif 'Subkategorien' in df.columns:
+                    # Count unique subcategories from comma-separated values
+                    all_subcats = set()
+                    for subcats_str in df['Subkategorien'].dropna():
+                        all_subcats.update([s.strip() for s in str(subcats_str).split(',') if s.strip()])
+                    num_subcategories = len(all_subcats)
+                
+                num_keywords = 0
+                if 'Schlüsselwort' in df.columns:
+                    num_keywords = df['Schlüsselwort'].nunique()
+                elif 'Schlüsselwörter' in df.columns:
+                    # Count unique keywords from comma-separated values
+                    all_keywords = set()
+                    for keywords_str in df['Schlüsselwörter'].dropna():
+                        all_keywords.update([k.strip() for k in str(keywords_str).split(',') if k.strip()])
+                    num_keywords = len(all_keywords)
                 
                 # Estimate total nodes (categories + subcategories + keywords)
                 estimated_nodes = num_main_categories + num_subcategories + num_keywords
