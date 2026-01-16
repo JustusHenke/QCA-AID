@@ -619,6 +619,8 @@ class QCAAnalyzer:
         iterations = int(params.get('layout_iterations', 100))
         gravity = float(params.get('gravity', 0.05))
         scaling = float(params.get('scaling', 2.0))
+        label_offset = float(params.get('label_offset', 1.0))  # New parameter for label distance
+        scaling = float(params.get('scaling', 2.0))
         
         # Optional: set background color from parameter
         bg_color = params.get('bg_color', 'white')  # Default: white background instead of pink
@@ -778,7 +780,7 @@ class QCAAnalyzer:
             
             # Calculate node radius from node size
             node_radius = np.sqrt(node_size/np.pi) / 1000
-            base_offset = max(0.02, node_radius * 1.2)  # Smaller offset for better readability
+            base_offset = max(0.02, node_radius * 1.2) * label_offset  # Apply label_offset multiplier
             
             if node_type == 'main':
                 # Main categories: labels above

@@ -958,6 +958,28 @@ Niedrigere Werte = kompakteres Layout"""
             params['scaling'] = new_scaling
             updated = True
     
+    # Label offset
+    new_label_offset = st.slider(
+        "Label-Abstand:",
+        min_value=0.5,
+        max_value=3.0,
+        value=float(params.get('label_offset', 1.0)),
+        step=0.1,
+        key=f"label_offset_{index}",
+        help="""Abstand der Labels von den Knoten.
+
+Empfehlungen:
+• 0.5-0.8: Labels näher an Knoten (kompakter, mehr Überlappung)
+• 1.0: Standard-Abstand (ausgewogen)
+• 1.5-2.0: Labels weiter entfernt (weniger Überlappung, mehr Platz)
+• 2.5-3.0: Maximaler Abstand (für sehr dichte Netzwerke)
+
+Höhere Werte = weniger Label-Überlappung, aber mehr Platz benötigt"""
+    )
+    if new_label_offset != params.get('label_offset'):
+        params['label_offset'] = new_label_offset
+        updated = True
+    
     # Exclude "nicht kodiert" checkbox
     st.markdown("---")
     new_exclude = st.checkbox(
