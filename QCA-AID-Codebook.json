@@ -117,17 +117,17 @@
     }
   },
   "config": {
-    "model_provider": "local",
-    "model_name": "qwen2.5-coder:7b",
+    "model_provider": "openai",
+    "model_name": "gpt-4o-mini",
     "data_dir": "input",
     "output_dir": "output",
-    "chunk_size": 1200,
+    "chunk_size": 1100,
     "chunk_overlap": 50,
     "batch_size": 8,
     "code_with_context": true,
     "multiple_codings": true,
     "multiple_coding_threshold": 0.85,
-    "analysis_mode": "deductive",
+    "analysis_mode": "abductive",
     "review_mode": "auto",
     "attribute_labels": {
       "attribut1": "Fall",

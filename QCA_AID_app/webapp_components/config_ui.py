@@ -120,6 +120,29 @@ def render_project_root_section():
                     st.success(f"✅ Projekt-Verzeichnis geändert zu: {new_root}")
                     # Save settings
                     project_manager.save_settings()
+                    
+                    # CRITICAL: Reinitialize managers that depend on project root
+                    # Clear config manager so it gets reinitialized with new path
+                    if 'config_manager' in st.session_state:
+                        del st.session_state.config_manager
+                    if 'config_data' in st.session_state:
+                        del st.session_state.config_data
+                    
+                    # Clear codebook manager
+                    if 'codebook_manager' in st.session_state:
+                        del st.session_state.codebook_manager
+                    if 'codebook_data' in st.session_state:
+                        del st.session_state.codebook_data
+                    
+                    # Clear explorer config manager
+                    if 'explorer_config_manager' in st.session_state:
+                        del st.session_state.explorer_config_manager
+                    if 'explorer_config_data' in st.session_state:
+                        del st.session_state.explorer_config_data
+                    
+                    # Update current project root tracker
+                    st.session_state.current_project_root = new_root
+                    
                     st.rerun()
                 else:
                     st.error(f"❌ Fehler beim Setzen des Projekt-Verzeichnisses")
@@ -836,7 +859,7 @@ def render_model_settings():
         "Modell-Anbieter",
         options=provider_options,
         index=current_provider_idx,
-        help="Wählen Sie den LLM-Anbieter"
+        help="Wählen Sie den LLM-Anbieter (OpenAI, Anthropic, Local, etc.)"
     )
     
     # Map display name back to provider ID for comparison
@@ -958,7 +981,7 @@ def render_model_settings():
         "Modell-Name",
         options=model_options,
         index=current_model_idx,
-        help="Wählen Sie das spezifische Modell"
+        help="Wählen Sie das spezifische Modell für die Analyse"
     )
     
     # Show pricing information for selected model
@@ -1057,7 +1080,7 @@ def render_chunk_settings():
         max_value=10000,
         value=config.chunk_size,
         step=100,
-        help="Größe der Textchunks in Zeichen"
+        help="Größe der Textchunks in Zeichen. Kleinere Chunks = präzisere Kodierung, aber mehr API-Calls. Empfohlen: 1000-1500"
     )
     
     if new_chunk_size != config.chunk_size:
@@ -1071,7 +1094,7 @@ def render_chunk_settings():
         max_value=min(1000, new_chunk_size - 1),
         value=min(config.chunk_overlap, new_chunk_size - 1),
         step=10,
-        help="Überlappung zwischen Chunks in Zeichen"
+        help="Überlappung zwischen Chunks in Zeichen. Verhindert, dass Sinneinheiten an Chunk-Grenzen verloren gehen. Empfohlen: 50-200"
     )
     
     if new_chunk_overlap != config.chunk_overlap:
@@ -1089,7 +1112,7 @@ def render_chunk_settings():
         max_value=100,
         value=config.batch_size,
         step=1,
-        help="Anzahl paralleler API-Anfragen"
+        help="Anzahl paralleler API-Anfragen. Höhere Werte = schnellere Analyse, aber höhere Serverlast. Empfohlen: 5-10"
     )
     
     if new_batch_size != config.batch_size:
@@ -1116,7 +1139,7 @@ def render_analysis_settings():
         "Analyse-Modus",
         options=analysis_mode_options,
         index=current_mode_idx,
-        help="Wählen Sie den Analyse-Modus"
+        help="**deductive**: Nur deduktive Kodierung mit vordefinierten Kategorien | **inductive**: Entwickelt neue Kategorien aus dem Material | **abductive**: Erweitert bestehende Kategorien um Subkategorien | **grounded**: Sammelt Codes und generiert später Hauptkategorien"
     )
     
     if new_analysis_mode != config.analysis_mode:
@@ -1131,7 +1154,7 @@ def render_analysis_settings():
         "Review-Modus",
         options=review_mode_options,
         index=current_review_idx,
-        help="Wählen Sie den Review-Modus"
+        help="**auto**: Automatische Übernahme der Kodierungen | **manual**: Manuelle Überprüfung jeder Kodierung | **consensus**: Nur übereinstimmende Kodierungen werden übernommen | **majority**: Mehrheitsentscheidung bei mehreren Codern"
     )
     
     if new_review_mode != config.review_mode:

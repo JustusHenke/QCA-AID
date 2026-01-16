@@ -538,10 +538,8 @@ def render_analysis_tab(analysis: AnalysisConfig, index: int):
             handle_update_analysis(index, {'active': new_active})
     
     with col2:
-        # Move up/down buttons for reordering
-        if index > 0:
-            if st.button("⬆️ Nach oben", key=f"move_up_{index}", use_container_width=True):
-                handle_reorder_analysis(index, index - 1)
+        # Placeholder for layout consistency
+        st.empty()
         
     with col3:
         # Remove button
@@ -1716,6 +1714,10 @@ def handle_update_analysis(index: int, updates: Dict[str, Any]):
         st.session_state.explorer_config_data = new_config
         # Mark as modified for potential auto-save
         st.session_state.explorer_config_modified = True
+        
+        # If 'active' status changed, rerun to update tab labels
+        if 'active' in updates:
+            st.rerun()
     else:
         st.error(f"❌ Fehler beim Aktualisieren: {', '.join(errors)}")
 

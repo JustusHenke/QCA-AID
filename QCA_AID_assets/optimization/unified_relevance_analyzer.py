@@ -265,7 +265,7 @@ class UnifiedRelevanceAnalyzer:
         total_count = len(all_results)
         
         # Verbesserte Log-Ausgabe mit allen Segmenten
-        print(f"   🔍 DEBUG: Relevance check returned {total_count} total results")
+        # print(f"   🔍 DEBUG: Relevance check returned {total_count} total results")
         
         # Extrahiere und logge Forschungsaspekte (falls verfügbar)
         if results and len(all_results) > 0:

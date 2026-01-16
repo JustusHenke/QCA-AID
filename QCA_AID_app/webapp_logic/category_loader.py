@@ -156,35 +156,41 @@ class CategoryLoader:
     def get_main_categories(self) -> List[str]:
         """
         Gibt die Liste aller Hauptkategorien zurück.
+        Filtert automatisch "nicht kodiert" heraus.
         
         Returns:
-            Liste der Hauptkategorien, alphabetisch sortiert
+            Liste der Hauptkategorien, alphabetisch sortiert, ohne "nicht kodiert"
         """
         if not self.is_loaded:
             return []
-        return self.main_categories.copy()
+        # Filter out "nicht kodiert" (case-insensitive)
+        return [cat for cat in self.main_categories if cat.lower() != "nicht kodiert"]
     
     def get_subcategories(self, main_category: str) -> List[str]:
         """
         Gibt die Subkategorien für eine bestimmte Hauptkategorie zurück.
+        Filtert automatisch "nicht kodiert" heraus.
         
         Args:
             main_category: Name der Hauptkategorie
             
         Returns:
-            Liste der Subkategorien für die angegebene Hauptkategorie
+            Liste der Subkategorien für die angegebene Hauptkategorie, ohne "nicht kodiert"
             Leere Liste, wenn die Hauptkategorie nicht existiert
         """
         if not self.is_loaded:
             return []
-        return self.category_mapping.get(main_category, []).copy()
+        subcats = self.category_mapping.get(main_category, [])
+        # Filter out "nicht kodiert" (case-insensitive)
+        return [sub for sub in subcats if sub.lower() != "nicht kodiert"]
     
     def get_all_subcategories(self) -> List[str]:
         """
         Gibt alle Subkategorien aus allen Hauptkategorien zurück.
+        Filtert automatisch "nicht kodiert" heraus.
         
         Returns:
-            Liste aller Subkategorien, alphabetisch sortiert und ohne Duplikate
+            Liste aller Subkategorien, alphabetisch sortiert, ohne Duplikate und ohne "nicht kodiert"
         """
         if not self.is_loaded:
             return []
@@ -193,7 +199,9 @@ class CategoryLoader:
         for subcategories in self.category_mapping.values():
             all_subcategories.update(subcategories)
         
-        return sorted(list(all_subcategories))
+        # Filter out "nicht kodiert" (case-insensitive)
+        filtered = [sub for sub in all_subcategories if sub.lower() != "nicht kodiert"]
+        return sorted(filtered)
     
     def get_category_mapping(self) -> Dict[str, List[str]]:
         """
