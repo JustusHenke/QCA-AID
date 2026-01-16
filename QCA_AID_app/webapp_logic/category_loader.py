@@ -250,9 +250,10 @@ class CategoryLoader:
                              subcategories: Optional[List[str]] = None) -> Tuple[bool, List[str]]:
         """
         Validiert Filter-Werte gegen die verfügbaren Kategorien.
+        Unterstützt komma-getrennte Listen für Hauptkategorien.
         
         Args:
-            main_category: Zu validierende Hauptkategorie
+            main_category: Zu validierende Hauptkategorie(n) - kann komma-getrennt sein
             subcategories: Zu validierende Subkategorien
             
         Returns:
@@ -263,37 +264,57 @@ class CategoryLoader:
         
         errors = []
         
-        # Validiere Hauptkategorie
+        # Validiere Hauptkategorie(n)
         if main_category is not None:
-            if main_category not in self.main_categories:
-                errors.append(f"Unbekannte Hauptkategorie: '{main_category}'")
+            # Parse komma-getrennte Hauptkategorien
+            main_categories_list = [cat.strip() for cat in main_category.split(',') if cat.strip()]
+            
+            invalid_main_cats = []
+            for cat in main_categories_list:
+                if cat not in self.main_categories:
+                    invalid_main_cats.append(cat)
+            
+            if invalid_main_cats:
+                errors.append(f"Unbekannte Hauptkategorie(n): {', '.join(invalid_main_cats)}")
                 errors.append(f"Verfügbare Hauptkategorien: {', '.join(self.main_categories)}")
         
         # Validiere Subkategorien
         if subcategories is not None:
             all_subcategories = self.get_all_subcategories()
             
+            invalid_subcats = []
             for subcategory in subcategories:
                 if subcategory not in all_subcategories:
-                    errors.append(f"Unbekannte Subkategorie: '{subcategory}'")
+                    invalid_subcats.append(subcategory)
             
-            # Wenn eine Hauptkategorie angegeben ist, prüfe ob Subkategorien dazu passen
-            if main_category is not None and main_category in self.main_categories:
-                valid_subcategories = self.get_subcategories(main_category)
-                invalid_subcategories = [
-                    sub for sub in subcategories 
-                    if sub not in valid_subcategories
-                ]
+            if invalid_subcats:
+                errors.append(f"Unbekannte Subkategorie(n): {', '.join(invalid_subcats)}")
+            
+            # Wenn Hauptkategorien angegeben sind, prüfe ob Subkategorien dazu passen
+            if main_category is not None:
+                main_categories_list = [cat.strip() for cat in main_category.split(',') if cat.strip()]
+                valid_main_cats = [cat for cat in main_categories_list if cat in self.main_categories]
                 
-                if invalid_subcategories:
-                    errors.append(
-                        f"Subkategorien passen nicht zur Hauptkategorie '{main_category}': "
-                        f"{', '.join(invalid_subcategories)}"
-                    )
-                    errors.append(
-                        f"Gültige Subkategorien für '{main_category}': "
-                        f"{', '.join(valid_subcategories)}"
-                    )
+                if valid_main_cats:
+                    # Sammle alle gültigen Subkategorien für die ausgewählten Hauptkategorien
+                    valid_subcategories = set()
+                    for main_cat in valid_main_cats:
+                        valid_subcategories.update(self.get_subcategories(main_cat))
+                    
+                    invalid_subcategories = [
+                        sub for sub in subcategories 
+                        if sub not in valid_subcategories
+                    ]
+                    
+                    if invalid_subcategories:
+                        errors.append(
+                            f"Subkategorien passen nicht zu den gewählten Hauptkategorien: "
+                            f"{', '.join(invalid_subcategories)}"
+                        )
+                        errors.append(
+                            f"Gültige Subkategorien für '{', '.join(valid_main_cats)}': "
+                            f"{', '.join(sorted(valid_subcategories))}"
+                        )
         
         return len(errors) == 0, errors
     
