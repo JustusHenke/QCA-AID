@@ -883,6 +883,37 @@ def get_fluent_css() -> str:
         border-color: var(--interactive-primary);
     }}
     
+    /* ===== TOOLTIPS ===== */
+    
+    /* Streamlit Tooltip Container */
+    [data-testid="stTooltipIcon"],
+    .stTooltipIcon {{
+        color: var(--text-primary) !important;
+    }}
+    
+    /* Tooltip Content */
+    [role="tooltip"],
+    .stTooltip,
+    [data-baseweb="tooltip"] {{
+        background-color: var(--text-primary) !important;
+        color: #ffffff !important;
+        border-radius: var(--border-radius) !important;
+        padding: 0.5rem 0.75rem !important;
+        font-size: 0.875rem !important;
+        box-shadow: 0 4px 12px var(--shadow-neutral) !important;
+    }}
+    
+    /* Tooltip Arrow */
+    [role="tooltip"]::before,
+    .stTooltip::before {{
+        border-color: var(--text-primary) transparent transparent transparent !important;
+    }}
+    
+    /* Help Icon in Streamlit */
+    .stTooltipIcon svg {{
+        fill: var(--text-primary) !important;
+    }}
+    
     </style>
     """
 
