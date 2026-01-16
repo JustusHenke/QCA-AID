@@ -216,6 +216,7 @@ def create_filter_string(filters: Dict[str, str]) -> str:
     Diese Funktion wird verwendet, um aus einem Dictionary von Filtern
     einen kompakten String zu erstellen, der in Dateinamen verwendet werden kann.
     Leere Filter-Werte werden automatisch übersprungen.
+    Lange Werte (z.B. mehrere Kategorien) werden gekürzt, um Pfadlängenbeschränkungen zu vermeiden.
     
     Args:
         filters: Dictionary mit Filter-Parametern (z.B. {'Hauptkategorie': 'Kategorie1', 'Dokument': 'Doc1'})
@@ -229,5 +230,31 @@ def create_filter_string(filters: Dict[str, str]) -> str:
         
         >>> create_filter_string({'Hauptkategorie': 'Kategorie1', 'Dokument': ''})
         'Hauptkategorie-Kategorie1'
+        
+        >>> create_filter_string({'Hauptkategorie': 'Kat1, Kat2, Kat3'})
+        'Hauptkategorie-3cats'
     """
-    return '_'.join(f"{k}-{v}" for k, v in filters.items() if v)
+    parts = []
+    for k, v in filters.items():
+        if not v:
+            continue
+        
+        # Shorten long values (e.g., multiple categories)
+        if ',' in str(v):
+            # Multiple values - count them
+            values = [x.strip() for x in str(v).split(',') if x.strip()]
+            if len(values) > 1:
+                # Use count instead of full list
+                v = f"{len(values)}items"
+        
+        # Limit individual value length to avoid path issues
+        v_str = str(v)
+        if len(v_str) > 50:
+            v_str = v_str[:47] + "..."
+        
+        # Sanitize for filename (remove invalid characters)
+        v_str = v_str.replace('/', '-').replace('\\', '-').replace(':', '-')
+        
+        parts.append(f"{k}-{v_str}")
+    
+    return '_'.join(parts)
