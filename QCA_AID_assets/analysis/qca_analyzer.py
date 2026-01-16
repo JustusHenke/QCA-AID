@@ -248,6 +248,37 @@ class QCAAnalyzer:
             print("\nWeitere Spalten:")
             for col in other_columns:
                 print(f"  {col}")
+    
+    def _filter_not_coded(self, df: pd.DataFrame, exclude: bool = True) -> pd.DataFrame:
+        """
+        Helper method to filter out "nicht kodiert" entries from a dataframe.
+        
+        Args:
+            df: DataFrame to filter
+            exclude: If True, exclude "nicht kodiert" entries; if False, return df unchanged
+            
+        Returns:
+            Filtered DataFrame
+        """
+        if not exclude:
+            return df
+        
+        original_count = len(df)
+        
+        # Robust filtering that handles NaN values
+        if 'Hauptkategorie' in df.columns:
+            # Create a mask that excludes "nicht kodiert" and "kein kodierkonsens"
+            # Handle NaN values by filling them with empty string for comparison
+            mask = ~df['Hauptkategorie'].fillna('').str.lower().isin(['nicht kodiert', 'kein kodierkonsens'])
+            df = df[mask].copy()
+            
+            if len(df) < original_count:
+                excluded_count = original_count - len(df)
+                print(f"Hinweis: {excluded_count} 'Nicht kodiert' Einträge wurden automatisch ausgeschlossen")
+        else:
+            print("Warnung: Spalte 'Hauptkategorie' nicht gefunden - kann 'Nicht kodiert' nicht filtern")
+        
+        return df
                 unique_values = self.df[col].value_counts().head(3)
                 for val, count in unique_values.items():
                     val_display = str(val)[:50] + "..." if len(str(val)) > 50 else str(val)
@@ -568,21 +599,13 @@ class QCAAnalyzer:
         
         # Filter out "nicht kodiert" entries (default: True for visualizations)
         exclude_not_coded = params.get('exclude_not_coded', True)
+        filtered_df = self._filter_not_coded(filtered_df, exclude_not_coded)
         
-        if exclude_not_coded:
-            original_count = len(filtered_df)
-            filtered_df = filtered_df[
-                ~filtered_df['Hauptkategorie'].str.lower().isin(['nicht kodiert', 'kein kodierkonsens'])
-            ].copy()
-            
-            if len(filtered_df) < original_count:
-                print(f"Hinweis: {original_count - len(filtered_df)} 'Nicht kodiert' Einträge wurden automatisch ausgeschlossen")
-            
-            # Check again if filtered_df is empty after removing "nicht kodiert"
-            if filtered_df.empty:
-                print("WARNUNG: Keine kodierten Daten vorhanden (nur 'Nicht kodiert' Einträge)!")
-                print("Der Graph kann nicht erstellt werden.")
-                return
+        # Check again if filtered_df is empty after removing "nicht kodiert"
+        if filtered_df.empty:
+            print("WARNUNG: Keine kodierten Daten vorhanden (nur 'Nicht kodiert' Einträge)!")
+            print("Der Graph kann nicht erstellt werden.")
+            return
         
         # Auto-adjust parameters based on data characteristics
         params = self._adjust_network_parameters(filtered_df, params)
@@ -903,23 +926,11 @@ class QCAAnalyzer:
         
         # Filter out "nicht kodiert" entries (default: True for visualizations)
         exclude_not_coded = params.get('exclude_not_coded', True)
+        filtered_df = self._filter_not_coded(filtered_df, exclude_not_coded)
         
-        if exclude_not_coded:
-            original_count = len(filtered_df)
-            filtered_df = filtered_df[
-                ~filtered_df['Hauptkategorie'].str.lower().isin(['nicht kodiert', 'kein kodierkonsens'])
-            ].copy()
-            
-            if len(filtered_df) < original_count:
-                print(f"Hinweis: {original_count - len(filtered_df)} 'Nicht kodiert' Einträge wurden automatisch ausgeschlossen")
-            
-            if filtered_df.empty:
-                print("WARNUNG: Keine kodierten Daten vorhanden!")
-                return
-        
-        # Use parameters from configuration or default values
-        if params is None:
-            params = {}
+        if filtered_df.empty:
+            print("WARNUNG: Keine kodierten Daten vorhanden!")
+            return
         
         # Extract parameters with fallback values
         x_attribute = params.get('x_attribute', 'Dokument')
@@ -1183,26 +1194,11 @@ class QCAAnalyzer:
         
         # Filter out "nicht kodiert" entries (default: True for visualizations)
         exclude_not_coded = params.get('exclude_not_coded', True)
+        filtered_df = self._filter_not_coded(filtered_df, exclude_not_coded)
         
-        if exclude_not_coded:
-            original_count = len(filtered_df)
-            filtered_df = filtered_df[
-                ~filtered_df['Hauptkategorie'].str.lower().isin(['nicht kodiert', 'kein kodierkonsens'])
-            ].copy()
-            
-            if len(filtered_df) < original_count:
-                print(f"Hinweis: {original_count - len(filtered_df)} 'Nicht kodiert' Einträge wurden automatisch ausgeschlossen")
-            
-            if filtered_df.empty:
-                print("WARNUNG: Keine kodierten Daten vorhanden!")
-                return
-        elif filtered_df.empty:
+        if filtered_df.empty:
             print("WARNUNG: Keine Daten nach Filterung vorhanden!")
             return
-            return
-        
-        if params is None:
-            params = {}
         
         # Extract parameters with defaults
         figure_size = params.get('figure_size', (16, 16))
@@ -1432,27 +1428,17 @@ class QCAAnalyzer:
         if params is None:
             params = {}
         
-        # Filter out "nicht kodiert" entries (default: True for visualizations)
-        exclude_not_coded = params.get('exclude_not_coded', True)
-        
-        if exclude_not_coded:
-            original_count = len(filtered_df)
-            filtered_df = filtered_df[
-                ~filtered_df['Hauptkategorie'].str.lower().isin(['nicht kodiert', 'kein kodierkonsens'])
-            ].copy()
-            
-            if len(filtered_df) < original_count:
-                print(f"Hinweis: {original_count - len(filtered_df)} 'Nicht kodiert' Einträge wurden automatisch ausgeschlossen")
-            
-            if filtered_df.empty:
-                print("WARNUNG: Keine kodierten Daten vorhanden!")
-                return
-        elif filtered_df.empty:
-            print("WARNUNG: Keine Daten nach Filterung vorhanden!")
-            return
-        
+        # Use parameters from configuration or default values
         if params is None:
             params = {}
+        
+        # Filter out "nicht kodiert" entries (default: True for visualizations)
+        exclude_not_coded = params.get('exclude_not_coded', True)
+        filtered_df = self._filter_not_coded(filtered_df, exclude_not_coded)
+        
+        if filtered_df.empty:
+            print("WARNUNG: Keine Daten nach Filterung vorhanden!")
+            return
         
         # Extract parameters with defaults
         figure_size = params.get('figure_size', (20, 12))
