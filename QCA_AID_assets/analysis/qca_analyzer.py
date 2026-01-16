@@ -710,12 +710,18 @@ class QCAAnalyzer:
         print("\nKnotentypen Verteilung:")
         print(nodes_df['Type'].value_counts())
         
-        # Export to Excel
-        excel_output_path = self.output_dir / f"{output_filename}_network_data.xlsx"
-        with pd.ExcelWriter(excel_output_path, engine='openpyxl') as writer:
-            nodes_df.to_excel(writer, sheet_name='Nodes', index=False)
-            edges_df.to_excel(writer, sheet_name='Edges', index=False)
-        print(f"Netzwerkdaten exportiert nach: {excel_output_path}")
+        # Export to Excel with error handling
+        safe_filename = output_filename.replace('/', '_').replace('\\', '_').replace(':', '_')
+        excel_output_path = self.output_dir / f"{safe_filename}_network_data.xlsx"
+        
+        try:
+            with pd.ExcelWriter(excel_output_path, engine='openpyxl') as writer:
+                nodes_df.to_excel(writer, sheet_name='Nodes', index=False)
+                edges_df.to_excel(writer, sheet_name='Edges', index=False)
+            print(f"✓ Netzwerkdaten exportiert nach: {excel_output_path}")
+        except Exception as e:
+            print(f"❌ Fehler beim Exportieren der Netzwerkdaten: {str(e)}")
+            # Continue with visualization even if Excel export fails
         
         # Create visualization
         print("\nErstelle Visualisierung...")
@@ -903,15 +909,27 @@ class QCAAnalyzer:
         
         # Save
         print(f"Speichere Netzwerk-Visualisierung...")
-        output_path = self.output_dir / f"{output_filename}.pdf"
-        plt.savefig(output_path, format='pdf', bbox_inches='tight', dpi=300)
         
-        # Additionally save as SVG for better editability
-        svg_output_path = self.output_dir / f"{output_filename}.svg"
-        plt.savefig(svg_output_path, format='svg', bbox_inches='tight')
+        # Sanitize filename to avoid issues
+        safe_filename = output_filename.replace('/', '_').replace('\\', '_').replace(':', '_')
         
-        plt.close()
-        print(f"Netzwerk-Visualisierung erfolgreich erstellt")
+        output_path = self.output_dir / f"{safe_filename}.pdf"
+        svg_output_path = self.output_dir / f"{safe_filename}.svg"
+        
+        try:
+            plt.savefig(output_path, format='pdf', bbox_inches='tight', dpi=300)
+            print(f"✓ PDF gespeichert: {output_path}")
+            
+            # Additionally save as SVG for better editability
+            plt.savefig(svg_output_path, format='svg', bbox_inches='tight')
+            print(f"✓ SVG gespeichert: {svg_output_path}")
+            
+            plt.close()
+            print(f"Netzwerk-Visualisierung erfolgreich erstellt")
+        except Exception as e:
+            plt.close()
+            print(f"❌ Fehler beim Speichern der Netzwerk-Visualisierung: {str(e)}")
+            raise
 
     def create_heatmap(self, filtered_df: pd.DataFrame, output_filename: str, params: Dict[str, Any] = None):
         """
