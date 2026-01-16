@@ -159,9 +159,17 @@ class QCAAnalyzer:
             # Special handling depending on column type
             if col in ['Subkategorien', 'Subkategorie']:
                 # Special handling for subcategories (comma-separated lists)
-                filtered_df = filtered_df[filtered_df[col].fillna('').str.split(',').apply(
-                    lambda x: value.strip() in [item.strip() for item in x]
-                )]
+                # Support multiple subcategories in filter (comma-separated)
+                filter_subcats = [v.strip() for v in str(value).split(',') if v.strip()]
+                if filter_subcats:
+                    filtered_df = filtered_df[filtered_df[col].fillna('').str.split(',').apply(
+                        lambda x: any(subcat in [item.strip() for item in x] for subcat in filter_subcats)
+                    )]
+            elif col in ['Hauptkategorie']:
+                # Special handling for main categories - support multiple categories (comma-separated)
+                filter_categories = [v.strip() for v in str(value).split(',') if v.strip()]
+                if filter_categories:
+                    filtered_df = filtered_df[filtered_df[col].fillna('').astype(str).isin(filter_categories)]
             else:
                 # Convert both sides to string for robust comparison
                 value_str = str(value).strip()

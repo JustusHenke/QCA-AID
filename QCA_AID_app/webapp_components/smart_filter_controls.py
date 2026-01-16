@@ -81,49 +81,73 @@ def render_smart_filter_controls(analysis: AnalysisConfig, index: int, category_
         stats = category_loader.get_statistics()
         st.info(f"📊 Verfügbare Kategorien: {stats['total_main_categories']} Haupt-, {stats['total_subcategories']} Subkategorien")
         
-        # Hauptkategorie mit Dropdown
+        # Hauptkategorie mit Multiselect
         main_categories = category_loader.get_main_categories()
         current_main = filters.get('Hauptkategorie')
         
-        # Erstelle Optionen für Selectbox (mit "Alle" Option)
-        main_options = ["(Alle Hauptkategorien)"] + main_categories
+        # Parse aktuelle Hauptkategorien (kann komma-getrennt sein)
+        current_main_list = []
+        if current_main:
+            current_main_list = [cat.strip() for cat in current_main.split(',') if cat.strip()]
         
-        # Bestimme aktuellen Index
-        if current_main and current_main in main_categories:
-            main_index = main_categories.index(current_main) + 1  # +1 wegen "Alle" Option
-        else:
-            main_index = 0
+        # Filtere nur gültige Hauptkategorien
+        valid_current_main = [cat for cat in current_main_list if cat in main_categories]
         
-        selected_main = st.selectbox(
-            "Hauptkategorie:",
-            options=main_options,
-            index=main_index,
-            key=f"filter_hauptkat_dropdown_{index}",
-            help="Wählen Sie eine Hauptkategorie oder lassen Sie 'Alle' für keine Filterung"
+        selected_main_list = st.multiselect(
+            "Hauptkategorien:",
+            options=main_categories,
+            default=valid_current_main,
+            key=f"filter_hauptkat_multiselect_{index}",
+            help="Wählen Sie eine oder mehrere Hauptkategorien. Leer lassen für alle Kategorien."
         )
         
         # Aktualisiere Filter
-        new_hauptkat = selected_main if selected_main != "(Alle Hauptkategorien)" else None
+        new_hauptkat = ', '.join(selected_main_list) if selected_main_list else None
         if new_hauptkat != current_main:
             filters['Hauptkategorie'] = new_hauptkat
             updated = True
             
-            # Wenn sich die Hauptkategorie ändert, setze Subkategorien zurück
-            if filters.get('Subkategorien'):
-                filters['Subkategorien'] = None
-                updated = True
+            # Wenn sich die Hauptkategorien ändern, prüfe ob Subkategorien noch gültig sind
+            if filters.get('Subkategorien') and selected_main_list:
+                # Hole alle Subkategorien für die ausgewählten Hauptkategorien
+                valid_subcats = set()
+                for main_cat in selected_main_list:
+                    valid_subcats.update(category_loader.get_subcategories(main_cat))
+                
+                # Prüfe ob aktuelle Subkategorien noch gültig sind
+                current_subs = [sub.strip() for sub in filters['Subkategorien'].split(',') if sub.strip()]
+                invalid_subs = [sub for sub in current_subs if sub not in valid_subcats]
+                
+                if invalid_subs:
+                    # Entferne ungültige Subkategorien
+                    valid_subs = [sub for sub in current_subs if sub in valid_subcats]
+                    filters['Subkategorien'] = ', '.join(valid_subs) if valid_subs else None
+                    updated = True
         
-        # Subkategorien mit Multiselect (abhängig von Hauptkategorie)
-        if new_hauptkat:
-            # Zeige nur Subkategorien der gewählten Hauptkategorie
-            available_subcategories = category_loader.get_subcategories(new_hauptkat)
+        # Subkategorien mit Multiselect (abhängig von Hauptkategorien)
+        if selected_main_list:
+            # Zeige nur Subkategorien der gewählten Hauptkategorien
+            available_subcategories = set()
+            for main_cat in selected_main_list:
+                available_subcategories.update(category_loader.get_subcategories(main_cat))
+            available_subcategories = sorted(list(available_subcategories))
             
-            # Zeige Kategorie-Info
-            category_info = category_loader.get_category_info(new_hauptkat)
-            if category_info and category_info.get('definition'):
-                with st.expander(f"ℹ️ Info zu '{new_hauptkat}'", expanded=False):
-                    st.markdown(f"**Typ:** {category_info.get('typ', 'N/A')}")
-                    st.markdown(f"**Definition:** {category_info.get('definition', 'N/A')}")
+            # Zeige Kategorie-Infos für ausgewählte Hauptkategorien
+            if len(selected_main_list) == 1:
+                category_info = category_loader.get_category_info(selected_main_list[0])
+                if category_info and category_info.get('definition'):
+                    with st.expander(f"ℹ️ Info zu '{selected_main_list[0]}'", expanded=False):
+                        st.markdown(f"**Typ:** {category_info.get('typ', 'N/A')}")
+                        st.markdown(f"**Definition:** {category_info.get('definition', 'N/A')}")
+            elif len(selected_main_list) > 1:
+                with st.expander(f"ℹ️ Info zu {len(selected_main_list)} Hauptkategorien", expanded=False):
+                    for main_cat in selected_main_list:
+                        category_info = category_loader.get_category_info(main_cat)
+                        if category_info:
+                            st.markdown(f"**{main_cat}**")
+                            st.markdown(f"- Typ: {category_info.get('typ', 'N/A')}")
+                            st.markdown(f"- Definition: {category_info.get('definition', 'N/A')}")
+                            st.markdown("---")
         else:
             # Zeige alle Subkategorien
             available_subcategories = category_loader.get_all_subcategories()
