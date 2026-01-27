@@ -227,7 +227,9 @@ echo ========================================
 echo.
 echo Bitte prüfen Sie die Fehlermeldungen oben und versuchen Sie es erneut.
 echo.
+pause
 
 :end
+echo.
 echo Drücken Sie eine beliebige Taste zum Beenden...
-pause >nul
+pause

@@ -1579,6 +1579,68 @@ pip install https://github.com/explosion/spacy-models/releases/download/de_core_
 3. **MSVC** und **Windows SDK** auswählen
 4. **Alternative:** Anaconda verwenden (enthält vorkompilierte Pakete)
 
+#### Problem: setup.bat schließt sofort (Windows)
+
+**Symptom:** Das Setup-Fenster erscheint kurz und schließt sofort wieder
+
+**Ursachen:**
+- Windows-Sicherheitseinstellungen blockieren BAT-Dateien
+- Früher Fehler im Setup-Prozess
+- Fehlende Berechtigungen
+
+**Lösungen:**
+
+**Lösung 1: setup_debug.bat verwenden (Empfohlen)**
+```bash
+# Führen Sie stattdessen setup_debug.bat aus
+# Diese Datei hält das Fenster offen und zeigt alle Fehlermeldungen
+```
+
+**Lösung 2: Manuell in CMD ausführen**
+```bash
+# 1. Eingabeaufforderung öffnen (Windows + R, dann "cmd" eingeben)
+# 2. Zum QCA-AID Ordner navigieren:
+cd "C:\Pfad\zu\QCA-AID"
+
+# 3. Setup ausführen:
+setup.bat
+```
+
+**Lösung 3: Sicherheitseinstellungen prüfen**
+1. Rechtsklick auf `setup.bat`
+2. "Eigenschaften" wählen
+3. Unten bei "Sicherheit": Auf "Zulassen" oder "Entsperren" klicken
+4. "OK" klicken und erneut versuchen
+
+**Lösung 4: Als Administrator ausführen**
+1. Rechtsklick auf `setup.bat`
+2. "Als Administrator ausführen" wählen
+
+**Lösung 5: Manuelle Installation**
+Falls alle Lösungen fehlschlagen:
+```bash
+# 1. Python installieren (Version 3.8-3.12)
+# Download: https://www.python.org/downloads/
+# WICHTIG: "Add Python to PATH" aktivieren!
+
+# 2. Eingabeaufforderung öffnen und zum QCA-AID Ordner navigieren
+
+# 3. Pakete installieren:
+python -m pip install --upgrade pip
+python -m pip install -r requirements.txt
+
+# 4. (Optional) spaCy Deutsch-Modell:
+python -m spacy download de_core_news_sm
+
+# 5. QCA-AID starten:
+python start_QCA-AID-app.py
+```
+
+**Häufige Zusatzprobleme:**
+- **Python nicht gefunden:** Stellen Sie sicher, dass Python mit "Add to PATH" installiert wurde
+- **Zugriff verweigert:** Führen Sie CMD als Administrator aus
+- **Antivirus blockiert:** Fügen Sie den QCA-AID Ordner zur Ausnahmeliste hinzu
+
 ### 13.2 API und Authentifizierung
 
 #### Problem: API-Schlüssel nicht gefunden

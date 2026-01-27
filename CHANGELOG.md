@@ -6,18 +6,6 @@ Hier ist eine **deutlich kompaktere, inhaltlich vollständige** Version des Chan
 
 ---
 
-## Neu in 0.12.6 (2026-01-27)
-
-### 🐛 Bugfixes
-
-* **Tests Module Import**: Behebt ModuleNotFoundError beim Import von `QCA_AID_assets.optimization.tests`
-  * Import von `record_api_call` ist jetzt optional mit try-except
-  * Dummy-Funktion wird verwendet wenn tests-Modul nicht verfügbar ist
-  * Code funktioniert jetzt auch ohne tests-Verzeichnis
-  * `.gitignore` angepasst um tests-Verzeichnis nicht mehr global auszuschließen
-
----
-
 ## Neu in 0.12.5 (2026-01-27)
 
 ### 🐛 Bugfixes
@@ -33,6 +21,11 @@ Hier ist eine **deutlich kompaktere, inhaltlich vollständige** Version des Chan
   * Verschachtelte Config-Strukturen werden korrekt extrahiert
   * Erweiterte Debug-Ausgaben für bessere Fehlerdiagnose
 
+* **Tests Module Import**: Behebt ModuleNotFoundError beim Import von `QCA_AID_assets.optimization.tests`
+  * Import von `record_api_call` ist jetzt optional mit try-except
+  * Dummy-Funktion wird verwendet wenn tests-Modul nicht verfügbar ist
+  * Code funktioniert jetzt auch ohne tests-Verzeichnis
+  * `.gitignore` angepasst um tests-Verzeichnis nicht mehr global auszuschließen
 ---
 
 ## Neu in 0.12.4 (2026-01-14)
