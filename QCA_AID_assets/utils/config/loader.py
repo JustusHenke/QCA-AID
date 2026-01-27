@@ -642,6 +642,14 @@ class ConfigLoader:
                     if threshold_name in config[key]:
                         config[threshold_name] = config[key][threshold_name]
                         print(f"[CONFIG] Extrahierte {threshold_name} aus {key}: {config[threshold_name]}")
+                # Extract ATTRIBUTE_LABELS if nested
+                if 'ATTRIBUTE_LABELS' in config[key]:
+                    config['ATTRIBUTE_LABELS'] = config[key]['ATTRIBUTE_LABELS']
+                    print(f"[CONFIG] Extrahierte ATTRIBUTE_LABELS aus {key}: {config['ATTRIBUTE_LABELS']}")
+                # Extract CODER_SETTINGS if nested
+                if 'CODER_SETTINGS' in config[key]:
+                    config['CODER_SETTINGS'] = config[key]['CODER_SETTINGS']
+                    print(f"[CONFIG] Extrahierte CODER_SETTINGS aus {key}: {len(config['CODER_SETTINGS'])} Coder")
 
         
         self._sanitize_config(config)
@@ -854,6 +862,9 @@ class ConfigLoader:
                     }
                     for i, coder in enumerate(loaded_config['CODER_SETTINGS'])
                 ]
+                print(f"🩹 CODER_SETTINGS geladen: {len(self.global_config['CODER_SETTINGS'])} Coder")
+                for i, coder in enumerate(self.global_config['CODER_SETTINGS']):
+                    print(f"   Coder {i}: ID='{coder['coder_id']}', Temp={coder['temperature']}")
             
             # CODE_WITH_CONTEXT handling
             if 'CODE_WITH_CONTEXT' in loaded_config:
@@ -892,6 +903,19 @@ class ConfigLoader:
             for key, value in loaded_config.items():
                 if key not in self.global_config:
                     self.global_config[key] = value
+            
+            # Debug output for ATTRIBUTE_LABELS
+            if 'ATTRIBUTE_LABELS' in self.global_config:
+                print(f"🩹 ATTRIBUTE_LABELS geladen: {self.global_config['ATTRIBUTE_LABELS']}")
+            else:
+                print("⚠️ Warnung: ATTRIBUTE_LABELS nicht gefunden in loaded_config")
+                # Set default
+                self.global_config['ATTRIBUTE_LABELS'] = {
+                    'attribut1': 'Attribut1',
+                    'attribut2': 'Attribut2',
+                    'attribut3': 'Attribut3'
+                }
+                print(f"   Verwende Standard-ATTRIBUTE_LABELS: {self.global_config['ATTRIBUTE_LABELS']}")
                     
         except Exception as e:
             print(f"🩹 Fehler: {str(e)}")

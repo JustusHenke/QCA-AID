@@ -374,6 +374,12 @@ class ConfigManager:
             print(f"  ATTRIBUTE_LABELS (Großbuchstaben): {global_config.get('ATTRIBUTE_LABELS', 'NICHT GEFUNDEN')}")
             print(f"  Verwendete Werte: {config_dict['attribute_labels']}")
             
+            # Debug: Zeige welche Coder-Settings verwendet werden
+            print(f"[DEBUG] Coder-Settings Auswahl:")
+            print(f"  coder_settings (Kleinbuchstaben): {global_config.get('coder_settings', 'NICHT GEFUNDEN')}")
+            print(f"  CODER_SETTINGS (Großbuchstaben): {global_config.get('CODER_SETTINGS', 'NICHT GEFUNDEN')}")
+            print(f"  Verwendete Werte: {config_dict['coder_settings']}")
+            
             return True, config_dict, []
             
         except FileNotFoundError as e:

@@ -15,6 +15,12 @@ Hier ist eine **deutlich kompaktere, inhaltlich vollständige** Version des Chan
   * Session State Variablen werden korrekt initialisiert nach Projektwechsel
   * Kein manuelles Neuladen der Seite mehr erforderlich
 
+* **Config Excel Loader**: Verbesserte Extraktion von CODER_SETTINGS und ATTRIBUTE_LABELS
+  * Coder IDs werden jetzt korrekt aus Excel geladen (nicht nur Anzahl)
+  * Attribut-Namen werden jetzt korrekt aus Excel geladen (nicht nur Anzahl)
+  * Verschachtelte Config-Strukturen werden korrekt extrahiert
+  * Erweiterte Debug-Ausgaben für bessere Fehlerdiagnose
+
 ---
 
 ## Neu in 0.12.4 (2026-01-14)
