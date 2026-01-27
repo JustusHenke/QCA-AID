@@ -91,7 +91,8 @@ def lazy_load_tab_data(tab_name: str):
                 st.session_state.config_data = config_manager.get_default_config()
                 st.session_state.config_loaded_from = "default"
         
-        # Config tab state
+        # Config tab state - ensure these are always initialized
+        st.session_state.setdefault('config_loaded_from', 'auto')
         st.session_state.setdefault('config_modified', False)
     
     elif tab_name == "Codebook":
@@ -372,6 +373,10 @@ def render_config_info():
     
     st.sidebar.markdown("---")
     st.sidebar.subheader("📋 Workflow-Status")
+    
+    # CRITICAL: Ensure config_data is loaded before accessing it
+    if 'config_data' not in st.session_state:
+        lazy_load_tab_data("Konfiguration")
     
     # Determine workflow status
     config = st.session_state.config_data

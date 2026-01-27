@@ -6,6 +6,17 @@ Hier ist eine **deutlich kompaktere, inhaltlich vollständige** Version des Chan
 
 ---
 
+## Neu in 0.12.5 (2026-01-27)
+
+### 🐛 Bugfixes
+
+* **Webapp Projektwechsel**: Behebt AttributeError beim Wechsel des Projektordners
+  * `render_config_info()` lädt jetzt automatisch `config_data` falls nicht vorhanden
+  * Session State Variablen werden korrekt initialisiert nach Projektwechsel
+  * Kein manuelles Neuladen der Seite mehr erforderlich
+
+---
+
 ## Neu in 0.12.4 (2026-01-14)
 
 ### 🎨 Visualisierungen
@@ -18,19 +29,69 @@ Hier ist eine **deutlich kompaktere, inhaltlich vollständige** Version des Chan
   * Fallback auf Balkendiagramm wenn squarify nicht installiert
   * Neue Abhängigkeit: squarify>=0.4.3
 
+* **Anpassbare Parameter für Sunburst**: figure_size, dpi, font_size, title_font_size, max_label_length, ring_width, color_scheme, show_values, label_alpha, label_bg_color (HEX), label_bg_alpha (0-1)
+
+* **Anpassbare Parameter für Treemap**: figure_size, detail_figure_height, dpi, font_size, detail_font_size, title_font_size, color_scheme, detail_color_scheme, show_values, alpha
+
 ### 🐛 Bugfixes
 
-* **Explorer**: Output-Verzeichnis wird jetzt korrekt aus der Konfiguration gelesen
-  * Kategorie-Loader verwendet jetzt das konfigurierte output_dir statt hardkodiertem "output"
-  * Unterstützt benutzerdefinierte Output-Verzeichnisse aus der Config-UI
+* **Explorer Output-Verzeichnis**: Verwendet jetzt korrekt das in der Config-UI festgelegte Output-Verzeichnis
+  * Explorer base_config wird automatisch mit output_dir aus Hauptkonfiguration synchronisiert
+  * Änderungen am Output-Verzeichnis in der Config-UI werden sofort an Explorer weitergegeben
+  * Kategorie-Loader verwendet das konfigurierte output_dir statt hardkodiertem "output"
+  * Analyseergebnisse werden im konfigurierten Verzeichnis gespeichert
+
+* **Filter-Ausgabe**: Spalten-Mapping wird nur noch angezeigt wenn generische Attribute verwendet werden
+  * Reduziert unnötige Konsolenausgaben bei Visualisierungen
+  * Mapping erscheint nur noch bei tatsächlicher Verwendung von Attribut_1, Attribut_2, etc.
+
+* **Sunburst**: Schutz gegen Rekursionsfehler
+  * Erkennt und verhindert echte zirkuläre Referenzen (nur im aktuellen Pfad)
+  * Erlaubt denselben Knoten in verschiedenen Zweigen der Hierarchie
+  * Maximale Hierarchietiefe von 10 Ebenen
+  * Besseres Error-Handling mit aussagekräftigen Fehlermeldungen
+
 
 ### 🎨 UI-Verbesserungen
+
+* **Explorer UI**: Parameter-Einstellungen für Sunburst und Treemap
+  * Anpassbare Auflösung (DPI)
+  * Schriftgrößen für Labels und Titel
+  * Farbschemata (Set3, Pastel1, etc.)
+  * Ring-Breite (Sunburst) und Detail-Höhe (Treemap)
+  * Werte ein/ausblenden
+  * Maximale Label-Länge (Sunburst)
+  * **Label-Hintergrund (Sunburst)**: Farbe (HEX) und Transparenz (0-1)
+  * Alle Parameter in ausklappbarem "Erweiterte Parameter" Bereich
 
 * **Explorer UI**: Button "📂 Ordner öffnen" hinzugefügt
   * Nach erfolgreicher Analyse wird neben dem Ausgabepfad ein Button angezeigt
   * In der Dateiliste gibt es Buttons zum Öffnen des Ordners und Kopieren des Pfads
   * Im Explorer-View (Ergebnisansicht) wird eine Erfolgsmeldung mit Pfad und Button angezeigt
   * Plattformspezifische Implementierung (Windows/macOS/Linux)
+
+* **Explorer UI**: Projekt-Verzeichnis-Wechsel verbessert
+  * Beim Ändern des Projekt-Verzeichnisses werden jetzt alle Manager (Config, Codebook, Explorer) neu initialisiert
+  * Explorer-UI zeigt nach Verzeichniswechsel den korrekten Pfad an
+  * Eingabedateien werden im neuen Projekt-Verzeichnis korrekt erkannt
+
+* **Explorer UI**: Analyse-Tabs optimiert
+  * Button "Nach oben" entfernt (vereinfachtes Layout)
+  * Tab-Häkchen (✅/⏸️) aktualisiert sich sofort beim Aktivieren/Deaktivieren einer Analyse
+  * Bessere visuelle Rückmeldung beim Ändern des Analyse-Status
+
+* **Explorer UI**: Filter-Verbesserungen
+  * "nicht kodiert" wird automatisch aus allen Filter-Optionen ausgeschlossen
+  * Betrifft Hauptkategorien, Subkategorien und alle Subkategorien-Listen
+  * Case-insensitive Filterung (auch "Nicht Kodiert", "NICHT KODIERT" etc.)
+
+* **Explorer UI**: Optionaler Ausschluss von "Nicht kodiert" in Analysen
+  * Neue Checkbox "❌ 'Nicht kodiert' ausschließen" in allen Analyse-Parametern
+  * **Visualisierungen** (Netzwerk, Heatmap, Sunburst, Treemap): Standardmäßig aktiviert (True)
+  * **LLM-Analysen** (Summary/Paraphrase): Standardmäßig deaktiviert (False) - nicht-kodierte Texte können relevant sein
+  * Benutzer können das Verhalten für jede Analyse individuell anpassen
+  * Automatische Filterung von "Nicht kodiert" und "Kein Kodierkonsens" (case-insensitive)
+  * Hinweismeldung zeigt an, wie viele Einträge ausgeschlossen wurden
 
 * **Explorer-View**: Konfidenz-Verteilung verbessert
   * Lesbare Bin-Labels (z.B. "0.80-0.85" statt kryptischer Intervall-Notation)
