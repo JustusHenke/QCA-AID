@@ -1,14 +1,13 @@
 @echo off
-chcp 65001 >nul
 setlocal enabledelayedexpansion
 
 echo ========================================
-echo QCA-AID Setup für Windows
+echo QCA-AID Setup fuer Windows
 echo ========================================
 echo.
 
-REM --- 1. Python-Installation prüfen ---
-echo [1/4] Prüfe Python-Installation...
+REM --- 1. Python-Installation pruefen ---
+echo [1/4] Pruefe Python-Installation...
 python --version >nul 2>&1
 if errorlevel 1 (
     echo.
@@ -16,13 +15,13 @@ if errorlevel 1 (
     echo.
     echo Bitte installieren Sie Python von: https://www.python.org/downloads/
     echo.
-    echo WICHTIG: Wählen Sie Python Version 3.8 bis 3.12 ^(max. 3.12 wegen spaCy^)
+    echo WICHTIG: Waehlen Sie Python Version 3.8 bis 3.12 ^(max. 3.12 wegen spaCy^)
     echo          Aktivieren Sie bei der Installation "Add Python to PATH"
     echo.
     goto :error
 )
 
-REM --- 2. Python-Version prüfen ---
+REM --- 2. Python-Version pruefen ---
 for /f "tokens=2" %%i in ('python --version 2^>^&1') do set PYTHON_VERSION=%%i
 echo Python gefunden: Version %PYTHON_VERSION%
 
@@ -32,7 +31,7 @@ for /f "tokens=1,2 delims=." %%a in ("%PYTHON_VERSION%") do (
     set MINOR=%%b
 )
 
-REM Version prüfen
+REM Version pruefen
 if %MAJOR% LSS 3 (
     echo.
     echo [WARNUNG] Python Version zu alt! Mindestens Python 3.8 erforderlich.
@@ -53,7 +52,7 @@ if %MAJOR% EQU 3 if %MINOR% GTR 12 (
     echo [WARNUNG] Python Version zu neu! Maximal Python 3.12 empfohlen ^(wegen spaCy^).
     echo           Aktuelle Version: %PYTHON_VERSION%
     echo.
-    echo Möchten Sie trotzdem fortfahren? ^(J/N^)
+    echo Moechten Sie trotzdem fortfahren? ^(J/N^)
     set /p CONTINUE=
     if /i not "!CONTINUE!"=="J" (
         echo Setup abgebrochen.
@@ -63,12 +62,12 @@ if %MAJOR% EQU 3 if %MINOR% GTR 12 (
 echo Python-Version OK: %PYTHON_VERSION%
 echo.
 
-REM --- 3. pip prüfen und aktualisieren ---
-echo [2/4] Prüfe pip-Installation...
+REM --- 3. pip pruefen und aktualisieren ---
+echo [2/4] Pruefe pip-Installation...
 python -m pip --version >nul 2>&1
 if errorlevel 1 (
     echo.
-    echo [FEHLER] pip ist nicht verfügbar!
+    echo [FEHLER] pip ist nicht verfuegbar!
     echo Versuche pip zu installieren...
     python -m ensurepip --default-pip
     if errorlevel 1 (
@@ -105,11 +104,11 @@ if not exist requirements.txt (
     goto :error
 )
 
-REM Prüfe, ob requirements.txt gültige Pakete enthält
+REM Pruefe, ob requirements.txt gueltige Pakete enthaelt
 findstr /r /c:"^[^#][^ ]" "requirements.txt" >nul
 if errorlevel 1 (
-    echo [WARNUNG] requirements.txt ist leer oder enthält keine gültigen Pakete.
-    echo           Bitte stellen Sie sicher, dass die Datei Paketnamen enthält ^(z. B. "numpy==1.21.0"^).
+    echo [WARNUNG] requirements.txt ist leer oder enthaelt keine gueltigen Pakete.
+    echo           Bitte stellen Sie sicher, dass die Datei Paketnamen enthaelt ^(z. B. "numpy==1.21.0"^).
     goto :error
 )
 
@@ -119,7 +118,7 @@ echo Starte Installation der Pakete...
 if errorlevel 1 (
     echo.
     echo [FEHLER] Installation der Pakete fehlgeschlagen!
-    echo Bitte prüfen Sie die Fehlermeldungen oben.
+    echo Bitte pruefen Sie die Fehlermeldungen oben.
     echo.
     goto :error
 ) else (
@@ -131,38 +130,38 @@ if errorlevel 1 (
 
 REM --- 6. spaCy-Modell installieren (optional) ---
 echo.
-echo Möchten Sie das deutsche spaCy-Sprachmodell installieren? ^(empfohlen^) ^(J/N^)
+echo Moechten Sie das deutsche spaCy-Sprachmodell installieren? ^(empfohlen^) ^(J/N^)
 set /p INSTALL_SPACY=
 if /i "!INSTALL_SPACY!"=="J" (
     echo Installiere spaCy Deutsch-Modell...
     "!PYTHON_PATH!" -m spacy download de_core_news_sm
     if errorlevel 1 (
         echo [WARNUNG] Installation des spaCy-Modells fehlgeschlagen.
-        echo           Sie können es später manuell installieren mit:
+        echo           Sie koennen es spaeter manuell installieren mit:
         echo             python -m spacy download de_core_news_sm
         echo.
         echo Das Setup wird trotzdem fortgesetzt...
     ) else (
-        echo ✅ spaCy Deutsch-Modell erfolgreich installiert!
+        echo [OK] spaCy Deutsch-Modell erfolgreich installiert!
     )
     echo.
 ) else (
-    echo spaCy-Installation übersprungen.
+    echo spaCy-Installation uebersprungen.
     echo.
 )
 
-REM --- 7. Desktop-Verknüpfung mit Icon erstellen ---
-echo [4/4] Erstelle Desktop-Verknüpfung...
+REM --- 7. Desktop-Verknuepfung mit Icon erstellen ---
+echo [4/4] Erstelle Desktop-Verknuepfung...
 set SCRIPT_DIR=%~dp0
 set SCRIPT_PATH=%SCRIPT_DIR%start_QCA-AID-app.py
 set PNG_ICON=%SCRIPT_DIR%qca_aid_icon.png
 set ICO_ICON=%SCRIPT_DIR%qca_aid_icon.ico
 
-REM Prüfe beide mögliche Desktop-Pfade (lokal und OneDrive)
+REM Pruefe beide moegliche Desktop-Pfade (lokal und OneDrive)
 set DESKTOP1=%USERPROFILE%\Desktop
 set DESKTOP2=%USERPROFILE%\OneDrive\Desktop
 
-REM Prüfe, welcher Desktop-Pfad existiert
+REM Pruefe, welcher Desktop-Pfad existiert
 if exist "!DESKTOP2!" (
     set DESKTOP=!DESKTOP2!
 ) else if exist "!DESKTOP1!" (
@@ -175,7 +174,7 @@ if exist "!DESKTOP2!" (
 set SHORTCUT_PATH=!DESKTOP!\QCA-AID.lnk
 
 
-REM Erstelle VBScript für Verknüpfung - OHNE Delayed Expansion in den Werten
+REM Erstelle VBScript fuer Verknuepfung - OHNE Delayed Expansion in den Werten
 set VBS_PATH=%TEMP%\create_shortcut.vbs
 (
     echo Set oWS = WScript.CreateObject^("WScript.Shell"^)
@@ -191,18 +190,18 @@ set VBS_PATH=%TEMP%\create_shortcut.vbs
     echo oLink.Save
 ) > "!VBS_PATH!"
 
-REM Führe das VBScript aus
+REM Fuehre das VBScript aus
 cscript //nologo "!VBS_PATH!"
 del "!VBS_PATH!"
 
 if exist "!SHORTCUT_PATH!" (
-    echo Desktop-Verknüpfung erstellt: !SHORTCUT_PATH!
+    echo Desktop-Verknuepfung erstellt: !SHORTCUT_PATH!
     if exist "!ICO_ICON!" (
         echo Mit benutzerdefiniertem Icon: !ICO_ICON!
     )
 ) else (
-    echo [WARNUNG] Desktop-Verknüpfung konnte nicht erstellt werden.
-    echo Sie können die Anwendung manuell starten mit: "!PYTHON_PATH!" "!SCRIPT_PATH!"
+    echo [WARNUNG] Desktop-Verknuepfung konnte nicht erstellt werden.
+    echo Sie koennen die Anwendung manuell starten mit: "!PYTHON_PATH!" "!SCRIPT_PATH!"
 )
 echo.
 
@@ -211,8 +210,8 @@ echo ========================================
 echo Setup erfolgreich abgeschlossen!
 echo ========================================
 echo.
-echo Sie können QCA-AID jetzt starten:
-echo   - Doppelklick auf die Desktop-Verknüpfung "QCA-AID"
+echo Sie koennen QCA-AID jetzt starten:
+echo   - Doppelklick auf die Desktop-Verknuepfung "QCA-AID"
 echo   - Oder: "!PYTHON_PATH!" "!SCRIPT_PATH!"
 echo.
 echo Viel Erfolg mit QCA-AID!
@@ -225,11 +224,11 @@ echo ========================================
 echo Setup wurde mit Fehlern beendet!
 echo ========================================
 echo.
-echo Bitte prüfen Sie die Fehlermeldungen oben und versuchen Sie es erneut.
+echo Bitte pruefen Sie die Fehlermeldungen oben und versuchen Sie es erneut.
 echo.
 pause
 
 :end
 echo.
-echo Drücken Sie eine beliebige Taste zum Beenden...
+echo Druecken Sie eine beliebige Taste zum Beenden...
 pause
