@@ -1,0 +1,3244 @@
+{
+  "metadata": {
+    "generated_at": "2025-12-20T14:29:48.579952",
+    "version": "1.0",
+    "description": "Test dataset for API call optimization validation",
+    "segments_per_mode": 25,
+    "total_segments": 100
+  },
+  "segments": [
+    {
+      "segment_id": "test_deductive_001",
+      "text": "Climate change adaptation strategies must account for regional variations in vulnerability.",
+      "analysis_mode": "deductive",
+      "difficulty": "low",
+      "length_category": "short",
+      "expected_results": {
+        "category": "Environmental Impact",
+        "subcategories": [
+          "Economic Factors"
+        ],
+        "confidence": {
+          "total": 0.73,
+          "category": 0.82,
+          "subcategories": 0.82
+        },
+        "multiple_coding": false,
+        "relevance_scores": {
+          "research_relevance": 0.84,
+          "coding_relevance": 0.71
+        }
+      }
+    },
+    {
+      "segment_id": "test_deductive_002",
+      "text": "Climate change adaptation strategies must account for regional variations in vulnerability.",
+      "analysis_mode": "deductive",
+      "difficulty": "low",
+      "length_category": "short",
+      "expected_results": {
+        "category": "Economic Factors",
+        "subcategories": [
+          "Sustainable Development",
+          "Policy Implementation",
+          "Economic Factors"
+        ],
+        "confidence": {
+          "total": 0.88,
+          "category": 0.93,
+          "subcategories": 0.73
+        },
+        "multiple_coding": false,
+        "relevance_scores": {
+          "research_relevance": 0.71,
+          "coding_relevance": 0.96
+        }
+      }
+    },
+    {
+      "segment_id": "test_deductive_003",
+      "text": "Technological innovation drives efficiency improvements in industrial processes.",
+      "analysis_mode": "deductive",
+      "difficulty": "high",
+      "length_category": "short",
+      "expected_results": {
+        "category": "Regulatory Framework",
+        "subcategories": [
+          "Environmental Impact",
+          "Technology Adoption"
+        ],
+        "confidence": {
+          "total": 0.75,
+          "category": 0.94,
+          "subcategories": 0.63
+        },
+        "multiple_coding": false,
+        "relevance_scores": {
+          "research_relevance": 0.74,
+          "coding_relevance": 0.8
+        }
+      }
+    },
+    {
+      "segment_id": "test_deductive_004",
+      "text": "Sustainable development requires balancing economic growth with ecological preservation.",
+      "analysis_mode": "deductive",
+      "difficulty": "low",
+      "length_category": "short",
+      "expected_results": {
+        "category": "Behavioral Change",
+        "subcategories": [
+          "Stakeholder Engagement",
+          "Regulatory Framework",
+          "Sustainable Development"
+        ],
+        "confidence": {
+          "total": 0.84,
+          "category": 0.95,
+          "subcategories": 0.79
+        },
+        "multiple_coding": false,
+        "relevance_scores": {
+          "research_relevance": 0.83,
+          "coding_relevance": 0.91
+        }
+      }
+    },
+    {
+      "segment_id": "test_deductive_005",
+      "text": "The implementation of renewable energy policies requires careful consideration of economic factors.",
+      "analysis_mode": "deductive",
+      "difficulty": "high",
+      "length_category": "short",
+      "expected_results": {
+        "category": "Economic Factors",
+        "subcategories": [
+          "Stakeholder Engagement",
+          "Economic Factors"
+        ],
+        "confidence": {
+          "total": 0.92,
+          "category": 0.87,
+          "subcategories": 0.74
+        },
+        "multiple_coding": false,
+        "relevance_scores": {
+          "research_relevance": 0.67,
+          "coding_relevance": 0.81
+        }
+      }
+    },
+    {
+      "segment_id": "test_deductive_006",
+      "text": "Sustainable development requires balancing economic growth with ecological preservation.",
+      "analysis_mode": "deductive",
+      "difficulty": "high",
+      "length_category": "short",
+      "expected_results": {
+        "category": "Stakeholder Engagement",
+        "subcategories": [
+          "Technology Adoption",
+          "International Cooperation",
+          "Economic Factors"
+        ],
+        "confidence": {
+          "total": 0.74,
+          "category": 0.87,
+          "subcategories": 0.9
+        },
+        "multiple_coding": false,
+        "relevance_scores": {
+          "research_relevance": 0.82,
+          "coding_relevance": 0.91
+        }
+      }
+    },
+    {
+      "segment_id": "test_deductive_007",
+      "text": "The implementation of renewable energy policies requires careful consideration of economic factors.",
+      "analysis_mode": "deductive",
+      "difficulty": "low",
+      "length_category": "short",
+      "expected_results": {
+        "category": "Policy Implementation",
+        "subcategories": [
+          "Regulatory Framework",
+          "Environmental Impact"
+        ],
+        "confidence": {
+          "total": 0.72,
+          "category": 0.96,
+          "subcategories": 0.77
+        },
+        "multiple_coding": false,
+        "relevance_scores": {
+          "research_relevance": 0.69,
+          "coding_relevance": 0.85
+        }
+      }
+    },
+    {
+      "segment_id": "test_deductive_008",
+      "text": "Long-term planning horizons are essential for effective climate policy.",
+      "analysis_mode": "deductive",
+      "difficulty": "low",
+      "length_category": "short",
+      "expected_results": {
+        "category": "Environmental Impact",
+        "subcategories": [
+          "Economic Factors"
+        ],
+        "confidence": {
+          "total": 0.89,
+          "category": 0.9,
+          "subcategories": 0.82
+        },
+        "multiple_coding": false,
+        "relevance_scores": {
+          "research_relevance": 0.83,
+          "coding_relevance": 0.81
+        }
+      }
+    },
+    {
+      "segment_id": "test_deductive_009",
+      "text": "Technological innovation drives efficiency improvements in industrial processes.",
+      "analysis_mode": "deductive",
+      "difficulty": "high",
+      "length_category": "short",
+      "expected_results": {
+        "category": "Behavioral Change",
+        "subcategories": [
+          "Policy Implementation"
+        ],
+        "confidence": {
+          "total": 0.92,
+          "category": 0.83,
+          "subcategories": 0.65
+        },
+        "multiple_coding": false,
+        "relevance_scores": {
+          "research_relevance": 0.84,
+          "coding_relevance": 0.82
+        }
+      }
+    },
+    {
+      "segment_id": "test_deductive_010",
+      "text": "International cooperation facilitates technology transfer and capacity building.",
+      "analysis_mode": "deductive",
+      "difficulty": "medium",
+      "length_category": "short",
+      "expected_results": {
+        "category": "International Cooperation",
+        "subcategories": [
+          "International Cooperation",
+          "Policy Implementation"
+        ],
+        "confidence": {
+          "total": 0.87,
+          "category": 0.82,
+          "subcategories": 0.87
+        },
+        "multiple_coding": false,
+        "relevance_scores": {
+          "research_relevance": 0.91,
+          "coding_relevance": 0.8
+        }
+      }
+    },
+    {
+      "segment_id": "test_deductive_011",
+      "text": "Sustainable development requires balancing economic growth with ecological preservation.",
+      "analysis_mode": "deductive",
+      "difficulty": "medium",
+      "length_category": "short",
+      "expected_results": {
+        "category": "Technology Adoption",
+        "subcategories": [
+          "Policy Implementation",
+          "Environmental Impact"
+        ],
+        "confidence": {
+          "total": 0.94,
+          "category": 0.94,
+          "subcategories": 0.75
+        },
+        "multiple_coding": true,
+        "relevance_scores": {
+          "research_relevance": 0.85,
+          "coding_relevance": 0.95
+        }
+      }
+    },
+    {
+      "segment_id": "test_deductive_012",
+      "text": "Behavioral changes at individual level contribute to collective environmental impact.",
+      "analysis_mode": "deductive",
+      "difficulty": "high",
+      "length_category": "short",
+      "expected_results": {
+        "category": "Economic Factors",
+        "subcategories": [
+          "Social Acceptance"
+        ],
+        "confidence": {
+          "total": 0.89,
+          "category": 0.9,
+          "subcategories": 0.83
+        },
+        "multiple_coding": false,
+        "relevance_scores": {
+          "research_relevance": 0.6,
+          "coding_relevance": 0.8
+        }
+      }
+    },
+    {
+      "segment_id": "test_deductive_013",
+      "text": "The implementation of renewable energy policies requires careful consideration of economic factors.",
+      "analysis_mode": "deductive",
+      "difficulty": "low",
+      "length_category": "short",
+      "expected_results": {
+        "category": "Social Acceptance",
+        "subcategories": [
+          "Economic Factors",
+          "Policy Implementation"
+        ],
+        "confidence": {
+          "total": 0.76,
+          "category": 0.9,
+          "subcategories": 0.62
+        },
+        "multiple_coding": false,
+        "relevance_scores": {
+          "research_relevance": 0.93,
+          "coding_relevance": 0.99
+        }
+      }
+    },
+    {
+      "segment_id": "test_deductive_014",
+      "text": "Behavioral changes at individual level contribute to collective environmental impact.",
+      "analysis_mode": "deductive",
+      "difficulty": "low",
+      "length_category": "short",
+      "expected_results": {
+        "category": "Technology Adoption",
+        "subcategories": [
+          "Behavioral Change",
+          "International Cooperation",
+          "Technology Adoption"
+        ],
+        "confidence": {
+          "total": 0.77,
+          "category": 0.96,
+          "subcategories": 0.73
+        },
+        "multiple_coding": true,
+        "relevance_scores": {
+          "research_relevance": 0.82,
+          "coding_relevance": 0.92
+        }
+      }
+    },
+    {
+      "segment_id": "test_deductive_015",
+      "text": "Public acceptance of environmental regulations depends on perceived fairness and transparency.",
+      "analysis_mode": "deductive",
+      "difficulty": "high",
+      "length_category": "short",
+      "expected_results": {
+        "category": "Environmental Impact",
+        "subcategories": [
+          "Social Acceptance",
+          "Behavioral Change"
+        ],
+        "confidence": {
+          "total": 0.92,
+          "category": 0.88,
+          "subcategories": 0.67
+        },
+        "multiple_coding": true,
+        "relevance_scores": {
+          "research_relevance": 0.61,
+          "coding_relevance": 0.87
+        }
+      }
+    },
+    {
+      "segment_id": "test_deductive_016",
+      "text": "International cooperation facilitates technology transfer and capacity building.",
+      "analysis_mode": "deductive",
+      "difficulty": "low",
+      "length_category": "short",
+      "expected_results": {
+        "category": "Policy Implementation",
+        "subcategories": [
+          "Policy Implementation"
+        ],
+        "confidence": {
+          "total": 0.76,
+          "category": 0.96,
+          "subcategories": 0.86
+        },
+        "multiple_coding": true,
+        "relevance_scores": {
+          "research_relevance": 0.7,
+          "coding_relevance": 0.9
+        }
+      }
+    },
+    {
+      "segment_id": "test_deductive_017",
+      "text": "Public acceptance of environmental regulations depends on perceived fairness and transparency.",
+      "analysis_mode": "deductive",
+      "difficulty": "high",
+      "length_category": "short",
+      "expected_results": {
+        "category": "Technology Adoption",
+        "subcategories": [
+          "Sustainable Development",
+          "Behavioral Change",
+          "Economic Factors"
+        ],
+        "confidence": {
+          "total": 0.9,
+          "category": 0.95,
+          "subcategories": 0.66
+        },
+        "multiple_coding": true,
+        "relevance_scores": {
+          "research_relevance": 0.77,
+          "coding_relevance": 0.83
+        }
+      }
+    },
+    {
+      "segment_id": "test_deductive_018",
+      "text": "Long-term planning horizons are essential for effective climate policy.",
+      "analysis_mode": "deductive",
+      "difficulty": "high",
+      "length_category": "short",
+      "expected_results": {
+        "category": "Policy Implementation",
+        "subcategories": [
+          "Stakeholder Engagement",
+          "Policy Implementation",
+          "Regulatory Framework"
+        ],
+        "confidence": {
+          "total": 0.88,
+          "category": 0.94,
+          "subcategories": 0.63
+        },
+        "multiple_coding": true,
+        "relevance_scores": {
+          "research_relevance": 0.81,
+          "coding_relevance": 0.74
+        }
+      }
+    },
+    {
+      "segment_id": "test_deductive_019",
+      "text": "Technological innovation drives efficiency improvements in industrial processes.",
+      "analysis_mode": "deductive",
+      "difficulty": "medium",
+      "length_category": "short",
+      "expected_results": {
+        "category": "Behavioral Change",
+        "subcategories": [
+          "Stakeholder Engagement"
+        ],
+        "confidence": {
+          "total": 0.81,
+          "category": 0.96,
+          "subcategories": 0.77
+        },
+        "multiple_coding": true,
+        "relevance_scores": {
+          "research_relevance": 1.0,
+          "coding_relevance": 0.95
+        }
+      }
+    },
+    {
+      "segment_id": "test_deductive_020",
+      "text": "Climate change adaptation strategies must account for regional variations in vulnerability.",
+      "analysis_mode": "deductive",
+      "difficulty": "low",
+      "length_category": "short",
+      "expected_results": {
+        "category": "Technology Adoption",
+        "subcategories": [
+          "Behavioral Change",
+          "Sustainable Development"
+        ],
+        "confidence": {
+          "total": 0.75,
+          "category": 0.87,
+          "subcategories": 0.62
+        },
+        "multiple_coding": false,
+        "relevance_scores": {
+          "research_relevance": 0.99,
+          "coding_relevance": 0.78
+        }
+      }
+    },
+    {
+      "segment_id": "test_deductive_021",
+      "text": "Long-term planning horizons are essential for effective climate policy.",
+      "analysis_mode": "deductive",
+      "difficulty": "medium",
+      "length_category": "short",
+      "expected_results": {
+        "category": "Regulatory Framework",
+        "subcategories": [
+          "International Cooperation",
+          "Behavioral Change",
+          "Technology Adoption"
+        ],
+        "confidence": {
+          "total": 0.75,
+          "category": 0.84,
+          "subcategories": 0.62
+        },
+        "multiple_coding": false,
+        "relevance_scores": {
+          "research_relevance": 0.62,
+          "coding_relevance": 0.79
+        }
+      }
+    },
+    {
+      "segment_id": "test_deductive_022",
+      "text": "The implementation of renewable energy policies requires careful consideration of economic factors.",
+      "analysis_mode": "deductive",
+      "difficulty": "high",
+      "length_category": "short",
+      "expected_results": {
+        "category": "Behavioral Change",
+        "subcategories": [
+          "International Cooperation",
+          "Technology Adoption",
+          "Policy Implementation"
+        ],
+        "confidence": {
+          "total": 0.94,
+          "category": 0.81,
+          "subcategories": 0.66
+        },
+        "multiple_coding": false,
+        "relevance_scores": {
+          "research_relevance": 0.87,
+          "coding_relevance": 0.77
+        }
+      }
+    },
+    {
+      "segment_id": "test_deductive_023",
+      "text": "Climate change adaptation strategies must account for regional variations in vulnerability.",
+      "analysis_mode": "deductive",
+      "difficulty": "high",
+      "length_category": "short",
+      "expected_results": {
+        "category": "Economic Factors",
+        "subcategories": [
+          "Sustainable Development",
+          "Policy Implementation",
+          "Stakeholder Engagement"
+        ],
+        "confidence": {
+          "total": 0.8,
+          "category": 0.91,
+          "subcategories": 0.76
+        },
+        "multiple_coding": false,
+        "relevance_scores": {
+          "research_relevance": 0.68,
+          "coding_relevance": 0.91
+        }
+      }
+    },
+    {
+      "segment_id": "test_deductive_024",
+      "text": "Public acceptance of environmental regulations depends on perceived fairness and transparency.",
+      "analysis_mode": "deductive",
+      "difficulty": "medium",
+      "length_category": "short",
+      "expected_results": {
+        "category": "Regulatory Framework",
+        "subcategories": [
+          "Environmental Impact"
+        ],
+        "confidence": {
+          "total": 0.81,
+          "category": 0.97,
+          "subcategories": 0.88
+        },
+        "multiple_coding": true,
+        "relevance_scores": {
+          "research_relevance": 0.85,
+          "coding_relevance": 0.87
+        }
+      }
+    },
+    {
+      "segment_id": "test_deductive_025",
+      "text": "Climate change adaptation strategies must account for regional variations in vulnerability.",
+      "analysis_mode": "deductive",
+      "difficulty": "low",
+      "length_category": "short",
+      "expected_results": {
+        "category": "International Cooperation",
+        "subcategories": [
+          "International Cooperation"
+        ],
+        "confidence": {
+          "total": 0.77,
+          "category": 0.97,
+          "subcategories": 0.86
+        },
+        "multiple_coding": false,
+        "relevance_scores": {
+          "research_relevance": 0.75,
+          "coding_relevance": 0.75
+        }
+      }
+    },
+    {
+      "segment_id": "test_inductive_026",
+      "text": "Focus group discussions uncover latent tensions between departments.",
+      "analysis_mode": "inductive",
+      "difficulty": "high",
+      "length_category": "short",
+      "expected_results": {
+        "potential_categories": [
+          "Sustainable Development",
+          "International Cooperation",
+          "Policy Implementation",
+          "Social Acceptance"
+        ],
+        "category_development": {
+          "main_category": "International Cooperation",
+          "supporting_categories": [
+            "Stakeholder Engagement",
+            "Technology Adoption"
+          ]
+        },
+        "confidence": 0.68,
+        "novelty_score": 0.74
+      }
+    },
+    {
+      "segment_id": "test_inductive_027",
+      "text": "Focus group discussions uncover latent tensions between departments.",
+      "analysis_mode": "inductive",
+      "difficulty": "low",
+      "length_category": "short",
+      "expected_results": {
+        "potential_categories": [
+          "Environmental Impact",
+          "Economic Factors",
+          "Social Acceptance",
+          "Stakeholder Engagement"
+        ],
+        "category_development": {
+          "main_category": "Environmental Impact",
+          "supporting_categories": [
+            "Behavioral Change",
+            "Environmental Impact",
+            "Policy Implementation"
+          ]
+        },
+        "confidence": 0.63,
+        "novelty_score": 0.51
+      }
+    },
+    {
+      "segment_id": "test_inductive_028",
+      "text": "Document analysis suggests institutional barriers to innovation adoption.",
+      "analysis_mode": "inductive",
+      "difficulty": "low",
+      "length_category": "short",
+      "expected_results": {
+        "potential_categories": [
+          "Social Acceptance",
+          "Technology Adoption"
+        ],
+        "category_development": {
+          "main_category": "Environmental Impact",
+          "supporting_categories": [
+            "Behavioral Change"
+          ]
+        },
+        "confidence": 0.77,
+        "novelty_score": 0.51
+      }
+    },
+    {
+      "segment_id": "test_inductive_029",
+      "text": "The participant expressed concerns about the timeline for project completion.",
+      "analysis_mode": "inductive",
+      "difficulty": "low",
+      "length_category": "short",
+      "expected_results": {
+        "potential_categories": [
+          "Technology Adoption",
+          "International Cooperation"
+        ],
+        "category_development": {
+          "main_category": "Policy Implementation",
+          "supporting_categories": [
+            "Sustainable Development",
+            "International Cooperation"
+          ]
+        },
+        "confidence": 0.64,
+        "novelty_score": 0.36
+      }
+    },
+    {
+      "segment_id": "test_inductive_030",
+      "text": "Document analysis suggests institutional barriers to innovation adoption.",
+      "analysis_mode": "inductive",
+      "difficulty": "medium",
+      "length_category": "short",
+      "expected_results": {
+        "potential_categories": [
+          "Social Acceptance",
+          "Economic Factors"
+        ],
+        "category_development": {
+          "main_category": "Economic Factors",
+          "supporting_categories": [
+            "Stakeholder Engagement",
+            "Social Acceptance",
+            "Regulatory Framework"
+          ]
+        },
+        "confidence": 0.89,
+        "novelty_score": 0.67
+      }
+    },
+    {
+      "segment_id": "test_inductive_031",
+      "text": "Observation notes indicate consistent patterns in team dynamics during crises.",
+      "analysis_mode": "inductive",
+      "difficulty": "low",
+      "length_category": "short",
+      "expected_results": {
+        "potential_categories": [
+          "Regulatory Framework",
+          "Policy Implementation",
+          "Technology Adoption"
+        ],
+        "category_development": {
+          "main_category": "Social Acceptance",
+          "supporting_categories": [
+            "Economic Factors",
+            "Environmental Impact"
+          ]
+        },
+        "confidence": 0.65,
+        "novelty_score": 0.65
+      }
+    },
+    {
+      "segment_id": "test_inductive_032",
+      "text": "Case study reveals unexpected connections between leadership style and outcomes.",
+      "analysis_mode": "inductive",
+      "difficulty": "low",
+      "length_category": "short",
+      "expected_results": {
+        "potential_categories": [
+          "Economic Factors",
+          "Sustainable Development",
+          "Behavioral Change",
+          "Technology Adoption",
+          "Regulatory Framework"
+        ],
+        "category_development": {
+          "main_category": "Economic Factors",
+          "supporting_categories": [
+            "Policy Implementation"
+          ]
+        },
+        "confidence": 0.8,
+        "novelty_score": 0.5
+      }
+    },
+    {
+      "segment_id": "test_inductive_033",
+      "text": "Document analysis suggests institutional barriers to innovation adoption.",
+      "analysis_mode": "inductive",
+      "difficulty": "low",
+      "length_category": "short",
+      "expected_results": {
+        "potential_categories": [
+          "Social Acceptance",
+          "International Cooperation",
+          "Regulatory Framework",
+          "Sustainable Development"
+        ],
+        "category_development": {
+          "main_category": "International Cooperation",
+          "supporting_categories": [
+            "Policy Implementation",
+            "Stakeholder Engagement"
+          ]
+        },
+        "confidence": 0.86,
+        "novelty_score": 0.43
+      }
+    },
+    {
+      "segment_id": "test_inductive_034",
+      "text": "Ethnographic notes capture subtle cultural norms affecting implementation.",
+      "analysis_mode": "inductive",
+      "difficulty": "medium",
+      "length_category": "short",
+      "expected_results": {
+        "potential_categories": [
+          "Stakeholder Engagement",
+          "Regulatory Framework"
+        ],
+        "category_development": {
+          "main_category": "Social Acceptance",
+          "supporting_categories": [
+            "Social Acceptance",
+            "Regulatory Framework",
+            "Stakeholder Engagement"
+          ]
+        },
+        "confidence": 0.72,
+        "novelty_score": 0.59
+      }
+    },
+    {
+      "segment_id": "test_inductive_035",
+      "text": "Document analysis suggests institutional barriers to innovation adoption.",
+      "analysis_mode": "inductive",
+      "difficulty": "low",
+      "length_category": "short",
+      "expected_results": {
+        "potential_categories": [
+          "Policy Implementation",
+          "International Cooperation",
+          "Economic Factors",
+          "Technology Adoption",
+          "Behavioral Change"
+        ],
+        "category_development": {
+          "main_category": "Stakeholder Engagement",
+          "supporting_categories": [
+            "Social Acceptance",
+            "Sustainable Development",
+            "Stakeholder Engagement"
+          ]
+        },
+        "confidence": 0.82,
+        "novelty_score": 0.45
+      }
+    },
+    {
+      "segment_id": "test_inductive_036",
+      "text": "Document analysis suggests institutional barriers to innovation adoption.",
+      "analysis_mode": "inductive",
+      "difficulty": "high",
+      "length_category": "short",
+      "expected_results": {
+        "potential_categories": [
+          "Social Acceptance",
+          "Regulatory Framework",
+          "Environmental Impact",
+          "Behavioral Change",
+          "Stakeholder Engagement"
+        ],
+        "category_development": {
+          "main_category": "Economic Factors",
+          "supporting_categories": [
+            "Regulatory Framework",
+            "Technology Adoption"
+          ]
+        },
+        "confidence": 0.78,
+        "novelty_score": 0.45
+      }
+    },
+    {
+      "segment_id": "test_inductive_037",
+      "text": "Focus group discussions uncover latent tensions between departments.",
+      "analysis_mode": "inductive",
+      "difficulty": "low",
+      "length_category": "short",
+      "expected_results": {
+        "potential_categories": [
+          "Environmental Impact",
+          "Economic Factors",
+          "Regulatory Framework",
+          "Behavioral Change"
+        ],
+        "category_development": {
+          "main_category": "Sustainable Development",
+          "supporting_categories": [
+            "Social Acceptance",
+            "Behavioral Change",
+            "International Cooperation"
+          ]
+        },
+        "confidence": 0.73,
+        "novelty_score": 0.41
+      }
+    },
+    {
+      "segment_id": "test_inductive_038",
+      "text": "Archival data provides insights into historical decision-making patterns.",
+      "analysis_mode": "inductive",
+      "difficulty": "high",
+      "length_category": "short",
+      "expected_results": {
+        "potential_categories": [
+          "Stakeholder Engagement",
+          "Environmental Impact",
+          "Social Acceptance"
+        ],
+        "category_development": {
+          "main_category": "Stakeholder Engagement",
+          "supporting_categories": [
+            "Environmental Impact"
+          ]
+        },
+        "confidence": 0.67,
+        "novelty_score": 0.4
+      }
+    },
+    {
+      "segment_id": "test_inductive_039",
+      "text": "The participant expressed concerns about the timeline for project completion.",
+      "analysis_mode": "inductive",
+      "difficulty": "low",
+      "length_category": "short",
+      "expected_results": {
+        "potential_categories": [
+          "Behavioral Change",
+          "Stakeholder Engagement",
+          "Sustainable Development"
+        ],
+        "category_development": {
+          "main_category": "Regulatory Framework",
+          "supporting_categories": [
+            "Sustainable Development",
+            "Economic Factors",
+            "Regulatory Framework"
+          ]
+        },
+        "confidence": 0.75,
+        "novelty_score": 0.42
+      }
+    },
+    {
+      "segment_id": "test_inductive_040",
+      "text": "The participant expressed concerns about the timeline for project completion.",
+      "analysis_mode": "inductive",
+      "difficulty": "low",
+      "length_category": "short",
+      "expected_results": {
+        "potential_categories": [
+          "Economic Factors",
+          "Technology Adoption",
+          "Behavioral Change",
+          "Policy Implementation",
+          "Environmental Impact"
+        ],
+        "category_development": {
+          "main_category": "Economic Factors",
+          "supporting_categories": [
+            "Behavioral Change"
+          ]
+        },
+        "confidence": 0.64,
+        "novelty_score": 0.53
+      }
+    },
+    {
+      "segment_id": "test_inductive_041",
+      "text": "Focus group discussions uncover latent tensions between departments.",
+      "analysis_mode": "inductive",
+      "difficulty": "high",
+      "length_category": "short",
+      "expected_results": {
+        "potential_categories": [
+          "Behavioral Change",
+          "International Cooperation",
+          "Regulatory Framework",
+          "Sustainable Development"
+        ],
+        "category_development": {
+          "main_category": "International Cooperation",
+          "supporting_categories": [
+            "Technology Adoption",
+            "Behavioral Change"
+          ]
+        },
+        "confidence": 0.74,
+        "novelty_score": 0.68
+      }
+    },
+    {
+      "segment_id": "test_inductive_042",
+      "text": "Document analysis suggests institutional barriers to innovation adoption.",
+      "analysis_mode": "inductive",
+      "difficulty": "high",
+      "length_category": "short",
+      "expected_results": {
+        "potential_categories": [
+          "Economic Factors",
+          "Environmental Impact",
+          "Behavioral Change",
+          "Policy Implementation",
+          "Social Acceptance"
+        ],
+        "category_development": {
+          "main_category": "Environmental Impact",
+          "supporting_categories": [
+            "Environmental Impact"
+          ]
+        },
+        "confidence": 0.7,
+        "novelty_score": 0.75
+      }
+    },
+    {
+      "segment_id": "test_inductive_043",
+      "text": "Interview data reveals patterns of resistance to organizational change.",
+      "analysis_mode": "inductive",
+      "difficulty": "low",
+      "length_category": "short",
+      "expected_results": {
+        "potential_categories": [
+          "Economic Factors",
+          "Regulatory Framework",
+          "Technology Adoption"
+        ],
+        "category_development": {
+          "main_category": "Economic Factors",
+          "supporting_categories": [
+            "Regulatory Framework"
+          ]
+        },
+        "confidence": 0.72,
+        "novelty_score": 0.57
+      }
+    },
+    {
+      "segment_id": "test_inductive_044",
+      "text": "Case study reveals unexpected connections between leadership style and outcomes.",
+      "analysis_mode": "inductive",
+      "difficulty": "low",
+      "length_category": "short",
+      "expected_results": {
+        "potential_categories": [
+          "Regulatory Framework",
+          "Sustainable Development",
+          "Policy Implementation"
+        ],
+        "category_development": {
+          "main_category": "Sustainable Development",
+          "supporting_categories": [
+            "Behavioral Change",
+            "Policy Implementation"
+          ]
+        },
+        "confidence": 0.88,
+        "novelty_score": 0.45
+      }
+    },
+    {
+      "segment_id": "test_inductive_045",
+      "text": "Case study reveals unexpected connections between leadership style and outcomes.",
+      "analysis_mode": "inductive",
+      "difficulty": "medium",
+      "length_category": "short",
+      "expected_results": {
+        "potential_categories": [
+          "Behavioral Change",
+          "Economic Factors",
+          "Environmental Impact"
+        ],
+        "category_development": {
+          "main_category": "Regulatory Framework",
+          "supporting_categories": [
+            "Policy Implementation",
+            "Regulatory Framework"
+          ]
+        },
+        "confidence": 0.7,
+        "novelty_score": 0.64
+      }
+    },
+    {
+      "segment_id": "test_inductive_046",
+      "text": "Case study reveals unexpected connections between leadership style and outcomes.",
+      "analysis_mode": "inductive",
+      "difficulty": "high",
+      "length_category": "short",
+      "expected_results": {
+        "potential_categories": [
+          "Behavioral Change",
+          "Technology Adoption",
+          "Policy Implementation"
+        ],
+        "category_development": {
+          "main_category": "Regulatory Framework",
+          "supporting_categories": [
+            "Sustainable Development",
+            "Policy Implementation",
+            "Stakeholder Engagement"
+          ]
+        },
+        "confidence": 0.79,
+        "novelty_score": 0.37
+      }
+    },
+    {
+      "segment_id": "test_inductive_047",
+      "text": "Archival data provides insights into historical decision-making patterns.",
+      "analysis_mode": "inductive",
+      "difficulty": "low",
+      "length_category": "short",
+      "expected_results": {
+        "potential_categories": [
+          "Environmental Impact",
+          "Regulatory Framework"
+        ],
+        "category_development": {
+          "main_category": "Social Acceptance",
+          "supporting_categories": [
+            "Behavioral Change"
+          ]
+        },
+        "confidence": 0.7,
+        "novelty_score": 0.68
+      }
+    },
+    {
+      "segment_id": "test_inductive_048",
+      "text": "Case study reveals unexpected connections between leadership style and outcomes.",
+      "analysis_mode": "inductive",
+      "difficulty": "medium",
+      "length_category": "short",
+      "expected_results": {
+        "potential_categories": [
+          "Environmental Impact",
+          "Stakeholder Engagement",
+          "Behavioral Change",
+          "Policy Implementation",
+          "Social Acceptance"
+        ],
+        "category_development": {
+          "main_category": "International Cooperation",
+          "supporting_categories": [
+            "Social Acceptance"
+          ]
+        },
+        "confidence": 0.67,
+        "novelty_score": 0.33
+      }
+    },
+    {
+      "segment_id": "test_inductive_049",
+      "text": "The participant expressed concerns about the timeline for project completion.",
+      "analysis_mode": "inductive",
+      "difficulty": "low",
+      "length_category": "short",
+      "expected_results": {
+        "potential_categories": [
+          "Economic Factors",
+          "Policy Implementation",
+          "Technology Adoption"
+        ],
+        "category_development": {
+          "main_category": "Economic Factors",
+          "supporting_categories": [
+            "Behavioral Change"
+          ]
+        },
+        "confidence": 0.8,
+        "novelty_score": 0.58
+      }
+    },
+    {
+      "segment_id": "test_inductive_050",
+      "text": "Observation notes indicate consistent patterns in team dynamics during crises.",
+      "analysis_mode": "inductive",
+      "difficulty": "medium",
+      "length_category": "short",
+      "expected_results": {
+        "potential_categories": [
+          "Social Acceptance",
+          "Technology Adoption",
+          "Stakeholder Engagement",
+          "Regulatory Framework"
+        ],
+        "category_development": {
+          "main_category": "Technology Adoption",
+          "supporting_categories": [
+            "Stakeholder Engagement",
+            "Policy Implementation"
+          ]
+        },
+        "confidence": 0.88,
+        "novelty_score": 0.59
+      }
+    },
+    {
+      "segment_id": "test_abductive_051",
+      "text": "Regulatory changes created new opportunities while closing others.",
+      "analysis_mode": "abductive",
+      "difficulty": "medium",
+      "length_category": "short",
+      "expected_results": {
+        "base_category": "Stakeholder Engagement",
+        "extended_subcategories": [
+          "Trust Building"
+        ],
+        "new_subcategories": [
+          "Extended Dimension",
+          "Contextual Opportunity"
+        ],
+        "confidence": 0.72,
+        "expansion_quality": 0.74
+      }
+    },
+    {
+      "segment_id": "test_abductive_052",
+      "text": "Implementation barriers differed significantly from initial assumptions.",
+      "analysis_mode": "abductive",
+      "difficulty": "high",
+      "length_category": "short",
+      "expected_results": {
+        "base_category": "Policy Implementation",
+        "extended_subcategories": [
+          "Timeline Challenges",
+          "Resource Allocation",
+          "Monitoring Systems"
+        ],
+        "new_subcategories": [
+          "Extended Dimension",
+          "Contextual Constraint"
+        ],
+        "confidence": 0.67,
+        "expansion_quality": 0.73
+      }
+    },
+    {
+      "segment_id": "test_abductive_053",
+      "text": "While the policy was designed to reduce emissions, unintended consequences emerged.",
+      "analysis_mode": "abductive",
+      "difficulty": "medium",
+      "length_category": "short",
+      "expected_results": {
+        "base_category": "Economic Factors",
+        "extended_subcategories": [
+          "Funding Sources"
+        ],
+        "new_subcategories": [
+          "Extended Perspective",
+          "Contextual Opportunity"
+        ],
+        "confidence": 0.89,
+        "expansion_quality": 0.66
+      }
+    },
+    {
+      "segment_id": "test_abductive_054",
+      "text": "Initial results were promising, but sustainability remained a challenge.",
+      "analysis_mode": "abductive",
+      "difficulty": "medium",
+      "length_category": "short",
+      "expected_results": {
+        "base_category": "Stakeholder Engagement",
+        "extended_subcategories": [
+          "Trust Building",
+          "Power Dynamics",
+          "Communication Gaps"
+        ],
+        "new_subcategories": [
+          "Extended Perspective",
+          "Contextual Constraint"
+        ],
+        "confidence": 0.87,
+        "expansion_quality": 0.71
+      }
+    },
+    {
+      "segment_id": "test_abductive_055",
+      "text": "The technology worked as expected but adoption rates were lower than projected.",
+      "analysis_mode": "abductive",
+      "difficulty": "low",
+      "length_category": "short",
+      "expected_results": {
+        "base_category": "Policy Implementation",
+        "extended_subcategories": [
+          "Resource Allocation",
+          "Timeline Challenges"
+        ],
+        "new_subcategories": [
+          "Extended Perspective",
+          "Contextual Opportunity"
+        ],
+        "confidence": 0.81,
+        "expansion_quality": 0.63
+      }
+    },
+    {
+      "segment_id": "test_abductive_056",
+      "text": "While the policy was designed to reduce emissions, unintended consequences emerged.",
+      "analysis_mode": "abductive",
+      "difficulty": "medium",
+      "length_category": "short",
+      "expected_results": {
+        "base_category": "Technology Adoption",
+        "extended_subcategories": [
+          "Infrastructure Requirements"
+        ],
+        "new_subcategories": [
+          "Extended Analysis",
+          "Contextual Constraint"
+        ],
+        "confidence": 0.87,
+        "expansion_quality": 0.62
+      }
+    },
+    {
+      "segment_id": "test_abductive_057",
+      "text": "Resource constraints forced adaptation of the original design.",
+      "analysis_mode": "abductive",
+      "difficulty": "high",
+      "length_category": "short",
+      "expected_results": {
+        "base_category": "Technology Adoption",
+        "extended_subcategories": [
+          "Learning Curves",
+          "Compatibility Issues",
+          "Infrastructure Requirements"
+        ],
+        "new_subcategories": [
+          "Extended Analysis",
+          "Contextual Opportunity"
+        ],
+        "confidence": 0.76,
+        "expansion_quality": 0.69
+      }
+    },
+    {
+      "segment_id": "test_abductive_058",
+      "text": "Stakeholder feedback contradicted the quantitative performance metrics.",
+      "analysis_mode": "abductive",
+      "difficulty": "high",
+      "length_category": "short",
+      "expected_results": {
+        "base_category": "Economic Factors",
+        "extended_subcategories": [
+          "Economic Incentives",
+          "Funding Sources",
+          "Cost-Benefit Analysis"
+        ],
+        "new_subcategories": [
+          "Extended Analysis",
+          "Contextual Factor"
+        ],
+        "confidence": 0.73,
+        "expansion_quality": 0.64
+      }
+    },
+    {
+      "segment_id": "test_abductive_059",
+      "text": "Stakeholder feedback contradicted the quantitative performance metrics.",
+      "analysis_mode": "abductive",
+      "difficulty": "medium",
+      "length_category": "short",
+      "expected_results": {
+        "base_category": "Technology Adoption",
+        "extended_subcategories": [
+          "Compatibility Issues",
+          "Infrastructure Requirements"
+        ],
+        "new_subcategories": [
+          "Extended Perspective",
+          "Contextual Opportunity"
+        ],
+        "confidence": 0.8,
+        "expansion_quality": 0.62
+      }
+    },
+    {
+      "segment_id": "test_abductive_060",
+      "text": "Competitive dynamics shifted in response to the new market conditions.",
+      "analysis_mode": "abductive",
+      "difficulty": "medium",
+      "length_category": "short",
+      "expected_results": {
+        "base_category": "Technology Adoption",
+        "extended_subcategories": [
+          "Learning Curves",
+          "Compatibility Issues"
+        ],
+        "new_subcategories": [
+          "Extended Dimension",
+          "Contextual Factor"
+        ],
+        "confidence": 0.74,
+        "expansion_quality": 0.76
+      }
+    },
+    {
+      "segment_id": "test_abductive_061",
+      "text": "Initial results were promising, but sustainability remained a challenge.",
+      "analysis_mode": "abductive",
+      "difficulty": "low",
+      "length_category": "short",
+      "expected_results": {
+        "base_category": "Stakeholder Engagement",
+        "extended_subcategories": [
+          "Power Dynamics",
+          "Trust Building",
+          "Communication Gaps"
+        ],
+        "new_subcategories": [
+          "Extended Analysis",
+          "Contextual Factor"
+        ],
+        "confidence": 0.73,
+        "expansion_quality": 0.63
+      }
+    },
+    {
+      "segment_id": "test_abductive_062",
+      "text": "Implementation barriers differed significantly from initial assumptions.",
+      "analysis_mode": "abductive",
+      "difficulty": "low",
+      "length_category": "short",
+      "expected_results": {
+        "base_category": "Stakeholder Engagement",
+        "extended_subcategories": [
+          "Communication Gaps",
+          "Trust Building"
+        ],
+        "new_subcategories": [
+          "Extended Dimension",
+          "Contextual Constraint"
+        ],
+        "confidence": 0.84,
+        "expansion_quality": 0.54
+      }
+    },
+    {
+      "segment_id": "test_abductive_063",
+      "text": "Competitive dynamics shifted in response to the new market conditions.",
+      "analysis_mode": "abductive",
+      "difficulty": "low",
+      "length_category": "short",
+      "expected_results": {
+        "base_category": "Policy Implementation",
+        "extended_subcategories": [
+          "Resource Allocation",
+          "Monitoring Systems",
+          "Timeline Challenges"
+        ],
+        "new_subcategories": [
+          "Extended Perspective",
+          "Contextual Constraint"
+        ],
+        "confidence": 0.7,
+        "expansion_quality": 0.52
+      }
+    },
+    {
+      "segment_id": "test_abductive_064",
+      "text": "Competitive dynamics shifted in response to the new market conditions.",
+      "analysis_mode": "abductive",
+      "difficulty": "low",
+      "length_category": "short",
+      "expected_results": {
+        "base_category": "Policy Implementation",
+        "extended_subcategories": [
+          "Resource Allocation",
+          "Timeline Challenges"
+        ],
+        "new_subcategories": [
+          "Extended Dimension",
+          "Contextual Opportunity"
+        ],
+        "confidence": 0.84,
+        "expansion_quality": 0.55
+      }
+    },
+    {
+      "segment_id": "test_abductive_065",
+      "text": "Resource constraints forced adaptation of the original design.",
+      "analysis_mode": "abductive",
+      "difficulty": "medium",
+      "length_category": "short",
+      "expected_results": {
+        "base_category": "Policy Implementation",
+        "extended_subcategories": [
+          "Timeline Challenges"
+        ],
+        "new_subcategories": [
+          "Extended Dimension",
+          "Contextual Constraint"
+        ],
+        "confidence": 0.81,
+        "expansion_quality": 0.78
+      }
+    },
+    {
+      "segment_id": "test_abductive_066",
+      "text": "Stakeholder feedback contradicted the quantitative performance metrics.",
+      "analysis_mode": "abductive",
+      "difficulty": "high",
+      "length_category": "short",
+      "expected_results": {
+        "base_category": "Economic Factors",
+        "extended_subcategories": [
+          "Funding Sources",
+          "Economic Incentives"
+        ],
+        "new_subcategories": [
+          "Extended Dimension",
+          "Contextual Constraint"
+        ],
+        "confidence": 0.73,
+        "expansion_quality": 0.72
+      }
+    },
+    {
+      "segment_id": "test_abductive_067",
+      "text": "Resource constraints forced adaptation of the original design.",
+      "analysis_mode": "abductive",
+      "difficulty": "high",
+      "length_category": "short",
+      "expected_results": {
+        "base_category": "Policy Implementation",
+        "extended_subcategories": [
+          "Monitoring Systems"
+        ],
+        "new_subcategories": [
+          "Extended Analysis",
+          "Contextual Constraint"
+        ],
+        "confidence": 0.83,
+        "expansion_quality": 0.55
+      }
+    },
+    {
+      "segment_id": "test_abductive_068",
+      "text": "Initial results were promising, but sustainability remained a challenge.",
+      "analysis_mode": "abductive",
+      "difficulty": "high",
+      "length_category": "short",
+      "expected_results": {
+        "base_category": "Policy Implementation",
+        "extended_subcategories": [
+          "Timeline Challenges"
+        ],
+        "new_subcategories": [
+          "Extended Perspective",
+          "Contextual Constraint"
+        ],
+        "confidence": 0.84,
+        "expansion_quality": 0.66
+      }
+    },
+    {
+      "segment_id": "test_abductive_069",
+      "text": "While the policy was designed to reduce emissions, unintended consequences emerged.",
+      "analysis_mode": "abductive",
+      "difficulty": "low",
+      "length_category": "short",
+      "expected_results": {
+        "base_category": "Technology Adoption",
+        "extended_subcategories": [
+          "Infrastructure Requirements",
+          "Compatibility Issues",
+          "Learning Curves"
+        ],
+        "new_subcategories": [
+          "Extended Dimension",
+          "Contextual Factor"
+        ],
+        "confidence": 0.9,
+        "expansion_quality": 0.78
+      }
+    },
+    {
+      "segment_id": "test_abductive_070",
+      "text": "Resource constraints forced adaptation of the original design.",
+      "analysis_mode": "abductive",
+      "difficulty": "high",
+      "length_category": "short",
+      "expected_results": {
+        "base_category": "Stakeholder Engagement",
+        "extended_subcategories": [
+          "Communication Gaps",
+          "Trust Building"
+        ],
+        "new_subcategories": [
+          "Extended Dimension",
+          "Contextual Factor"
+        ],
+        "confidence": 0.9,
+        "expansion_quality": 0.79
+      }
+    },
+    {
+      "segment_id": "test_abductive_071",
+      "text": "The intervention successfully reduced costs but had negative social impacts.",
+      "analysis_mode": "abductive",
+      "difficulty": "low",
+      "length_category": "short",
+      "expected_results": {
+        "base_category": "Stakeholder Engagement",
+        "extended_subcategories": [
+          "Trust Building",
+          "Power Dynamics"
+        ],
+        "new_subcategories": [
+          "Extended Perspective",
+          "Contextual Factor"
+        ],
+        "confidence": 0.78,
+        "expansion_quality": 0.61
+      }
+    },
+    {
+      "segment_id": "test_abductive_072",
+      "text": "Regulatory changes created new opportunities while closing others.",
+      "analysis_mode": "abductive",
+      "difficulty": "medium",
+      "length_category": "short",
+      "expected_results": {
+        "base_category": "Economic Factors",
+        "extended_subcategories": [
+          "Cost-Benefit Analysis",
+          "Economic Incentives"
+        ],
+        "new_subcategories": [
+          "Extended Perspective",
+          "Contextual Opportunity"
+        ],
+        "confidence": 0.74,
+        "expansion_quality": 0.59
+      }
+    },
+    {
+      "segment_id": "test_abductive_073",
+      "text": "The intervention successfully reduced costs but had negative social impacts.",
+      "analysis_mode": "abductive",
+      "difficulty": "low",
+      "length_category": "short",
+      "expected_results": {
+        "base_category": "Policy Implementation",
+        "extended_subcategories": [
+          "Resource Allocation",
+          "Timeline Challenges",
+          "Monitoring Systems"
+        ],
+        "new_subcategories": [
+          "Extended Perspective",
+          "Contextual Opportunity"
+        ],
+        "confidence": 0.83,
+        "expansion_quality": 0.82
+      }
+    },
+    {
+      "segment_id": "test_abductive_074",
+      "text": "Initial results were promising, but sustainability remained a challenge.",
+      "analysis_mode": "abductive",
+      "difficulty": "high",
+      "length_category": "short",
+      "expected_results": {
+        "base_category": "Economic Factors",
+        "extended_subcategories": [
+          "Funding Sources",
+          "Cost-Benefit Analysis",
+          "Economic Incentives"
+        ],
+        "new_subcategories": [
+          "Extended Perspective",
+          "Contextual Constraint"
+        ],
+        "confidence": 0.74,
+        "expansion_quality": 0.73
+      }
+    },
+    {
+      "segment_id": "test_abductive_075",
+      "text": "Initial results were promising, but sustainability remained a challenge.",
+      "analysis_mode": "abductive",
+      "difficulty": "medium",
+      "length_category": "short",
+      "expected_results": {
+        "base_category": "Economic Factors",
+        "extended_subcategories": [
+          "Funding Sources",
+          "Economic Incentives",
+          "Cost-Benefit Analysis"
+        ],
+        "new_subcategories": [
+          "Extended Dimension",
+          "Contextual Factor"
+        ],
+        "confidence": 0.77,
+        "expansion_quality": 0.61
+      }
+    },
+    {
+      "segment_id": "test_grounded_076",
+      "text": "Memo writing captured analytical insights during the coding process.",
+      "analysis_mode": "grounded",
+      "difficulty": "low",
+      "length_category": "short",
+      "expected_results": {
+        "subcodes": [
+          "Power Relations",
+          "Emergent Patterns",
+          "Spatial Considerations",
+          "Process Dynamics",
+          "Identity Construction"
+        ],
+        "subcode_details": [
+          {
+            "name": "Power Relations",
+            "definition": "Definition for Power Relations",
+            "evidence": [
+              "Memo writing captured analytical insights during t",
+              "he coding process."
+            ],
+            "keywords": [
+              "power_relations",
+              "related_idea"
+            ],
+            "confidence": 0.86
+          },
+          {
+            "name": "Agency and Action",
+            "definition": "Definition for Agency and Action",
+            "evidence": [
+              "Memo writing captured analytical insights during t",
+              "he coding process."
+            ],
+            "keywords": [
+              "agency_and_action",
+              "related_idea"
+            ],
+            "confidence": 0.75
+          }
+        ],
+        "memo": "Analytical memo for segment 076",
+        "saturation_indicator": 0.43
+      }
+    },
+    {
+      "segment_id": "test_grounded_077",
+      "text": "Selective coding focused on the central phenomenon and its properties.",
+      "analysis_mode": "grounded",
+      "difficulty": "high",
+      "length_category": "short",
+      "expected_results": {
+        "subcodes": [
+          "Structural Constraints",
+          "Spatial Considerations",
+          "Power Relations"
+        ],
+        "subcode_details": [
+          {
+            "name": "Emergent Patterns",
+            "definition": "Definition for Emergent Patterns",
+            "evidence": [
+              "Selective coding focused on the central phenomenon",
+              " and its properties."
+            ],
+            "keywords": [
+              "emergent_patterns",
+              "related_idea"
+            ],
+            "confidence": 0.66
+          },
+          {
+            "name": "Process Dynamics",
+            "definition": "Definition for Process Dynamics",
+            "evidence": [
+              "Selective coding focused on the central phenomenon",
+              " and its properties."
+            ],
+            "keywords": [
+              "process_dynamics",
+              "related_idea"
+            ],
+            "confidence": 0.6
+          }
+        ],
+        "memo": "Analytical memo for segment 077",
+        "saturation_indicator": 0.6
+      }
+    },
+    {
+      "segment_id": "test_grounded_078",
+      "text": "Axial coding helped identify relationships between core categories.",
+      "analysis_mode": "grounded",
+      "difficulty": "low",
+      "length_category": "short",
+      "expected_results": {
+        "subcodes": [
+          "Conceptual Relationships",
+          "Contextual Factors",
+          "Spatial Considerations",
+          "Agency and Action",
+          "Power Relations"
+        ],
+        "subcode_details": [
+          {
+            "name": "Structural Constraints",
+            "definition": "Definition for Structural Constraints",
+            "evidence": [
+              "Axial coding helped identify relationships between",
+              " core categories."
+            ],
+            "keywords": [
+              "structural_constraints",
+              "related_term"
+            ],
+            "confidence": 0.76
+          },
+          {
+            "name": "Temporal Dimensions",
+            "definition": "Definition for Temporal Dimensions",
+            "evidence": [
+              "Axial coding helped identify relationships between",
+              " core categories."
+            ],
+            "keywords": [
+              "temporal_dimensions",
+              "related_term"
+            ],
+            "confidence": 0.73
+          },
+          {
+            "name": "Spatial Considerations",
+            "definition": "Definition for Spatial Considerations",
+            "evidence": [
+              "Axial coding helped identify relationships between",
+              " core categories."
+            ],
+            "keywords": [
+              "spatial_considerations",
+              "related_idea"
+            ],
+            "confidence": 0.78
+          },
+          {
+            "name": "Process Dynamics",
+            "definition": "Definition for Process Dynamics",
+            "evidence": [
+              "Axial coding helped identify relationships between",
+              " core categories."
+            ],
+            "keywords": [
+              "process_dynamics",
+              "related_term"
+            ],
+            "confidence": 0.9
+          }
+        ],
+        "memo": "Analytical memo for segment 078",
+        "saturation_indicator": 0.54
+      }
+    },
+    {
+      "segment_id": "test_grounded_079",
+      "text": "Constant comparison highlighted similarities and differences across cases.",
+      "analysis_mode": "grounded",
+      "difficulty": "medium",
+      "length_category": "short",
+      "expected_results": {
+        "subcodes": [
+          "Structural Constraints",
+          "Emergent Patterns",
+          "Identity Construction",
+          "Agency and Action",
+          "Contextual Factors",
+          "Spatial Considerations"
+        ],
+        "subcode_details": [
+          {
+            "name": "Spatial Considerations",
+            "definition": "Definition for Spatial Considerations",
+            "evidence": [
+              "Constant comparison highlighted similarities and d",
+              "ifferences across cases."
+            ],
+            "keywords": [
+              "spatial_considerations",
+              "related_concept"
+            ],
+            "confidence": 0.72
+          },
+          {
+            "name": "Contextual Factors",
+            "definition": "Definition for Contextual Factors",
+            "evidence": [
+              "Constant comparison highlighted similarities and d",
+              "ifferences across cases."
+            ],
+            "keywords": [
+              "contextual_factors",
+              "related_idea"
+            ],
+            "confidence": 0.87
+          },
+          {
+            "name": "Identity Construction",
+            "definition": "Definition for Identity Construction",
+            "evidence": [
+              "Constant comparison highlighted similarities and d",
+              "ifferences across cases."
+            ],
+            "keywords": [
+              "identity_construction",
+              "related_concept"
+            ],
+            "confidence": 0.76
+          },
+          {
+            "name": "Structural Constraints",
+            "definition": "Definition for Structural Constraints",
+            "evidence": [
+              "Constant comparison highlighted similarities and d",
+              "ifferences across cases."
+            ],
+            "keywords": [
+              "structural_constraints",
+              "related_concept"
+            ],
+            "confidence": 0.9
+          }
+        ],
+        "memo": "Analytical memo for segment 079",
+        "saturation_indicator": 0.89
+      }
+    },
+    {
+      "segment_id": "test_grounded_080",
+      "text": "Axial coding helped identify relationships between core categories.",
+      "analysis_mode": "grounded",
+      "difficulty": "high",
+      "length_category": "short",
+      "expected_results": {
+        "subcodes": [
+          "Process Dynamics",
+          "Temporal Dimensions",
+          "Emergent Patterns",
+          "Contextual Factors",
+          "Agency and Action"
+        ],
+        "subcode_details": [
+          {
+            "name": "Temporal Dimensions",
+            "definition": "Definition for Temporal Dimensions",
+            "evidence": [
+              "Axial coding helped identify relationships between",
+              " core categories."
+            ],
+            "keywords": [
+              "temporal_dimensions",
+              "related_concept"
+            ],
+            "confidence": 0.94
+          },
+          {
+            "name": "Identity Construction",
+            "definition": "Definition for Identity Construction",
+            "evidence": [
+              "Axial coding helped identify relationships between",
+              " core categories."
+            ],
+            "keywords": [
+              "identity_construction",
+              "related_term"
+            ],
+            "confidence": 0.78
+          },
+          {
+            "name": "Contextual Factors",
+            "definition": "Definition for Contextual Factors",
+            "evidence": [
+              "Axial coding helped identify relationships between",
+              " core categories."
+            ],
+            "keywords": [
+              "contextual_factors",
+              "related_idea"
+            ],
+            "confidence": 0.72
+          }
+        ],
+        "memo": "Analytical memo for segment 080",
+        "saturation_indicator": 0.45
+      }
+    },
+    {
+      "segment_id": "test_grounded_081",
+      "text": "Theoretical sampling guided data collection toward saturation.",
+      "analysis_mode": "grounded",
+      "difficulty": "low",
+      "length_category": "short",
+      "expected_results": {
+        "subcodes": [
+          "Spatial Considerations",
+          "Emergent Patterns",
+          "Contextual Factors",
+          "Process Dynamics",
+          "Agency and Action",
+          "Conceptual Relationships"
+        ],
+        "subcode_details": [
+          {
+            "name": "Spatial Considerations",
+            "definition": "Definition for Spatial Considerations",
+            "evidence": [
+              "Theoretical sampling guided data collection toward",
+              " saturation."
+            ],
+            "keywords": [
+              "spatial_considerations",
+              "related_concept"
+            ],
+            "confidence": 0.82
+          },
+          {
+            "name": "Structural Constraints",
+            "definition": "Definition for Structural Constraints",
+            "evidence": [
+              "Theoretical sampling guided data collection toward",
+              " saturation."
+            ],
+            "keywords": [
+              "structural_constraints",
+              "related_concept"
+            ],
+            "confidence": 0.83
+          }
+        ],
+        "memo": "Analytical memo for segment 081",
+        "saturation_indicator": 0.83
+      }
+    },
+    {
+      "segment_id": "test_grounded_082",
+      "text": "Category development proceeded iteratively with data analysis.",
+      "analysis_mode": "grounded",
+      "difficulty": "medium",
+      "length_category": "short",
+      "expected_results": {
+        "subcodes": [
+          "Spatial Considerations",
+          "Power Relations",
+          "Emergent Patterns",
+          "Structural Constraints"
+        ],
+        "subcode_details": [
+          {
+            "name": "Process Dynamics",
+            "definition": "Definition for Process Dynamics",
+            "evidence": [
+              "Category development proceeded iteratively with da",
+              "ta analysis."
+            ],
+            "keywords": [
+              "process_dynamics",
+              "related_term"
+            ],
+            "confidence": 0.86
+          },
+          {
+            "name": "Structural Constraints",
+            "definition": "Definition for Structural Constraints",
+            "evidence": [
+              "Category development proceeded iteratively with da",
+              "ta analysis."
+            ],
+            "keywords": [
+              "structural_constraints",
+              "related_concept"
+            ],
+            "confidence": 0.94
+          }
+        ],
+        "memo": "Analytical memo for segment 082",
+        "saturation_indicator": 0.78
+      }
+    },
+    {
+      "segment_id": "test_grounded_083",
+      "text": "Initial coding revealed unexpected connections between concepts.",
+      "analysis_mode": "grounded",
+      "difficulty": "medium",
+      "length_category": "short",
+      "expected_results": {
+        "subcodes": [
+          "Structural Constraints",
+          "Emergent Patterns",
+          "Power Relations"
+        ],
+        "subcode_details": [
+          {
+            "name": "Emergent Patterns",
+            "definition": "Definition for Emergent Patterns",
+            "evidence": [
+              "Initial coding revealed unexpected connections bet",
+              "ween concepts."
+            ],
+            "keywords": [
+              "emergent_patterns",
+              "related_concept"
+            ],
+            "confidence": 0.75
+          },
+          {
+            "name": "Structural Constraints",
+            "definition": "Definition for Structural Constraints",
+            "evidence": [
+              "Initial coding revealed unexpected connections bet",
+              "ween concepts."
+            ],
+            "keywords": [
+              "structural_constraints",
+              "related_term"
+            ],
+            "confidence": 0.79
+          },
+          {
+            "name": "Agency and Action",
+            "definition": "Definition for Agency and Action",
+            "evidence": [
+              "Initial coding revealed unexpected connections bet",
+              "ween concepts."
+            ],
+            "keywords": [
+              "agency_and_action",
+              "related_idea"
+            ],
+            "confidence": 0.84
+          }
+        ],
+        "memo": "Analytical memo for segment 083",
+        "saturation_indicator": 0.49
+      }
+    },
+    {
+      "segment_id": "test_grounded_084",
+      "text": "Open coding produced a rich set of codes requiring further refinement.",
+      "analysis_mode": "grounded",
+      "difficulty": "low",
+      "length_category": "short",
+      "expected_results": {
+        "subcodes": [
+          "Temporal Dimensions",
+          "Process Dynamics",
+          "Spatial Considerations",
+          "Structural Constraints",
+          "Conceptual Relationships",
+          "Agency and Action"
+        ],
+        "subcode_details": [
+          {
+            "name": "Structural Constraints",
+            "definition": "Definition for Structural Constraints",
+            "evidence": [
+              "Open coding produced a rich set of codes requiring",
+              " further refinement."
+            ],
+            "keywords": [
+              "structural_constraints",
+              "related_idea"
+            ],
+            "confidence": 0.6
+          },
+          {
+            "name": "Spatial Considerations",
+            "definition": "Definition for Spatial Considerations",
+            "evidence": [
+              "Open coding produced a rich set of codes requiring",
+              " further refinement."
+            ],
+            "keywords": [
+              "spatial_considerations",
+              "related_concept"
+            ],
+            "confidence": 0.92
+          },
+          {
+            "name": "Identity Construction",
+            "definition": "Definition for Identity Construction",
+            "evidence": [
+              "Open coding produced a rich set of codes requiring",
+              " further refinement."
+            ],
+            "keywords": [
+              "identity_construction",
+              "related_idea"
+            ],
+            "confidence": 0.79
+          }
+        ],
+        "memo": "Analytical memo for segment 084",
+        "saturation_indicator": 0.44
+      }
+    },
+    {
+      "segment_id": "test_grounded_085",
+      "text": "Memo writing captured analytical insights during the coding process.",
+      "analysis_mode": "grounded",
+      "difficulty": "high",
+      "length_category": "short",
+      "expected_results": {
+        "subcodes": [
+          "Temporal Dimensions",
+          "Structural Constraints",
+          "Spatial Considerations",
+          "Identity Construction"
+        ],
+        "subcode_details": [
+          {
+            "name": "Process Dynamics",
+            "definition": "Definition for Process Dynamics",
+            "evidence": [
+              "Memo writing captured analytical insights during t",
+              "he coding process."
+            ],
+            "keywords": [
+              "process_dynamics",
+              "related_term"
+            ],
+            "confidence": 0.68
+          },
+          {
+            "name": "Temporal Dimensions",
+            "definition": "Definition for Temporal Dimensions",
+            "evidence": [
+              "Memo writing captured analytical insights during t",
+              "he coding process."
+            ],
+            "keywords": [
+              "temporal_dimensions",
+              "related_idea"
+            ],
+            "confidence": 0.73
+          },
+          {
+            "name": "Spatial Considerations",
+            "definition": "Definition for Spatial Considerations",
+            "evidence": [
+              "Memo writing captured analytical insights during t",
+              "he coding process."
+            ],
+            "keywords": [
+              "spatial_considerations",
+              "related_concept"
+            ],
+            "confidence": 0.95
+          }
+        ],
+        "memo": "Analytical memo for segment 085",
+        "saturation_indicator": 0.55
+      }
+    },
+    {
+      "segment_id": "test_grounded_086",
+      "text": "Constant comparison highlighted similarities and differences across cases.",
+      "analysis_mode": "grounded",
+      "difficulty": "medium",
+      "length_category": "short",
+      "expected_results": {
+        "subcodes": [
+          "Identity Construction",
+          "Emergent Patterns"
+        ],
+        "subcode_details": [
+          {
+            "name": "Spatial Considerations",
+            "definition": "Definition for Spatial Considerations",
+            "evidence": [
+              "Constant comparison highlighted similarities and d",
+              "ifferences across cases."
+            ],
+            "keywords": [
+              "spatial_considerations",
+              "related_concept"
+            ],
+            "confidence": 0.68
+          },
+          {
+            "name": "Structural Constraints",
+            "definition": "Definition for Structural Constraints",
+            "evidence": [
+              "Constant comparison highlighted similarities and d",
+              "ifferences across cases."
+            ],
+            "keywords": [
+              "structural_constraints",
+              "related_term"
+            ],
+            "confidence": 0.82
+          },
+          {
+            "name": "Process Dynamics",
+            "definition": "Definition for Process Dynamics",
+            "evidence": [
+              "Constant comparison highlighted similarities and d",
+              "ifferences across cases."
+            ],
+            "keywords": [
+              "process_dynamics",
+              "related_idea"
+            ],
+            "confidence": 0.86
+          },
+          {
+            "name": "Power Relations",
+            "definition": "Definition for Power Relations",
+            "evidence": [
+              "Constant comparison highlighted similarities and d",
+              "ifferences across cases."
+            ],
+            "keywords": [
+              "power_relations",
+              "related_idea"
+            ],
+            "confidence": 0.84
+          }
+        ],
+        "memo": "Analytical memo for segment 086",
+        "saturation_indicator": 0.47
+      }
+    },
+    {
+      "segment_id": "test_grounded_087",
+      "text": "Initial coding revealed unexpected connections between concepts.",
+      "analysis_mode": "grounded",
+      "difficulty": "high",
+      "length_category": "short",
+      "expected_results": {
+        "subcodes": [
+          "Structural Constraints",
+          "Spatial Considerations"
+        ],
+        "subcode_details": [
+          {
+            "name": "Identity Construction",
+            "definition": "Definition for Identity Construction",
+            "evidence": [
+              "Initial coding revealed unexpected connections bet",
+              "ween concepts."
+            ],
+            "keywords": [
+              "identity_construction",
+              "related_idea"
+            ],
+            "confidence": 0.65
+          },
+          {
+            "name": "Agency and Action",
+            "definition": "Definition for Agency and Action",
+            "evidence": [
+              "Initial coding revealed unexpected connections bet",
+              "ween concepts."
+            ],
+            "keywords": [
+              "agency_and_action",
+              "related_concept"
+            ],
+            "confidence": 0.71
+          }
+        ],
+        "memo": "Analytical memo for segment 087",
+        "saturation_indicator": 0.61
+      }
+    },
+    {
+      "segment_id": "test_grounded_088",
+      "text": "Axial coding helped identify relationships between core categories.",
+      "analysis_mode": "grounded",
+      "difficulty": "low",
+      "length_category": "short",
+      "expected_results": {
+        "subcodes": [
+          "Agency and Action",
+          "Power Relations",
+          "Structural Constraints",
+          "Temporal Dimensions",
+          "Conceptual Relationships",
+          "Contextual Factors"
+        ],
+        "subcode_details": [
+          {
+            "name": "Structural Constraints",
+            "definition": "Definition for Structural Constraints",
+            "evidence": [
+              "Axial coding helped identify relationships between",
+              " core categories."
+            ],
+            "keywords": [
+              "structural_constraints",
+              "related_concept"
+            ],
+            "confidence": 0.94
+          },
+          {
+            "name": "Agency and Action",
+            "definition": "Definition for Agency and Action",
+            "evidence": [
+              "Axial coding helped identify relationships between",
+              " core categories."
+            ],
+            "keywords": [
+              "agency_and_action",
+              "related_term"
+            ],
+            "confidence": 0.86
+          },
+          {
+            "name": "Conceptual Relationships",
+            "definition": "Definition for Conceptual Relationships",
+            "evidence": [
+              "Axial coding helped identify relationships between",
+              " core categories."
+            ],
+            "keywords": [
+              "conceptual_relationships",
+              "related_term"
+            ],
+            "confidence": 0.9
+          }
+        ],
+        "memo": "Analytical memo for segment 088",
+        "saturation_indicator": 0.76
+      }
+    },
+    {
+      "segment_id": "test_grounded_089",
+      "text": "Constant comparison highlighted similarities and differences across cases.",
+      "analysis_mode": "grounded",
+      "difficulty": "high",
+      "length_category": "short",
+      "expected_results": {
+        "subcodes": [
+          "Conceptual Relationships",
+          "Temporal Dimensions",
+          "Emergent Patterns",
+          "Contextual Factors"
+        ],
+        "subcode_details": [
+          {
+            "name": "Conceptual Relationships",
+            "definition": "Definition for Conceptual Relationships",
+            "evidence": [
+              "Constant comparison highlighted similarities and d",
+              "ifferences across cases."
+            ],
+            "keywords": [
+              "conceptual_relationships",
+              "related_idea"
+            ],
+            "confidence": 0.84
+          },
+          {
+            "name": "Spatial Considerations",
+            "definition": "Definition for Spatial Considerations",
+            "evidence": [
+              "Constant comparison highlighted similarities and d",
+              "ifferences across cases."
+            ],
+            "keywords": [
+              "spatial_considerations",
+              "related_idea"
+            ],
+            "confidence": 0.73
+          },
+          {
+            "name": "Agency and Action",
+            "definition": "Definition for Agency and Action",
+            "evidence": [
+              "Constant comparison highlighted similarities and d",
+              "ifferences across cases."
+            ],
+            "keywords": [
+              "agency_and_action",
+              "related_idea"
+            ],
+            "confidence": 0.93
+          },
+          {
+            "name": "Power Relations",
+            "definition": "Definition for Power Relations",
+            "evidence": [
+              "Constant comparison highlighted similarities and d",
+              "ifferences across cases."
+            ],
+            "keywords": [
+              "power_relations",
+              "related_term"
+            ],
+            "confidence": 0.84
+          }
+        ],
+        "memo": "Analytical memo for segment 089",
+        "saturation_indicator": 0.64
+      }
+    },
+    {
+      "segment_id": "test_grounded_090",
+      "text": "Conceptual integration synthesized findings into a coherent theory.",
+      "analysis_mode": "grounded",
+      "difficulty": "high",
+      "length_category": "short",
+      "expected_results": {
+        "subcodes": [
+          "Identity Construction",
+          "Process Dynamics",
+          "Conceptual Relationships",
+          "Agency and Action"
+        ],
+        "subcode_details": [
+          {
+            "name": "Structural Constraints",
+            "definition": "Definition for Structural Constraints",
+            "evidence": [
+              "Conceptual integration synthesized findings into a",
+              " coherent theory."
+            ],
+            "keywords": [
+              "structural_constraints",
+              "related_term"
+            ],
+            "confidence": 0.62
+          },
+          {
+            "name": "Temporal Dimensions",
+            "definition": "Definition for Temporal Dimensions",
+            "evidence": [
+              "Conceptual integration synthesized findings into a",
+              " coherent theory."
+            ],
+            "keywords": [
+              "temporal_dimensions",
+              "related_term"
+            ],
+            "confidence": 0.71
+          },
+          {
+            "name": "Conceptual Relationships",
+            "definition": "Definition for Conceptual Relationships",
+            "evidence": [
+              "Conceptual integration synthesized findings into a",
+              " coherent theory."
+            ],
+            "keywords": [
+              "conceptual_relationships",
+              "related_concept"
+            ],
+            "confidence": 0.64
+          }
+        ],
+        "memo": "Analytical memo for segment 090",
+        "saturation_indicator": 0.52
+      }
+    },
+    {
+      "segment_id": "test_grounded_091",
+      "text": "Category development proceeded iteratively with data analysis.",
+      "analysis_mode": "grounded",
+      "difficulty": "low",
+      "length_category": "short",
+      "expected_results": {
+        "subcodes": [
+          "Spatial Considerations",
+          "Agency and Action",
+          "Temporal Dimensions",
+          "Structural Constraints",
+          "Power Relations"
+        ],
+        "subcode_details": [
+          {
+            "name": "Contextual Factors",
+            "definition": "Definition for Contextual Factors",
+            "evidence": [
+              "Category development proceeded iteratively with da",
+              "ta analysis."
+            ],
+            "keywords": [
+              "contextual_factors",
+              "related_concept"
+            ],
+            "confidence": 0.82
+          },
+          {
+            "name": "Temporal Dimensions",
+            "definition": "Definition for Temporal Dimensions",
+            "evidence": [
+              "Category development proceeded iteratively with da",
+              "ta analysis."
+            ],
+            "keywords": [
+              "temporal_dimensions",
+              "related_concept"
+            ],
+            "confidence": 0.61
+          },
+          {
+            "name": "Conceptual Relationships",
+            "definition": "Definition for Conceptual Relationships",
+            "evidence": [
+              "Category development proceeded iteratively with da",
+              "ta analysis."
+            ],
+            "keywords": [
+              "conceptual_relationships",
+              "related_concept"
+            ],
+            "confidence": 0.68
+          },
+          {
+            "name": "Power Relations",
+            "definition": "Definition for Power Relations",
+            "evidence": [
+              "Category development proceeded iteratively with da",
+              "ta analysis."
+            ],
+            "keywords": [
+              "power_relations",
+              "related_concept"
+            ],
+            "confidence": 0.93
+          }
+        ],
+        "memo": "Analytical memo for segment 091",
+        "saturation_indicator": 0.83
+      }
+    },
+    {
+      "segment_id": "test_grounded_092",
+      "text": "Initial coding revealed unexpected connections between concepts.",
+      "analysis_mode": "grounded",
+      "difficulty": "high",
+      "length_category": "short",
+      "expected_results": {
+        "subcodes": [
+          "Power Relations",
+          "Agency and Action",
+          "Emergent Patterns",
+          "Process Dynamics"
+        ],
+        "subcode_details": [
+          {
+            "name": "Process Dynamics",
+            "definition": "Definition for Process Dynamics",
+            "evidence": [
+              "Initial coding revealed unexpected connections bet",
+              "ween concepts."
+            ],
+            "keywords": [
+              "process_dynamics",
+              "related_term"
+            ],
+            "confidence": 0.83
+          },
+          {
+            "name": "Conceptual Relationships",
+            "definition": "Definition for Conceptual Relationships",
+            "evidence": [
+              "Initial coding revealed unexpected connections bet",
+              "ween concepts."
+            ],
+            "keywords": [
+              "conceptual_relationships",
+              "related_idea"
+            ],
+            "confidence": 0.82
+          },
+          {
+            "name": "Spatial Considerations",
+            "definition": "Definition for Spatial Considerations",
+            "evidence": [
+              "Initial coding revealed unexpected connections bet",
+              "ween concepts."
+            ],
+            "keywords": [
+              "spatial_considerations",
+              "related_term"
+            ],
+            "confidence": 0.62
+          }
+        ],
+        "memo": "Analytical memo for segment 092",
+        "saturation_indicator": 0.57
+      }
+    },
+    {
+      "segment_id": "test_grounded_093",
+      "text": "Open coding produced a rich set of codes requiring further refinement.",
+      "analysis_mode": "grounded",
+      "difficulty": "high",
+      "length_category": "short",
+      "expected_results": {
+        "subcodes": [
+          "Conceptual Relationships",
+          "Power Relations",
+          "Process Dynamics"
+        ],
+        "subcode_details": [
+          {
+            "name": "Process Dynamics",
+            "definition": "Definition for Process Dynamics",
+            "evidence": [
+              "Open coding produced a rich set of codes requiring",
+              " further refinement."
+            ],
+            "keywords": [
+              "process_dynamics",
+              "related_term"
+            ],
+            "confidence": 0.88
+          },
+          {
+            "name": "Identity Construction",
+            "definition": "Definition for Identity Construction",
+            "evidence": [
+              "Open coding produced a rich set of codes requiring",
+              " further refinement."
+            ],
+            "keywords": [
+              "identity_construction",
+              "related_idea"
+            ],
+            "confidence": 0.6
+          },
+          {
+            "name": "Agency and Action",
+            "definition": "Definition for Agency and Action",
+            "evidence": [
+              "Open coding produced a rich set of codes requiring",
+              " further refinement."
+            ],
+            "keywords": [
+              "agency_and_action",
+              "related_term"
+            ],
+            "confidence": 0.95
+          },
+          {
+            "name": "Temporal Dimensions",
+            "definition": "Definition for Temporal Dimensions",
+            "evidence": [
+              "Open coding produced a rich set of codes requiring",
+              " further refinement."
+            ],
+            "keywords": [
+              "temporal_dimensions",
+              "related_idea"
+            ],
+            "confidence": 0.69
+          }
+        ],
+        "memo": "Analytical memo for segment 093",
+        "saturation_indicator": 0.49
+      }
+    },
+    {
+      "segment_id": "test_grounded_094",
+      "text": "The data suggests several emergent categories that were not anticipated.",
+      "analysis_mode": "grounded",
+      "difficulty": "low",
+      "length_category": "short",
+      "expected_results": {
+        "subcodes": [
+          "Agency and Action",
+          "Process Dynamics"
+        ],
+        "subcode_details": [
+          {
+            "name": "Agency and Action",
+            "definition": "Definition for Agency and Action",
+            "evidence": [
+              "The data suggests several emergent categories that",
+              " were not anticipated."
+            ],
+            "keywords": [
+              "agency_and_action",
+              "related_term"
+            ],
+            "confidence": 0.64
+          },
+          {
+            "name": "Emergent Patterns",
+            "definition": "Definition for Emergent Patterns",
+            "evidence": [
+              "The data suggests several emergent categories that",
+              " were not anticipated."
+            ],
+            "keywords": [
+              "emergent_patterns",
+              "related_concept"
+            ],
+            "confidence": 0.78
+          },
+          {
+            "name": "Contextual Factors",
+            "definition": "Definition for Contextual Factors",
+            "evidence": [
+              "The data suggests several emergent categories that",
+              " were not anticipated."
+            ],
+            "keywords": [
+              "contextual_factors",
+              "related_idea"
+            ],
+            "confidence": 0.62
+          },
+          {
+            "name": "Spatial Considerations",
+            "definition": "Definition for Spatial Considerations",
+            "evidence": [
+              "The data suggests several emergent categories that",
+              " were not anticipated."
+            ],
+            "keywords": [
+              "spatial_considerations",
+              "related_concept"
+            ],
+            "confidence": 0.87
+          }
+        ],
+        "memo": "Analytical memo for segment 094",
+        "saturation_indicator": 0.66
+      }
+    },
+    {
+      "segment_id": "test_grounded_095",
+      "text": "Initial coding revealed unexpected connections between concepts.",
+      "analysis_mode": "grounded",
+      "difficulty": "medium",
+      "length_category": "short",
+      "expected_results": {
+        "subcodes": [
+          "Process Dynamics",
+          "Emergent Patterns",
+          "Structural Constraints",
+          "Identity Construction",
+          "Agency and Action",
+          "Power Relations"
+        ],
+        "subcode_details": [
+          {
+            "name": "Spatial Considerations",
+            "definition": "Definition for Spatial Considerations",
+            "evidence": [
+              "Initial coding revealed unexpected connections bet",
+              "ween concepts."
+            ],
+            "keywords": [
+              "spatial_considerations",
+              "related_concept"
+            ],
+            "confidence": 0.84
+          },
+          {
+            "name": "Temporal Dimensions",
+            "definition": "Definition for Temporal Dimensions",
+            "evidence": [
+              "Initial coding revealed unexpected connections bet",
+              "ween concepts."
+            ],
+            "keywords": [
+              "temporal_dimensions",
+              "related_concept"
+            ],
+            "confidence": 0.85
+          }
+        ],
+        "memo": "Analytical memo for segment 095",
+        "saturation_indicator": 0.62
+      }
+    },
+    {
+      "segment_id": "test_grounded_096",
+      "text": "Initial coding revealed unexpected connections between concepts.",
+      "analysis_mode": "grounded",
+      "difficulty": "medium",
+      "length_category": "short",
+      "expected_results": {
+        "subcodes": [
+          "Contextual Factors",
+          "Conceptual Relationships",
+          "Identity Construction",
+          "Spatial Considerations",
+          "Structural Constraints",
+          "Agency and Action"
+        ],
+        "subcode_details": [
+          {
+            "name": "Agency and Action",
+            "definition": "Definition for Agency and Action",
+            "evidence": [
+              "Initial coding revealed unexpected connections bet",
+              "ween concepts."
+            ],
+            "keywords": [
+              "agency_and_action",
+              "related_idea"
+            ],
+            "confidence": 0.81
+          },
+          {
+            "name": "Temporal Dimensions",
+            "definition": "Definition for Temporal Dimensions",
+            "evidence": [
+              "Initial coding revealed unexpected connections bet",
+              "ween concepts."
+            ],
+            "keywords": [
+              "temporal_dimensions",
+              "related_term"
+            ],
+            "confidence": 0.88
+          },
+          {
+            "name": "Structural Constraints",
+            "definition": "Definition for Structural Constraints",
+            "evidence": [
+              "Initial coding revealed unexpected connections bet",
+              "ween concepts."
+            ],
+            "keywords": [
+              "structural_constraints",
+              "related_term"
+            ],
+            "confidence": 0.9
+          },
+          {
+            "name": "Process Dynamics",
+            "definition": "Definition for Process Dynamics",
+            "evidence": [
+              "Initial coding revealed unexpected connections bet",
+              "ween concepts."
+            ],
+            "keywords": [
+              "process_dynamics",
+              "related_idea"
+            ],
+            "confidence": 0.91
+          }
+        ],
+        "memo": "Analytical memo for segment 096",
+        "saturation_indicator": 0.68
+      }
+    },
+    {
+      "segment_id": "test_grounded_097",
+      "text": "Axial coding helped identify relationships between core categories.",
+      "analysis_mode": "grounded",
+      "difficulty": "medium",
+      "length_category": "short",
+      "expected_results": {
+        "subcodes": [
+          "Process Dynamics",
+          "Temporal Dimensions",
+          "Agency and Action",
+          "Power Relations",
+          "Identity Construction"
+        ],
+        "subcode_details": [
+          {
+            "name": "Temporal Dimensions",
+            "definition": "Definition for Temporal Dimensions",
+            "evidence": [
+              "Axial coding helped identify relationships between",
+              " core categories."
+            ],
+            "keywords": [
+              "temporal_dimensions",
+              "related_concept"
+            ],
+            "confidence": 0.71
+          },
+          {
+            "name": "Conceptual Relationships",
+            "definition": "Definition for Conceptual Relationships",
+            "evidence": [
+              "Axial coding helped identify relationships between",
+              " core categories."
+            ],
+            "keywords": [
+              "conceptual_relationships",
+              "related_concept"
+            ],
+            "confidence": 0.73
+          },
+          {
+            "name": "Agency and Action",
+            "definition": "Definition for Agency and Action",
+            "evidence": [
+              "Axial coding helped identify relationships between",
+              " core categories."
+            ],
+            "keywords": [
+              "agency_and_action",
+              "related_term"
+            ],
+            "confidence": 0.84
+          }
+        ],
+        "memo": "Analytical memo for segment 097",
+        "saturation_indicator": 0.64
+      }
+    },
+    {
+      "segment_id": "test_grounded_098",
+      "text": "Initial coding revealed unexpected connections between concepts.",
+      "analysis_mode": "grounded",
+      "difficulty": "low",
+      "length_category": "short",
+      "expected_results": {
+        "subcodes": [
+          "Temporal Dimensions",
+          "Conceptual Relationships"
+        ],
+        "subcode_details": [
+          {
+            "name": "Agency and Action",
+            "definition": "Definition for Agency and Action",
+            "evidence": [
+              "Initial coding revealed unexpected connections bet",
+              "ween concepts."
+            ],
+            "keywords": [
+              "agency_and_action",
+              "related_idea"
+            ],
+            "confidence": 0.8
+          },
+          {
+            "name": "Contextual Factors",
+            "definition": "Definition for Contextual Factors",
+            "evidence": [
+              "Initial coding revealed unexpected connections bet",
+              "ween concepts."
+            ],
+            "keywords": [
+              "contextual_factors",
+              "related_idea"
+            ],
+            "confidence": 0.64
+          },
+          {
+            "name": "Emergent Patterns",
+            "definition": "Definition for Emergent Patterns",
+            "evidence": [
+              "Initial coding revealed unexpected connections bet",
+              "ween concepts."
+            ],
+            "keywords": [
+              "emergent_patterns",
+              "related_concept"
+            ],
+            "confidence": 0.91
+          },
+          {
+            "name": "Structural Constraints",
+            "definition": "Definition for Structural Constraints",
+            "evidence": [
+              "Initial coding revealed unexpected connections bet",
+              "ween concepts."
+            ],
+            "keywords": [
+              "structural_constraints",
+              "related_concept"
+            ],
+            "confidence": 0.9
+          }
+        ],
+        "memo": "Analytical memo for segment 098",
+        "saturation_indicator": 0.76
+      }
+    },
+    {
+      "segment_id": "test_grounded_099",
+      "text": "Selective coding focused on the central phenomenon and its properties.",
+      "analysis_mode": "grounded",
+      "difficulty": "high",
+      "length_category": "short",
+      "expected_results": {
+        "subcodes": [
+          "Agency and Action",
+          "Conceptual Relationships",
+          "Process Dynamics",
+          "Power Relations"
+        ],
+        "subcode_details": [
+          {
+            "name": "Spatial Considerations",
+            "definition": "Definition for Spatial Considerations",
+            "evidence": [
+              "Selective coding focused on the central phenomenon",
+              " and its properties."
+            ],
+            "keywords": [
+              "spatial_considerations",
+              "related_idea"
+            ],
+            "confidence": 0.73
+          },
+          {
+            "name": "Process Dynamics",
+            "definition": "Definition for Process Dynamics",
+            "evidence": [
+              "Selective coding focused on the central phenomenon",
+              " and its properties."
+            ],
+            "keywords": [
+              "process_dynamics",
+              "related_concept"
+            ],
+            "confidence": 0.8
+          },
+          {
+            "name": "Conceptual Relationships",
+            "definition": "Definition for Conceptual Relationships",
+            "evidence": [
+              "Selective coding focused on the central phenomenon",
+              " and its properties."
+            ],
+            "keywords": [
+              "conceptual_relationships",
+              "related_concept"
+            ],
+            "confidence": 0.9
+          },
+          {
+            "name": "Contextual Factors",
+            "definition": "Definition for Contextual Factors",
+            "evidence": [
+              "Selective coding focused on the central phenomenon",
+              " and its properties."
+            ],
+            "keywords": [
+              "contextual_factors",
+              "related_idea"
+            ],
+            "confidence": 0.81
+          }
+        ],
+        "memo": "Analytical memo for segment 099",
+        "saturation_indicator": 0.72
+      }
+    },
+    {
+      "segment_id": "test_grounded_100",
+      "text": "The data suggests several emergent categories that were not anticipated.",
+      "analysis_mode": "grounded",
+      "difficulty": "high",
+      "length_category": "short",
+      "expected_results": {
+        "subcodes": [
+          "Emergent Patterns",
+          "Contextual Factors",
+          "Structural Constraints",
+          "Agency and Action"
+        ],
+        "subcode_details": [
+          {
+            "name": "Agency and Action",
+            "definition": "Definition for Agency and Action",
+            "evidence": [
+              "The data suggests several emergent categories that",
+              " were not anticipated."
+            ],
+            "keywords": [
+              "agency_and_action",
+              "related_term"
+            ],
+            "confidence": 0.9
+          },
+          {
+            "name": "Identity Construction",
+            "definition": "Definition for Identity Construction",
+            "evidence": [
+              "The data suggests several emergent categories that",
+              " were not anticipated."
+            ],
+            "keywords": [
+              "identity_construction",
+              "related_idea"
+            ],
+            "confidence": 0.83
+          },
+          {
+            "name": "Emergent Patterns",
+            "definition": "Definition for Emergent Patterns",
+            "evidence": [
+              "The data suggests several emergent categories that",
+              " were not anticipated."
+            ],
+            "keywords": [
+              "emergent_patterns",
+              "related_term"
+            ],
+            "confidence": 0.65
+          }
+        ],
+        "memo": "Analytical memo for segment 100",
+        "saturation_indicator": 0.72
+      }
+    }
+  ],
+  "baseline_metrics": {
+    "deductive": {
+      "api_calls_per_segment": 2.2,
+      "processing_time_seconds": 15.3,
+      "intercoder_reliability": 0.78,
+      "precision": 0.82,
+      "recall": 0.76,
+      "f1_score": 0.79
+    },
+    "inductive": {
+      "api_calls_per_segment": 1.0,
+      "processing_time_seconds": 12.7,
+      "intercoder_reliability": 0.72,
+      "precision": 0.75,
+      "recall": 0.71,
+      "f1_score": 0.73
+    },
+    "abductive": {
+      "api_calls_per_segment": 1.0,
+      "processing_time_seconds": 11.8,
+      "intercoder_reliability": 0.74,
+      "precision": 0.77,
+      "recall": 0.73,
+      "f1_score": 0.75
+    },
+    "grounded": {
+      "api_calls_per_segment": 1.0,
+      "processing_time_seconds": 14.2,
+      "intercoder_reliability": 0.71,
+      "precision": 0.74,
+      "recall": 0.69,
+      "f1_score": 0.71
+    }
+  }
+}

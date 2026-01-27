@@ -1,0 +1,3188 @@
+{
+  "metadata": {
+    "generated_at": "2025-12-07T12:32:11.552257",
+    "version": "1.1",
+    "description": "Enhanced test dataset for API call optimization validation with real input texts",
+    "segments_per_mode": 25,
+    "total_segments": 100,
+    "input_files_used": [
+      "input\\.input-dir",
+      "input\\dummy_solar_media.txt",
+      "input\\test_interview.txt",
+      "input\\text_demo_wiss.pdf"
+    ],
+    "real_texts_used": true
+  },
+  "segments": [
+    {
+      "segment_id": "test_deductive_001",
+      "text": "Und die HOCHSCHULE HS1 schreibt sich auch die Qualität in der Lehre\nimmer ganz vorne mit drauf.",
+      "analysis_mode": "deductive",
+      "difficulty": "high",
+      "length_category": "short",
+      "expected_results": {
+        "category": "Sustainable Development",
+        "subcategories": [
+          "Stakeholder Engagement"
+        ],
+        "confidence": {
+          "total": 0.71,
+          "category": 0.84,
+          "subcategories": 0.69
+        },
+        "multiple_coding": true,
+        "relevance_scores": {
+          "research_relevance": 0.69,
+          "coding_relevance": 0.73
+        }
+      }
+    },
+    {
+      "segment_id": "test_deductive_002",
+      "text": "Das junge Berliner Solarunternehmen wurde innerhalb kürzester Zeit zum deutschen Solar Marktführer (Quelle).",
+      "analysis_mode": "deductive",
+      "difficulty": "medium",
+      "length_category": "short",
+      "expected_results": {
+        "category": "Social Acceptance",
+        "subcategories": [
+          "Economic Factors",
+          "Environmental Impact"
+        ],
+        "confidence": {
+          "total": 0.88,
+          "category": 0.92,
+          "subcategories": 0.62
+        },
+        "multiple_coding": false,
+        "relevance_scores": {
+          "research_relevance": 0.81,
+          "coding_relevance": 0.77
+        }
+      }
+    },
+    {
+      "segment_id": "test_deductive_003",
+      "text": "Das heißt, die Frage mehr\nsozusagen nur, gibt es von außen, also sprich von dem Prorektorat oder der Hochschulleitung Anreize\noder auch Druck oder dergleichen?",
+      "analysis_mode": "deductive",
+      "difficulty": "medium",
+      "length_category": "medium",
+      "expected_results": {
+        "category": "International Cooperation",
+        "subcategories": [
+          "Social Acceptance"
+        ],
+        "confidence": {
+          "total": 0.91,
+          "category": 0.94,
+          "subcategories": 0.67
+        },
+        "multiple_coding": true,
+        "relevance_scores": {
+          "research_relevance": 0.73,
+          "coding_relevance": 0.78
+        }
+      }
+    },
+    {
+      "segment_id": "test_deductive_004",
+      "text": "Mit meinen Nachhaltigkeitsmanagern bin ich im Austausch und\nja, das ist der positive Effekt.",
+      "analysis_mode": "deductive",
+      "difficulty": "high",
+      "length_category": "short",
+      "expected_results": {
+        "category": "Behavioral Change",
+        "subcategories": [
+          "Behavioral Change",
+          "Technology Adoption"
+        ],
+        "confidence": {
+          "total": 0.77,
+          "category": 0.84,
+          "subcategories": 0.77
+        },
+        "multiple_coding": true,
+        "relevance_scores": {
+          "research_relevance": 0.83,
+          "coding_relevance": 0.97
+        }
+      }
+    },
+    {
+      "segment_id": "test_deductive_005",
+      "text": "Technologische Innovation treibt Effizienzverbesserungen in industriellen Prozessen voran.",
+      "analysis_mode": "deductive",
+      "difficulty": "medium",
+      "length_category": "short",
+      "expected_results": {
+        "category": "International Cooperation",
+        "subcategories": [
+          "Stakeholder Engagement",
+          "Policy Implementation"
+        ],
+        "confidence": {
+          "total": 0.92,
+          "category": 0.83,
+          "subcategories": 0.65
+        },
+        "multiple_coding": false,
+        "relevance_scores": {
+          "research_relevance": 0.84,
+          "coding_relevance": 0.82
+        }
+      }
+    },
+    {
+      "segment_id": "test_deductive_006",
+      "text": "Ich habe Unternehmensbesuche, zu denen ich eingeladen werde von\nberufsbegleitenden Studierenden oder die eine ist bei einem Institut, die auch eine nachhaltige Zeitung\nveröffentlichen, wo ich angeschrieben werde, zu veröffentlichen.",
+      "analysis_mode": "deductive",
+      "difficulty": "medium",
+      "length_category": "medium",
+      "expected_results": {
+        "category": "International Cooperation",
+        "subcategories": [
+          "Stakeholder Engagement"
+        ],
+        "confidence": {
+          "total": 0.87,
+          "category": 0.9,
+          "subcategories": 0.68
+        },
+        "multiple_coding": false,
+        "relevance_scores": {
+          "research_relevance": 0.64,
+          "coding_relevance": 0.83
+        }
+      }
+    },
+    {
+      "segment_id": "test_deductive_007",
+      "text": "Das heißt, die Frage mehr\nsozusagen nur, gibt es von außen, also sprich von dem Prorektorat oder der Hochschulleitung Anreize\noder auch Druck oder dergleichen?",
+      "analysis_mode": "deductive",
+      "difficulty": "low",
+      "length_category": "medium",
+      "expected_results": {
+        "category": "Technology Adoption",
+        "subcategories": [
+          "Stakeholder Engagement",
+          "Environmental Impact",
+          "Economic Factors"
+        ],
+        "confidence": {
+          "total": 0.74,
+          "category": 0.94,
+          "subcategories": 0.76
+        },
+        "multiple_coding": false,
+        "relevance_scores": {
+          "research_relevance": 0.81,
+          "coding_relevance": 0.7
+        }
+      }
+    },
+    {
+      "segment_id": "test_deductive_008",
+      "text": "Wenn ich die ganze Zeit in meiner Lehre dümpel und zehnmal das\nModul Grundlagen Nachhaltigkeit Unternehmensführung lehre, dann passiert da nicht viel.",
+      "analysis_mode": "deductive",
+      "difficulty": "medium",
+      "length_category": "medium",
+      "expected_results": {
+        "category": "Social Acceptance",
+        "subcategories": [
+          "Economic Factors",
+          "Policy Implementation"
+        ],
+        "confidence": {
+          "total": 0.76,
+          "category": 0.9,
+          "subcategories": 0.62
+        },
+        "multiple_coding": false,
+        "relevance_scores": {
+          "research_relevance": 0.93,
+          "coding_relevance": 0.99
+        }
+      }
+    },
+    {
+      "segment_id": "test_deductive_009",
+      "text": "Dokumentenanalyse legt institutionelle Barrieren für Innovationsadoption nahe.",
+      "analysis_mode": "deductive",
+      "difficulty": "low",
+      "length_category": "short",
+      "expected_results": {
+        "category": "Behavioral Change",
+        "subcategories": [
+          "Technology Adoption",
+          "Environmental Impact",
+          "Regulatory Framework"
+        ],
+        "confidence": {
+          "total": 0.94,
+          "category": 0.97,
+          "subcategories": 0.83
+        },
+        "multiple_coding": false,
+        "relevance_scores": {
+          "research_relevance": 0.89,
+          "coding_relevance": 0.82
+        }
+      }
+    },
+    {
+      "segment_id": "test_deductive_010",
+      "text": "Offene Kodierung produzierte einen reichen Satz von Codes, die weitere Verfeinerung erfordern.",
+      "analysis_mode": "deductive",
+      "difficulty": "high",
+      "length_category": "short",
+      "expected_results": {
+        "category": "International Cooperation",
+        "subcategories": [
+          "Stakeholder Engagement",
+          "Economic Factors"
+        ],
+        "confidence": {
+          "total": 0.76,
+          "category": 0.86,
+          "subcategories": 0.78
+        },
+        "multiple_coding": true,
+        "relevance_scores": {
+          "research_relevance": 0.69,
+          "coding_relevance": 0.72
+        }
+      }
+    },
+    {
+      "segment_id": "test_deductive_011",
+      "text": "Offene Kodierung produzierte einen reichen Satz von Codes, die weitere Verfeinerung erfordern.",
+      "analysis_mode": "deductive",
+      "difficulty": "low",
+      "length_category": "short",
+      "expected_results": {
+        "category": "Policy Implementation",
+        "subcategories": [
+          "Stakeholder Engagement",
+          "International Cooperation"
+        ],
+        "confidence": {
+          "total": 0.76,
+          "category": 0.92,
+          "subcategories": 0.66
+        },
+        "multiple_coding": true,
+        "relevance_scores": {
+          "research_relevance": 0.97,
+          "coding_relevance": 0.87
+        }
+      }
+    },
+    {
+      "segment_id": "test_deductive_012",
+      "text": "Das heißt, die Frage mehr\nsozusagen nur, gibt es von außen, also sprich von dem Prorektorat oder der Hochschulleitung Anreize\noder auch Druck oder dergleichen?",
+      "analysis_mode": "deductive",
+      "difficulty": "low",
+      "length_category": "medium",
+      "expected_results": {
+        "category": "Economic Factors",
+        "subcategories": [
+          "Stakeholder Engagement"
+        ],
+        "confidence": {
+          "total": 0.86,
+          "category": 0.86,
+          "subcategories": 0.72
+        },
+        "multiple_coding": false,
+        "relevance_scores": {
+          "research_relevance": 0.62,
+          "coding_relevance": 0.9
+        }
+      }
+    },
+    {
+      "segment_id": "test_deductive_013",
+      "text": "Offene Kodierung produzierte einen reichen Satz von Codes, die weitere Verfeinerung erfordern.",
+      "analysis_mode": "deductive",
+      "difficulty": "low",
+      "length_category": "short",
+      "expected_results": {
+        "category": "Social Acceptance",
+        "subcategories": [
+          "Economic Factors"
+        ],
+        "confidence": {
+          "total": 0.75,
+          "category": 0.9,
+          "subcategories": 0.64
+        },
+        "multiple_coding": true,
+        "relevance_scores": {
+          "research_relevance": 0.79,
+          "coding_relevance": 0.96
+        }
+      }
+    },
+    {
+      "segment_id": "test_deductive_014",
+      "text": "(.) Die Leute eher ins Burnout getrieben werden, ist meine Einschätzung, wenn man\nalles das noch immer und zusätzlich macht, weil die klassische Lehre, die die meisten ja quasi als Basis\nhaben, die muss ja gut sein.",
+      "analysis_mode": "deductive",
+      "difficulty": "medium",
+      "length_category": "medium",
+      "expected_results": {
+        "category": "Policy Implementation",
+        "subcategories": [
+          "International Cooperation",
+          "Policy Implementation",
+          "Stakeholder Engagement"
+        ],
+        "confidence": {
+          "total": 0.93,
+          "category": 0.95,
+          "subcategories": 0.65
+        },
+        "multiple_coding": false,
+        "relevance_scores": {
+          "research_relevance": 0.69,
+          "coding_relevance": 0.82
+        }
+      }
+    },
+    {
+      "segment_id": "test_deductive_015",
+      "text": "PDF-Dokument: text_demo_wiss - Enthält relevante Inhalte für qualitative Analyse.",
+      "analysis_mode": "deductive",
+      "difficulty": "low",
+      "length_category": "short",
+      "expected_results": {
+        "category": "Regulatory Framework",
+        "subcategories": [
+          "Behavioral Change",
+          "Environmental Impact"
+        ],
+        "confidence": {
+          "total": 0.81,
+          "category": 0.97,
+          "subcategories": 0.9
+        },
+        "multiple_coding": false,
+        "relevance_scores": {
+          "research_relevance": 0.89,
+          "coding_relevance": 0.75
+        }
+      }
+    },
+    {
+      "segment_id": "test_deductive_016",
+      "text": "Das junge Berliner Solarunternehmen wurde innerhalb kürzester Zeit zum deutschen Solar Marktführer (Quelle).",
+      "analysis_mode": "deductive",
+      "difficulty": "low",
+      "length_category": "short",
+      "expected_results": {
+        "category": "International Cooperation",
+        "subcategories": [
+          "Social Acceptance"
+        ],
+        "confidence": {
+          "total": 0.71,
+          "category": 0.91,
+          "subcategories": 0.75
+        },
+        "multiple_coding": false,
+        "relevance_scores": {
+          "research_relevance": 0.66,
+          "coding_relevance": 0.99
+        }
+      }
+    },
+    {
+      "segment_id": "test_deductive_017",
+      "text": "(.) Die Leute eher ins Burnout getrieben werden, ist meine Einschätzung, wenn man\nalles das noch immer und zusätzlich macht, weil die klassische Lehre, die die meisten ja quasi als Basis\nhaben, die muss ja gut sein.",
+      "analysis_mode": "deductive",
+      "difficulty": "low",
+      "length_category": "medium",
+      "expected_results": {
+        "category": "Stakeholder Engagement",
+        "subcategories": [
+          "Economic Factors",
+          "Regulatory Framework",
+          "Stakeholder Engagement"
+        ],
+        "confidence": {
+          "total": 0.94,
+          "category": 0.9,
+          "subcategories": 0.77
+        },
+        "multiple_coding": true,
+        "relevance_scores": {
+          "research_relevance": 0.63,
+          "coding_relevance": 0.9
+        }
+      }
+    },
+    {
+      "segment_id": "test_deductive_018",
+      "text": "Ich habe Unternehmensbesuche, zu denen ich eingeladen werde von\nberufsbegleitenden Studierenden oder die eine ist bei einem Institut, die auch eine nachhaltige Zeitung\nveröffentlichen, wo ich angeschrieben werde, zu veröffentlichen.",
+      "analysis_mode": "deductive",
+      "difficulty": "high",
+      "length_category": "medium",
+      "expected_results": {
+        "category": "Economic Factors",
+        "subcategories": [
+          "Social Acceptance",
+          "Economic Factors",
+          "Environmental Impact"
+        ],
+        "confidence": {
+          "total": 0.8,
+          "category": 0.92,
+          "subcategories": 0.69
+        },
+        "multiple_coding": false,
+        "relevance_scores": {
+          "research_relevance": 0.9,
+          "coding_relevance": 0.72
+        }
+      }
+    },
+    {
+      "segment_id": "test_deductive_019",
+      "text": "Das heißt, die Frage mehr\nsozusagen nur, gibt es von außen, also sprich von dem Prorektorat oder der Hochschulleitung Anreize\noder auch Druck oder dergleichen?",
+      "analysis_mode": "deductive",
+      "difficulty": "high",
+      "length_category": "medium",
+      "expected_results": {
+        "category": "Stakeholder Engagement",
+        "subcategories": [
+          "Economic Factors",
+          "International Cooperation",
+          "Environmental Impact"
+        ],
+        "confidence": {
+          "total": 0.73,
+          "category": 0.86,
+          "subcategories": 0.62
+        },
+        "multiple_coding": true,
+        "relevance_scores": {
+          "research_relevance": 0.71,
+          "coding_relevance": 0.83
+        }
+      }
+    },
+    {
+      "segment_id": "test_deductive_020",
+      "text": "Dokumentenanalyse legt institutionelle Barrieren für Innovationsadoption nahe.",
+      "analysis_mode": "deductive",
+      "difficulty": "high",
+      "length_category": "short",
+      "expected_results": {
+        "category": "International Cooperation",
+        "subcategories": [
+          "International Cooperation"
+        ],
+        "confidence": {
+          "total": 0.77,
+          "category": 0.92,
+          "subcategories": 0.88
+        },
+        "multiple_coding": true,
+        "relevance_scores": {
+          "research_relevance": 0.65,
+          "coding_relevance": 0.73
+        }
+      }
+    },
+    {
+      "segment_id": "test_deductive_021",
+      "text": "Dokumentenanalyse legt institutionelle Barrieren für Innovationsadoption nahe.",
+      "analysis_mode": "deductive",
+      "difficulty": "low",
+      "length_category": "short",
+      "expected_results": {
+        "category": "Sustainable Development",
+        "subcategories": [
+          "Social Acceptance"
+        ],
+        "confidence": {
+          "total": 0.75,
+          "category": 0.91,
+          "subcategories": 0.68
+        },
+        "multiple_coding": false,
+        "relevance_scores": {
+          "research_relevance": 0.96,
+          "coding_relevance": 0.95
+        }
+      }
+    },
+    {
+      "segment_id": "test_deductive_022",
+      "text": "(.) Die Leute eher ins Burnout getrieben werden, ist meine Einschätzung, wenn man\nalles das noch immer und zusätzlich macht, weil die klassische Lehre, die die meisten ja quasi als Basis\nhaben, die muss ja gut sein.",
+      "analysis_mode": "deductive",
+      "difficulty": "high",
+      "length_category": "medium",
+      "expected_results": {
+        "category": "Policy Implementation",
+        "subcategories": [
+          "Social Acceptance"
+        ],
+        "confidence": {
+          "total": 0.89,
+          "category": 0.91,
+          "subcategories": 0.68
+        },
+        "multiple_coding": false,
+        "relevance_scores": {
+          "research_relevance": 0.82,
+          "coding_relevance": 0.83
+        }
+      }
+    },
+    {
+      "segment_id": "test_deductive_023",
+      "text": "PDF-Dokument: text_demo_wiss - Enthält relevante Inhalte für qualitative Analyse.",
+      "analysis_mode": "deductive",
+      "difficulty": "low",
+      "length_category": "short",
+      "expected_results": {
+        "category": "Technology Adoption",
+        "subcategories": [
+          "Policy Implementation",
+          "Social Acceptance",
+          "Technology Adoption"
+        ],
+        "confidence": {
+          "total": 0.81,
+          "category": 0.81,
+          "subcategories": 0.71
+        },
+        "multiple_coding": false,
+        "relevance_scores": {
+          "research_relevance": 0.99,
+          "coding_relevance": 0.71
+        }
+      }
+    },
+    {
+      "segment_id": "test_deductive_024",
+      "text": "Wenn ich die ganze Zeit in meiner Lehre dümpel und zehnmal das\nModul Grundlagen Nachhaltigkeit Unternehmensführung lehre, dann passiert da nicht viel.",
+      "analysis_mode": "deductive",
+      "difficulty": "low",
+      "length_category": "medium",
+      "expected_results": {
+        "category": "Stakeholder Engagement",
+        "subcategories": [
+          "International Cooperation",
+          "Regulatory Framework"
+        ],
+        "confidence": {
+          "total": 0.94,
+          "category": 0.93,
+          "subcategories": 0.88
+        },
+        "multiple_coding": true,
+        "relevance_scores": {
+          "research_relevance": 0.67,
+          "coding_relevance": 0.94
+        }
+      }
+    },
+    {
+      "segment_id": "test_deductive_025",
+      "text": "[00:24:04] Man kommt dann einfach in\nso eine Netzwerktätigkeit rein, die einfach motivierend ist und echt Spaß macht.",
+      "analysis_mode": "deductive",
+      "difficulty": "medium",
+      "length_category": "short",
+      "expected_results": {
+        "category": "Social Acceptance",
+        "subcategories": [
+          "Economic Factors",
+          "Environmental Impact"
+        ],
+        "confidence": {
+          "total": 0.74,
+          "category": 0.93,
+          "subcategories": 0.71
+        },
+        "multiple_coding": true,
+        "relevance_scores": {
+          "research_relevance": 0.79,
+          "coding_relevance": 0.76
+        }
+      }
+    },
+    {
+      "segment_id": "test_inductive_026",
+      "text": "Erste Ergebnisse waren vielversprechend, aber Nachhaltigkeit blieb eine Herausforderung.",
+      "analysis_mode": "inductive",
+      "difficulty": "medium",
+      "length_category": "short",
+      "expected_results": {
+        "potential_categories": [
+          "Policy Implementation",
+          "Economic Factors",
+          "Regulatory Framework"
+        ],
+        "category_development": {
+          "main_category": "Social Acceptance",
+          "supporting_categories": [
+            "Stakeholder Engagement",
+            "Environmental Impact"
+          ]
+        },
+        "confidence": 0.71,
+        "novelty_score": 0.55
+      }
+    },
+    {
+      "segment_id": "test_inductive_027",
+      "text": "Dabei hat sich ein Name an der Spitze der Solarindustrie etabliert: Enpal.",
+      "analysis_mode": "inductive",
+      "difficulty": "high",
+      "length_category": "short",
+      "expected_results": {
+        "potential_categories": [
+          "Environmental Impact",
+          "Technology Adoption"
+        ],
+        "category_development": {
+          "main_category": "Sustainable Development",
+          "supporting_categories": [
+            "Policy Implementation",
+            "Stakeholder Engagement"
+          ]
+        },
+        "confidence": 0.78,
+        "novelty_score": 0.47
+      }
+    },
+    {
+      "segment_id": "test_inductive_028",
+      "text": "Sie haben gesagt, es gibt eigentlich mehr Projekte, als\ngestemmt werden können mit den Kollegen.",
+      "analysis_mode": "inductive",
+      "difficulty": "medium",
+      "length_category": "short",
+      "expected_results": {
+        "potential_categories": [
+          "Regulatory Framework",
+          "Economic Factors"
+        ],
+        "category_development": {
+          "main_category": "Environmental Impact",
+          "supporting_categories": [
+            "Regulatory Framework"
+          ]
+        },
+        "confidence": 0.6,
+        "novelty_score": 0.76
+      }
+    },
+    {
+      "segment_id": "test_inductive_029",
+      "text": "ANTWORT [00:22:54]: Ja, es gibt diese, entweder Erlass der Unterrichtsstunden als Anreiz oder die\nMehrbezahlung als Anreiz.",
+      "analysis_mode": "inductive",
+      "difficulty": "high",
+      "length_category": "short",
+      "expected_results": {
+        "potential_categories": [
+          "Stakeholder Engagement",
+          "Social Acceptance",
+          "International Cooperation",
+          "Behavioral Change",
+          "Policy Implementation"
+        ],
+        "category_development": {
+          "main_category": "Environmental Impact",
+          "supporting_categories": [
+            "Environmental Impact",
+            "Regulatory Framework",
+            "Social Acceptance"
+          ]
+        },
+        "confidence": 0.72,
+        "novelty_score": 0.45
+      }
+    },
+    {
+      "segment_id": "test_inductive_030",
+      "text": "Das Modell des Erlasses von Unterrichtseinheiten, Projekte zu übernehmen, das finde\nich wirklich attraktiv, weil man dann sagt, okay, aus dieser Mühle der Lehre immer wieder das Gleiche zu\nlehren, mal einen Teilbereich zu ersetzen und zu sagen, okay, man hätte eine volle Stelle und man nimmt\nein Projekt in der Viertelstelle dazu, [00:22:08] kommt man ja so wirklich in den Austausch, man lernt zu\neinem Thema dazu, man kann Materialien inkludieren in die Vorlesung.",
+      "analysis_mode": "inductive",
+      "difficulty": "low",
+      "length_category": "long",
+      "expected_results": {
+        "potential_categories": [
+          "Technology Adoption",
+          "Environmental Impact",
+          "Regulatory Framework",
+          "International Cooperation",
+          "Policy Implementation"
+        ],
+        "category_development": {
+          "main_category": "Environmental Impact",
+          "supporting_categories": [
+            "Economic Factors",
+            "Regulatory Framework"
+          ]
+        },
+        "confidence": 0.84,
+        "novelty_score": 0.6
+      }
+    },
+    {
+      "segment_id": "test_inductive_031",
+      "text": "Wir haben jetzt so viele Projekte, hat nicht noch jemand Lust?",
+      "analysis_mode": "inductive",
+      "difficulty": "medium",
+      "length_category": "short",
+      "expected_results": {
+        "potential_categories": [
+          "International Cooperation",
+          "Behavioral Change",
+          "Technology Adoption"
+        ],
+        "category_development": {
+          "main_category": "Stakeholder Engagement",
+          "supporting_categories": [
+            "International Cooperation",
+            "Social Acceptance"
+          ]
+        },
+        "confidence": 0.63,
+        "novelty_score": 0.78
+      }
+    },
+    {
+      "segment_id": "test_inductive_032",
+      "text": "Im Fachbereich\nWirtschaft sprechen wir immer wieder davon, naja, was ist denn der Output in unseren Projekten, tragen\ndas dann auch zwischendurch mal vor in den Fachbereichssitzungen und bieten das dann den Kollegen\nauch an, das also in die Vorlesung mit reinzunehmen.",
+      "analysis_mode": "inductive",
+      "difficulty": "high",
+      "length_category": "medium",
+      "expected_results": {
+        "potential_categories": [
+          "Technology Adoption",
+          "Policy Implementation",
+          "International Cooperation"
+        ],
+        "category_development": {
+          "main_category": "Economic Factors",
+          "supporting_categories": [
+            "Sustainable Development",
+            "Stakeholder Engagement"
+          ]
+        },
+        "confidence": 0.74,
+        "novelty_score": 0.74
+      }
+    },
+    {
+      "segment_id": "test_inductive_033",
+      "text": "Stakeholder-Feedback widersprach den quantitativen Leistungsmetriken.",
+      "analysis_mode": "inductive",
+      "difficulty": "low",
+      "length_category": "short",
+      "expected_results": {
+        "potential_categories": [
+          "Economic Factors",
+          "Technology Adoption",
+          "Policy Implementation",
+          "Regulatory Framework",
+          "Behavioral Change"
+        ],
+        "category_development": {
+          "main_category": "Regulatory Framework",
+          "supporting_categories": [
+            "Technology Adoption"
+          ]
+        },
+        "confidence": 0.84,
+        "novelty_score": 0.65
+      }
+    },
+    {
+      "segment_id": "test_inductive_034",
+      "text": "Erste Ergebnisse waren vielversprechend, aber Nachhaltigkeit blieb eine Herausforderung.",
+      "analysis_mode": "inductive",
+      "difficulty": "low",
+      "length_category": "short",
+      "expected_results": {
+        "potential_categories": [
+          "Behavioral Change",
+          "Technology Adoption"
+        ],
+        "category_development": {
+          "main_category": "Behavioral Change",
+          "supporting_categories": [
+            "International Cooperation",
+            "Sustainable Development",
+            "Social Acceptance"
+          ]
+        },
+        "confidence": 0.89,
+        "novelty_score": 0.75
+      }
+    },
+    {
+      "segment_id": "test_inductive_035",
+      "text": "Stakeholder-Feedback widersprach den quantitativen Leistungsmetriken.",
+      "analysis_mode": "inductive",
+      "difficulty": "high",
+      "length_category": "short",
+      "expected_results": {
+        "potential_categories": [
+          "Technology Adoption",
+          "Behavioral Change",
+          "International Cooperation",
+          "Sustainable Development",
+          "Stakeholder Engagement"
+        ],
+        "category_development": {
+          "main_category": "Environmental Impact",
+          "supporting_categories": [
+            "Behavioral Change",
+            "Economic Factors",
+            "Environmental Impact"
+          ]
+        },
+        "confidence": 0.73,
+        "novelty_score": 0.66
+      }
+    },
+    {
+      "segment_id": "test_inductive_036",
+      "text": "Im Fachbereich\nWirtschaft sprechen wir immer wieder davon, naja, was ist denn der Output in unseren Projekten, tragen\ndas dann auch zwischendurch mal vor in den Fachbereichssitzungen und bieten das dann den Kollegen\nauch an, das also in die Vorlesung mit reinzunehmen.",
+      "analysis_mode": "inductive",
+      "difficulty": "medium",
+      "length_category": "medium",
+      "expected_results": {
+        "potential_categories": [
+          "Technology Adoption",
+          "Sustainable Development"
+        ],
+        "category_development": {
+          "main_category": "Economic Factors",
+          "supporting_categories": [
+            "Technology Adoption",
+            "Economic Factors"
+          ]
+        },
+        "confidence": 0.62,
+        "novelty_score": 0.5
+      }
+    },
+    {
+      "segment_id": "test_inductive_037",
+      "text": "ANTWORT [00:22:54]: Ja, es gibt diese, entweder Erlass der Unterrichtsstunden als Anreiz oder die\nMehrbezahlung als Anreiz.",
+      "analysis_mode": "inductive",
+      "difficulty": "medium",
+      "length_category": "short",
+      "expected_results": {
+        "potential_categories": [
+          "Regulatory Framework",
+          "Sustainable Development",
+          "Policy Implementation"
+        ],
+        "category_development": {
+          "main_category": "Sustainable Development",
+          "supporting_categories": [
+            "Behavioral Change",
+            "Policy Implementation"
+          ]
+        },
+        "confidence": 0.88,
+        "novelty_score": 0.45
+      }
+    },
+    {
+      "segment_id": "test_inductive_038",
+      "text": "FRAGE [00:22:43]: Das hat ja was mit einer individuellen Motivation zu tun.",
+      "analysis_mode": "inductive",
+      "difficulty": "medium",
+      "length_category": "short",
+      "expected_results": {
+        "potential_categories": [
+          "Behavioral Change",
+          "Economic Factors",
+          "Environmental Impact"
+        ],
+        "category_development": {
+          "main_category": "Regulatory Framework",
+          "supporting_categories": [
+            "Policy Implementation",
+            "Regulatory Framework"
+          ]
+        },
+        "confidence": 0.7,
+        "novelty_score": 0.64
+      }
+    },
+    {
+      "segment_id": "test_inductive_039",
+      "text": "FRAGE [00:22:43]: Das hat ja was mit einer individuellen Motivation zu tun.",
+      "analysis_mode": "inductive",
+      "difficulty": "high",
+      "length_category": "short",
+      "expected_results": {
+        "potential_categories": [
+          "Sustainable Development",
+          "International Cooperation",
+          "Policy Implementation"
+        ],
+        "category_development": {
+          "main_category": "Regulatory Framework",
+          "supporting_categories": [
+            "Sustainable Development",
+            "Policy Implementation",
+            "Stakeholder Engagement"
+          ]
+        },
+        "confidence": 0.79,
+        "novelty_score": 0.37
+      }
+    },
+    {
+      "segment_id": "test_inductive_040",
+      "text": "Erste Ergebnisse waren vielversprechend, aber Nachhaltigkeit blieb eine Herausforderung.",
+      "analysis_mode": "inductive",
+      "difficulty": "low",
+      "length_category": "short",
+      "expected_results": {
+        "potential_categories": [
+          "Social Acceptance",
+          "Economic Factors",
+          "Behavioral Change",
+          "Technology Adoption",
+          "Regulatory Framework"
+        ],
+        "category_development": {
+          "main_category": "Regulatory Framework",
+          "supporting_categories": [
+            "Regulatory Framework",
+            "Environmental Impact"
+          ]
+        },
+        "confidence": 0.85,
+        "novelty_score": 0.54
+      }
+    },
+    {
+      "segment_id": "test_inductive_041",
+      "text": "Und die große\nHerausforderung ist natürlich, da fangen wir an, da sind wir aber noch nicht ideal.",
+      "analysis_mode": "inductive",
+      "difficulty": "high",
+      "length_category": "short",
+      "expected_results": {
+        "potential_categories": [
+          "Stakeholder Engagement",
+          "Policy Implementation",
+          "International Cooperation"
+        ],
+        "category_development": {
+          "main_category": "Economic Factors",
+          "supporting_categories": [
+            "Policy Implementation"
+          ]
+        },
+        "confidence": 0.79,
+        "novelty_score": 0.42
+      }
+    },
+    {
+      "segment_id": "test_inductive_042",
+      "text": "Erste Ergebnisse waren vielversprechend, aber Nachhaltigkeit blieb eine Herausforderung.",
+      "analysis_mode": "inductive",
+      "difficulty": "high",
+      "length_category": "short",
+      "expected_results": {
+        "potential_categories": [
+          "Behavioral Change",
+          "Environmental Impact",
+          "Social Acceptance"
+        ],
+        "category_development": {
+          "main_category": "Technology Adoption",
+          "supporting_categories": [
+            "Sustainable Development",
+            "Stakeholder Engagement",
+            "Technology Adoption"
+          ]
+        },
+        "confidence": 0.89,
+        "novelty_score": 0.35
+      }
+    },
+    {
+      "segment_id": "test_inductive_043",
+      "text": "Es kann schon gemütlicher sein, in der\nLehre zu bleiben.",
+      "analysis_mode": "inductive",
+      "difficulty": "medium",
+      "length_category": "short",
+      "expected_results": {
+        "potential_categories": [
+          "Regulatory Framework",
+          "Economic Factors",
+          "Stakeholder Engagement",
+          "Environmental Impact",
+          "Social Acceptance"
+        ],
+        "category_development": {
+          "main_category": "Economic Factors",
+          "supporting_categories": [
+            "Environmental Impact"
+          ]
+        },
+        "confidence": 0.86,
+        "novelty_score": 0.6
+      }
+    },
+    {
+      "segment_id": "test_inductive_044",
+      "text": "In einem Projekt haben wir einen\nStorytelling-Book zum Thema Kreislaufwirtschaft erarbeitet, dass man einfach sagt, okay, das ist ja auch\nein Benefit an sich.",
+      "analysis_mode": "inductive",
+      "difficulty": "high",
+      "length_category": "medium",
+      "expected_results": {
+        "potential_categories": [
+          "Social Acceptance",
+          "Stakeholder Engagement",
+          "Sustainable Development",
+          "Policy Implementation",
+          "Economic Factors"
+        ],
+        "category_development": {
+          "main_category": "Behavioral Change",
+          "supporting_categories": [
+            "Regulatory Framework"
+          ]
+        },
+        "confidence": 0.89,
+        "novelty_score": 0.62
+      }
+    },
+    {
+      "segment_id": "test_inductive_045",
+      "text": "Während die Politik zur Emissionsreduzierung entwickelt wurde, traten unbeabsichtigte Konsequenzen auf.",
+      "analysis_mode": "inductive",
+      "difficulty": "medium",
+      "length_category": "short",
+      "expected_results": {
+        "potential_categories": [
+          "International Cooperation",
+          "Environmental Impact",
+          "Behavioral Change"
+        ],
+        "category_development": {
+          "main_category": "Behavioral Change",
+          "supporting_categories": [
+            "Sustainable Development",
+            "Environmental Impact"
+          ]
+        },
+        "confidence": 0.7,
+        "novelty_score": 0.42
+      }
+    },
+    {
+      "segment_id": "test_inductive_046",
+      "text": "In einem Projekt haben wir einen\nStorytelling-Book zum Thema Kreislaufwirtschaft erarbeitet, dass man einfach sagt, okay, das ist ja auch\nein Benefit an sich.",
+      "analysis_mode": "inductive",
+      "difficulty": "medium",
+      "length_category": "medium",
+      "expected_results": {
+        "potential_categories": [
+          "Sustainable Development",
+          "Regulatory Framework",
+          "Social Acceptance",
+          "Policy Implementation",
+          "Economic Factors"
+        ],
+        "category_development": {
+          "main_category": "Social Acceptance",
+          "supporting_categories": [
+            "Behavioral Change"
+          ]
+        },
+        "confidence": 0.66,
+        "novelty_score": 0.7
+      }
+    },
+    {
+      "segment_id": "test_inductive_047",
+      "text": "Wir haben jetzt so viele Projekte, hat nicht noch jemand Lust?",
+      "analysis_mode": "inductive",
+      "difficulty": "medium",
+      "length_category": "short",
+      "expected_results": {
+        "potential_categories": [
+          "International Cooperation",
+          "Policy Implementation",
+          "Economic Factors",
+          "Sustainable Development"
+        ],
+        "category_development": {
+          "main_category": "Economic Factors",
+          "supporting_categories": [
+            "Regulatory Framework",
+            "Behavioral Change",
+            "Economic Factors"
+          ]
+        },
+        "confidence": 0.81,
+        "novelty_score": 0.62
+      }
+    },
+    {
+      "segment_id": "test_inductive_048",
+      "text": "Erste Ergebnisse waren vielversprechend, aber Nachhaltigkeit blieb eine Herausforderung.",
+      "analysis_mode": "inductive",
+      "difficulty": "medium",
+      "length_category": "short",
+      "expected_results": {
+        "potential_categories": [
+          "Economic Factors",
+          "Regulatory Framework",
+          "Sustainable Development",
+          "Technology Adoption"
+        ],
+        "category_development": {
+          "main_category": "Sustainable Development",
+          "supporting_categories": [
+            "Behavioral Change",
+            "International Cooperation"
+          ]
+        },
+        "confidence": 0.76,
+        "novelty_score": 0.51
+      }
+    },
+    {
+      "segment_id": "test_inductive_049",
+      "text": "Und die große\nHerausforderung ist natürlich, da fangen wir an, da sind wir aber noch nicht ideal.",
+      "analysis_mode": "inductive",
+      "difficulty": "high",
+      "length_category": "short",
+      "expected_results": {
+        "potential_categories": [
+          "Environmental Impact",
+          "Sustainable Development",
+          "International Cooperation",
+          "Stakeholder Engagement",
+          "Policy Implementation"
+        ],
+        "category_development": {
+          "main_category": "Economic Factors",
+          "supporting_categories": [
+            "Stakeholder Engagement",
+            "International Cooperation"
+          ]
+        },
+        "confidence": 0.89,
+        "novelty_score": 0.65
+      }
+    },
+    {
+      "segment_id": "test_inductive_050",
+      "text": "Im Fachbereich\nWirtschaft sprechen wir immer wieder davon, naja, was ist denn der Output in unseren Projekten, tragen\ndas dann auch zwischendurch mal vor in den Fachbereichssitzungen und bieten das dann den Kollegen\nauch an, das also in die Vorlesung mit reinzunehmen.",
+      "analysis_mode": "inductive",
+      "difficulty": "low",
+      "length_category": "medium",
+      "expected_results": {
+        "potential_categories": [
+          "Stakeholder Engagement",
+          "Economic Factors",
+          "Environmental Impact",
+          "Sustainable Development"
+        ],
+        "category_development": {
+          "main_category": "Social Acceptance",
+          "supporting_categories": [
+            "Environmental Impact"
+          ]
+        },
+        "confidence": 0.6,
+        "novelty_score": 0.57
+      }
+    },
+    {
+      "segment_id": "test_abductive_051",
+      "text": "Die Intervention reduzierte erfolgreich Kosten, hatte aber negative soziale Auswirkungen.",
+      "analysis_mode": "abductive",
+      "difficulty": "low",
+      "length_category": "short",
+      "expected_results": {
+        "base_category": "Technology Adoption",
+        "extended_subcategories": [
+          "Learning Curves",
+          "Infrastructure Requirements",
+          "Compatibility Issues"
+        ],
+        "new_subcategories": [
+          "Extended Analysis",
+          "Contextual Opportunity"
+        ],
+        "confidence": 0.73,
+        "expansion_quality": 0.67
+      }
+    },
+    {
+      "segment_id": "test_abductive_052",
+      "text": "Klimawandelanpassungsstrategien müssen regionale Unterschiede in der Vulnerabilität berücksichtigen.",
+      "analysis_mode": "abductive",
+      "difficulty": "low",
+      "length_category": "short",
+      "expected_results": {
+        "base_category": "Economic Factors",
+        "extended_subcategories": [
+          "Cost-Benefit Analysis"
+        ],
+        "new_subcategories": [
+          "Extended Perspective",
+          "Contextual Constraint"
+        ],
+        "confidence": 0.67,
+        "expansion_quality": 0.72
+      }
+    },
+    {
+      "segment_id": "test_abductive_053",
+      "text": "Implementierungsbarrieren unterschieden sich signifikant von den ursprünglichen Annahmen.",
+      "analysis_mode": "abductive",
+      "difficulty": "low",
+      "length_category": "short",
+      "expected_results": {
+        "base_category": "Technology Adoption",
+        "extended_subcategories": [
+          "Learning Curves"
+        ],
+        "new_subcategories": [
+          "Extended Analysis",
+          "Contextual Opportunity"
+        ],
+        "confidence": 0.86,
+        "expansion_quality": 0.71
+      }
+    },
+    {
+      "segment_id": "test_abductive_054",
+      "text": "Da ist aber irgendwie meine Sichtweise Vorsicht, Vorsicht.",
+      "analysis_mode": "abductive",
+      "difficulty": "high",
+      "length_category": "short",
+      "expected_results": {
+        "base_category": "Economic Factors",
+        "extended_subcategories": [
+          "Funding Sources",
+          "Economic Incentives"
+        ],
+        "new_subcategories": [
+          "Extended Dimension",
+          "Contextual Constraint"
+        ],
+        "confidence": 0.73,
+        "expansion_quality": 0.72
+      }
+    },
+    {
+      "segment_id": "test_abductive_055",
+      "text": "ANTWORT [00:20:58]: Ja, ja, also es gibt Boni, entweder monatliche Bezahlungen, die einfach on top\nlaufen, dass manche schon sagen, ich habe kein Problem mit Überstunden, ich mache das noch\nzusätzlich.",
+      "analysis_mode": "abductive",
+      "difficulty": "high",
+      "length_category": "medium",
+      "expected_results": {
+        "base_category": "Stakeholder Engagement",
+        "extended_subcategories": [
+          "Trust Building",
+          "Communication Gaps"
+        ],
+        "new_subcategories": [
+          "Extended Analysis",
+          "Contextual Factor"
+        ],
+        "confidence": 0.7,
+        "expansion_quality": 0.53
+      }
+    },
+    {
+      "segment_id": "test_abductive_056",
+      "text": "Implementierungsbarrieren unterschieden sich signifikant von den ursprünglichen Annahmen.",
+      "analysis_mode": "abductive",
+      "difficulty": "medium",
+      "length_category": "short",
+      "expected_results": {
+        "base_category": "Economic Factors",
+        "extended_subcategories": [
+          "Cost-Benefit Analysis",
+          "Economic Incentives"
+        ],
+        "new_subcategories": [
+          "Extended Perspective",
+          "Contextual Opportunity"
+        ],
+        "confidence": 0.73,
+        "expansion_quality": 0.8
+      }
+    },
+    {
+      "segment_id": "test_abductive_057",
+      "text": "Die Daten deuten auf mehrere emergente Kategorien hin, die nicht vorhergesehen wurden.",
+      "analysis_mode": "abductive",
+      "difficulty": "high",
+      "length_category": "short",
+      "expected_results": {
+        "base_category": "Stakeholder Engagement",
+        "extended_subcategories": [
+          "Communication Gaps",
+          "Trust Building"
+        ],
+        "new_subcategories": [
+          "Extended Dimension",
+          "Contextual Factor"
+        ],
+        "confidence": 0.9,
+        "expansion_quality": 0.79
+      }
+    },
+    {
+      "segment_id": "test_abductive_058",
+      "text": "Die Daten deuten auf mehrere emergente Kategorien hin, die nicht vorhergesehen wurden.",
+      "analysis_mode": "abductive",
+      "difficulty": "low",
+      "length_category": "short",
+      "expected_results": {
+        "base_category": "Technology Adoption",
+        "extended_subcategories": [
+          "Learning Curves",
+          "Infrastructure Requirements"
+        ],
+        "new_subcategories": [
+          "Extended Dimension",
+          "Contextual Constraint"
+        ],
+        "confidence": 0.84,
+        "expansion_quality": 0.83
+      }
+    },
+    {
+      "segment_id": "test_abductive_059",
+      "text": "Sowas?",
+      "analysis_mode": "abductive",
+      "difficulty": "high",
+      "length_category": "short",
+      "expected_results": {
+        "base_category": "Policy Implementation",
+        "extended_subcategories": [
+          "Timeline Challenges",
+          "Resource Allocation",
+          "Monitoring Systems"
+        ],
+        "new_subcategories": [
+          "Extended Dimension",
+          "Contextual Constraint"
+        ],
+        "confidence": 0.66,
+        "expansion_quality": 0.58
+      }
+    },
+    {
+      "segment_id": "test_abductive_060",
+      "text": "So nach dem Motto, entweder habe ich weniger Vorlesung in dem Projekt dazu\noder ich kriege eine bessere Bezahlung.",
+      "analysis_mode": "abductive",
+      "difficulty": "high",
+      "length_category": "short",
+      "expected_results": {
+        "base_category": "Technology Adoption",
+        "extended_subcategories": [
+          "Learning Curves",
+          "Compatibility Issues",
+          "Infrastructure Requirements"
+        ],
+        "new_subcategories": [
+          "Extended Dimension",
+          "Contextual Opportunity"
+        ],
+        "confidence": 0.77,
+        "expansion_quality": 0.6
+      }
+    },
+    {
+      "segment_id": "test_abductive_061",
+      "text": "ANTWORT [00:20:58]: Ja, ja, also es gibt Boni, entweder monatliche Bezahlungen, die einfach on top\nlaufen, dass manche schon sagen, ich habe kein Problem mit Überstunden, ich mache das noch\nzusätzlich.",
+      "analysis_mode": "abductive",
+      "difficulty": "medium",
+      "length_category": "medium",
+      "expected_results": {
+        "base_category": "Economic Factors",
+        "extended_subcategories": [
+          "Funding Sources",
+          "Economic Incentives"
+        ],
+        "new_subcategories": [
+          "Extended Perspective",
+          "Contextual Opportunity"
+        ],
+        "confidence": 0.68,
+        "expansion_quality": 0.56
+      }
+    },
+    {
+      "segment_id": "test_abductive_062",
+      "text": "Solar 2025: Deshalb begeistert diese Solarfirma deutsche Hausbesitzer\nDie Zeiten für Solar könnten angesichts massiver Förderungen kaum besser sein.",
+      "analysis_mode": "abductive",
+      "difficulty": "high",
+      "length_category": "short",
+      "expected_results": {
+        "base_category": "Economic Factors",
+        "extended_subcategories": [
+          "Cost-Benefit Analysis",
+          "Funding Sources",
+          "Economic Incentives"
+        ],
+        "new_subcategories": [
+          "Extended Perspective",
+          "Contextual Constraint"
+        ],
+        "confidence": 0.74,
+        "expansion_quality": 0.84
+      }
+    },
+    {
+      "segment_id": "test_abductive_063",
+      "text": "Solar 2025: Deshalb begeistert diese Solarfirma deutsche Hausbesitzer\nDie Zeiten für Solar könnten angesichts massiver Förderungen kaum besser sein.",
+      "analysis_mode": "abductive",
+      "difficulty": "high",
+      "length_category": "short",
+      "expected_results": {
+        "base_category": "Economic Factors",
+        "extended_subcategories": [
+          "Cost-Benefit Analysis",
+          "Economic Incentives"
+        ],
+        "new_subcategories": [
+          "Extended Dimension",
+          "Contextual Constraint"
+        ],
+        "confidence": 0.82,
+        "expansion_quality": 0.67
+      }
+    },
+    {
+      "segment_id": "test_abductive_064",
+      "text": "Ich finde, man kann es nicht gewährleisten, wenn man immer noch alles\nzusätzlich macht.",
+      "analysis_mode": "abductive",
+      "difficulty": "low",
+      "length_category": "short",
+      "expected_results": {
+        "base_category": "Stakeholder Engagement",
+        "extended_subcategories": [
+          "Power Dynamics",
+          "Trust Building"
+        ],
+        "new_subcategories": [
+          "Extended Analysis",
+          "Contextual Factor"
+        ],
+        "confidence": 0.91,
+        "expansion_quality": 0.71
+      }
+    },
+    {
+      "segment_id": "test_abductive_065",
+      "text": "Dann kann es\nnur sein, dass die Inhalte auch veralten.",
+      "analysis_mode": "abductive",
+      "difficulty": "high",
+      "length_category": "short",
+      "expected_results": {
+        "base_category": "Policy Implementation",
+        "extended_subcategories": [
+          "Resource Allocation",
+          "Timeline Challenges",
+          "Monitoring Systems"
+        ],
+        "new_subcategories": [
+          "Extended Analysis",
+          "Contextual Constraint"
+        ],
+        "confidence": 0.91,
+        "expansion_quality": 0.73
+      }
+    },
+    {
+      "segment_id": "test_abductive_066",
+      "text": "(..) Gibt es denn da Anreize und besondere Strukturen, um\ndas jetzt zu fördern oder zu ermöglichen?",
+      "analysis_mode": "abductive",
+      "difficulty": "medium",
+      "length_category": "short",
+      "expected_results": {
+        "base_category": "Technology Adoption",
+        "extended_subcategories": [
+          "Infrastructure Requirements",
+          "Compatibility Issues"
+        ],
+        "new_subcategories": [
+          "Extended Analysis",
+          "Contextual Constraint"
+        ],
+        "confidence": 0.8,
+        "expansion_quality": 0.63
+      }
+    },
+    {
+      "segment_id": "test_abductive_067",
+      "text": "ANTWORT [00:20:58]: Ja, ja, also es gibt Boni, entweder monatliche Bezahlungen, die einfach on top\nlaufen, dass manche schon sagen, ich habe kein Problem mit Überstunden, ich mache das noch\nzusätzlich.",
+      "analysis_mode": "abductive",
+      "difficulty": "high",
+      "length_category": "medium",
+      "expected_results": {
+        "base_category": "Technology Adoption",
+        "extended_subcategories": [
+          "Infrastructure Requirements",
+          "Compatibility Issues"
+        ],
+        "new_subcategories": [
+          "Extended Analysis",
+          "Contextual Constraint"
+        ],
+        "confidence": 0.85,
+        "expansion_quality": 0.79
+      }
+    },
+    {
+      "segment_id": "test_abductive_068",
+      "text": "ANTWORT [00:20:58]: Ja, ja, also es gibt Boni, entweder monatliche Bezahlungen, die einfach on top\nlaufen, dass manche schon sagen, ich habe kein Problem mit Überstunden, ich mache das noch\nzusätzlich.",
+      "analysis_mode": "abductive",
+      "difficulty": "high",
+      "length_category": "medium",
+      "expected_results": {
+        "base_category": "Economic Factors",
+        "extended_subcategories": [
+          "Funding Sources",
+          "Economic Incentives",
+          "Cost-Benefit Analysis"
+        ],
+        "new_subcategories": [
+          "Extended Dimension",
+          "Contextual Opportunity"
+        ],
+        "confidence": 0.75,
+        "expansion_quality": 0.83
+      }
+    },
+    {
+      "segment_id": "test_abductive_069",
+      "text": "Die deutsche Solar-Branche boomt wie nie zuvor.",
+      "analysis_mode": "abductive",
+      "difficulty": "low",
+      "length_category": "short",
+      "expected_results": {
+        "base_category": "Economic Factors",
+        "extended_subcategories": [
+          "Funding Sources"
+        ],
+        "new_subcategories": [
+          "Extended Analysis",
+          "Contextual Constraint"
+        ],
+        "confidence": 0.85,
+        "expansion_quality": 0.75
+      }
+    },
+    {
+      "segment_id": "test_abductive_070",
+      "text": "Da ist aber irgendwie meine Sichtweise Vorsicht, Vorsicht.",
+      "analysis_mode": "abductive",
+      "difficulty": "medium",
+      "length_category": "short",
+      "expected_results": {
+        "base_category": "Stakeholder Engagement",
+        "extended_subcategories": [
+          "Communication Gaps",
+          "Trust Building"
+        ],
+        "new_subcategories": [
+          "Extended Dimension",
+          "Contextual Opportunity"
+        ],
+        "confidence": 0.74,
+        "expansion_quality": 0.54
+      }
+    },
+    {
+      "segment_id": "test_abductive_071",
+      "text": "Die deutsche Solar-Branche boomt wie nie zuvor.",
+      "analysis_mode": "abductive",
+      "difficulty": "medium",
+      "length_category": "short",
+      "expected_results": {
+        "base_category": "Economic Factors",
+        "extended_subcategories": [
+          "Economic Incentives"
+        ],
+        "new_subcategories": [
+          "Extended Analysis",
+          "Contextual Constraint"
+        ],
+        "confidence": 0.89,
+        "expansion_quality": 0.84
+      }
+    },
+    {
+      "segment_id": "test_abductive_072",
+      "text": "Die Daten deuten auf mehrere emergente Kategorien hin, die nicht vorhergesehen wurden.",
+      "analysis_mode": "abductive",
+      "difficulty": "medium",
+      "length_category": "short",
+      "expected_results": {
+        "base_category": "Economic Factors",
+        "extended_subcategories": [
+          "Cost-Benefit Analysis",
+          "Funding Sources",
+          "Economic Incentives"
+        ],
+        "new_subcategories": [
+          "Extended Perspective",
+          "Contextual Opportunity"
+        ],
+        "confidence": 0.84,
+        "expansion_quality": 0.77
+      }
+    },
+    {
+      "segment_id": "test_abductive_073",
+      "text": "Die deutsche Solar-Branche boomt wie nie zuvor.",
+      "analysis_mode": "abductive",
+      "difficulty": "high",
+      "length_category": "short",
+      "expected_results": {
+        "base_category": "Policy Implementation",
+        "extended_subcategories": [
+          "Monitoring Systems"
+        ],
+        "new_subcategories": [
+          "Extended Dimension",
+          "Contextual Constraint"
+        ],
+        "confidence": 0.92,
+        "expansion_quality": 0.76
+      }
+    },
+    {
+      "segment_id": "test_abductive_074",
+      "text": "Solar 2025: Deshalb begeistert diese Solarfirma deutsche Hausbesitzer\nDie Zeiten für Solar könnten angesichts massiver Förderungen kaum besser sein.",
+      "analysis_mode": "abductive",
+      "difficulty": "low",
+      "length_category": "short",
+      "expected_results": {
+        "base_category": "Stakeholder Engagement",
+        "extended_subcategories": [
+          "Power Dynamics",
+          "Communication Gaps",
+          "Trust Building"
+        ],
+        "new_subcategories": [
+          "Extended Perspective",
+          "Contextual Factor"
+        ],
+        "confidence": 0.73,
+        "expansion_quality": 0.63
+      }
+    },
+    {
+      "segment_id": "test_abductive_075",
+      "text": "(..) Gibt es denn da Anreize und besondere Strukturen, um\ndas jetzt zu fördern oder zu ermöglichen?",
+      "analysis_mode": "abductive",
+      "difficulty": "low",
+      "length_category": "short",
+      "expected_results": {
+        "base_category": "Stakeholder Engagement",
+        "extended_subcategories": [
+          "Communication Gaps"
+        ],
+        "new_subcategories": [
+          "Extended Analysis",
+          "Contextual Opportunity"
+        ],
+        "confidence": 0.89,
+        "expansion_quality": 0.72
+      }
+    },
+    {
+      "segment_id": "test_grounded_076",
+      "text": "Nachhaltige Entwicklung erfordert Ausgleich zwischen Wirtschaftswachstum und ökologischer Erhaltung.",
+      "analysis_mode": "grounded",
+      "difficulty": "medium",
+      "length_category": "short",
+      "expected_results": {
+        "subcodes": [
+          "Spatial Considerations",
+          "Structural Constraints",
+          "Identity Construction"
+        ],
+        "subcode_details": [
+          {
+            "name": "Emergent Patterns",
+            "definition": "Definition for Emergent Patterns",
+            "evidence": [
+              "Conceptual integration synthesized findings into a",
+              " coherent theory."
+            ],
+            "keywords": [
+              "emergent_patterns",
+              "related_idea"
+            ],
+            "confidence": 0.79
+          },
+          {
+            "name": "Spatial Considerations",
+            "definition": "Definition for Spatial Considerations",
+            "evidence": [
+              "Conceptual integration synthesized findings into a",
+              " coherent theory."
+            ],
+            "keywords": [
+              "spatial_considerations",
+              "related_term"
+            ],
+            "confidence": 0.75
+          },
+          {
+            "name": "Structural Constraints",
+            "definition": "Definition for Structural Constraints",
+            "evidence": [
+              "Conceptual integration synthesized findings into a",
+              " coherent theory."
+            ],
+            "keywords": [
+              "structural_constraints",
+              "related_concept"
+            ],
+            "confidence": 0.95
+          }
+        ],
+        "memo": "Analytical memo for segment 076",
+        "saturation_indicator": 0.55
+      }
+    },
+    {
+      "segment_id": "test_grounded_077",
+      "text": "Der Teilnehmer äußerte Bedenken hinsichtlich des Zeitplans für die Projektfertigstellung.",
+      "analysis_mode": "grounded",
+      "difficulty": "high",
+      "length_category": "short",
+      "expected_results": {
+        "subcodes": [
+          "Process Dynamics",
+          "Temporal Dimensions",
+          "Spatial Considerations",
+          "Emergent Patterns"
+        ],
+        "subcode_details": [
+          {
+            "name": "Temporal Dimensions",
+            "definition": "Definition for Temporal Dimensions",
+            "evidence": [
+              "Selective coding focused on the central phenomenon",
+              " and its properties."
+            ],
+            "keywords": [
+              "temporal_dimensions",
+              "related_idea"
+            ],
+            "confidence": 0.7
+          },
+          {
+            "name": "Agency and Action",
+            "definition": "Definition for Agency and Action",
+            "evidence": [
+              "Selective coding focused on the central phenomenon",
+              " and its properties."
+            ],
+            "keywords": [
+              "agency_and_action",
+              "related_idea"
+            ],
+            "confidence": 0.7
+          }
+        ],
+        "memo": "Analytical memo for segment 077",
+        "saturation_indicator": 0.89
+      }
+    },
+    {
+      "segment_id": "test_grounded_078",
+      "text": "Die Implementierung erneuerbarer Energiepolitiken erfordert sorgfältige Berücksichtigung wirtschaftlicher Faktoren.",
+      "analysis_mode": "grounded",
+      "difficulty": "medium",
+      "length_category": "short",
+      "expected_results": {
+        "subcodes": [
+          "Emergent Patterns",
+          "Spatial Considerations",
+          "Structural Constraints",
+          "Temporal Dimensions",
+          "Conceptual Relationships",
+          "Power Relations"
+        ],
+        "subcode_details": [
+          {
+            "name": "Process Dynamics",
+            "definition": "Definition for Process Dynamics",
+            "evidence": [
+              "Selective coding focused on the central phenomenon",
+              " and its properties."
+            ],
+            "keywords": [
+              "process_dynamics",
+              "related_idea"
+            ],
+            "confidence": 0.86
+          },
+          {
+            "name": "Identity Construction",
+            "definition": "Definition for Identity Construction",
+            "evidence": [
+              "Selective coding focused on the central phenomenon",
+              " and its properties."
+            ],
+            "keywords": [
+              "identity_construction",
+              "related_idea"
+            ],
+            "confidence": 0.84
+          },
+          {
+            "name": "Structural Constraints",
+            "definition": "Definition for Structural Constraints",
+            "evidence": [
+              "Selective coding focused on the central phenomenon",
+              " and its properties."
+            ],
+            "keywords": [
+              "structural_constraints",
+              "related_term"
+            ],
+            "confidence": 0.82
+          }
+        ],
+        "memo": "Analytical memo for segment 078",
+        "saturation_indicator": 0.85
+      }
+    },
+    {
+      "segment_id": "test_grounded_079",
+      "text": "Die Implementierung erneuerbarer Energiepolitiken erfordert sorgfältige Berücksichtigung wirtschaftlicher Faktoren.",
+      "analysis_mode": "grounded",
+      "difficulty": "low",
+      "length_category": "short",
+      "expected_results": {
+        "subcodes": [
+          "Identity Construction",
+          "Agency and Action"
+        ],
+        "subcode_details": [
+          {
+            "name": "Contextual Factors",
+            "definition": "Definition for Contextual Factors",
+            "evidence": [
+              "Selective coding focused on the central phenomenon",
+              " and its properties."
+            ],
+            "keywords": [
+              "contextual_factors",
+              "related_idea"
+            ],
+            "confidence": 0.75
+          },
+          {
+            "name": "Conceptual Relationships",
+            "definition": "Definition for Conceptual Relationships",
+            "evidence": [
+              "Selective coding focused on the central phenomenon",
+              " and its properties."
+            ],
+            "keywords": [
+              "conceptual_relationships",
+              "related_term"
+            ],
+            "confidence": 0.65
+          },
+          {
+            "name": "Structural Constraints",
+            "definition": "Definition for Structural Constraints",
+            "evidence": [
+              "Selective coding focused on the central phenomenon",
+              " and its properties."
+            ],
+            "keywords": [
+              "structural_constraints",
+              "related_idea"
+            ],
+            "confidence": 0.91
+          },
+          {
+            "name": "Identity Construction",
+            "definition": "Definition for Identity Construction",
+            "evidence": [
+              "Selective coding focused on the central phenomenon",
+              " and its properties."
+            ],
+            "keywords": [
+              "identity_construction",
+              "related_concept"
+            ],
+            "confidence": 0.79
+          }
+        ],
+        "memo": "Analytical memo for segment 079",
+        "saturation_indicator": 0.86
+      }
+    },
+    {
+      "segment_id": "test_grounded_080",
+      "text": "Da würde ich jetzt mal einhaken.",
+      "analysis_mode": "grounded",
+      "difficulty": "low",
+      "length_category": "short",
+      "expected_results": {
+        "subcodes": [
+          "Agency and Action",
+          "Conceptual Relationships",
+          "Spatial Considerations",
+          "Emergent Patterns"
+        ],
+        "subcode_details": [
+          {
+            "name": "Process Dynamics",
+            "definition": "Definition for Process Dynamics",
+            "evidence": [
+              "Selective coding focused on the central phenomenon",
+              " and its properties."
+            ],
+            "keywords": [
+              "process_dynamics",
+              "related_idea"
+            ],
+            "confidence": 0.73
+          },
+          {
+            "name": "Temporal Dimensions",
+            "definition": "Definition for Temporal Dimensions",
+            "evidence": [
+              "Selective coding focused on the central phenomenon",
+              " and its properties."
+            ],
+            "keywords": [
+              "temporal_dimensions",
+              "related_concept"
+            ],
+            "confidence": 0.6
+          }
+        ],
+        "memo": "Analytical memo for segment 080",
+        "saturation_indicator": 0.67
+      }
+    },
+    {
+      "segment_id": "test_grounded_081",
+      "text": "Aber es wird auch quasi, ich will nicht sagen, es wird wirklich\nanempfohlen, wenn man sich irgendwie entweder seine Persönlichkeit als Experte rund um das Thema\nNachhaltigkeit aufbauen möchte, dann komme ich um diese Forschungsbereiche oder um diese\nForschungsprojekte nicht drum rum.",
+      "analysis_mode": "grounded",
+      "difficulty": "medium",
+      "length_category": "medium",
+      "expected_results": {
+        "subcodes": [
+          "Agency and Action",
+          "Conceptual Relationships",
+          "Process Dynamics",
+          "Spatial Considerations",
+          "Emergent Patterns"
+        ],
+        "subcode_details": [
+          {
+            "name": "Power Relations",
+            "definition": "Definition for Power Relations",
+            "evidence": [
+              "Selective coding focused on the central phenomenon",
+              " and its properties."
+            ],
+            "keywords": [
+              "power_relations",
+              "related_term"
+            ],
+            "confidence": 0.82
+          },
+          {
+            "name": "Agency and Action",
+            "definition": "Definition for Agency and Action",
+            "evidence": [
+              "Selective coding focused on the central phenomenon",
+              " and its properties."
+            ],
+            "keywords": [
+              "agency_and_action",
+              "related_concept"
+            ],
+            "confidence": 0.92
+          },
+          {
+            "name": "Process Dynamics",
+            "definition": "Definition for Process Dynamics",
+            "evidence": [
+              "Selective coding focused on the central phenomenon",
+              " and its properties."
+            ],
+            "keywords": [
+              "process_dynamics",
+              "related_concept"
+            ],
+            "confidence": 0.83
+          },
+          {
+            "name": "Identity Construction",
+            "definition": "Definition for Identity Construction",
+            "evidence": [
+              "Selective coding focused on the central phenomenon",
+              " and its properties."
+            ],
+            "keywords": [
+              "identity_construction",
+              "related_term"
+            ],
+            "confidence": 0.65
+          }
+        ],
+        "memo": "Analytical memo for segment 081",
+        "saturation_indicator": 0.87
+      }
+    },
+    {
+      "segment_id": "test_grounded_082",
+      "text": "Doch was macht Enpal so attraktiv für deutsche Hausbesitzer?",
+      "analysis_mode": "grounded",
+      "difficulty": "medium",
+      "length_category": "short",
+      "expected_results": {
+        "subcodes": [
+          "Power Relations",
+          "Contextual Factors",
+          "Temporal Dimensions"
+        ],
+        "subcode_details": [
+          {
+            "name": "Agency and Action",
+            "definition": "Definition for Agency and Action",
+            "evidence": [
+              "Initial coding revealed unexpected connections bet",
+              "ween concepts."
+            ],
+            "keywords": [
+              "agency_and_action",
+              "related_idea"
+            ],
+            "confidence": 0.86
+          },
+          {
+            "name": "Power Relations",
+            "definition": "Definition for Power Relations",
+            "evidence": [
+              "Initial coding revealed unexpected connections bet",
+              "ween concepts."
+            ],
+            "keywords": [
+              "power_relations",
+              "related_term"
+            ],
+            "confidence": 0.91
+          },
+          {
+            "name": "Temporal Dimensions",
+            "definition": "Definition for Temporal Dimensions",
+            "evidence": [
+              "Initial coding revealed unexpected connections bet",
+              "ween concepts."
+            ],
+            "keywords": [
+              "temporal_dimensions",
+              "related_idea"
+            ],
+            "confidence": 0.63
+          }
+        ],
+        "memo": "Analytical memo for segment 082",
+        "saturation_indicator": 0.64
+      }
+    },
+    {
+      "segment_id": "test_grounded_083",
+      "text": "Der Teilnehmer äußerte Bedenken hinsichtlich des Zeitplans für die Projektfertigstellung.",
+      "analysis_mode": "grounded",
+      "difficulty": "medium",
+      "length_category": "short",
+      "expected_results": {
+        "subcodes": [
+          "Process Dynamics",
+          "Spatial Considerations",
+          "Power Relations",
+          "Conceptual Relationships"
+        ],
+        "subcode_details": [
+          {
+            "name": "Conceptual Relationships",
+            "definition": "Definition for Conceptual Relationships",
+            "evidence": [
+              "The data suggests several emergent categories that",
+              " were not anticipated."
+            ],
+            "keywords": [
+              "conceptual_relationships",
+              "related_term"
+            ],
+            "confidence": 0.74
+          },
+          {
+            "name": "Agency and Action",
+            "definition": "Definition for Agency and Action",
+            "evidence": [
+              "The data suggests several emergent categories that",
+              " were not anticipated."
+            ],
+            "keywords": [
+              "agency_and_action",
+              "related_term"
+            ],
+            "confidence": 0.94
+          },
+          {
+            "name": "Power Relations",
+            "definition": "Definition for Power Relations",
+            "evidence": [
+              "The data suggests several emergent categories that",
+              " were not anticipated."
+            ],
+            "keywords": [
+              "power_relations",
+              "related_concept"
+            ],
+            "confidence": 0.63
+          }
+        ],
+        "memo": "Analytical memo for segment 083",
+        "saturation_indicator": 0.51
+      }
+    },
+    {
+      "segment_id": "test_grounded_084",
+      "text": "Die Implementierung erneuerbarer Energiepolitiken erfordert sorgfältige Berücksichtigung wirtschaftlicher Faktoren.",
+      "analysis_mode": "grounded",
+      "difficulty": "high",
+      "length_category": "short",
+      "expected_results": {
+        "subcodes": [
+          "Process Dynamics",
+          "Contextual Factors",
+          "Identity Construction",
+          "Emergent Patterns"
+        ],
+        "subcode_details": [
+          {
+            "name": "Process Dynamics",
+            "definition": "Definition for Process Dynamics",
+            "evidence": [
+              "The data suggests several emergent categories that",
+              " were not anticipated."
+            ],
+            "keywords": [
+              "process_dynamics",
+              "related_term"
+            ],
+            "confidence": 0.88
+          },
+          {
+            "name": "Identity Construction",
+            "definition": "Definition for Identity Construction",
+            "evidence": [
+              "The data suggests several emergent categories that",
+              " were not anticipated."
+            ],
+            "keywords": [
+              "identity_construction",
+              "related_idea"
+            ],
+            "confidence": 0.6
+          },
+          {
+            "name": "Power Relations",
+            "definition": "Definition for Power Relations",
+            "evidence": [
+              "The data suggests several emergent categories that",
+              " were not anticipated."
+            ],
+            "keywords": [
+              "power_relations",
+              "related_term"
+            ],
+            "confidence": 0.95
+          },
+          {
+            "name": "Contextual Factors",
+            "definition": "Definition for Contextual Factors",
+            "evidence": [
+              "The data suggests several emergent categories that",
+              " were not anticipated."
+            ],
+            "keywords": [
+              "contextual_factors",
+              "related_idea"
+            ],
+            "confidence": 0.69
+          }
+        ],
+        "memo": "Analytical memo for segment 084",
+        "saturation_indicator": 0.49
+      }
+    },
+    {
+      "segment_id": "test_grounded_085",
+      "text": "Die Implementierung erneuerbarer Energiepolitiken erfordert sorgfältige Berücksichtigung wirtschaftlicher Faktoren.",
+      "analysis_mode": "grounded",
+      "difficulty": "low",
+      "length_category": "short",
+      "expected_results": {
+        "subcodes": [
+          "Process Dynamics",
+          "Agency and Action",
+          "Emergent Patterns",
+          "Conceptual Relationships"
+        ],
+        "subcode_details": [
+          {
+            "name": "Emergent Patterns",
+            "definition": "Definition for Emergent Patterns",
+            "evidence": [
+              "Open coding produced a rich set of codes requiring",
+              " further refinement."
+            ],
+            "keywords": [
+              "emergent_patterns",
+              "related_idea"
+            ],
+            "confidence": 0.64
+          },
+          {
+            "name": "Contextual Factors",
+            "definition": "Definition for Contextual Factors",
+            "evidence": [
+              "Open coding produced a rich set of codes requiring",
+              " further refinement."
+            ],
+            "keywords": [
+              "contextual_factors",
+              "related_term"
+            ],
+            "confidence": 0.77
+          },
+          {
+            "name": "Temporal Dimensions",
+            "definition": "Definition for Temporal Dimensions",
+            "evidence": [
+              "Open coding produced a rich set of codes requiring",
+              " further refinement."
+            ],
+            "keywords": [
+              "temporal_dimensions",
+              "related_concept"
+            ],
+            "confidence": 0.78
+          }
+        ],
+        "memo": "Analytical memo for segment 085",
+        "saturation_indicator": 0.45
+      }
+    },
+    {
+      "segment_id": "test_grounded_086",
+      "text": "Selektive Kodierung fokussierte auf das zentrale Phänomen und seine Eigenschaften.",
+      "analysis_mode": "grounded",
+      "difficulty": "low",
+      "length_category": "short",
+      "expected_results": {
+        "subcodes": [
+          "Structural Constraints",
+          "Spatial Considerations",
+          "Emergent Patterns",
+          "Power Relations",
+          "Process Dynamics",
+          "Agency and Action"
+        ],
+        "subcode_details": [
+          {
+            "name": "Conceptual Relationships",
+            "definition": "Definition for Conceptual Relationships",
+            "evidence": [
+              "Conceptual integration synthesized findings into a",
+              " coherent theory."
+            ],
+            "keywords": [
+              "conceptual_relationships",
+              "related_term"
+            ],
+            "confidence": 0.91
+          },
+          {
+            "name": "Spatial Considerations",
+            "definition": "Definition for Spatial Considerations",
+            "evidence": [
+              "Conceptual integration synthesized findings into a",
+              " coherent theory."
+            ],
+            "keywords": [
+              "spatial_considerations",
+              "related_concept"
+            ],
+            "confidence": 0.81
+          },
+          {
+            "name": "Power Relations",
+            "definition": "Definition for Power Relations",
+            "evidence": [
+              "Conceptual integration synthesized findings into a",
+              " coherent theory."
+            ],
+            "keywords": [
+              "power_relations",
+              "related_term"
+            ],
+            "confidence": 0.64
+          }
+        ],
+        "memo": "Analytical memo for segment 086",
+        "saturation_indicator": 0.71
+      }
+    },
+    {
+      "segment_id": "test_grounded_087",
+      "text": "Analyse von Stakeholder-Feedback zeigt wiederkehrende Themen von Kommunikationslücken.",
+      "analysis_mode": "grounded",
+      "difficulty": "high",
+      "length_category": "short",
+      "expected_results": {
+        "subcodes": [
+          "Power Relations",
+          "Structural Constraints",
+          "Spatial Considerations",
+          "Identity Construction",
+          "Temporal Dimensions",
+          "Process Dynamics"
+        ],
+        "subcode_details": [
+          {
+            "name": "Conceptual Relationships",
+            "definition": "Definition for Conceptual Relationships",
+            "evidence": [
+              "Memo writing captured analytical insights during t",
+              "he coding process."
+            ],
+            "keywords": [
+              "conceptual_relationships",
+              "related_idea"
+            ],
+            "confidence": 0.9
+          },
+          {
+            "name": "Power Relations",
+            "definition": "Definition for Power Relations",
+            "evidence": [
+              "Memo writing captured analytical insights during t",
+              "he coding process."
+            ],
+            "keywords": [
+              "power_relations",
+              "related_concept"
+            ],
+            "confidence": 0.76
+          }
+        ],
+        "memo": "Analytical memo for segment 087",
+        "saturation_indicator": 0.51
+      }
+    },
+    {
+      "segment_id": "test_grounded_088",
+      "text": "Aber es gibt auch Kollegen, die sagen, es ist eigentlich mehr, also es\nist schon eine krasse Mehrarbeit, die Projekte durchzuführen.",
+      "analysis_mode": "grounded",
+      "difficulty": "medium",
+      "length_category": "short",
+      "expected_results": {
+        "subcodes": [
+          "Agency and Action",
+          "Temporal Dimensions"
+        ],
+        "subcode_details": [
+          {
+            "name": "Structural Constraints",
+            "definition": "Definition for Structural Constraints",
+            "evidence": [
+              "Constant comparison highlighted similarities and d",
+              "ifferences across cases."
+            ],
+            "keywords": [
+              "structural_constraints",
+              "related_idea"
+            ],
+            "confidence": 0.92
+          },
+          {
+            "name": "Agency and Action",
+            "definition": "Definition for Agency and Action",
+            "evidence": [
+              "Constant comparison highlighted similarities and d",
+              "ifferences across cases."
+            ],
+            "keywords": [
+              "agency_and_action",
+              "related_term"
+            ],
+            "confidence": 0.63
+          },
+          {
+            "name": "Contextual Factors",
+            "definition": "Definition for Contextual Factors",
+            "evidence": [
+              "Constant comparison highlighted similarities and d",
+              "ifferences across cases."
+            ],
+            "keywords": [
+              "contextual_factors",
+              "related_term"
+            ],
+            "confidence": 0.63
+          }
+        ],
+        "memo": "Analytical memo for segment 088",
+        "saturation_indicator": 0.45
+      }
+    },
+    {
+      "segment_id": "test_grounded_089",
+      "text": "Sind die Bedingungen für Sie dort gut zum Forschen oder eher nicht und wie sieht es auch für die\nKollegen aus?",
+      "analysis_mode": "grounded",
+      "difficulty": "medium",
+      "length_category": "short",
+      "expected_results": {
+        "subcodes": [
+          "Identity Construction",
+          "Power Relations"
+        ],
+        "subcode_details": [
+          {
+            "name": "Agency and Action",
+            "definition": "Definition for Agency and Action",
+            "evidence": [
+              "Open coding produced a rich set of codes requiring",
+              " further refinement."
+            ],
+            "keywords": [
+              "agency_and_action",
+              "related_idea"
+            ],
+            "confidence": 0.93
+          },
+          {
+            "name": "Conceptual Relationships",
+            "definition": "Definition for Conceptual Relationships",
+            "evidence": [
+              "Open coding produced a rich set of codes requiring",
+              " further refinement."
+            ],
+            "keywords": [
+              "conceptual_relationships",
+              "related_concept"
+            ],
+            "confidence": 0.9
+          },
+          {
+            "name": "Temporal Dimensions",
+            "definition": "Definition for Temporal Dimensions",
+            "evidence": [
+              "Open coding produced a rich set of codes requiring",
+              " further refinement."
+            ],
+            "keywords": [
+              "temporal_dimensions",
+              "related_idea"
+            ],
+            "confidence": 0.62
+          },
+          {
+            "name": "Contextual Factors",
+            "definition": "Definition for Contextual Factors",
+            "evidence": [
+              "Open coding produced a rich set of codes requiring",
+              " further refinement."
+            ],
+            "keywords": [
+              "contextual_factors",
+              "related_concept"
+            ],
+            "confidence": 0.81
+          }
+        ],
+        "memo": "Analytical memo for segment 089",
+        "saturation_indicator": 0.58
+      }
+    },
+    {
+      "segment_id": "test_grounded_090",
+      "text": "Analyse von Stakeholder-Feedback zeigt wiederkehrende Themen von Kommunikationslücken.",
+      "analysis_mode": "grounded",
+      "difficulty": "high",
+      "length_category": "short",
+      "expected_results": {
+        "subcodes": [
+          "Process Dynamics",
+          "Conceptual Relationships",
+          "Agency and Action",
+          "Temporal Dimensions",
+          "Structural Constraints"
+        ],
+        "subcode_details": [
+          {
+            "name": "Conceptual Relationships",
+            "definition": "Definition for Conceptual Relationships",
+            "evidence": [
+              "Axial coding helped identify relationships between",
+              " core categories."
+            ],
+            "keywords": [
+              "conceptual_relationships",
+              "related_concept"
+            ],
+            "confidence": 0.9
+          },
+          {
+            "name": "Structural Constraints",
+            "definition": "Definition for Structural Constraints",
+            "evidence": [
+              "Axial coding helped identify relationships between",
+              " core categories."
+            ],
+            "keywords": [
+              "structural_constraints",
+              "related_idea"
+            ],
+            "confidence": 0.81
+          },
+          {
+            "name": "Process Dynamics",
+            "definition": "Definition for Process Dynamics",
+            "evidence": [
+              "Axial coding helped identify relationships between",
+              " core categories."
+            ],
+            "keywords": [
+              "process_dynamics",
+              "related_idea"
+            ],
+            "confidence": 0.79
+          }
+        ],
+        "memo": "Analytical memo for segment 090",
+        "saturation_indicator": 0.7
+      }
+    },
+    {
+      "segment_id": "test_grounded_091",
+      "text": "Die Implementierung erneuerbarer Energiepolitiken erfordert sorgfältige Berücksichtigung wirtschaftlicher Faktoren.",
+      "analysis_mode": "grounded",
+      "difficulty": "high",
+      "length_category": "short",
+      "expected_results": {
+        "subcodes": [
+          "Structural Constraints",
+          "Identity Construction",
+          "Agency and Action"
+        ],
+        "subcode_details": [
+          {
+            "name": "Emergent Patterns",
+            "definition": "Definition for Emergent Patterns",
+            "evidence": [
+              "Selective coding focused on the central phenomenon",
+              " and its properties."
+            ],
+            "keywords": [
+              "emergent_patterns",
+              "related_idea"
+            ],
+            "confidence": 0.83
+          },
+          {
+            "name": "Contextual Factors",
+            "definition": "Definition for Contextual Factors",
+            "evidence": [
+              "Selective coding focused on the central phenomenon",
+              " and its properties."
+            ],
+            "keywords": [
+              "contextual_factors",
+              "related_term"
+            ],
+            "confidence": 0.65
+          },
+          {
+            "name": "Power Relations",
+            "definition": "Definition for Power Relations",
+            "evidence": [
+              "Selective coding focused on the central phenomenon",
+              " and its properties."
+            ],
+            "keywords": [
+              "power_relations",
+              "related_idea"
+            ],
+            "confidence": 0.94
+          }
+        ],
+        "memo": "Analytical memo for segment 091",
+        "saturation_indicator": 0.45
+      }
+    },
+    {
+      "segment_id": "test_grounded_092",
+      "text": "Selektive Kodierung fokussierte auf das zentrale Phänomen und seine Eigenschaften.",
+      "analysis_mode": "grounded",
+      "difficulty": "low",
+      "length_category": "short",
+      "expected_results": {
+        "subcodes": [
+          "Agency and Action",
+          "Contextual Factors",
+          "Identity Construction",
+          "Power Relations",
+          "Spatial Considerations"
+        ],
+        "subcode_details": [
+          {
+            "name": "Identity Construction",
+            "definition": "Definition for Identity Construction",
+            "evidence": [
+              "Constant comparison highlighted similarities and d",
+              "ifferences across cases."
+            ],
+            "keywords": [
+              "identity_construction",
+              "related_term"
+            ],
+            "confidence": 0.66
+          },
+          {
+            "name": "Conceptual Relationships",
+            "definition": "Definition for Conceptual Relationships",
+            "evidence": [
+              "Constant comparison highlighted similarities and d",
+              "ifferences across cases."
+            ],
+            "keywords": [
+              "conceptual_relationships",
+              "related_idea"
+            ],
+            "confidence": 0.62
+          },
+          {
+            "name": "Emergent Patterns",
+            "definition": "Definition for Emergent Patterns",
+            "evidence": [
+              "Constant comparison highlighted similarities and d",
+              "ifferences across cases."
+            ],
+            "keywords": [
+              "emergent_patterns",
+              "related_term"
+            ],
+            "confidence": 0.7
+          }
+        ],
+        "memo": "Analytical memo for segment 092",
+        "saturation_indicator": 0.73
+      }
+    },
+    {
+      "segment_id": "test_grounded_093",
+      "text": "Aber es wird auch quasi, ich will nicht sagen, es wird wirklich\nanempfohlen, wenn man sich irgendwie entweder seine Persönlichkeit als Experte rund um das Thema\nNachhaltigkeit aufbauen möchte, dann komme ich um diese Forschungsbereiche oder um diese\nForschungsprojekte nicht drum rum.",
+      "analysis_mode": "grounded",
+      "difficulty": "high",
+      "length_category": "medium",
+      "expected_results": {
+        "subcodes": [
+          "Process Dynamics",
+          "Power Relations",
+          "Conceptual Relationships",
+          "Contextual Factors"
+        ],
+        "subcode_details": [
+          {
+            "name": "Conceptual Relationships",
+            "definition": "Definition for Conceptual Relationships",
+            "evidence": [
+              "Theoretical sampling guided data collection toward",
+              " saturation."
+            ],
+            "keywords": [
+              "conceptual_relationships",
+              "related_idea"
+            ],
+            "confidence": 0.83
+          },
+          {
+            "name": "Structural Constraints",
+            "definition": "Definition for Structural Constraints",
+            "evidence": [
+              "Theoretical sampling guided data collection toward",
+              " saturation."
+            ],
+            "keywords": [
+              "structural_constraints",
+              "related_term"
+            ],
+            "confidence": 0.68
+          },
+          {
+            "name": "Spatial Considerations",
+            "definition": "Definition for Spatial Considerations",
+            "evidence": [
+              "Theoretical sampling guided data collection toward",
+              " saturation."
+            ],
+            "keywords": [
+              "spatial_considerations",
+              "related_idea"
+            ],
+            "confidence": 0.62
+          }
+        ],
+        "memo": "Analytical memo for segment 093",
+        "saturation_indicator": 0.5
+      }
+    },
+    {
+      "segment_id": "test_grounded_094",
+      "text": "Nachhaltige Entwicklung erfordert Ausgleich zwischen Wirtschaftswachstum und ökologischer Erhaltung.",
+      "analysis_mode": "grounded",
+      "difficulty": "low",
+      "length_category": "short",
+      "expected_results": {
+        "subcodes": [
+          "Conceptual Relationships",
+          "Emergent Patterns",
+          "Spatial Considerations",
+          "Agency and Action"
+        ],
+        "subcode_details": [
+          {
+            "name": "Contextual Factors",
+            "definition": "Definition for Contextual Factors",
+            "evidence": [
+              "Selective coding focused on the central phenomenon",
+              " and its properties."
+            ],
+            "keywords": [
+              "contextual_factors",
+              "related_idea"
+            ],
+            "confidence": 0.85
+          },
+          {
+            "name": "Identity Construction",
+            "definition": "Definition for Identity Construction",
+            "evidence": [
+              "Selective coding focused on the central phenomenon",
+              " and its properties."
+            ],
+            "keywords": [
+              "identity_construction",
+              "related_idea"
+            ],
+            "confidence": 0.8
+          },
+          {
+            "name": "Temporal Dimensions",
+            "definition": "Definition for Temporal Dimensions",
+            "evidence": [
+              "Selective coding focused on the central phenomenon",
+              " and its properties."
+            ],
+            "keywords": [
+              "temporal_dimensions",
+              "related_idea"
+            ],
+            "confidence": 0.88
+          }
+        ],
+        "memo": "Analytical memo for segment 094",
+        "saturation_indicator": 0.44
+      }
+    },
+    {
+      "segment_id": "test_grounded_095",
+      "text": "Da würde ich jetzt mal einhaken.",
+      "analysis_mode": "grounded",
+      "difficulty": "high",
+      "length_category": "short",
+      "expected_results": {
+        "subcodes": [
+          "Spatial Considerations",
+          "Conceptual Relationships"
+        ],
+        "subcode_details": [
+          {
+            "name": "Identity Construction",
+            "definition": "Definition for Identity Construction",
+            "evidence": [
+              "The data suggests several emergent categories that",
+              " were not anticipated."
+            ],
+            "keywords": [
+              "identity_construction",
+              "related_idea"
+            ],
+            "confidence": 0.82
+          },
+          {
+            "name": "Temporal Dimensions",
+            "definition": "Definition for Temporal Dimensions",
+            "evidence": [
+              "The data suggests several emergent categories that",
+              " were not anticipated."
+            ],
+            "keywords": [
+              "temporal_dimensions",
+              "related_concept"
+            ],
+            "confidence": 0.64
+          },
+          {
+            "name": "Power Relations",
+            "definition": "Definition for Power Relations",
+            "evidence": [
+              "The data suggests several emergent categories that",
+              " were not anticipated."
+            ],
+            "keywords": [
+              "power_relations",
+              "related_term"
+            ],
+            "confidence": 0.94
+          }
+        ],
+        "memo": "Analytical memo for segment 095",
+        "saturation_indicator": 0.49
+      }
+    },
+    {
+      "segment_id": "test_grounded_096",
+      "text": "Analyse von Stakeholder-Feedback zeigt wiederkehrende Themen von Kommunikationslücken.",
+      "analysis_mode": "grounded",
+      "difficulty": "medium",
+      "length_category": "short",
+      "expected_results": {
+        "subcodes": [
+          "Conceptual Relationships",
+          "Process Dynamics",
+          "Temporal Dimensions",
+          "Structural Constraints",
+          "Power Relations"
+        ],
+        "subcode_details": [
+          {
+            "name": "Conceptual Relationships",
+            "definition": "Definition for Conceptual Relationships",
+            "evidence": [
+              "Memo writing captured analytical insights during t",
+              "he coding process."
+            ],
+            "keywords": [
+              "conceptual_relationships",
+              "related_concept"
+            ],
+            "confidence": 0.68
+          },
+          {
+            "name": "Temporal Dimensions",
+            "definition": "Definition for Temporal Dimensions",
+            "evidence": [
+              "Memo writing captured analytical insights during t",
+              "he coding process."
+            ],
+            "keywords": [
+              "temporal_dimensions",
+              "related_term"
+            ],
+            "confidence": 0.63
+          },
+          {
+            "name": "Structural Constraints",
+            "definition": "Definition for Structural Constraints",
+            "evidence": [
+              "Memo writing captured analytical insights during t",
+              "he coding process."
+            ],
+            "keywords": [
+              "structural_constraints",
+              "related_idea"
+            ],
+            "confidence": 0.64
+          },
+          {
+            "name": "Agency and Action",
+            "definition": "Definition for Agency and Action",
+            "evidence": [
+              "Memo writing captured analytical insights during t",
+              "he coding process."
+            ],
+            "keywords": [
+              "agency_and_action",
+              "related_idea"
+            ],
+            "confidence": 0.67
+          }
+        ],
+        "memo": "Analytical memo for segment 096",
+        "saturation_indicator": 0.79
+      }
+    },
+    {
+      "segment_id": "test_grounded_097",
+      "text": "Aber es gibt auch Kollegen, die sagen, es ist eigentlich mehr, also es\nist schon eine krasse Mehrarbeit, die Projekte durchzuführen.",
+      "analysis_mode": "grounded",
+      "difficulty": "high",
+      "length_category": "short",
+      "expected_results": {
+        "subcodes": [
+          "Contextual Factors",
+          "Structural Constraints"
+        ],
+        "subcode_details": [
+          {
+            "name": "Contextual Factors",
+            "definition": "Definition for Contextual Factors",
+            "evidence": [
+              "Open coding produced a rich set of codes requiring",
+              " further refinement."
+            ],
+            "keywords": [
+              "contextual_factors",
+              "related_idea"
+            ],
+            "confidence": 0.63
+          },
+          {
+            "name": "Identity Construction",
+            "definition": "Definition for Identity Construction",
+            "evidence": [
+              "Open coding produced a rich set of codes requiring",
+              " further refinement."
+            ],
+            "keywords": [
+              "identity_construction",
+              "related_idea"
+            ],
+            "confidence": 0.77
+          }
+        ],
+        "memo": "Analytical memo for segment 097",
+        "saturation_indicator": 0.78
+      }
+    },
+    {
+      "segment_id": "test_grounded_098",
+      "text": "Ich rate da eigentlich neuen\nKollegen eher von ab, von dieser bezahlten Zusatzarbeit, weil nämlich dann die Lehre und die Qualität\ntotal darunter leidet.",
+      "analysis_mode": "grounded",
+      "difficulty": "high",
+      "length_category": "medium",
+      "expected_results": {
+        "subcodes": [
+          "Identity Construction",
+          "Agency and Action",
+          "Power Relations",
+          "Conceptual Relationships",
+          "Process Dynamics",
+          "Emergent Patterns"
+        ],
+        "subcode_details": [
+          {
+            "name": "Spatial Considerations",
+            "definition": "Definition for Spatial Considerations",
+            "evidence": [
+              "Theoretical sampling guided data collection toward",
+              " saturation."
+            ],
+            "keywords": [
+              "spatial_considerations",
+              "related_idea"
+            ],
+            "confidence": 0.62
+          },
+          {
+            "name": "Structural Constraints",
+            "definition": "Definition for Structural Constraints",
+            "evidence": [
+              "Theoretical sampling guided data collection toward",
+              " saturation."
+            ],
+            "keywords": [
+              "structural_constraints",
+              "related_idea"
+            ],
+            "confidence": 0.63
+          },
+          {
+            "name": "Power Relations",
+            "definition": "Definition for Power Relations",
+            "evidence": [
+              "Theoretical sampling guided data collection toward",
+              " saturation."
+            ],
+            "keywords": [
+              "power_relations",
+              "related_concept"
+            ],
+            "confidence": 0.76
+          }
+        ],
+        "memo": "Analytical memo for segment 098",
+        "saturation_indicator": 0.43
+      }
+    },
+    {
+      "segment_id": "test_grounded_099",
+      "text": "Da würde ich jetzt mal einhaken.",
+      "analysis_mode": "grounded",
+      "difficulty": "medium",
+      "length_category": "short",
+      "expected_results": {
+        "subcodes": [
+          "Identity Construction",
+          "Power Relations"
+        ],
+        "subcode_details": [
+          {
+            "name": "Spatial Considerations",
+            "definition": "Definition for Spatial Considerations",
+            "evidence": [
+              "Initial coding revealed unexpected connections bet",
+              "ween concepts."
+            ],
+            "keywords": [
+              "spatial_considerations",
+              "related_concept"
+            ],
+            "confidence": 0.92
+          },
+          {
+            "name": "Power Relations",
+            "definition": "Definition for Power Relations",
+            "evidence": [
+              "Initial coding revealed unexpected connections bet",
+              "ween concepts."
+            ],
+            "keywords": [
+              "power_relations",
+              "related_idea"
+            ],
+            "confidence": 0.83
+          },
+          {
+            "name": "Emergent Patterns",
+            "definition": "Definition for Emergent Patterns",
+            "evidence": [
+              "Initial coding revealed unexpected connections bet",
+              "ween concepts."
+            ],
+            "keywords": [
+              "emergent_patterns",
+              "related_concept"
+            ],
+            "confidence": 0.81
+          }
+        ],
+        "memo": "Analytical memo for segment 099",
+        "saturation_indicator": 0.65
+      }
+    },
+    {
+      "segment_id": "test_grounded_100",
+      "text": "Da gibt es dann vielleicht bestimmte Boni, ihr könnt doch nur die halbe Lehre machen.",
+      "analysis_mode": "grounded",
+      "difficulty": "medium",
+      "length_category": "short",
+      "expected_results": {
+        "subcodes": [
+          "Power Relations",
+          "Contextual Factors"
+        ],
+        "subcode_details": [
+          {
+            "name": "Process Dynamics",
+            "definition": "Definition for Process Dynamics",
+            "evidence": [
+              "Initial coding revealed unexpected connections bet",
+              "ween concepts."
+            ],
+            "keywords": [
+              "process_dynamics",
+              "related_concept"
+            ],
+            "confidence": 0.78
+          },
+          {
+            "name": "Spatial Considerations",
+            "definition": "Definition for Spatial Considerations",
+            "evidence": [
+              "Initial coding revealed unexpected connections bet",
+              "ween concepts."
+            ],
+            "keywords": [
+              "spatial_considerations",
+              "related_idea"
+            ],
+            "confidence": 0.66
+          }
+        ],
+        "memo": "Analytical memo for segment 100",
+        "saturation_indicator": 0.59
+      }
+    }
+  ],
+  "baseline_metrics": {
+    "deductive": {
+      "api_calls_per_segment": 2.2,
+      "processing_time_seconds": 15.3,
+      "intercoder_reliability": 0.78,
+      "precision": 0.82,
+      "recall": 0.76,
+      "f1_score": 0.79
+    },
+    "inductive": {
+      "api_calls_per_segment": 1.0,
+      "processing_time_seconds": 12.7,
+      "intercoder_reliability": 0.72,
+      "precision": 0.75,
+      "recall": 0.71,
+      "f1_score": 0.73
+    },
+    "abductive": {
+      "api_calls_per_segment": 1.0,
+      "processing_time_seconds": 11.8,
+      "intercoder_reliability": 0.74,
+      "precision": 0.77,
+      "recall": 0.73,
+      "f1_score": 0.75
+    },
+    "grounded": {
+      "api_calls_per_segment": 1.0,
+      "processing_time_seconds": 14.2,
+      "intercoder_reliability": 0.71,
+      "precision": 0.74,
+      "recall": 0.69,
+      "f1_score": 0.71
+    }
+  }
+}

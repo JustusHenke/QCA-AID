@@ -1,0 +1,239 @@
+{
+  "timestamp": "2025-12-07 11:08:25",
+  "test_dataset": "test_dataset_v1.json",
+  "results": {
+    "deductive": {
+      "current": {
+        "api_calls_per_segment": 2.2,
+        "processing_time_per_segment_ms": 15300.0,
+        "tokens_per_segment": 1500,
+        "quality_score_avg": 0.85,
+        "confidence_score_avg": 0.8,
+        "success_rate": 0.95
+      },
+      "optimized": {
+        "api_calls_per_segment": 1.32,
+        "processing_time_per_segment_ms": 12240.0,
+        "tokens_per_segment": 1200,
+        "quality_score_avg": 0.83,
+        "confidence_score_avg": 0.76,
+        "success_rate": 0.93
+      },
+      "comparison": {
+        "analysis_mode": "deductive",
+        "segment_count": 25,
+        "api_calls": {
+          "current": 2.2,
+          "optimized": 1.32,
+          "reduction": 0.8800000000000001,
+          "reduction_percent": 40.0
+        },
+        "processing_time": {
+          "current": 15300.0,
+          "optimized": 12240.0,
+          "reduction": 3060.0,
+          "reduction_percent": 20.0
+        },
+        "tokens": {
+          "current": 1500,
+          "optimized": 1200,
+          "reduction": 300,
+          "reduction_percent": 20.0
+        },
+        "quality": {
+          "current_avg": 0.85,
+          "optimized_avg": 0.83,
+          "difference": -0.020000000000000018
+        },
+        "confidence": {
+          "current_avg": 0.8,
+          "optimized_avg": 0.76,
+          "difference": -0.040000000000000036
+        },
+        "success_rate": {
+          "current": 0.95,
+          "optimized": 0.93,
+          "difference": -0.019999999999999907
+        }
+      }
+    },
+    "inductive": {
+      "current": {
+        "api_calls_per_segment": 1.0,
+        "processing_time_per_segment_ms": 12700.0,
+        "tokens_per_segment": 1500,
+        "quality_score_avg": 0.85,
+        "confidence_score_avg": 0.8,
+        "success_rate": 0.95
+      },
+      "optimized": {
+        "api_calls_per_segment": 0.30000000000000004,
+        "processing_time_per_segment_ms": 10160.0,
+        "tokens_per_segment": 1200,
+        "quality_score_avg": 0.83,
+        "confidence_score_avg": 0.76,
+        "success_rate": 0.93
+      },
+      "comparison": {
+        "analysis_mode": "inductive",
+        "segment_count": 25,
+        "api_calls": {
+          "current": 1.0,
+          "optimized": 0.30000000000000004,
+          "reduction": 0.7,
+          "reduction_percent": 70.0
+        },
+        "processing_time": {
+          "current": 12700.0,
+          "optimized": 10160.0,
+          "reduction": 2540.0,
+          "reduction_percent": 20.0
+        },
+        "tokens": {
+          "current": 1500,
+          "optimized": 1200,
+          "reduction": 300,
+          "reduction_percent": 20.0
+        },
+        "quality": {
+          "current_avg": 0.85,
+          "optimized_avg": 0.83,
+          "difference": -0.020000000000000018
+        },
+        "confidence": {
+          "current_avg": 0.8,
+          "optimized_avg": 0.76,
+          "difference": -0.040000000000000036
+        },
+        "success_rate": {
+          "current": 0.95,
+          "optimized": 0.93,
+          "difference": -0.019999999999999907
+        }
+      }
+    },
+    "abductive": {
+      "current": {
+        "api_calls_per_segment": 1.0,
+        "processing_time_per_segment_ms": 11800.0,
+        "tokens_per_segment": 1500,
+        "quality_score_avg": 0.85,
+        "confidence_score_avg": 0.8,
+        "success_rate": 0.95
+      },
+      "optimized": {
+        "api_calls_per_segment": 0.4,
+        "processing_time_per_segment_ms": 9440.0,
+        "tokens_per_segment": 1200,
+        "quality_score_avg": 0.83,
+        "confidence_score_avg": 0.76,
+        "success_rate": 0.93
+      },
+      "comparison": {
+        "analysis_mode": "abductive",
+        "segment_count": 25,
+        "api_calls": {
+          "current": 1.0,
+          "optimized": 0.4,
+          "reduction": 0.6,
+          "reduction_percent": 60.0
+        },
+        "processing_time": {
+          "current": 11800.0,
+          "optimized": 9440.0,
+          "reduction": 2360.0,
+          "reduction_percent": 20.0
+        },
+        "tokens": {
+          "current": 1500,
+          "optimized": 1200,
+          "reduction": 300,
+          "reduction_percent": 20.0
+        },
+        "quality": {
+          "current_avg": 0.85,
+          "optimized_avg": 0.83,
+          "difference": -0.020000000000000018
+        },
+        "confidence": {
+          "current_avg": 0.8,
+          "optimized_avg": 0.76,
+          "difference": -0.040000000000000036
+        },
+        "success_rate": {
+          "current": 0.95,
+          "optimized": 0.93,
+          "difference": -0.019999999999999907
+        }
+      }
+    },
+    "grounded": {
+      "current": {
+        "api_calls_per_segment": 1.0,
+        "processing_time_per_segment_ms": 14200.0,
+        "tokens_per_segment": 1500,
+        "quality_score_avg": 0.85,
+        "confidence_score_avg": 0.8,
+        "success_rate": 0.95
+      },
+      "optimized": {
+        "api_calls_per_segment": 0.30000000000000004,
+        "processing_time_per_segment_ms": 11360.0,
+        "tokens_per_segment": 1200,
+        "quality_score_avg": 0.83,
+        "confidence_score_avg": 0.76,
+        "success_rate": 0.93
+      },
+      "comparison": {
+        "analysis_mode": "grounded",
+        "segment_count": 25,
+        "api_calls": {
+          "current": 1.0,
+          "optimized": 0.30000000000000004,
+          "reduction": 0.7,
+          "reduction_percent": 70.0
+        },
+        "processing_time": {
+          "current": 14200.0,
+          "optimized": 11360.0,
+          "reduction": 2840.0,
+          "reduction_percent": 20.0
+        },
+        "tokens": {
+          "current": 1500,
+          "optimized": 1200,
+          "reduction": 300,
+          "reduction_percent": 20.0
+        },
+        "quality": {
+          "current_avg": 0.85,
+          "optimized_avg": 0.83,
+          "difference": -0.020000000000000018
+        },
+        "confidence": {
+          "current_avg": 0.8,
+          "optimized_avg": 0.76,
+          "difference": -0.040000000000000036
+        },
+        "success_rate": {
+          "current": 0.95,
+          "optimized": 0.93,
+          "difference": -0.019999999999999907
+        }
+      }
+    }
+  },
+  "summary": {
+    "total_segments_tested": 100,
+    "overall_api_reduction_percent": 60.0,
+    "overall_processing_time_reduction_percent": 20.0,
+    "overall_quality_change": -0.020000000000000018,
+    "modes_tested": [
+      "deductive",
+      "inductive",
+      "abductive",
+      "grounded"
+    ],
+    "goals_met": true
+  }
+}

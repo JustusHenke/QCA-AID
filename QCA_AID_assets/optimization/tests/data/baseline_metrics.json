@@ -1,0 +1,34 @@
+{
+  "deductive": {
+    "api_calls_per_segment": 2.2,
+    "processing_time_seconds": 15.3,
+    "intercoder_reliability": 0.78,
+    "precision": 0.82,
+    "recall": 0.76,
+    "f1_score": 0.79
+  },
+  "inductive": {
+    "api_calls_per_segment": 1.0,
+    "processing_time_seconds": 12.7,
+    "intercoder_reliability": 0.72,
+    "precision": 0.75,
+    "recall": 0.71,
+    "f1_score": 0.73
+  },
+  "abductive": {
+    "api_calls_per_segment": 1.0,
+    "processing_time_seconds": 11.8,
+    "intercoder_reliability": 0.74,
+    "precision": 0.77,
+    "recall": 0.73,
+    "f1_score": 0.75
+  },
+  "grounded": {
+    "api_calls_per_segment": 1.0,
+    "processing_time_seconds": 14.2,
+    "intercoder_reliability": 0.71,
+    "precision": 0.74,
+    "recall": 0.69,
+    "f1_score": 0.71
+  }
+}

@@ -1,0 +1,436 @@
+{
+  "metadata": {
+    "generated_at": "2025-12-07T12:02:28.555320",
+    "version": "1.1",
+    "description": "Enhanced test dataset for API call optimization validation with real input texts",
+    "segments_per_mode": 12,
+    "total_segments": 48,
+    "input_files_used": [
+      "input\\.input-dir",
+      "input\\dummy_solar_media.txt",
+      "input\\test_interview.txt",
+      "input\\text_demo_wiss.pdf"
+    ],
+    "real_texts_used": true
+  },
+  "segments": [
+    {
+      "segment_id": "test_deductive_001",
+      "text": ") Die Leute eher ins Burnout getrieben werden, ist meine Einschätzung, wenn man\nalles das noch immer und zusätzlich macht, weil die klassische Lehre, die die meisten ja quasi als Basis\nhaben, die muss ja gut sein",
+      "analysis_mode": "deductive",
+      "difficulty": "medium",
+      "length_category": "medium",
+      "expected_results": {}
+    },
+    {
+      "segment_id": "test_deductive_002",
+      "text": "Offene Kodierung produzierte einen reichen Satz von Codes, die weitere Verfeinerung erfordern.",
+      "analysis_mode": "deductive",
+      "difficulty": "medium",
+      "length_category": "medium",
+      "expected_results": {}
+    },
+    {
+      "segment_id": "test_deductive_003",
+      "text": "Ich habe Unternehmensbesuche, zu denen ich eingeladen werde von\nberufsbegleitenden Studierenden oder die eine ist bei einem Institut, die auch eine nachhaltige Zeitung\nveröffentlichen, wo ich angeschrieben werde, zu veröffentlichen",
+      "analysis_mode": "deductive",
+      "difficulty": "medium",
+      "length_category": "medium",
+      "expected_results": {}
+    },
+    {
+      "segment_id": "test_deductive_004",
+      "text": "Die öffentliche Akzeptanz von Umweltvorschriften hängt von wahrgenommener Fairness und Transparenz ab.",
+      "analysis_mode": "deductive",
+      "difficulty": "medium",
+      "length_category": "medium",
+      "expected_results": {}
+    },
+    {
+      "segment_id": "test_deductive_005",
+      "text": ") Die Leute eher ins Burnout getrieben werden, ist meine Einschätzung, wenn man\nalles das noch immer und zusätzlich macht, weil die klassische Lehre, die die meisten ja quasi als Basis\nhaben, die muss ja gut sein",
+      "analysis_mode": "deductive",
+      "difficulty": "medium",
+      "length_category": "medium",
+      "expected_results": {}
+    },
+    {
+      "segment_id": "test_deductive_006",
+      "text": "Wenn ich die ganze Zeit in meiner Lehre dümpel und zehnmal das\nModul Grundlagen Nachhaltigkeit Unternehmensführung lehre, dann passiert da nicht viel",
+      "analysis_mode": "deductive",
+      "difficulty": "medium",
+      "length_category": "medium",
+      "expected_results": {}
+    },
+    {
+      "segment_id": "test_deductive_007",
+      "text": "Ich habe Unternehmensbesuche, zu denen ich eingeladen werde von\nberufsbegleitenden Studierenden oder die eine ist bei einem Institut, die auch eine nachhaltige Zeitung\nveröffentlichen, wo ich angeschrieben werde, zu veröffentlichen",
+      "analysis_mode": "deductive",
+      "difficulty": "medium",
+      "length_category": "medium",
+      "expected_results": {}
+    },
+    {
+      "segment_id": "test_deductive_008",
+      "text": "Mit meinen Nachhaltigkeitsmanagern bin ich im Austausch und\nja, das ist der positive Effekt",
+      "analysis_mode": "deductive",
+      "difficulty": "medium",
+      "length_category": "medium",
+      "expected_results": {}
+    },
+    {
+      "segment_id": "test_deductive_009",
+      "text": "file:///C/Users/justu/OneDrive/Projekte/Forschung/R-Projects/QCA-AI/input/trial_case_iv_2",
+      "analysis_mode": "deductive",
+      "difficulty": "medium",
+      "length_category": "medium",
+      "expected_results": {}
+    },
+    {
+      "segment_id": "test_deductive_010",
+      "text": "(",
+      "analysis_mode": "deductive",
+      "difficulty": "medium",
+      "length_category": "medium",
+      "expected_results": {}
+    },
+    {
+      "segment_id": "test_deductive_011",
+      "text": "PDF-Dokument: text_demo_wiss - Enthält relevante Inhalte für qualitative Analyse",
+      "analysis_mode": "deductive",
+      "difficulty": "medium",
+      "length_category": "medium",
+      "expected_results": {}
+    },
+    {
+      "segment_id": "test_deductive_012",
+      "text": "Offene Kodierung produzierte einen reichen Satz von Codes, die weitere Verfeinerung erfordern.",
+      "analysis_mode": "deductive",
+      "difficulty": "medium",
+      "length_category": "medium",
+      "expected_results": {}
+    },
+    {
+      "segment_id": "test_inductive_013",
+      "text": "Im Fachbereich\nWirtschaft sprechen wir immer wieder davon, naja, was ist denn der Output in unseren Projekten, tragen\ndas dann auch zwischendurch mal vor in den Fachbereichssitzungen und bieten das dann den Kollegen\nauch an, das also in die Vorlesung mit reinzunehmen",
+      "analysis_mode": "inductive",
+      "difficulty": "medium",
+      "length_category": "medium",
+      "expected_results": {}
+    },
+    {
+      "segment_id": "test_inductive_014",
+      "text": "2025 19:01:51]\nFRAGE [00:20:23]: Wir wollen ja auch keinen ganz konkreten systemischen Hintergrund, den haben wir\nja schon bei Herrn Hochschuleiter abgefragt, sozusagen, sondern auch eine gefühlsmäßige Einschätzung",
+      "analysis_mode": "inductive",
+      "difficulty": "medium",
+      "length_category": "medium",
+      "expected_results": {}
+    },
+    {
+      "segment_id": "test_inductive_015",
+      "text": "In einem Projekt haben wir einen\nStorytelling-Book zum Thema Kreislaufwirtschaft erarbeitet, dass man einfach sagt, okay, das ist ja auch\nein Benefit an sich",
+      "analysis_mode": "inductive",
+      "difficulty": "medium",
+      "length_category": "medium",
+      "expected_results": {}
+    },
+    {
+      "segment_id": "test_inductive_016",
+      "text": "Das Modell des Erlasses von Unterrichtseinheiten, Projekte zu übernehmen, das finde\nich wirklich attraktiv, weil man dann sagt, okay, aus dieser Mühle der Lehre immer wieder das Gleiche zu\nlehren, mal einen Teilbereich zu ersetzen und zu sagen, okay, man hätte eine volle Stelle und man nimmt\nein Projekt in der Viertelstelle dazu, [00:22:08] kommt man ja so wirklich in den Austausch, man lernt zu\neinem Thema dazu, man kann Materialien inkludieren in die Vorlesung",
+      "analysis_mode": "inductive",
+      "difficulty": "medium",
+      "length_category": "medium",
+      "expected_results": {}
+    },
+    {
+      "segment_id": "test_inductive_017",
+      "text": "Während die Politik zur Emissionsreduzierung entwickelt wurde, traten unbeabsichtigte Konsequenzen auf.",
+      "analysis_mode": "inductive",
+      "difficulty": "medium",
+      "length_category": "medium",
+      "expected_results": {}
+    },
+    {
+      "segment_id": "test_inductive_018",
+      "text": "Im Fachbereich\nWirtschaft sprechen wir immer wieder davon, naja, was ist denn der Output in unseren Projekten, tragen\ndas dann auch zwischendurch mal vor in den Fachbereichssitzungen und bieten das dann den Kollegen\nauch an, das also in die Vorlesung mit reinzunehmen",
+      "analysis_mode": "inductive",
+      "difficulty": "medium",
+      "length_category": "medium",
+      "expected_results": {}
+    },
+    {
+      "segment_id": "test_inductive_019",
+      "text": "Während die Politik zur Emissionsreduzierung entwickelt wurde, traten unbeabsichtigte Konsequenzen auf.",
+      "analysis_mode": "inductive",
+      "difficulty": "medium",
+      "length_category": "medium",
+      "expected_results": {}
+    },
+    {
+      "segment_id": "test_inductive_020",
+      "text": "Das Modell des Erlasses von Unterrichtseinheiten, Projekte zu übernehmen, das finde\nich wirklich attraktiv, weil man dann sagt, okay, aus dieser Mühle der Lehre immer wieder das Gleiche zu\nlehren, mal einen Teilbereich zu ersetzen und zu sagen, okay, man hätte eine volle Stelle und man nimmt\nein Projekt in der Viertelstelle dazu, [00:22:08] kommt man ja so wirklich in den Austausch, man lernt zu\neinem Thema dazu, man kann Materialien inkludieren in die Vorlesung",
+      "analysis_mode": "inductive",
+      "difficulty": "medium",
+      "length_category": "medium",
+      "expected_results": {}
+    },
+    {
+      "segment_id": "test_inductive_021",
+      "text": "Es kann schon gemütlicher sein, in der\nLehre zu bleiben",
+      "analysis_mode": "inductive",
+      "difficulty": "medium",
+      "length_category": "medium",
+      "expected_results": {}
+    },
+    {
+      "segment_id": "test_inductive_022",
+      "text": "In einem Projekt haben wir einen\nStorytelling-Book zum Thema Kreislaufwirtschaft erarbeitet, dass man einfach sagt, okay, das ist ja auch\nein Benefit an sich",
+      "analysis_mode": "inductive",
+      "difficulty": "medium",
+      "length_category": "medium",
+      "expected_results": {}
+    },
+    {
+      "segment_id": "test_inductive_023",
+      "text": "Erste Ergebnisse waren vielversprechend, aber Nachhaltigkeit blieb eine Herausforderung.",
+      "analysis_mode": "inductive",
+      "difficulty": "medium",
+      "length_category": "medium",
+      "expected_results": {}
+    },
+    {
+      "segment_id": "test_inductive_024",
+      "text": "Dabei hat sich ein Name an der Spitze der Solarindustrie etabliert: Enpal",
+      "analysis_mode": "inductive",
+      "difficulty": "medium",
+      "length_category": "medium",
+      "expected_results": {}
+    },
+    {
+      "segment_id": "test_abductive_025",
+      "text": "Die deutsche Solar-Branche boomt wie nie zuvor",
+      "analysis_mode": "abductive",
+      "difficulty": "medium",
+      "length_category": "medium",
+      "expected_results": {}
+    },
+    {
+      "segment_id": "test_abductive_026",
+      "text": "Klimawandelanpassungsstrategien müssen regionale Unterschiede in der Vulnerabilität berücksichtigen.",
+      "analysis_mode": "abductive",
+      "difficulty": "medium",
+      "length_category": "medium",
+      "expected_results": {}
+    },
+    {
+      "segment_id": "test_abductive_027",
+      "text": "Sind die Bedingungen für Sie dort gut zum Forschen oder eher nicht und wie sieht es auch für die\nKollegen aus? Da würde ich jetzt mal einhaken",
+      "analysis_mode": "abductive",
+      "difficulty": "medium",
+      "length_category": "medium",
+      "expected_results": {}
+    },
+    {
+      "segment_id": "test_abductive_028",
+      "text": "Klimawandelanpassungsstrategien müssen regionale Unterschiede in der Vulnerabilität berücksichtigen.",
+      "analysis_mode": "abductive",
+      "difficulty": "medium",
+      "length_category": "medium",
+      "expected_results": {}
+    },
+    {
+      "segment_id": "test_abductive_029",
+      "text": "Klimawandelanpassungsstrategien müssen regionale Unterschiede in der Vulnerabilität berücksichtigen.",
+      "analysis_mode": "abductive",
+      "difficulty": "medium",
+      "length_category": "medium",
+      "expected_results": {}
+    },
+    {
+      "segment_id": "test_abductive_030",
+      "text": "Dann kann es\nnur sein, dass die Inhalte auch veralten",
+      "analysis_mode": "abductive",
+      "difficulty": "medium",
+      "length_category": "medium",
+      "expected_results": {}
+    },
+    {
+      "segment_id": "test_abductive_031",
+      "text": "So nach dem Motto, entweder habe ich weniger Vorlesung in dem Projekt dazu\noder ich kriege eine bessere Bezahlung",
+      "analysis_mode": "abductive",
+      "difficulty": "medium",
+      "length_category": "medium",
+      "expected_results": {}
+    },
+    {
+      "segment_id": "test_abductive_032",
+      "text": "Die Intervention reduzierte erfolgreich Kosten, hatte aber negative soziale Auswirkungen.",
+      "analysis_mode": "abductive",
+      "difficulty": "medium",
+      "length_category": "medium",
+      "expected_results": {}
+    },
+    {
+      "segment_id": "test_abductive_033",
+      "text": "Interviewdaten zeigen Muster von Widerstand gegen organisatorischen Wandel.",
+      "analysis_mode": "abductive",
+      "difficulty": "medium",
+      "length_category": "medium",
+      "expected_results": {}
+    },
+    {
+      "segment_id": "test_abductive_034",
+      "text": "So nach dem Motto, entweder habe ich weniger Vorlesung in dem Projekt dazu\noder ich kriege eine bessere Bezahlung",
+      "analysis_mode": "abductive",
+      "difficulty": "medium",
+      "length_category": "medium",
+      "expected_results": {}
+    },
+    {
+      "segment_id": "test_abductive_035",
+      "text": "So nach dem Motto, entweder habe ich weniger Vorlesung in dem Projekt dazu\noder ich kriege eine bessere Bezahlung",
+      "analysis_mode": "abductive",
+      "difficulty": "medium",
+      "length_category": "medium",
+      "expected_results": {}
+    },
+    {
+      "segment_id": "test_abductive_036",
+      "text": "Die Daten deuten auf mehrere emergente Kategorien hin, die nicht vorhergesehen wurden.",
+      "analysis_mode": "abductive",
+      "difficulty": "medium",
+      "length_category": "medium",
+      "expected_results": {}
+    },
+    {
+      "segment_id": "test_grounded_037",
+      "text": "Analyse von Stakeholder-Feedback zeigt wiederkehrende Themen von Kommunikationslücken.",
+      "analysis_mode": "grounded",
+      "difficulty": "medium",
+      "length_category": "medium",
+      "expected_results": {}
+    },
+    {
+      "segment_id": "test_grounded_038",
+      "text": "Die Implementierung erneuerbarer Energiepolitiken erfordert sorgfältige Berücksichtigung wirtschaftlicher Faktoren.",
+      "analysis_mode": "grounded",
+      "difficulty": "medium",
+      "length_category": "medium",
+      "expected_results": {}
+    },
+    {
+      "segment_id": "test_grounded_039",
+      "text": "Beobachtungsnotizen zeigen konsistente Muster in Teamdynamiken während Krisen.",
+      "analysis_mode": "grounded",
+      "difficulty": "medium",
+      "length_category": "medium",
+      "expected_results": {}
+    },
+    {
+      "segment_id": "test_grounded_040",
+      "text": "Selektive Kodierung fokussierte auf das zentrale Phänomen und seine Eigenschaften.",
+      "analysis_mode": "grounded",
+      "difficulty": "medium",
+      "length_category": "medium",
+      "expected_results": {}
+    },
+    {
+      "segment_id": "test_grounded_041",
+      "text": "txt[22",
+      "analysis_mode": "grounded",
+      "difficulty": "medium",
+      "length_category": "medium",
+      "expected_results": {}
+    },
+    {
+      "segment_id": "test_grounded_042",
+      "text": "Nachhaltige Entwicklung erfordert Ausgleich zwischen Wirtschaftswachstum und ökologischer Erhaltung.",
+      "analysis_mode": "grounded",
+      "difficulty": "medium",
+      "length_category": "medium",
+      "expected_results": {}
+    },
+    {
+      "segment_id": "test_grounded_043",
+      "text": "Beobachtungsnotizen zeigen konsistente Muster in Teamdynamiken während Krisen.",
+      "analysis_mode": "grounded",
+      "difficulty": "medium",
+      "length_category": "medium",
+      "expected_results": {}
+    },
+    {
+      "segment_id": "test_grounded_044",
+      "text": "Aber es wird auch quasi, ich will nicht sagen, es wird wirklich\nanempfohlen, wenn man sich irgendwie entweder seine Persönlichkeit als Experte rund um das Thema\nNachhaltigkeit aufbauen möchte, dann komme ich um diese Forschungsbereiche oder um diese\nForschungsprojekte nicht drum rum",
+      "analysis_mode": "grounded",
+      "difficulty": "medium",
+      "length_category": "medium",
+      "expected_results": {}
+    },
+    {
+      "segment_id": "test_grounded_045",
+      "text": "Der Teilnehmer äußerte Bedenken hinsichtlich des Zeitplans für die Projektfertigstellung.",
+      "analysis_mode": "grounded",
+      "difficulty": "medium",
+      "length_category": "medium",
+      "expected_results": {}
+    },
+    {
+      "segment_id": "test_grounded_046",
+      "text": "Doch was macht Enpal so attraktiv für deutsche Hausbesitzer?",
+      "analysis_mode": "grounded",
+      "difficulty": "medium",
+      "length_category": "medium",
+      "expected_results": {}
+    },
+    {
+      "segment_id": "test_grounded_047",
+      "text": "Die Implementierung erneuerbarer Energiepolitiken erfordert sorgfältige Berücksichtigung wirtschaftlicher Faktoren.",
+      "analysis_mode": "grounded",
+      "difficulty": "medium",
+      "length_category": "medium",
+      "expected_results": {}
+    },
+    {
+      "segment_id": "test_grounded_048",
+      "text": "txt[22",
+      "analysis_mode": "grounded",
+      "difficulty": "medium",
+      "length_category": "medium",
+      "expected_results": {}
+    }
+  ],
+  "baseline_metrics": {
+    "deductive": {
+      "api_calls_per_segment": 2.2,
+      "processing_time_seconds": 15.3,
+      "intercoder_reliability": 0.78,
+      "precision": 0.82,
+      "recall": 0.76,
+      "f1_score": 0.79
+    },
+    "inductive": {
+      "api_calls_per_segment": 1.0,
+      "processing_time_seconds": 12.7,
+      "intercoder_reliability": 0.72,
+      "precision": 0.75,
+      "recall": 0.71,
+      "f1_score": 0.73
+    },
+    "abductive": {
+      "api_calls_per_segment": 1.0,
+      "processing_time_seconds": 11.8,
+      "intercoder_reliability": 0.74,
+      "precision": 0.77,
+      "recall": 0.73,
+      "f1_score": 0.75
+    },
+    "grounded": {
+      "api_calls_per_segment": 1.0,
+      "processing_time_seconds": 14.2,
+      "intercoder_reliability": 0.71,
+      "precision": 0.74,
+      "recall": 0.69,
+      "f1_score": 0.71
+    }
+  }
+}

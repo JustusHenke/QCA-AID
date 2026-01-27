@@ -1,0 +1,60 @@
+{
+  "timestamp": "2025-12-20 14:19:02",
+  "test_dataset": "data\\test_segments_realistic.json",
+  "segment_count": 5,
+  "current_result": {
+    "api_calls_per_segment": 2.2,
+    "processing_time_per_segment_ms": 15300.0,
+    "tokens_per_segment": 1500,
+    "quality_score_avg": 0.85,
+    "confidence_score_avg": 0.8,
+    "success_rate": 0.95
+  },
+  "optimized_result": {
+    "api_calls_per_segment": 1.32,
+    "processing_time_per_segment_ms": 12240.0,
+    "tokens_per_segment": 1200,
+    "quality_score_avg": 0.83,
+    "confidence_score_avg": 0.76,
+    "success_rate": 0.93
+  },
+  "comparison": {
+    "analysis_mode": "deductive",
+    "segment_count": 5,
+    "api_calls": {
+      "current": 2.2,
+      "optimized": 1.32,
+      "reduction": 0.8800000000000001,
+      "reduction_percent": 40.0
+    },
+    "processing_time": {
+      "current": 15300.0,
+      "optimized": 12240.0,
+      "reduction": 3060.0,
+      "reduction_percent": 20.0
+    },
+    "tokens": {
+      "current": 1500,
+      "optimized": 1200,
+      "reduction": 300,
+      "reduction_percent": 20.0
+    },
+    "quality": {
+      "current_avg": 0.85,
+      "optimized_avg": 0.83,
+      "difference": -0.020000000000000018
+    },
+    "confidence": {
+      "current_avg": 0.8,
+      "optimized_avg": 0.76,
+      "difference": -0.040000000000000036
+    },
+    "success_rate": {
+      "current": 0.95,
+      "optimized": 0.93,
+      "difference": -0.019999999999999907
+    }
+  },
+  "goals_met": true,
+  "notes": "Test run with mock LLM provider"
+}
