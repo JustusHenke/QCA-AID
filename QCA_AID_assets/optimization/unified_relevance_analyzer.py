@@ -11,7 +11,17 @@ import statistics
 
 from QCA_AID_assets.utils.llm.base import LLMProvider
 from QCA_AID_assets.utils.llm.response import LLMResponse
-from QCA_AID_assets.optimization.tests.metrics_collector import record_api_call
+
+# Optional metrics collection for testing/debugging
+try:
+    from QCA_AID_assets.optimization.tests.metrics_collector import record_api_call
+    METRICS_AVAILABLE = True
+except ImportError:
+    METRICS_AVAILABLE = False
+    def record_api_call(*args, **kwargs):
+        """Dummy function when metrics collector is not available."""
+        pass
+
 from QCA_AID_assets.utils.tracking.token_tracker import get_global_token_counter
 from QCA_AID_assets.QCA_Prompts import QCAPrompts  # Import für Standard-Prompts
 
