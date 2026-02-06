@@ -26,6 +26,8 @@ Hier ist eine **deutlich kompaktere, inhaltlich vollständige** Version des Chan
   * Dummy-Funktion wird verwendet wenn tests-Modul nicht verfügbar ist
   * Code funktioniert jetzt auch ohne tests-Verzeichnis
   * `.gitignore` angepasst um tests-Verzeichnis nicht mehr global auszuschließen
+
+* Fehler beim starten der Setup.bat behoben
 ---
 
 ## Neu in 0.12.4 (2026-01-14)
