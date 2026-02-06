@@ -60,6 +60,17 @@ Die KI-gestützte Datenverarbeitung kann auf zwei Arten erfolgen:
 
 **Voraussetzungen:** Python 3.9 bis 3.12 (nicht 3.13!)
 
+**Empfohlen: Automatische Installation (Windows)**
+```bash
+# Repository klonen
+git clone https://github.com/JustusHenke/QCA-AID.git
+cd QCA-AID
+
+# Automatische Installation aller Abhängigkeiten
+setup.bat
+```
+
+**Alternative: Manuelle Installation**
 ```bash
 # Repository klonen
 git clone https://github.com/JustusHenke/QCA-AID.git
@@ -311,6 +322,8 @@ Die Ergebnisse werden im `output/` Verzeichnis gespeichert:
 - `codebook_inductive.json`: Erweitertes Kategoriensystem
 
 ## 🎓 Analysemodi
+
+![Analyse-Modi](analysis-modes.png)
 
 ### Deduktiver Modus (`deductive`)
 - Ausschließlich vordefinierte Kategorien
