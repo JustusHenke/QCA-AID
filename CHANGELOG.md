@@ -2,7 +2,6 @@
 
 ## Versionen und Updates
 
-Hier ist eine **deutlich kompaktere, inhaltlich vollständige** Version des Changelogs, strukturiert auf Kernpunkte reduziert und Redundanzen entfernt:
 
 ---
 
