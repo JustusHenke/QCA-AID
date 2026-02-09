@@ -31,6 +31,8 @@ Sie verwenden das Tool auf eigene Verantwortung, ohne jegliche Gewährleistung.
 --> Feedback ist willkommen! <--  
 Kontakt: justus.henke@hof.uni-halle.de
 
+![QCA-AID-Screenshot](screenshot1.png)
+
 ## 🔒 Datenschutz-Hinweis
 
 Die KI-gestützte Datenverarbeitung kann auf zwei Arten erfolgen:
