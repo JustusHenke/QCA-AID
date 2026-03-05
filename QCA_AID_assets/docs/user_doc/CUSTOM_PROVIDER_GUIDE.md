@@ -244,16 +244,3 @@ provider = LLMProviderFactory.create_provider(
 )
 ```
 
-## Support
-
-Bei Fragen oder Problemen:
-1. Prüfen Sie die Logs in der Web-App
-2. Öffnen Sie ein Issue auf GitHub
-3. Kontaktieren Sie: justus.henke@hof.uni-halle.de
-
-## Changelog
-
-- **2024-XX-XX**: Custom Base URL Support hinzugefügt
-  - UI-Integration im Konfigurationsreiter
-  - Validierung und Beispiele
-  - Dokumentation erstellt
