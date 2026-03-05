@@ -63,7 +63,7 @@ Die KI-gestützte Datenverarbeitung kann auf zwei Arten erfolgen:
   - GWDG Academic Cloud (Göttingen)
   - Azure OpenAI
   - Andere OpenAI-kompatible APIs
-- **Einrichtung:** Siehe [CUSTOM_PROVIDER_GUIDE.md](CUSTOM_PROVIDER_GUIDE.md) für detaillierte Anleitung
+- **Einrichtung:** Siehe [CUSTOM_PROVIDER_GUIDE.md](QCA_AID_assets/docs/user_doc/CUSTOM_PROVIDER_GUIDE.md) für detaillierte Anleitung
 
 **Für hochsensible Daten wird die Nutzung lokaler Modelle ausdrücklich empfohlen!**
 
