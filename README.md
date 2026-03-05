@@ -54,6 +54,17 @@ Die KI-gestützte Datenverarbeitung kann auf zwei Arten erfolgen:
   - Ollama: [https://ollama.ai/](https://ollama.ai/)
   - Siehe [LOCAL_MODELS_GUIDE.md](QCA_AID_assets/docs/user_doc/LOCAL_MODELS_GUIDE.md) für detaillierte Anleitung
 
+### Option 3: Custom OpenAI-kompatible Endpoints (z.B. GWDG Academic Cloud) 🎓
+- **Vorteile:**
+  - ✅ **Institutioneller Zugang** - Nutzung über Universitäts-/Forschungseinrichtungen
+  - ✅ **Datenschutz-konform** - Datenverarbeitung in vertrauenswürdigen Rechenzentren
+  - ✅ **Kosteneffizient** - Oft über institutionelle Lizenzen verfügbar
+- **Unterstützte Services:**
+  - GWDG Academic Cloud (Göttingen)
+  - Azure OpenAI
+  - Andere OpenAI-kompatible APIs
+- **Einrichtung:** Siehe [CUSTOM_PROVIDER_GUIDE.md](CUSTOM_PROVIDER_GUIDE.md) für detaillierte Anleitung
+
 **Für hochsensible Daten wird die Nutzung lokaler Modelle ausdrücklich empfohlen!**
 
 ## ⚡ Schnellstart

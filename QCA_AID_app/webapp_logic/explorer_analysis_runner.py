@@ -63,9 +63,12 @@ class ExplorerAnalysisRunner:
             # Initialize LLM provider from base_config (Requirement 1.5)
             provider_name = self.config_data.base_config.get('provider', 'openai')
             model_name = self.config_data.base_config.get('model', 'gpt-4o-mini')
+            base_url = self.config_data.base_config.get('api_base_url', None)  # Custom Base URL (z.B. GWDG)
             messages.append(f"Initialisiere LLM Provider: {provider_name} mit Modell: {model_name}")
+            if base_url:
+                messages.append(f"Custom Base URL: {base_url}")
             
-            self.llm_provider = LLMProviderFactory.create_provider(provider_name, model_name=model_name)
+            self.llm_provider = LLMProviderFactory.create_provider(provider_name, model_name=model_name, base_url=base_url)
             
             # Initialize analyzer
             messages.append(f"Lade Excel-Datei: {self.excel_path}")

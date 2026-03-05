@@ -873,6 +873,56 @@ def render_model_settings():
     # API-Key-Prüfung für den ausgewählten Provider
     check_api_key_for_provider(new_provider, provider_display_map)
     
+    # Custom API Base URL (optional, for OpenAI-compatible endpoints)
+    if new_provider in ['OpenAI', 'Local (LM Studio/Ollama)']:
+        with st.expander("🔧 Erweiterte Einstellungen: Custom API Base URL", expanded=False):
+            st.markdown("""
+            **Custom API Base URL** ermöglicht die Verwendung von OpenAI-kompatiblen Endpoints wie:
+            - GWDG Academic Cloud: `https://chat-ai.academiccloud.de/v1`
+            - Azure OpenAI: `https://your-resource.openai.azure.com/openai/deployments/your-deployment`
+            - Andere OpenAI-kompatible Services
+            
+            Lassen Sie das Feld leer, um die Standard-URL zu verwenden.
+            """)
+            
+            current_base_url = config.api_base_url or ""
+            new_base_url = st.text_input(
+                "API Base URL",
+                value=current_base_url,
+                placeholder="https://chat-ai.academiccloud.de/v1",
+                help="Optional: Custom Base URL für OpenAI-kompatible Endpoints (z.B. GWDG, Azure OpenAI)"
+            )
+            
+            # Validate URL format if provided
+            if new_base_url and new_base_url.strip():
+                if not (new_base_url.startswith('http://') or new_base_url.startswith('https://')):
+                    st.error("❌ Base URL muss mit http:// oder https:// beginnen")
+                else:
+                    st.success(f"✅ Custom Base URL: `{new_base_url}`")
+                    
+                # Update config
+                if new_base_url != config.api_base_url:
+                    config.api_base_url = new_base_url
+                    st.session_state.config_modified = True
+            else:
+                # Clear base URL if empty
+                if config.api_base_url is not None:
+                    config.api_base_url = None
+                    st.session_state.config_modified = True
+            
+            # Example for GWDG
+            st.markdown("""
+            **Beispiel: GWDG Academic Cloud**
+            ```python
+            # In Ihrer .env Datei:
+            OPENAI_API_KEY=ihr-gwdg-api-key
+            
+            # In QCA-AID Konfiguration:
+            API Base URL: https://chat-ai.academiccloud.de/v1
+            Model Name: openai-gpt-oss-120b  # oder ein anderes verfügbares Modell
+            ```
+            """)
+    
     # Model Name (depends on provider)
     # Special handling for local models
     if new_provider == 'Local (LM Studio/Ollama)':

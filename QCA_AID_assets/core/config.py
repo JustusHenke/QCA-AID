@@ -145,6 +145,7 @@ SCRIPT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))  # Gehe
 CONFIG = {
     'MODEL_PROVIDER': 'OpenAI',
     'MODEL_NAME': 'gpt-4o-mini',
+    'API_BASE_URL': None,  # Custom API Base URL für OpenAI-kompatible Endpoints (z.B. GWDG: https://chat-ai.academiccloud.de/v1)
     'DATA_DIR': 'input',  # Relativ zum Projektverzeichnis
     'OUTPUT_DIR': 'output',  # Relativ zum Projektverzeichnis
     'CHUNK_SIZE': 1200,

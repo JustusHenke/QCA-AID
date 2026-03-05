@@ -26,9 +26,10 @@ class OpenAIProvider(LLMProvider):
     def initialize_client(self) -> None:
         """
         Initialisiert den OpenAI Client.
-        
+
         Sets up the AsyncOpenAI client with API key from environment.
-        
+        Supports custom base URLs for OpenAI-compatible endpoints (e.g., GWDG).
+
         Raises:
             ImportError: If openai library not installed
             ValueError: If OPENAI_API_KEY environment variable not found
@@ -36,14 +37,19 @@ class OpenAIProvider(LLMProvider):
         """
         try:
             from openai import AsyncOpenAI
-            
+
             api_key = os.getenv('OPENAI_API_KEY')
             if not api_key:
                 raise ValueError("OPENAI_API_KEY nicht in Umgebungsvariablen gefunden")
-            
-            self.client = AsyncOpenAI(api_key=api_key)
-            print("✅ OpenAI Client erfolgreich initialisiert")
-            
+
+            # Initialize with custom base_url if provided
+            if self.base_url:
+                self.client = AsyncOpenAI(api_key=api_key, base_url=self.base_url)
+                print(f"✅ OpenAI Client erfolgreich initialisiert (Custom Base URL: {self.base_url})")
+            else:
+                self.client = AsyncOpenAI(api_key=api_key)
+                print("✅ OpenAI Client erfolgreich initialisiert")
+
         except ImportError:
             raise ImportError("OpenAI Bibliothek nicht installiert. Bitte installieren Sie: pip install openai")
         except Exception as e:

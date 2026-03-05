@@ -119,11 +119,14 @@ class DeductiveCoder:
            
         # Hole Provider aus CONFIG
         provider_name = CONFIG.get('MODEL_PROVIDER', 'openai').lower()  # Fallback zu OpenAI
+        base_url = CONFIG.get('API_BASE_URL', None)  # Custom Base URL (z.B. GWDG)
         try:
             # Wir lassen den LLMProvider sich selbst um die Client-Initialisierung kÜmmern
             # Übergebe model_name für Capability-Testing
-            self.llm_provider = LLMProviderFactory.create_provider(provider_name, model_name=model_name)
+            self.llm_provider = LLMProviderFactory.create_provider(provider_name, model_name=model_name, base_url=base_url)
             print(f"🤖 LLM Provider '{provider_name}' fuer Kodierer {coder_id} initialisiert")
+            if base_url:
+                print(f"   🔗 Custom Base URL: {base_url}")
         except Exception as e:
             print(f"Fehler bei Provider-Initialisierung fuer {coder_id}: {str(e)}")
             raise

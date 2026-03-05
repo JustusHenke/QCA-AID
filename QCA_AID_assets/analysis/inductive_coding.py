@@ -36,8 +36,11 @@ class InductiveCoder:
         
         # LLM Provider (unverÄndert)
         provider_name = CONFIG.get('MODEL_PROVIDER', 'openai').lower()
+        base_url = CONFIG.get('API_BASE_URL', None)  # Custom Base URL (z.B. GWDG)
         # Übergebe model_name für Capability-Testing
-        self.llm_provider = LLMProviderFactory.create_provider(provider_name, model_name=model_name)
+        self.llm_provider = LLMProviderFactory.create_provider(provider_name, model_name=model_name, base_url=base_url)
+        if base_url:
+            print(f"   🔗 Custom Base URL: {base_url}")
         
         # Cache und Tracking (unverÄndert)
         self.category_cache = {}
