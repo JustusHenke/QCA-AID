@@ -111,13 +111,20 @@ def main():
     print("=" * 50)
     
     # Starte Streamlit
+    webapp_path = Path(__file__).parent / 'webapp.py'
+    if not webapp_path.exists():
+        print(f"\nFehler: webapp.py nicht gefunden unter {webapp_path}")
+        print("Stelle sicher, dass die Datei QCA_AID_app/webapp.py existiert")
+        sys.exit(1)
+    
     try:
-        subprocess.run(['streamlit', 'run', 'webapp.py'])
+        # Versuche zuerst streamlit als Python-Modul (robuster als CLI)
+        subprocess.run([sys.executable, '-m', 'streamlit', 'run', str(webapp_path)])
     except KeyboardInterrupt:
         print("\nWebapp beendet")
-    except FileNotFoundError:
-        print("\nFehler: webapp.py nicht gefunden")
-        print("Stelle sicher, dass du dich im QCA_AID_app Verzeichnis befindest")
+    except Exception as e:
+        print(f"\nFehler beim Starten: {e}")
+        print("Stelle sicher, dass streamlit installiert ist: pip install streamlit")
         sys.exit(1)
 
 
