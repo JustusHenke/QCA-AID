@@ -3,9 +3,51 @@
 Startup script für QCA-AID Webapp
 Prüft Abhängigkeiten und startet Streamlit
 """
+import os
 import sys
 import subprocess
 from pathlib import Path
+
+# Umgebungsvariable als Marker, um Endlosschleifen beim Re-Exec zu vermeiden
+_VENV_REEXEC_VAR = 'QCA_AID_VENV_REEXEC'
+
+
+def _try_activate_venv():
+    """Erkennt ein venv im Projektverzeichnis und startet sich damit neu."""
+    # Bereits im venv oder bereits re-executed → nichts tun
+    if os.environ.get(_VENV_REEXEC_VAR):
+        return
+    in_venv = hasattr(sys, 'real_prefix') or (
+        hasattr(sys, 'base_prefix') and sys.base_prefix != sys.prefix
+    )
+    if in_venv:
+        return
+
+    # Projektroot ist ein Verzeichnis über QCA_AID_app/
+    project_root = Path(__file__).resolve().parent.parent
+
+    # Typische venv-Verzeichnisnamen
+    for venv_name in ('venv', '.venv', 'env'):
+        venv_dir = project_root / venv_name
+        if sys.platform == 'win32':
+            venv_python = venv_dir / 'Scripts' / 'python.exe'
+        else:
+            venv_python = venv_dir / 'bin' / 'python'
+
+        if venv_python.is_file():
+            print(f"Virtuelle Umgebung erkannt: {venv_dir}")
+            print(f"Starte neu mit: {venv_python}\n")
+            env = os.environ.copy()
+            env[_VENV_REEXEC_VAR] = '1'
+            result = subprocess.run(
+                [str(venv_python)] + sys.argv,
+                env=env,
+            )
+            sys.exit(result.returncode)
+
+
+# Venv-Erkennung vor allem anderen
+_try_activate_venv()
 
 # Fix für Unicode-Encoding auf Windows-Konsolen
 if sys.platform == 'win32':
