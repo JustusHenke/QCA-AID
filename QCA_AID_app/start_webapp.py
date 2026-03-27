@@ -23,7 +23,7 @@ if sys.platform == 'win32':
 
 
 def check_dependencies():
-    """Prüft ob erforderliche Pakete installiert sind"""
+    """Prüft ob erforderliche Pakete installiert sind und gibt Diagnose-Hinweise"""
     required = ['streamlit', 'pandas', 'openpyxl']
     missing = []
     
@@ -34,8 +34,28 @@ def check_dependencies():
             missing.append(package)
     
     if missing:
-        print(f"Fehlende Abhängigkeiten: {', '.join(missing)}")
-        print("Installiere mit: pip install -r requirements.txt")
+        python_exe = sys.executable
+        in_venv = hasattr(sys, 'real_prefix') or (
+            hasattr(sys, 'base_prefix') and sys.base_prefix != sys.prefix
+        )
+        
+        print(f"\nFehlende Abhängigkeiten: {', '.join(missing)}")
+        print(f"\n  Python-Interpreter:  {python_exe}")
+        print(f"  Python-Version:      {sys.version.split()[0]}")
+        print(f"  Virtuelle Umgebung:  {'Ja' if in_venv else 'Nein'}")
+        
+        print(f"\nInstalliere mit diesem Interpreter:")
+        print(f"  {python_exe} -m pip install -r requirements.txt")
+        
+        if not in_venv:
+            print(f"\nHinweis: Es ist keine virtuelle Umgebung aktiv.")
+            print(f"  Falls du ein venv nutzt, aktiviere es zuerst:")
+            if sys.platform == 'win32':
+                print(f"    .\\venv\\Scripts\\activate")
+            else:
+                print(f"    source venv/bin/activate")
+            print(f"  Dann starte dieses Script erneut.")
+        
         return False
     return True
 
