@@ -408,13 +408,12 @@ async def main() -> None:
         script_dir = str(project_root)  # Project-specific root for configs and IO
         
         # Setze Input/Output Verzeichnisse mit Defaults, bevor ConfigLoader verwendet wird
+        # Hinweis: Verzeichnisse werden hier NICHT erstellt - das übernimmt der
+        # ConfigLoader nach dem Laden der Benutzerkonfiguration, damit keine
+        # ungenutzten Default-Ordner entstehen wenn Custom-Pfade konfiguriert sind.
         CONFIG['OUTPUT_DIR'] = os.path.join(script_dir, 'output')
         CONFIG['DATA_DIR'] = os.path.join(script_dir, 'input')
         CONFIG['INPUT_DIR'] = os.path.join(script_dir, 'input')
-        
-        # Erstelle diese Verzeichnisse, falls sie nicht existieren
-        os.makedirs(CONFIG['OUTPUT_DIR'], exist_ok=True)
-        os.makedirs(CONFIG['DATA_DIR'], exist_ok=True)
 
         # Import version information
         from .__version__ import __version__, __version_date__
@@ -428,6 +427,10 @@ async def main() -> None:
             print("\nKonfiguration erfolgreich geladen")
         else:
             print("Verwende Standard-Konfiguration")
+        
+        # Erstelle die (ggf. vom ConfigLoader überschriebenen) Verzeichnisse
+        os.makedirs(CONFIG['OUTPUT_DIR'], exist_ok=True)
+        os.makedirs(CONFIG['DATA_DIR'], exist_ok=True)
         
         # FIX: Console Logging NACH ConfigLoader initialisieren (mit korrektem OUTPUT_DIR)
         console_logger = ConsoleLogger(CONFIG['OUTPUT_DIR'])

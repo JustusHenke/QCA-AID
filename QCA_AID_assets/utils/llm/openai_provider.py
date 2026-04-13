@@ -23,6 +23,16 @@ class OpenAIProvider(LLMProvider):
     - Capability caching to avoid repeated failed attempts
     """
     
+    def __init__(self, base_url: Optional[str] = None) -> None:
+        """
+        Initialize OpenAIProvider with optional custom base URL.
+        
+        Args:
+            base_url: Custom base URL for OpenAI-compatible endpoints (e.g., GWDG)
+        """
+        self.base_url = base_url
+        super().__init__()
+    
     def initialize_client(self) -> None:
         """
         Initialisiert den OpenAI Client.

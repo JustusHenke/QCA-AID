@@ -133,7 +133,14 @@ font = "sans serif"
 
 
 def ensure_directories():
-    """Erstellt erforderliche Verzeichnisse falls nicht vorhanden"""
+    """Erstellt erforderliche Verzeichnisse falls nicht vorhanden.
+    
+    Hinweis: Nur Webapp-interne Verzeichnisse werden hier erstellt.
+    Projekt-Verzeichnisse (input/output) werden NICHT erstellt,
+    da diese vom ConfigLoader basierend auf der Benutzerkonfiguration
+    angelegt werden. Hardcodiertes Erstellen würde ungenutzte
+    Default-Ordner hinterlassen, wenn Custom-Pfade konfiguriert sind.
+    """
     # Webapp directories (relative to QCA_AID_app)
     webapp_directories = [
         'webapp_components',
@@ -141,16 +148,7 @@ def ensure_directories():
         'webapp_models'
     ]
     
-    # Project directories (relative to parent directory)
-    project_directories = [
-        '../input',
-        '../output'
-    ]
-    
     for directory in webapp_directories:
-        Path(directory).mkdir(exist_ok=True)
-    
-    for directory in project_directories:
         Path(directory).mkdir(exist_ok=True)
     
     print("Verzeichnisstruktur überprüft")
