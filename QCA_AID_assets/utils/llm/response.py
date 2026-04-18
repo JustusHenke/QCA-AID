@@ -161,6 +161,11 @@ class LLMResponse:
         """
         Versucht unvollständige oder malformed JSON zu reparieren.
         
+        Handles common LLM truncation issues:
+        - Unterminated strings (missing closing quote)
+        - Missing closing brackets/braces
+        - Trailing commas before closing brackets
+        
         Args:
             json_str: Möglicherweise unvollständiger JSON-String
             
@@ -168,6 +173,7 @@ class LLMResponse:
             str: Reparierter JSON-String
         """
         import json as json_module
+        import re
         
         # Versuche zuerst direktes Parsen
         try:
@@ -176,31 +182,117 @@ class LLMResponse:
         except json_module.JSONDecodeError:
             pass
         
-        # Wenn direktes Parsen fehlschlägt, versuche zu reparieren
+        # --- Reparatur-Strategie ---
+        repaired = json_str
         
-        # 1. Zähle öffnende und schließende Klammern
-        open_braces = json_str.count('{')
-        close_braces = json_str.count('}')
-        open_brackets = json_str.count('[')
-        close_brackets = json_str.count(']')
+        # 1. Entferne unvollständiges letztes Element bei abgeschnittenem JSON
+        #    Suche das letzte vollständige JSON-Objekt/Array-Element
+        #    Typisches Muster: ..., "key": "unvollständiger Wert
         
-        # 2. Füge fehlende schließende Klammern hinzu
-        while open_braces > close_braces:
-            json_str += '}'
-            close_braces += 1
-        while open_brackets > close_brackets:
-            json_str += ']'
-            close_brackets += 1
+        # 1a. Schließe unterminated Strings
+        #     Zähle Anführungszeichen (ohne escaped quotes)
+        in_string = False
+        last_quote_pos = -1
+        i = 0
+        while i < len(repaired):
+            ch = repaired[i]
+            if ch == '\\' and in_string:
+                i += 2  # Skip escaped character
+                continue
+            if ch == '"':
+                in_string = not in_string
+                if in_string:
+                    last_quote_pos = i
+            i += 1
         
-        # 3. Versuche nochmal zu parsen
+        if in_string and last_quote_pos >= 0:
+            # String ist nicht geschlossen - zwei Strategien:
+            # A) Versuche den unvollständigen Wert abzuschneiden und das letzte
+            #    vollständige Element zu behalten
+            # B) Schließe den String einfach
+            
+            # Strategie A: Schneide das letzte unvollständige key-value Paar ab
+            # Finde das letzte Komma vor dem offenen String
+            search_region = repaired[:last_quote_pos]
+            last_comma = search_region.rfind(',')
+            
+            if last_comma > 0:
+                # Schneide ab dem letzten Komma ab
+                truncated = repaired[:last_comma]
+                # Schließe offene Klammern
+                truncated = self._close_brackets(truncated)
+                try:
+                    json_module.loads(truncated)
+                    logger.debug("Repaired JSON by truncating incomplete last element at comma")
+                    return truncated
+                except json_module.JSONDecodeError:
+                    pass
+            
+            # Strategie B: Schließe den offenen String
+            repaired = repaired + '"'
+            logger.debug("Repaired JSON by closing unterminated string")
+        
+        # 2. Entferne trailing commas vor schließenden Klammern
+        repaired = re.sub(r',\s*([}\]])', r'\1', repaired)
+        
+        # 3. Schließe fehlende Klammern
+        repaired = self._close_brackets(repaired)
+        
+        # 4. Versuche nochmal zu parsen
         try:
-            json_module.loads(json_str)
-            logger.debug(f"Successfully repaired JSON by adding missing brackets")
-            return json_str
-        except json_module.JSONDecodeError as e:
-            logger.debug(f"Could not repair JSON: {e}")
-            # Gib das beste Ergebnis zurück, auch wenn fehlerhaft
-            return json_str
+            json_module.loads(repaired)
+            logger.debug("Successfully repaired JSON")
+            return repaired
+        except json_module.JSONDecodeError:
+            pass
+        
+        # 5. Letzter Versuch: Schneide zeichenweise vom Ende ab bis valides JSON entsteht
+        #    (nur für Objekte/Arrays mit mindestens einem vollständigen Element)
+        for cut_pos in range(len(json_str) - 1, max(0, len(json_str) - 500), -1):
+            candidate = json_str[:cut_pos]
+            # Entferne trailing commas
+            candidate = re.sub(r',\s*$', '', candidate)
+            candidate = self._close_brackets(candidate)
+            try:
+                json_module.loads(candidate)
+                logger.debug(f"Repaired JSON by truncating last {len(json_str) - cut_pos} chars")
+                return candidate
+            except json_module.JSONDecodeError:
+                continue
+        
+        logger.debug("Could not repair JSON, returning best effort")
+        return repaired
+    
+    def _close_brackets(self, json_str: str) -> str:
+        """Füge fehlende schließende Klammern/Brackets hinzu."""
+        # Zähle unter Berücksichtigung von Strings
+        stack = []
+        in_string = False
+        i = 0
+        while i < len(json_str):
+            ch = json_str[i]
+            if ch == '\\' and in_string:
+                i += 2
+                continue
+            if ch == '"':
+                in_string = not in_string
+            elif not in_string:
+                if ch in ('{', '['):
+                    stack.append(ch)
+                elif ch == '}' and stack and stack[-1] == '{':
+                    stack.pop()
+                elif ch == ']' and stack and stack[-1] == '[':
+                    stack.pop()
+            i += 1
+        
+        # Schließe in umgekehrter Reihenfolge
+        for bracket in reversed(stack):
+            if bracket == '{':
+                json_str += '}'
+            elif bracket == '[':
+                json_str += ']'
+        
+        return json_str
     
     def __repr__(self) -> str:
         """String representation for debugging"""

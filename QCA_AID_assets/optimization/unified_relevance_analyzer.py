@@ -912,73 +912,95 @@ class UnifiedRelevanceAnalyzer:
             
             batch_num = (i // batch_size) + 1
                 
-            try:
-                # Track API call
-                start_time = asyncio.get_event_loop().time()
-                token_counter.start_request()  # Track request start
-                
-                # Build batch prompt
-                prompt = self._build_batch_prompt(
-                    segments=batch,
-                    category_definitions=category_definitions,
-                    research_question=research_question,
-                    coding_rules=coding_rules,
-                    context_paraphrases=context_paraphrases,
-                    segment_category_mapping=segment_category_mapping
-                )
-                
-                # DEBUG: Log context paraphrases usage (only if multiple batches or context available)
-                if context_paraphrases and (total_batches > 1 or len(segments) <= batch_size):
-                    first_segment_id = batch[0]['segment_id'] if batch else "unknown"
-                    print(f"      📝 Nutze {len(context_paraphrases)} Kontext-Paraphrasen (Segment: {first_segment_id})")
-                elif not context_paraphrases and total_batches > 1:
-                    first_segment_id = batch[0]['segment_id'] if batch else "unknown"
-                    print(f"      📝 Keine Kontext-Paraphrasen (Segment: {first_segment_id})")
-                
-                # Use provided temperature or fallback to instance temperature
-                use_temperature = temperature if temperature is not None else self.temperature
-                
-                response = await self.llm_provider.create_completion(
-                    model=self.model_name,
-                    messages=[
-                        {"role": "system", "content": "Du bist ein Experte für qualitative Inhaltsanalyse. Du antwortest auf deutsch. Antworte ausschliesslich mit einem JSON-Objekt."},
-                        {"role": "user", "content": prompt}
-                    ],
-                    temperature=use_temperature,
-                    response_format={"type": "json_object"}
-                )
-                
-                token_counter.track_response(response, self.model_name)  # Track response
-                processing_time_ms = (asyncio.get_event_loop().time() - start_time) * 1000
-                
-                # Record the API call (for additional metrics)
-                record_api_call(
-                    call_type="unified_relevance_analysis_batch",
-                    tokens_used=self._estimate_tokens(prompt, response),
-                    processing_time_ms=processing_time_ms,
-                    success=True
-                )
-                
-                llm_response = LLMResponse(response)
-                batch_result_json = json.loads(llm_response.extract_json())
-                
-                # Parse batch results
-                parsed_results = self._parse_batch_result(batch_result_json, batch)
-                results.extend(parsed_results)
-                
-            except Exception as e:
-                # Log error and potentially implement fallback here
-                processing_time_ms = (asyncio.get_event_loop().time() - start_time) * 1000
-                record_api_call(
-                    call_type="unified_relevance_analysis_batch",
-                    tokens_used=0,
-                    processing_time_ms=processing_time_ms,
-                    success=False,
-                    error_message=str(e)
-                )
-                # Fallback to individual processing on failure
-                # OR raise/return partial errors. For now, raising.
-                raise e
+            max_retries = 2
+            last_error = None
+            
+            for attempt in range(max_retries + 1):
+                try:
+                    # Track API call
+                    start_time = asyncio.get_event_loop().time()
+                    token_counter.start_request()  # Track request start
+                    
+                    # Build batch prompt
+                    prompt = self._build_batch_prompt(
+                        segments=batch,
+                        category_definitions=category_definitions,
+                        research_question=research_question,
+                        coding_rules=coding_rules,
+                        context_paraphrases=context_paraphrases,
+                        segment_category_mapping=segment_category_mapping
+                    )
+                    
+                    # DEBUG: Log context paraphrases usage (only if multiple batches or context available)
+                    if context_paraphrases and (total_batches > 1 or len(segments) <= batch_size):
+                        first_segment_id = batch[0]['segment_id'] if batch else "unknown"
+                        print(f"      📝 Nutze {len(context_paraphrases)} Kontext-Paraphrasen (Segment: {first_segment_id})")
+                    elif not context_paraphrases and total_batches > 1:
+                        first_segment_id = batch[0]['segment_id'] if batch else "unknown"
+                        print(f"      📝 Keine Kontext-Paraphrasen (Segment: {first_segment_id})")
+                    
+                    # Use provided temperature or fallback to instance temperature
+                    use_temperature = temperature if temperature is not None else self.temperature
+                    
+                    response = await self.llm_provider.create_completion(
+                        model=self.model_name,
+                        messages=[
+                            {"role": "system", "content": "Du bist ein Experte für qualitative Inhaltsanalyse. Du antwortest auf deutsch. Antworte ausschliesslich mit einem JSON-Objekt."},
+                            {"role": "user", "content": prompt}
+                        ],
+                        temperature=use_temperature,
+                        response_format={"type": "json_object"}
+                    )
+                    
+                    token_counter.track_response(response, self.model_name)  # Track response
+                    processing_time_ms = (asyncio.get_event_loop().time() - start_time) * 1000
+                    
+                    # Record the API call (for additional metrics)
+                    record_api_call(
+                        call_type="unified_relevance_analysis_batch",
+                        tokens_used=self._estimate_tokens(prompt, response),
+                        processing_time_ms=processing_time_ms,
+                        success=True
+                    )
+                    
+                    llm_response = LLMResponse(response)
+                    batch_result_json = json.loads(llm_response.extract_json())
+                    
+                    # Parse batch results
+                    parsed_results = self._parse_batch_result(batch_result_json, batch)
+                    results.extend(parsed_results)
+                    last_error = None
+                    break  # Success - exit retry loop
+                    
+                except json.JSONDecodeError as e:
+                    last_error = e
+                    processing_time_ms = (asyncio.get_event_loop().time() - start_time) * 1000
+                    record_api_call(
+                        call_type="unified_relevance_analysis_batch",
+                        tokens_used=0,
+                        processing_time_ms=processing_time_ms,
+                        success=False,
+                        error_message=str(e)
+                    )
+                    if attempt < max_retries:
+                        print(f"      ⚠️ JSON-Fehler in Batch {batch_num}/{total_batches} (Versuch {attempt + 1}/{max_retries + 1}): {e}")
+                        print(f"      🔄 Wiederhole Batch...")
+                        await asyncio.sleep(1)  # Brief pause before retry
+                    else:
+                        print(f"      ❌ JSON-Fehler in Batch {batch_num}/{total_batches} nach {max_retries + 1} Versuchen: {e}")
+                        print(f"      ⏭️ Überspringe Batch, fahre mit nächstem fort...")
+                        
+                except Exception as e:
+                    # Non-JSON errors: don't retry, raise immediately
+                    processing_time_ms = (asyncio.get_event_loop().time() - start_time) * 1000
+                    record_api_call(
+                        call_type="unified_relevance_analysis_batch",
+                        tokens_used=0,
+                        processing_time_ms=processing_time_ms,
+                        success=False,
+                        error_message=str(e)
+                    )
+                    raise e
 
         return results
 

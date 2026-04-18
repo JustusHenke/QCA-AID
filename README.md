@@ -172,7 +172,7 @@ QCA-AID unterstützt mehrere LLM-Provider:
 | Provider | Modelle | Datenschutz | API-Key |
 |----------|---------|-------------|---------|
 | **Lokal** ⭐ | LM Studio, Ollama | ✅ **100% Lokal** | Nicht erforderlich |
-| **OpenAI** | GPT-4o, GPT-4o-mini, GPT-4-turbo | ⚠️ Cloud | `OPENAI_API_KEY` |
+| **OpenAI** | GPT-5.4, GPT-4o, GPT-4o-mini | ⚠️ Cloud | `OPENAI_API_KEY` |
 | **Anthropic** | Claude Sonnet 4.5, Claude 3.5 | ⚠️ Cloud | `ANTHROPIC_API_KEY` |
 | **Mistral** | Mistral Large, Medium, Small | ⚠️ Cloud | `MISTRAL_API_KEY` |
 | **OpenRouter** | Verschiedene Modelle | ⚠️ Cloud | `OPENROUTER_API_KEY` |

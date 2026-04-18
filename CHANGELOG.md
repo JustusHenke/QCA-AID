@@ -4,6 +4,31 @@
 
 ---
 
+## Neu in 0.12.6.3 (2026-04-18)
+
+### 🐛 Bugfixes / Robustheit
+
+- **Robustere JSON-Reparatur bei abgeschnittenen LLM-Antworten:**
+  - Neue `_close_brackets()`-Methode mit korrekter Stack-basierter Klammeranalyse (berücksichtigt Strings)
+  - Erkennung und Schließung unterminated Strings
+  - Entfernung von trailing Commas vor schließenden Klammern
+  - Fallback-Strategie: Zeichenweises Abschneiden bis valides JSON entsteht
+  - Ersetzt die bisherige naive Klammerzählung
+
+- **Retry-Logik für Batch-Analyse bei JSON-Fehlern:**
+  - Bis zu 2 Wiederholungsversuche bei `JSONDecodeError` in der Batch-Kodierung
+  - Graceful Skip: Bei persistentem Fehler wird der Batch übersprungen statt die gesamte Analyse abzubrechen
+  - Nicht-JSON-Fehler werden weiterhin sofort geworfen
+
+### 🔧 Verbesserungen
+
+- **Aktualisierte LLM-Modellkonfigurationen:**
+  - OpenAI: Neue Modelle (GPT-5.4, GPT-5.4 Pro, GPT-5.4 Nano) hinzugefügt
+  - Anthropic: Aktualisierte Modellpreise und -konfigurationen
+  - OpenRouter: Erweiterte Modellliste mit aktuellen Preisen
+
+---
+
 ## Neu in 0.12.6 (2026-03-05)
 
 ### 🌐 Custom Provider Integration

@@ -117,8 +117,8 @@
     }
   },
   "config": {
-    "model_provider": "openai",
-    "model_name": "gpt-4o-mini",
+    "model_provider": "local",
+    "model_name": "qwen/qwen3.6-35b-a3b",
     "data_dir": "input",
     "output_dir": "output",
     "chunk_size": 1100,
@@ -145,6 +145,9 @@
     ],
     "manual_coding_enabled": false,
     "export_annotated_pdfs": true,
-    "pdf_annotation_fuzzy_threshold": 0.85
+    "pdf_annotation_fuzzy_threshold": 0.85,
+    "relevance_threshold": 0.3,
+    "enable_optimization": true,
+    "api_base_url": null
   }
 }
