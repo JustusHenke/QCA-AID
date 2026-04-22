@@ -44,7 +44,7 @@ class LLMResponse:
         try:
             if hasattr(response, 'choices') and response.choices:
                 # OpenAI Format (standard ChatCompletion response)
-                self.content = response.choices[0].message.content
+                self.content = response.choices[0].message.content or ""
                 self.model = getattr(response, 'model', '')
                 self.usage = getattr(response, 'usage', None)
                 logger.debug(f"Parsed OpenAI response: model={self.model}")

@@ -166,29 +166,55 @@ class UnifiedRelevanceAnalyzer:
                 )
                 
                 llm_response = LLMResponse(response)
+                result = None
                 try:
                     result = json.loads(llm_response.extract_json())
-                except json.JSONDecodeError as e:
-                    print(f"   ⚠️ JSON-Parsing-Fehler in Batch {batch_num}/{total_batches}: {e}")
-                    raw_content = llm_response.content[:200] if llm_response.content else "(leer)"
-                    print(f"   ⚠️ LLM-Antwort (Auszug): {raw_content}")
-                    print(f"   ↪ Fallback: Alle {len(batch)} Segmente als relevant markiert")
-                    # Fallback: Alle Segmente als relevant markieren, damit nichts verloren geht
-                    for segment in batch:
-                        fallback_result = {
-                            "segment_id": segment["segment_id"],
-                            "is_relevant": True,
-                            "research_relevance": 0.5,
-                            "classification_confidence": 0.5,
-                            "relevance_reasoning": "Fallback: JSON-Parsing der LLM-Antwort fehlgeschlagen"
-                        }
-                        all_results.append(fallback_result)
-                        results.append({
-                            "segment_id": segment["segment_id"],
-                            "research_relevance": 0.5,
-                            "relevance_reasoning": "Fallback: JSON-Parsing der LLM-Antwort fehlgeschlagen"
-                        })
-                    continue
+                except json.JSONDecodeError:
+                    pass
+                
+                # Retry bei leerer/ungültiger Antwort (häufig bei lokalen LLMs)
+                if result is None:
+                    print(f"   🔄 Retry Batch {batch_num}/{total_batches} (leere/ungültige LLM-Antwort)...")
+                    try:
+                        await asyncio.sleep(2)  # Kurze Pause vor Retry
+                        token_counter.start_request()
+                        retry_response = await self.llm_provider.create_completion(
+                            model=self.model_name,
+                            messages=[
+                                {"role": "system", "content": "Du bist ein Experte für qualitative Inhaltsanalyse. Du antwortest auf Deutsch. Antworte ausschließlich mit einem JSON-Objekt."},
+                                {"role": "user", "content": prompt}
+                            ],
+                            temperature=self.temperature,
+                            response_format={"type": "json_object"}
+                        )
+                        token_counter.track_response(retry_response, self.model_name)
+                        retry_llm_response = LLMResponse(retry_response)
+                        result = json.loads(retry_llm_response.extract_json())
+                        print(f"   ✅ Retry Batch {batch_num} erfolgreich")
+                    except (json.JSONDecodeError, Exception) as retry_e:
+                        raw_content = ""
+                        try:
+                            raw_content = retry_llm_response.content[:200] if retry_llm_response.content else "(leer)"
+                        except Exception:
+                            raw_content = llm_response.content[:200] if llm_response.content else "(leer)"
+                        print(f"   ⚠️ Retry Batch {batch_num} fehlgeschlagen: {retry_e}")
+                        print(f"   ⚠️ LLM-Antwort (Auszug): {raw_content}")
+                        print(f"   ↪ Fallback: Alle {len(batch)} Segmente als relevant markiert")
+                        for segment in batch:
+                            fallback_result = {
+                                "segment_id": segment["segment_id"],
+                                "is_relevant": True,
+                                "research_relevance": 0.5,
+                                "classification_confidence": 0.5,
+                                "relevance_reasoning": "Fallback: JSON-Parsing der LLM-Antwort fehlgeschlagen"
+                            }
+                            all_results.append(fallback_result)
+                            results.append({
+                                "segment_id": segment["segment_id"],
+                                "research_relevance": 0.5,
+                                "relevance_reasoning": "Fallback: JSON-Parsing der LLM-Antwort fehlgeschlagen"
+                            })
+                        continue
                 
                 # Adapt standard prompt response format to expected format
                 standard_results = result.get("segment_results", [])

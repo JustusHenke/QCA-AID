@@ -4,6 +4,21 @@
 
 ---
 
+## Neu in 0.12.7.2 (2026-04-22)
+
+### 🐛 Bugfixes / Robustheit
+
+- **Retry-Logik bei leeren LLM-Antworten (lokale Modelle):**
+  - Automatischer Retry mit 2s Pause bei leerer/ungültiger JSON-Antwort in der Relevanzprüfung
+  - Hilft besonders bei Cold-Start-Problemen lokaler LLMs (LM Studio, Ollama)
+  - Fallback greift erst nach fehlgeschlagenem Retry
+
+- **Robustere LLMResponse-Verarbeitung:**
+  - `None`-Content von LLM-Antworten wird zu leerem String normalisiert
+  - Verhindert AttributeError bei leeren Antworten lokaler Server
+
+---
+
 ## Neu in 0.12.7.1 (2026-04-22)
 
 ### 🐛 Bugfixes / Robustheit
