@@ -65,6 +65,9 @@ class CodebookManager:
             # Bestimme Dateipfad und Format
             if file_path:
                 file_path = Path(file_path)
+                # Resolve relative paths against project directory
+                if not file_path.is_absolute():
+                    file_path = self.project_dir / file_path
                 if not file_path.exists():
                     return False, None, [f"Datei nicht gefunden: {file_path}"]
                 
@@ -107,8 +110,17 @@ class CodebookManager:
                 is_valid, validation_errors = codebook_data.validate()
                 if not is_valid:
                     errors.extend(validation_errors)
-                    # Gebe trotzdem codebook_data zurück, damit UI Werte anzeigen kann
-                    return False, codebook_data, errors
+                    # Return success=True with warnings if categories exist and have data
+                    # The codebook is loadable even if validation finds issues
+                    has_categories = (
+                        isinstance(codebook_data.deduktive_kategorien, dict) 
+                        and len(codebook_data.deduktive_kategorien) > 0
+                    )
+                    if has_categories:
+                        # Codebook is usable despite validation warnings
+                        return True, codebook_data, errors
+                    else:
+                        return False, codebook_data, errors
                 
                 return True, codebook_data, []
                 

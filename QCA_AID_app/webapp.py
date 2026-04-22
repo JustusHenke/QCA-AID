@@ -96,16 +96,17 @@ def lazy_load_tab_data(tab_name: str):
         st.session_state.setdefault('config_modified', False)
     
     elif tab_name == "Codebook":
-        # Codebook Daten laden
+        # Codebook aus Session State verwenden (wird primär über Config UI geladen).
+        # Fallback: Wenn noch nicht geladen, versuche von Festplatte zu laden.
         if 'codebook_data' not in st.session_state:
             from webapp_logic.codebook_manager import CodebookManager
             codebook_manager = CodebookManager(project_root)
             
             success, codebook_data, errors = codebook_manager.load_codebook()
             
-            if success and codebook_data:
+            if codebook_data:
                 st.session_state.codebook_data = codebook_data
-                st.session_state.codebook_loaded_from = "file"
+                st.session_state.codebook_loaded_from = "auto"
             else:
                 st.session_state.codebook_data = None
                 st.session_state.codebook_loaded_from = "none"
@@ -386,10 +387,12 @@ def render_config_info():
     config_exists = config_manager.json_path.exists() or config_manager.xlsx_path.exists()
     
     # Check if codebook exists and has categories
-    from webapp_logic.codebook_manager import CodebookManager
-    codebook_manager = CodebookManager(st.session_state.project_manager.get_root_directory())
-    success, codebook_data, errors = codebook_manager.load_codebook()
-    has_categories = success and codebook_data and len(codebook_data.deduktive_kategorien) > 0
+    codebook_data = st.session_state.get('codebook_data', None)
+    if codebook_data is None:
+        from webapp_logic.codebook_manager import CodebookManager
+        codebook_manager = CodebookManager(st.session_state.project_manager.get_root_directory())
+        success, codebook_data, errors = codebook_manager.load_codebook()
+    has_categories = codebook_data is not None and isinstance(codebook_data.deduktive_kategorien, dict) and len(codebook_data.deduktive_kategorien) > 0
     
     # Check if input files exist
     input_dir = Path(st.session_state.project_manager.get_root_directory()) / config.data_dir

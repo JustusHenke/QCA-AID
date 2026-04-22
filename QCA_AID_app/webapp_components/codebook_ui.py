@@ -12,13 +12,10 @@ from datetime import datetime
 from pathlib import Path
 
 from webapp_models.codebook_data import CodebookData, CategoryData
-from webapp_logic.file_browser_service import FileBrowserService
 from webapp_logic.inductive_code_extractor import InductiveCodeExtractor
 from webapp_logic.ui_helpers import (
-    truncate_path_for_display,
     show_file_operation_success,
-    show_file_operation_error,
-    show_real_time_path_validation
+    show_file_operation_error
 )
 
 
@@ -38,8 +35,8 @@ def ensure_categories_are_instances(codebook):
 
 def save_codebook_to_current_file():
     """
-    Speichert das Codebook direkt in die aktuell in der Config UI geladene Datei.
-    Verwendet die gleiche Datei und das gleiche Format wie in der Config UI.
+    Speichert das Codebook direkt in die aktuell geladene Datei.
+    Verwendet den in der Config UI gespeicherten Dateipfad.
     """
     from webapp_logic.codebook_manager import CodebookManager
     
@@ -47,23 +44,28 @@ def save_codebook_to_current_file():
     project_manager = st.session_state.project_manager
     project_root = Path(project_manager.get_root_directory())
     
-    # Determine the current file path and format
-    # Check for standard files (prefer JSON, then XLSX)
-    json_path = project_root / "QCA-AID-Codebook.json"
-    xlsx_path = project_root / "QCA-AID-Codebook.xlsx"
+    # Determine the save path: use the stored filepath from the last load operation
+    stored_filepath = st.session_state.get('current_config_filepath', None)
     
-    # Determine which file to use based on what exists or was last loaded
-    if json_path.exists():
-        save_path = json_path
-        save_format = 'json'
-    elif xlsx_path.exists():
-        save_path = xlsx_path
-        save_format = 'xlsx'
+    if stored_filepath and Path(stored_filepath).parent.exists():
+        save_path = Path(stored_filepath)
+        save_format = 'json' if save_path.suffix.lower() == '.json' else 'xlsx'
     else:
-        # No file exists yet - use default JSON
-        save_path = json_path
-        save_format = 'json'
-        st.info(f"ℹ️ Erstelle neue Datei: {save_path.name}")
+        # Fallback: check for standard files in project root
+        json_path = project_root / "QCA-AID-Codebook.json"
+        xlsx_path = project_root / "QCA-AID-Codebook.xlsx"
+        
+        if json_path.exists():
+            save_path = json_path
+            save_format = 'json'
+        elif xlsx_path.exists():
+            save_path = xlsx_path
+            save_format = 'xlsx'
+        else:
+            # No file exists yet - use default JSON in project root
+            save_path = json_path
+            save_format = 'json'
+            st.info(f"ℹ️ Erstelle neue Datei: {save_path.name}")
     
     # Get the codebook data
     codebook = st.session_state.codebook_data
@@ -71,7 +73,7 @@ def save_codebook_to_current_file():
     # Ensure all categories are CategoryData instances
     ensure_categories_are_instances(codebook)
     
-    # Save using codebook_manager
+    # Save using codebook_manager (use project_root for the manager, but explicit save_path)
     manager = CodebookManager(project_root)
     success, errors = manager.save_codebook(
         codebook=codebook,
@@ -126,7 +128,7 @@ def render_codebook_tab():
     if 'codebook_data' in st.session_state and st.session_state.codebook_data:
         codebook = st.session_state.codebook_data
         if len(codebook.deduktive_kategorien) == 0:
-            st.warning("⚠️ **Aktion erforderlich:** Ihr Codebook enthält keine Kategorien. Laden Sie ein bestehendes Codebook oder erstellen Sie neue Kategorien.")
+            st.warning("⚠️ **Aktion erforderlich:** Ihr Codebook enthält keine Kategorien. Laden Sie eine Datei im **Konfiguration**-Tab oder erstellen Sie neue Kategorien unten.")
         elif not codebook.forschungsfrage or not codebook.forschungsfrage.strip():
             st.info("💡 **Empfehlung:** Definieren Sie eine Forschungsfrage für bessere Analyseergebnisse.")
         else:
@@ -191,48 +193,48 @@ def render_codebook_tab():
 
 def render_file_operations():
     """
-    Rendert Laden/Speichern Buttons für Codebook mit File Browser Integration.
+    Rendert Speichern-Button und Status für Codebook.
     
-    Requirements:
-    - 3.1: Display current file path in input field
-    - 3.2: Show default path when empty
-    - 3.3: File browser button next to path input
-    - 3.4: Display full path when file selected
-    - 3.5: Save dialog with suggested filename
+    Das Laden erfolgt ausschließlich über die Config UI (da Config und Codebook
+    in einer gemeinsamen Datei liegen). Hier wird nur das bereits geladene
+    Codebook angezeigt, bearbeitet und gespeichert.
     """
     # Show current codebook status
     codebook = st.session_state.codebook_data
-    if codebook and st.session_state.get('codebook_loaded_from') == 'file':
-        st.success(f"✅ Codebook geladen ({len(codebook.deduktive_kategorien)} Kategorien)")
-    elif not codebook or len(codebook.deduktive_kategorien) == 0:
-        st.info("ℹ️ Kein Codebook geladen - Laden Sie ein bestehendes oder erstellen Sie ein neues")
     
-    col1, col2, col3, col4, col5 = st.columns([2, 2, 1, 1, 1])
+    if codebook and st.session_state.get('codebook_loaded_from') in ('file', 'auto'):
+        cat_count = len(codebook.deduktive_kategorien)
+        if cat_count > 0:
+            st.success(f"✅ Codebook geladen ({cat_count} Kategorien)")
+        else:
+            st.info("ℹ️ Codebook geladen, aber noch keine Kategorien vorhanden.")
+    elif not codebook or len(codebook.deduktive_kategorien) == 0:
+        st.info('ℹ️ Kein Codebook geladen – laden Sie eine Datei im **Konfiguration**-Tab über "Konfiguration laden".')
+    
+    # Show modification warning
+    if st.session_state.get('codebook_modified', False):
+        st.warning("⚠️ **Ungespeicherte Änderungen** am Codebook vorhanden.")
+    
+    col1, col2, col3, col4 = st.columns([2, 1, 1, 1])
     
     with col1:
         st.markdown("**Dateioperationen**")
     
     with col2:
-        # Load button - highlight if no categories exist
-        button_type = "primary" if not codebook or len(codebook.deduktive_kategorien) == 0 else "secondary"
-        if st.button("📂 Codebook laden", use_container_width=True, key="codebook_load_main_btn", type=button_type):
-            st.session_state.show_codebook_load_dialog = True
-    
-    with col3:
         # Save button - highlight if modified
         button_type = "primary" if st.session_state.get('codebook_modified', False) else "secondary"
         if st.button("💾 Speichern", use_container_width=True, key="codebook_save_main_btn", type=button_type):
             # Save directly to the currently loaded config file (no dialog)
             save_codebook_to_current_file()
     
-    with col4:
+    with col3:
         # Remove codebook button
         if codebook and len(codebook.deduktive_kategorien) > 0:
             if st.button("🗑️ Entfernen", use_container_width=True, key="codebook_remove_btn", 
                         help="Aktuelles Codebook entfernen", type="secondary"):
                 st.session_state.show_codebook_remove_dialog = True
     
-    with col5:
+    with col4:
         # Import inductive codes button (Requirement 4.3)
         if st.session_state.get('inductive_codes_available', False):
             if st.button("📥 Import", use_container_width=True, key="codebook_import_inductive_btn", 
@@ -266,130 +268,6 @@ def render_file_operations():
                 if st.button("Abbrechen", use_container_width=True, key='codebook_remove_cancel'):
                     st.session_state.show_codebook_remove_dialog = False
                     st.rerun()
-    
-    # Load dialog
-    if st.session_state.get('show_codebook_load_dialog', False):
-        with st.expander("📂 Codebook laden", expanded=True):
-            # Use detected format if available, otherwise default to json
-            default_format = st.session_state.get('codebook_load_format_detected', 'json')
-            format_index = 0 if default_format == 'json' else 1
-            
-            load_format = st.radio(
-                "Format wählen:",
-                options=['json', 'xlsx'],
-                format_func=lambda x: 'JSON' if x == 'json' else 'Excel (XLSX)',
-                horizontal=True,
-                index=format_index,
-                key='codebook_load_format'
-            )
-            
-            # Clear detected format after using it
-            if 'codebook_load_format_detected' in st.session_state:
-                del st.session_state.codebook_load_format_detected
-            
-            # Get project manager for default path
-            project_manager = st.session_state.project_manager
-            default_filename = f"QCA-AID-Codebook.{load_format}"
-            default_path = project_manager.get_codebook_path(default_filename)
-            
-            # Display current file path with default (Requirements 3.1, 3.2)
-            col_path, col_browse = st.columns([4, 1])
-            
-            with col_path:
-                # Initialize session state for file path if not exists
-                if 'codebook_load_path_input' not in st.session_state:
-                    st.session_state.codebook_load_path_input = str(default_path)
-                
-                # Requirement 8.3: Truncate long paths with ellipsis
-                help_text = "Dateipfad zum Laden (Standard wird angezeigt)"
-                current_path = st.session_state.codebook_load_path_input
-                if current_path and len(current_path) > 50:
-                    # Show full path in tooltip
-                    help_text = f"Vollständiger Pfad: {current_path}\n\n{help_text}"
-                
-                # Use session state key directly for two-way binding
-                file_path = st.text_input(
-                    "Dateipfad:",
-                    value=st.session_state.codebook_load_path_input,
-                    help=help_text,
-                    key='codebook_load_path_widget',
-                    placeholder=str(default_path)
-                )
-                
-                # Update session state when user types
-                if file_path != st.session_state.codebook_load_path_input:
-                    st.session_state.codebook_load_path_input = file_path
-                
-                # Requirement 8.4: Real-time path validation
-                if file_path and file_path.strip():
-                    path_resolver = project_manager.path_resolver
-                    show_real_time_path_validation(file_path, path_resolver, check_writable=False)
-            
-            with col_browse:
-                # File browser button (Requirement 3.3, 8.1, 8.2)
-                st.markdown("<br>", unsafe_allow_html=True)  # Align with input
-                if st.button("📁", key='codebook_load_browse_btn', help="Datei durchsuchen"):
-                    # Open file browser dialog
-                    selected_path = FileBrowserService.open_codebook_file_dialog(
-                        initial_dir=project_manager.get_root_directory()
-                    )
-                    
-                    if selected_path:
-                        # Update path input (Requirement 3.4)
-                        st.session_state.codebook_load_path_input = str(selected_path)
-                        # Store detected format in separate key to avoid widget conflict
-                        if selected_path.suffix.lower() == '.json':
-                            st.session_state.codebook_load_format_detected = 'json'
-                        elif selected_path.suffix.lower() == '.xlsx':
-                            st.session_state.codebook_load_format_detected = 'xlsx'
-                        st.rerun()
-            
-            col_load1, col_load2 = st.columns(2)
-            
-            with col_load1:
-                if st.button("Laden", use_container_width=True, key='codebook_load_btn'):
-                    from webapp_logic.codebook_manager import CodebookManager
-                    manager = CodebookManager(project_manager.get_root_directory())
-                    
-                    # Use file path from input or default
-                    load_path = file_path.strip() if file_path.strip() else str(default_path)
-                    
-                    # Load codebook
-                    success, codebook_data, errors = manager.load_codebook(
-                        file_path=load_path,
-                        format=load_format
-                    )
-                    
-                    if success:
-                        st.session_state.codebook_data = codebook_data
-                        st.session_state.codebook_modified = False
-                        project_manager.update_last_codebook_file(Path(load_path))
-                        
-                        # Requirement 8.5: Success confirmation with file info
-                        additional_info = {
-                            "Kategorien": len(codebook_data.deduktive_kategorien),
-                            "Kodierregeln": sum(len(rules) for rules in codebook_data.kodierregeln.values())
-                        }
-                        show_file_operation_success("geladen", Path(load_path), additional_info)
-                        
-                        st.session_state.show_codebook_load_dialog = False
-                        st.rerun()
-                    else:
-                        # Enhanced error display
-                        show_file_operation_error(
-                            "Laden",
-                            Path(load_path),
-                            "\n".join(errors),
-                            ["Überprüfen Sie das Dateiformat", "Stellen Sie sicher, dass die Datei existiert"]
-                        )
-            
-            with col_load2:
-                if st.button("Abbrechen", use_container_width=True, key='codebook_load_cancel'):
-                    st.session_state.show_codebook_load_dialog = False
-                    st.rerun()
-    
-    # Note: Save dialog removed - saving now happens directly to the current config file
-    # The save button in the UI calls save_codebook_to_current_file() instead
     
     # Inductive code import dialog (Requirement 4.4)
     if st.session_state.get('show_inductive_import_dialog', False):

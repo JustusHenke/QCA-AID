@@ -18,7 +18,7 @@ try:
     from __version__ import __version__ as CURRENT_VERSION
 except ImportError:
     # Fallback if import fails
-    CURRENT_VERSION = "0.12.6.3"
+    CURRENT_VERSION = "0.12.7"
 
 
 class VersionChecker:

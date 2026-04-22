@@ -4,6 +4,38 @@
 
 ---
 
+## Neu in 0.12.7 (2026-04-22)
+
+### 🔧 Verbesserungen
+
+- **Vereinheitlichtes Laden von Config und Codebook:**
+  - Codebook wird jetzt automatisch beim Laden der Konfiguration mitgeladen (Config UI)
+  - Separater "Codebook laden"-Dialog im Codebook-Tab entfernt (Redundanz beseitigt)
+  - Gespeicherter Dateipfad wird für zukünftige Speicher-Operationen korrekt weitergegeben
+
+- **Robustere Pfadauflösung:**
+  - Relative Pfade werden in ConfigManager und CodebookManager korrekt gegen das Projektverzeichnis aufgelöst
+  - Verhindert Fehler bei Pfadangaben ohne absoluten Pfad
+
+- **Robustere Codebook-Datenverarbeitung:**
+  - `CategoryData.from_dict()` behandelt None-Werte und unerwartete Typen graceful
+  - `CodebookData.from_dict()` mit robuster Kodierregeln-Verarbeitung
+  - Validierung gibt success=True zurück wenn Kategorien trotz Warnungen nutzbar sind
+
+- **Session-State-basiertes Codebook-Management:**
+  - Analyse-Tab und Webapp nutzen Session State statt wiederholtes Laden von Festplatte
+  - Verbesserte Statusanzeige im Codebook-Tab (unterscheidet "geladen" vs. "keine Kategorien")
+
+### 🔧 Aktualisierte LLM-Modellkonfigurationen
+
+- **Anthropic:** Claude Opus 4.7 hinzugefügt (mit Reasoning-Levels)
+- **OpenRouter:** 
+  - Neue Modelle: Claude Opus 4.7, Kimi K2.6, inclusionAI Ling-2.6-flash (free)
+  - Entfernte veraltete Modelle: Mercury, Mercury Coder, Llama 4 Maverick, GPT-4o extended, GPT-5 Image/Image Mini, Meituan LongCat Flash
+  - Aktualisierte Preise und Parameter für zahlreiche Modelle (DeepSeek, Qwen, MiniMax, Mistral, xAI, Z.ai u.a.)
+
+---
+
 ## Neu in 0.12.6.3 (2026-04-18)
 
 ### 🐛 Bugfixes / Robustheit

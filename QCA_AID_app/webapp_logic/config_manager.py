@@ -117,6 +117,9 @@ class ConfigManager:
             # Bestimme Dateipfad und Format
             if file_path:
                 file_path = Path(file_path)
+                # Resolve relative paths against project directory
+                if not file_path.is_absolute():
+                    file_path = self.project_dir / file_path
                 if not file_path.exists():
                     return False, None, [f"Datei nicht gefunden: {file_path}"]
                 

@@ -51,20 +51,37 @@ def render_analysis_tab():
     if not config_saved:
         readiness_warnings.append("Konfiguration noch nicht gespeichert")
     
-    # 3. Check codebook
-    from webapp_logic.codebook_manager import CodebookManager
-    codebook_manager = CodebookManager(project_root)
-    success, codebook_data, errors = codebook_manager.load_codebook()
+    # 3. Check codebook - use session state first, only fall back to file
+    codebook_data = st.session_state.get('codebook_data', None)
     
-    if not success or not codebook_data:
-        readiness_issues.append("Codebook konnte nicht geladen werden")
-    elif len(codebook_data.deduktive_kategorien) == 0:
+    if codebook_data is None:
+        # No codebook in session state - try loading from file
+        from webapp_logic.codebook_manager import CodebookManager
+        codebook_manager = CodebookManager(project_root)
+        success, codebook_data, errors = codebook_manager.load_codebook()
+        
+        if success and codebook_data:
+            st.session_state.codebook_data = codebook_data
+        elif codebook_data:
+            # Loaded with validation warnings - still usable, show warnings
+            st.session_state.codebook_data = codebook_data
+            for err in errors:
+                readiness_warnings.append(f"Codebook-Warnung: {err}")
+        else:
+            readiness_issues.append("Codebook konnte nicht geladen werden")
+            if errors:
+                for err in errors:
+                    readiness_issues.append(f"  → {err}")
+    
+    if codebook_data is None:
+        pass  # Already added to readiness_issues above
+    elif not isinstance(codebook_data.deduktive_kategorien, dict) or len(codebook_data.deduktive_kategorien) == 0:
         readiness_issues.append("Codebook enthält keine Kategorien")
     else:
         # Check if categories have subcategories
         categories_without_subcats = [
             name for name, cat in codebook_data.deduktive_kategorien.items()
-            if not cat.subcategories or len(cat.subcategories) == 0
+            if hasattr(cat, 'subcategories') and (not cat.subcategories or len(cat.subcategories) == 0)
         ]
         if categories_without_subcats:
             readiness_warnings.append(f"{len(categories_without_subcats)} Kategorie(n) ohne Subkategorien")

@@ -321,39 +321,70 @@ def render_file_operations():
                     # Use the file path from session state (which contains the selected file)
                     selected_path = st.session_state.selected_config_load_path.strip()
                     
-                    # Determine actual file path
+                    # Determine actual file path - resolve relative paths to project root
                     if selected_path:
-                        actual_path = selected_path
-                        # Load configuration with specific file path
+                        from pathlib import Path
+                        path_obj = Path(selected_path)
+                        if not path_obj.is_absolute():
+                            # Resolve relative path against project root
+                            path_obj = Path(project_manager.get_root_directory()) / selected_path
+                        actual_path = str(path_obj)
+                        
+                        # Load configuration with resolved file path
                         success, config_data, errors = config_manager.load_config(
-                            file_path=selected_path,
+                            file_path=actual_path,
                             format=load_format
                         )
                     else:
-                        # Use default filename
-                        actual_path = f"QCA-AID-Codebook.{load_format}"
+                        # Use default filename (resolved by config_manager against project_dir)
+                        actual_path = None
                         success, config_data, errors = config_manager.load_config(
                             format=load_format
                         )
+                        # Determine which file was actually loaded for session state
+                        if success:
+                            if config_manager.json_path.exists():
+                                actual_path = str(config_manager.json_path)
+                            elif config_manager.xlsx_path.exists():
+                                actual_path = str(config_manager.xlsx_path)
                     
                     if success:
                         st.session_state.config_data = config_data
                         st.session_state.config_modified = False
                         st.session_state.config_loaded_from = "user"
                         
-                        # Speichere den aktuell geladenen Dateinamen für zukünftige Speicher-Operationen
+                        # Store the full resolved file path for future save operations
                         from pathlib import Path
-                        loaded_path = Path(actual_path)
-                        st.session_state.current_config_filename = loaded_path.name
+                        if actual_path:
+                            loaded_path = Path(actual_path)
+                            st.session_state.current_config_filename = loaded_path.name
+                            st.session_state.current_config_filepath = str(loaded_path)
+                        
+                        # Also load codebook from the same file (config+codebook share one file)
+                        from webapp_logic.codebook_manager import CodebookManager
+                        codebook_mgr = CodebookManager(project_manager.get_root_directory())
+                        cb_success, codebook_data, cb_errors = codebook_mgr.load_codebook(
+                            file_path=actual_path,
+                            format=load_format
+                        )
+                        if cb_success and codebook_data:
+                            st.session_state.codebook_data = codebook_data
+                            st.session_state.codebook_modified = False
+                            st.session_state.codebook_loaded_from = "file"
+                        elif codebook_data:
+                            # Loaded with validation warnings - still usable
+                            st.session_state.codebook_data = codebook_data
+                            st.session_state.codebook_modified = False
+                            st.session_state.codebook_loaded_from = "file"
                         
                         # Requirement 8.5: Success confirmation with file info
-                        from pathlib import Path
-                        loaded_path = Path(actual_path)
+                        cb_count = len(codebook_data.deduktive_kategorien) if codebook_data else 0
                         additional_info = {
-                            "Kategorien": len(config_data.coder_settings),
-                            "Attribute": len(config_data.attribute_labels)
+                            "Coder": len(config_data.coder_settings),
+                            "Attribute": len(config_data.attribute_labels),
+                            "Codebook-Kategorien": cb_count
                         }
-                        show_file_operation_success("geladen", loaded_path, additional_info)
+                        show_file_operation_success("geladen", Path(actual_path) if actual_path else Path("(Standard)"), additional_info)
                         
                         # Clear selected path
                         st.session_state.selected_config_load_path = ""
@@ -364,7 +395,7 @@ def render_file_operations():
                         from pathlib import Path
                         show_file_operation_error(
                             "Laden",
-                            Path(actual_path),
+                            Path(actual_path) if actual_path else Path(selected_path or "(Standard)"),
                             "\n".join(errors),
                             ["Überprüfen Sie das Dateiformat", "Stellen Sie sicher, dass die Datei existiert"]
                         )
@@ -512,24 +543,34 @@ def render_file_operations():
                     # Use the file path from session state (which contains the selected file)
                     selected_path = st.session_state.selected_config_save_path.strip()
                     
-                    # Determine actual file path
+                    # Determine actual file path - resolve relative paths to project root
                     if selected_path:
-                        actual_path = selected_path
-                        # Save configuration with specific file path
+                        from pathlib import Path
+                        path_obj = Path(selected_path)
+                        if not path_obj.is_absolute():
+                            path_obj = Path(project_manager.get_root_directory()) / selected_path
+                        actual_path = str(path_obj)
+                        
+                        # Save configuration with resolved file path
                         success, errors = config_manager.save_config(
                             config=config,
-                            file_path=selected_path,
+                            file_path=actual_path,
                             format=save_format
                         )
                     else:
                         # Use default filename
-                        actual_path = f"QCA-AID-Codebook.{save_format}"
+                        actual_path = str(Path(project_manager.get_root_directory()) / f"QCA-AID-Codebook.{save_format}")
                         success, errors = config_manager.save_config(
                             config=config,
                             format=save_format
                         )
                     
                     if success:
+                        # Update stored filepath for future save operations
+                        from pathlib import Path
+                        st.session_state.current_config_filepath = actual_path
+                        st.session_state.current_config_filename = Path(actual_path).name
+                        
                         # Reload config from file to ensure exact match with saved values
                         # This prevents widgets from triggering config_modified on rerun
                         reload_success, reloaded_config, reload_errors = config_manager.load_config(

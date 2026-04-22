@@ -38,20 +38,34 @@ class CategoryData:
             errors.append(f"Category name too long (maximum 50 characters), got {len(self.name)}")
         
         # Validate definition (relaxed - only check if not empty)
-        if not self.definition or not self.definition.strip():
+        # Ensure definition is a string before checking
+        definition = self.definition
+        if definition is not None and not isinstance(definition, str):
+            definition = str(definition)
+            self.definition = definition
+        if not definition or not definition.strip():
             errors.append("Category definition cannot be empty")
         
         # Validate rules (relaxed - just check type)
         if not isinstance(self.rules, list):
-            errors.append("Rules must be a list")
+            if self.rules is None:
+                self.rules = []
+            else:
+                errors.append("Rules must be a list")
         
         # Validate examples (relaxed - allow empty)
         if not isinstance(self.examples, list):
-            errors.append("Examples must be a list")
+            if self.examples is None:
+                self.examples = []
+            else:
+                errors.append("Examples must be a list")
         
         # Validate subcategories (relaxed - allow empty)
         if not isinstance(self.subcategories, dict):
-            errors.append("Subcategories must be a dictionary")
+            if self.subcategories is None:
+                self.subcategories = {}
+            else:
+                errors.append("Subcategories must be a dictionary")
         
         return len(errors) == 0, errors
     
@@ -70,12 +84,40 @@ class CategoryData:
     @classmethod
     def from_dict(cls, data: Dict) -> 'CategoryData':
         """Erstellt aus Dictionary"""
+        # Robust extraction of definition - handle various possible structures
+        definition = data.get('definition', '')
+        if definition is None:
+            definition = ''
+        elif not isinstance(definition, str):
+            definition = str(definition)
+        
+        # Robust extraction of rules
+        rules = data.get('rules', [])
+        if rules is None:
+            rules = []
+        elif not isinstance(rules, list):
+            rules = [str(rules)]
+        
+        # Robust extraction of examples
+        examples = data.get('examples', [])
+        if examples is None:
+            examples = []
+        elif not isinstance(examples, list):
+            examples = [str(examples)]
+        
+        # Robust extraction of subcategories
+        subcategories = data.get('subcategories', {})
+        if subcategories is None:
+            subcategories = {}
+        elif not isinstance(subcategories, dict):
+            subcategories = {}
+        
         return cls(
             name=data.get('name', ''),
-            definition=data.get('definition', ''),
-            rules=data.get('rules', []),
-            examples=data.get('examples', []),
-            subcategories=data.get('subcategories', {}),
+            definition=definition,
+            rules=rules,
+            examples=examples,
+            subcategories=subcategories,
             added_date=data.get('added_date', datetime.now().strftime("%Y-%m-%d")),
             modified_date=data.get('modified_date', datetime.now().strftime("%Y-%m-%d"))
         )
@@ -170,13 +212,35 @@ class CodebookData:
                     if 'name' not in cat_data:
                         cat_data['name'] = name
                     kategorien[name] = CategoryData.from_dict(cat_data)
+                elif cat_data is not None:
+                    # Unexpected type - try to handle gracefully
+                    print(f"[WARN] Category '{name}' has unexpected type: {type(cat_data).__name__}")
+                    kategorien[name] = CategoryData(
+                        name=name,
+                        definition=str(cat_data) if cat_data else '',
+                        rules=[],
+                        examples=[],
+                        subcategories={}
+                    )
+        
+        # Parse kodierregeln with robust handling
+        kodierregeln_raw = data.get('kodierregeln', {})
+        if not isinstance(kodierregeln_raw, dict):
+            kodierregeln_raw = {}
+        
+        kodierregeln = {
+            'general': kodierregeln_raw.get('general', []) or [],
+            'format': kodierregeln_raw.get('format', []) or [],
+            'exclusion': kodierregeln_raw.get('exclusion', []) or []
+        }
+        
+        # Ensure all values are lists
+        for key in kodierregeln:
+            if not isinstance(kodierregeln[key], list):
+                kodierregeln[key] = []
         
         return cls(
-            forschungsfrage=data.get('forschungsfrage', ''),
-            kodierregeln=data.get('kodierregeln', {
-                'general': [],
-                'format': [],
-                'exclusion': []
-            }),
+            forschungsfrage=data.get('forschungsfrage', '') or '',
+            kodierregeln=kodierregeln,
             deduktive_kategorien=kategorien
         )
