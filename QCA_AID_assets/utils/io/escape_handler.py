@@ -37,8 +37,11 @@ class EscapeHandler:
             import keyboard
             return True
         except ImportError:
-            print("⚠️ 'keyboard' Modul nicht installiert. ESC-Handler nicht verfügbar.")
-            print("   Installieren Sie mit: pip install keyboard")
+            import logging
+            logging.debug(
+                "'keyboard' Modul nicht installiert. ESC-Handler nicht verfügbar. "
+                "Installieren Sie mit: pip install keyboard"
+            )
             return False
         
     def start_monitoring(self):

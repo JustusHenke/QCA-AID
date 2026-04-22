@@ -4,6 +4,22 @@
 
 ---
 
+## Neu in 0.12.7.1 (2026-04-22)
+
+### 🐛 Bugfixes / Robustheit
+
+- **Robustere JSON-Fehlerbehandlung im UnifiedRelevanceAnalyzer:**
+  - Alle `json.loads()`-Aufrufe nach LLM-Antworten mit try/except abgesichert
+  - Fallback-Strategie bei JSON-Parsing-Fehlern: Segmente werden als relevant markiert (statt verworfen), damit keine Daten verloren gehen
+  - Betrifft: Standard-Relevanzprüfung, Kategorie-Präselektion, umfassende Analyse, induktive/abduktive/grounded Batches
+  - Diagnostische Ausgabe (Auszug der LLM-Antwort) bei Parsing-Fehlern für einfacheres Debugging
+
+- **Leisere Logging-Ausgabe im EscapeHandler:**
+  - Fehlende `keyboard`-Modul-Warnung von `print()` auf `logging.debug()` umgestellt
+  - Vermeidet störende Konsolenausgaben bei normalem Betrieb ohne installiertes `keyboard`-Modul
+
+---
+
 ## Neu in 0.12.7 (2026-04-22)
 
 ### 🔧 Verbesserungen

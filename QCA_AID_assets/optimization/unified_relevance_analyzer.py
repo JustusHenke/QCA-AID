@@ -166,7 +166,29 @@ class UnifiedRelevanceAnalyzer:
                 )
                 
                 llm_response = LLMResponse(response)
-                result = json.loads(llm_response.extract_json())
+                try:
+                    result = json.loads(llm_response.extract_json())
+                except json.JSONDecodeError as e:
+                    print(f"   ⚠️ JSON-Parsing-Fehler in Batch {batch_num}/{total_batches}: {e}")
+                    raw_content = llm_response.content[:200] if llm_response.content else "(leer)"
+                    print(f"   ⚠️ LLM-Antwort (Auszug): {raw_content}")
+                    print(f"   ↪ Fallback: Alle {len(batch)} Segmente als relevant markiert")
+                    # Fallback: Alle Segmente als relevant markieren, damit nichts verloren geht
+                    for segment in batch:
+                        fallback_result = {
+                            "segment_id": segment["segment_id"],
+                            "is_relevant": True,
+                            "research_relevance": 0.5,
+                            "classification_confidence": 0.5,
+                            "relevance_reasoning": "Fallback: JSON-Parsing der LLM-Antwort fehlgeschlagen"
+                        }
+                        all_results.append(fallback_result)
+                        results.append({
+                            "segment_id": segment["segment_id"],
+                            "research_relevance": 0.5,
+                            "relevance_reasoning": "Fallback: JSON-Parsing der LLM-Antwort fehlgeschlagen"
+                        })
+                    continue
                 
                 # Adapt standard prompt response format to expected format
                 standard_results = result.get("segment_results", [])
@@ -260,13 +282,18 @@ class UnifiedRelevanceAnalyzer:
             except Exception as e:
                 # Handle batch errors gracefully
                 print(f"   ⚠️ Fehler in Relevanzprüfung Batch {i//batch_size + 1}: {e}")
-                # Add default results for failed batch
+                # Fallback: Alle Segmente als relevant markieren, damit nichts verloren geht
                 for segment in batch:
                     all_results.append({
                         "segment_id": segment["segment_id"],
-                        "is_relevant": False,
-                        "research_relevance": 0.0,
-                        "relevance_reasoning": f"Fehler bei der Analyse: {str(e)}"
+                        "is_relevant": True,
+                        "research_relevance": 0.5,
+                        "relevance_reasoning": f"Fallback (relevant): Fehler bei der Analyse: {str(e)}"
+                    })
+                    results.append({
+                        "segment_id": segment["segment_id"],
+                        "research_relevance": 0.5,
+                        "relevance_reasoning": f"Fallback (relevant): Fehler bei der Analyse: {str(e)}"
                     })
         
         # Statistiken berechnen
@@ -393,7 +420,31 @@ class UnifiedRelevanceAnalyzer:
             )
             
             llm_response = LLMResponse(response)
-            result = json.loads(llm_response.extract_json())
+            try:
+                result = json.loads(llm_response.extract_json())
+            except json.JSONDecodeError as e:
+                print(f"   ⚠️ JSON-Parsing-Fehler in Relevanzprüfung mit Präferenzen: {e}")
+                raw_content = llm_response.content[:200] if llm_response.content else "(leer)"
+                print(f"   ⚠️ LLM-Antwort (Auszug): {raw_content}")
+                print(f"   ↪ Fallback: Alle {len(segments)} Segmente als relevant markiert")
+                for segment in segments:
+                    fallback_result = {
+                        "segment_id": segment["segment_id"],
+                        "is_relevant": True,
+                        "research_relevance": 0.5,
+                        "category_preferences": {},
+                        "top_categories": [],
+                        "relevance_reasoning": "Fallback: JSON-Parsing der LLM-Antwort fehlgeschlagen"
+                    }
+                    all_results.append(fallback_result)
+                    results.append({
+                        "segment_id": segment["segment_id"],
+                        "research_relevance": 0.5,
+                        "category_preferences": {},
+                        "top_categories": [],
+                        "relevance_reasoning": "Fallback: JSON-Parsing der LLM-Antwort fehlgeschlagen"
+                    })
+                return results
             
             # Adapt standard prompt response format to expected format
             # Note: The standard category preselection prompt has a different format
@@ -771,7 +822,21 @@ class UnifiedRelevanceAnalyzer:
             )
             
             llm_response = LLMResponse(response)
-            result = json.loads(llm_response.extract_json())
+            try:
+                result = json.loads(llm_response.extract_json())
+            except json.JSONDecodeError as e:
+                print(f"   ⚠️ JSON-Parsing-Fehler in umfassender Relevanzanalyse für {segment_id}: {e}")
+                raw_content = llm_response.content[:200] if llm_response.content else "(leer)"
+                print(f"   ⚠️ LLM-Antwort (Auszug): {raw_content}")
+                # Fallback: Relevantes Ergebnis mit niedriger Konfidenz
+                return UnifiedAnalysisResult(
+                    segment_id=segment_id,
+                    primary_category="",
+                    all_categories=[],
+                    relevance_scores={},
+                    confidence=0.5,
+                    requires_multiple_coding=False
+                )
             
             # Parse comprehensive result
             return self._parse_comprehensive_result(result, segment_id)
@@ -1140,7 +1205,13 @@ class UnifiedRelevanceAnalyzer:
                 # Parse response
                 from QCA_AID_assets.utils.llm.response import LLMResponse
                 llm_response = LLMResponse(response)
-                result = json.loads(llm_response.extract_json())
+                try:
+                    result = json.loads(llm_response.extract_json())
+                except json.JSONDecodeError as e:
+                    print(f"   ⚠️ JSON-Parsing-Fehler in Induktive-Batch {internal_batch_num}: {e}")
+                    raw_content = llm_response.content[:200] if llm_response.content else "(leer)"
+                    print(f"   ⚠️ LLM-Antwort (Auszug): {raw_content}")
+                    continue
                 
                 # Extract results and development assessment
                 batch_results = result.get('results', [])
@@ -1325,7 +1396,13 @@ class UnifiedRelevanceAnalyzer:
                 token_counter.track_response(response, self.model_name)  # Track response
                 
                 llm_response = LLMResponse(response)
-                batch_json = json.loads(llm_response.extract_json())
+                try:
+                    batch_json = json.loads(llm_response.extract_json())
+                except json.JSONDecodeError as e:
+                    print(f"   ⚠️ JSON-Parsing-Fehler in Abduktive-Batch: {e}")
+                    raw_content = llm_response.content[:200] if llm_response.content else "(leer)"
+                    print(f"   ⚠️ LLM-Antwort (Auszug): {raw_content}")
+                    continue
                 
                 # Handle the actual LLM response format with "results"
                 if "results" in batch_json:
@@ -1429,7 +1506,13 @@ class UnifiedRelevanceAnalyzer:
                 token_counter.track_response(response, self.model_name)  # Track response
                 
                 llm_response = LLMResponse(response)
-                batch_json = json.loads(llm_response.extract_json())
+                try:
+                    batch_json = json.loads(llm_response.extract_json())
+                except json.JSONDecodeError as e:
+                    print(f"   ⚠️ JSON-Parsing-Fehler in Grounded-Batch {batch_num}: {e}")
+                    raw_content = llm_response.content[:200] if llm_response.content else "(leer)"
+                    print(f"   ⚠️ LLM-Antwort (Auszug): {raw_content}")
+                    continue
                 results.extend(batch_json.get("results", []))
             except Exception:
                 pass
