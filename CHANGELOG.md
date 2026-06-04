@@ -4,6 +4,20 @@
 
 ---
 
+## Neu in 0.12.7.3 (2026-06-04)
+
+### 🌐 Custom API Provider — Erweiterte Flexibilität
+
+- **Custom API Base URL für ALLE Provider sichtbar** (zuvor nur OpenAI/Local)
+- **Modell-Feld wird Freitext-Input** sobald eine Custom API Base URL gesetzt ist — kein Dropdown-Zwang mehr, beliebige Modelleingabe möglich
+- **Benutzerdefinierter Env-Var-Name für API-Key** (z.B. `GWDG_API_KEY`, `CUSTOM_API_KEY`) statt festem `OPENAI_API_KEY`
+- Echtzeit-API-Key-Prüfung in der UI zum konfigurierten Env-Var-Namen
+- Full-Stack-Integration: Factory → OpenAIProvider → alle Analyse-Module (deduktiv, induktiv, Relevanz, Explorer)
+- API_KEY_ENV wird als Umgebungsvariable an den Analyse-Subprocess übergeben
+- Defensive `getattr`-Zugriffe für Kompatibilität mit alten Session-State-Objekten
+
+---
+
 ## Neu in 0.12.7.2 (2026-04-22)
 
 ### 🐛 Bugfixes / Robustheit
