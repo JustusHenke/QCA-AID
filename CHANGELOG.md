@@ -4,6 +4,23 @@
 
 ---
 
+## Neu in 0.12.7.4 (2026-06-05)
+
+### 🔑 .env-Autoload für API-Keys
+
+- **Automatisches Laden von `.env` aus dem Projektverzeichnis** in `start_QCA-AID-app.py` und `QCA_AID_app/start_webapp.py`
+- Durchsucht 3 Orte in Prioritätsreihenfolge: aktuelles Arbeitsverzeichnis → Repository-Root → `~/.environ.env`
+- Bevorzugt `python-dotenv` (falls installiert), sonst manuelles Fallback
+- Lädt **vor** venv-Reexecution und **vor** Unicode-Fix, damit API-Keys von Beginn an in `os.environ` verfügbar sind
+- Behebt: Bei Custom API Endpoints mit benutzerdefiniertem Env-Var-Name (z.B. `GWDG_API_KEY`) wurde der Key aus einer `.env`-Datei **nicht** automatisch gelesen, da nirgendwo `load_dotenv()` aufgerufen wurde.
+
+### 🧹 Sonstiges
+
+- QCA-AID Assets Version auf 0.12.7.4 gehoben
+- CHANGELOG.md aktualisiert
+
+---
+
 ## Neu in 0.12.7.3 (2026-06-04)
 
 ### 🌐 Custom API Provider — Erweiterte Flexibilität
