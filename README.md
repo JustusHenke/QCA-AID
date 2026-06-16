@@ -1,454 +1,378 @@
 ![QCA-AID](banner-qca-aid.png)
 
-# QCA-AID: Qualitative Content Analysis - with AI-supported Discovery
+# QCA-AID: Qualitative Content Analysis – AI-supported Discovery
 
-Dieses Python-Tool implementiert Mayrings Methode der deduktiven Qualitativen Inhaltsanalyse mit induktiver Erweiterung mit KI-Unterstützung. Es kombiniert traditionelle qualitative Forschungsmethoden mit modernen KI-Fähigkeiten, um Forschende bei der Analyse von Dokumenten- und Interviewdaten zu unterstützen. 
+**KI-unterstützte Qualitative Inhaltsanalyse nach Mayring**  
+Für Sozialwissenschaftler:innen, die größere Textmengen systematisch auswerten wollen – ohne Programmierkenntnisse.
 
-**Das Ziel dieses Tools ist nicht, die menschliche Arbeit der Inhaltsanalyse zu ersetzen, sondern neue Möglichkeiten zu eröffnen, mehr Zeit für die Analyse und Reflexion bereits vorstrukturierter Textdaten zu gewinnen.**
+> **Ziel:** Nicht die menschliche Analyse ersetzen, sondern mehr Zeit für Reflexion und Interpretation gewinnen, indem KI die Vorstrukturierung übernimmt.
 
-## Anwendungsmöglichkeiten von QCA-AID
+---
 
-- Es ermöglicht mehr Dokumente in einer Untersuchung zu berücksichtigen als in herkömmlichen Verfahren, bei denen Personalkapazitäten stark begrenzt sind.    
-- Es ermöglicht die Umsetzung von Intercoder-Vergleichen mittels zugeschalteten KI-Coder, wo sonst nur ein menschlicher Coder pro Dokument arbeiten würde, und kann damit zur Qualitätsverbesserung beitragen
-- QCA-AID kann auch ganz ohne KI-Coder genutzt werden, als Alternative zu kostenpflichtigen Programmen.
-- Es ermöglicht zusätzliche explorative Dokumentenanalysen, die sonst aus pragmatischen Gründen mit einfacheren Verfahren umgesetzt würden
+## 📋 Inhaltsverzeichnis
 
-**Zu beachten**
+1. [Schnellstart (2 Minuten)](#-schnellstart-2-minuten)
+2. [Webapp-Bedienung – alle Einstellungen erklärt](#-webapp-bedienung--alle-einstellungen-erklärt)
+3. [Analyse-Modi im Überblick](#-analyse-modi-im-überblick)
+4. [Dokumente vorbereiten](#-dokumente-vorbereiten)
+5. [Ergebnisse nutzen](#-ergebnisse-nutzen)
+6. [Best Practices & Qualitätssicherung](#-best-practices--qualitätssicherung)
+7. [Wichtige Hinweise](#-wichtige-hinweise)
+8. [Häufige Probleme & Lösungen](#-häufige-probleme--lösungen)
 
-- Gefahr der Überkonfidenz in eine automatisiert ermittelte Struktur der Daten 
-- Bei geringer Anzahl von Dokumenten überwiegen weiterhin die Vorteile menschlicher Kodierung (Close-reading, Kontextverständnis, Erfahrung)
+> **📖 Ausführliches Handbuch:** [`QCA-AID-Nutzerhandbuch.md`](QCA-AID-Nutzerhandbuch.md)  
+> **📦 Neueste Änderungen:** [`CHANGELOG.md`](CHANGELOG.md)
 
-**ACHTUNG!**
+---
 
-Bitte beachten Sie, dass sich dieses Tool noch in der Entwicklung befindet und möglicherweise noch nicht alle Funktionen optimal arbeiten. Es wird aktuell eine Nutzung zu Testzwecken empfohlen, wenn die Ergebnisse einer manuellen Prüfung des Outputs reliabel und valide sind, kann eine weiterführende Nutzung in Betracht gezogen werden. Am besten kodieren Sie dafür einen Teil der Dokumente (z.B. 10%) manuell und nutzen sie die integrierte Intercoderanalyse.
+## ⚡ Schnellstart (2 Minuten)
 
-Prüfen Sie regelmäßig, ob eine neue Version hier bereitgestellt ist und verfolgen sie die Änderungen.
-Beachten Sie auch, dass KI-Ergebnisse nicht perfekt sind und die Ergebnisse von der Qualität der Eingabedaten (Forschungsfrage, Codesystem, Text-Material) abhängen.
-Sie verwenden das Tool auf eigene Verantwortung, ohne jegliche Gewährleistung.  
+### 1. Python installieren
 
-**TIPP: Achten Sie darauf, Ihre Kategorien im Codebook sehr präzise zu formulieren, da die Kodierung sehr sensibel darauf reagiert. Unscharfe Definitionen und Kriterien führen mitunter zu übermäßig freizügiger Kodierung. Textnahe Codes sind meist besser als welche mit hohem Abstraktionsgrad (die benötigen mehr definitorische Erläuterung).**
+**Wichtig:** Nur **Python 3.10 oder 3.11** – Python 3.12/3.13 werden nicht unterstützt!
 
---> Feedback ist willkommen! <--  
-Kontakt: justus.henke@hof.uni-halle.de
+| Plattform | Vorgehen |
+|-----------|----------|
+| **Windows** | [python.org](https://www.python.org/downloads/release/python-3110/) → `python-3.11.0-amd64.exe` herunterladen → **☑ "Add Python to PATH"** aktivieren → Installieren |
+| **macOS** | `brew install python@3.11` (mit [Homebrew](https://brew.sh)) oder Installer von [python.org](https://www.python.org/downloads/release/python-3110/) |
+| **Linux** | `sudo apt install python3.11 python3.11-venv` (Debian/Ubuntu) oder `sudo dnf install python3.11` (Fedora) |
 
-![QCA-AID-Screenshot](screenshot1.png)
+Prüfen: `python --version` → `Python 3.11.x`
 
-## 🔒 Datenschutz-Hinweis
+### 2. QCA-AID herunterladen
 
-Die KI-gestützte Datenverarbeitung kann auf zwei Arten erfolgen:
-
-### Option 1: Cloud-basierte Modelle (OpenAI, Anthropic, Mistral)
-- **Vorteile:** Höchste Qualität, schnelle Verarbeitung, einfache Einrichtung
-- **Datenschutz:** Daten werden an externe Anbieter übermittelt
-- **Empfehlung:** Prüfen Sie, ob Ihre Dokumente dafür freigegeben sind und entfernen Sie ggf. sensible Informationen
-- **Hinweis:** Auch wenn diese Anfragen offiziell nicht für das Training von Modellen genutzt werden, stellt dies eine Verarbeitung durch Dritte dar
-
-### Option 2: Lokale Modelle (LM Studio, Ollama) ⭐ **Empfohlen für sensible Daten**
-- **Vorteile:** 
-  - ✅ **100% Datenschutz** - Alle Daten bleiben auf Ihrem Computer
-  - ✅ **Kostenlos** - Keine API-Gebühren
-  - ✅ **Offline-fähig** - Keine Internetverbindung erforderlich
-  - ✅ **DSGVO-konform** - Keine Datenübermittlung an Dritte
-- **Einrichtung:** 
-  - LM Studio: [https://lmstudio.ai/](https://lmstudio.ai/)
-  - Ollama: [https://ollama.ai/](https://ollama.ai/)
-  - Siehe [LOCAL_MODELS_GUIDE.md](QCA_AID_assets/docs/user_doc/LOCAL_MODELS_GUIDE.md) für detaillierte Anleitung
-
-### Option 3: Custom OpenAI-kompatible Endpoints (z.B. GWDG Academic Cloud) 🎓
-- **Vorteile:**
-  - ✅ **Institutioneller Zugang** - Nutzung über Universitäts-/Forschungseinrichtungen
-  - ✅ **Datenschutz-konform** - Datenverarbeitung in vertrauenswürdigen Rechenzentren
-  - ✅ **Kosteneffizient** - Oft über institutionelle Lizenzen verfügbar
-- **Unterstützte Services:**
-  - GWDG Academic Cloud (Göttingen)
-  - Azure OpenAI
-  - Andere OpenAI-kompatible APIs
-- **Einrichtung:** Siehe [CUSTOM_PROVIDER_GUIDE.md](QCA_AID_assets/docs/user_doc/CUSTOM_PROVIDER_GUIDE.md) für detaillierte Anleitung
-
-**Für hochsensible Daten wird die Nutzung lokaler Modelle ausdrücklich empfohlen!**
-
-## ⚡ Schnellstart
-
-### Installation
-
-**Voraussetzungen:** Python 3.9 bis 3.12 (nicht 3.13!)
-
-**Empfohlen: Automatische Installation (Windows)**
 ```bash
-# Repository klonen
+# Empfohlen: Mit Git (Terminal / Eingabeaufforderung)
 git clone https://github.com/JustusHenke/QCA-AID.git
 cd QCA-AID
-
-# Automatische Installation aller Abhängigkeiten
-setup.bat
 ```
 
-**Alternative: Manuelle Installation**
+> **Ohne Git:** Auf der [GitHub-Seite](https://github.com/JustusHenke/QCA-AID) auf "Code" → "Download ZIP" → entpacken → ins Verzeichnis wechseln.
+
+### 3. Installation (automatisch)
+
+| Plattform | Befehl |
+|-----------|--------|
+| **Windows** | Doppelklick auf `setup.bat` **oder** im Terminal: `setup.bat` |
+| **macOS / Linux** | Terminal: `pip3 install -r requirements.txt && python3 -m spacy download de_core_news_sm` |
+
+> 🔧 Bei Fehlern unter **Windows**: [Microsoft Visual C++ Build Tools](https://visualstudio.microsoft.com/de/visual-cpp-build-tools/) installieren.  
+> 🔧 **setup.bat schließt sofort?** → `setup_debug.bat` nutzen oder manuell installieren (siehe [Nutzerhandbuch](QCA-AID-Nutzerhandbuch.md#13-häufige-probleme-und-lösungen)).
+
+### 4. API-Schlüssel (nur für Cloud-Modelle)
+
+Im QCA-AID-Ordner eine `.env`-Datei erstellen und API-Keys eintragen:
+
 ```bash
-# Repository klonen
-git clone https://github.com/JustusHenke/QCA-AID.git
-cd QCA-AID
-
-# Abhängigkeiten installieren
-pip install -r requirements.txt
-
-# Sprachmodell installieren
-python -m spacy download de_core_news_sm
+OPENAI_API_KEY=sk-proj-...
+# ANTHROPIC_API_KEY=sk-ant-...     # optional
+# MISTRAL_API_KEY=...               # optional
+# OPENROUTER_API_KEY=sk-or-...      # optional
 ```
 
-### Webapp starten
+> **Kein API-Key nötig** bei Nutzung lokaler Modelle (LM Studio / Ollama) – 100% datenschutzkonform und offline-fähig.  
+> **Seit v0.12.7.4:** `.env` wird automatisch geladen – keine manuelle Konfiguration nötig.
+
+### 5. Webapp starten 🚀
 
 ```bash
 python start_webapp.py
-# Öffnet automatisch im Browser: http://127.0.0.1:8501
+# Browser öffnet automatisch: http://127.0.0.1:8501
 ```
 
-### CLI-Nutzung
+**Fertig!** Sie sehen nun die QCA-AID Webapp – alle weiteren Schritte direkt im Browser.
 
-```bash
-# Konfiguration vorbereiten (siehe Nutzerhandbuch)
-# Dokumente in input/ Ordner legen
-python QCA-AID.py
-```
+---
 
-## 📚 Dokumentation
+## 🖥️ Webapp-Bedienung – alle Einstellungen erklärt
 
-- **[Vollständiges Nutzerhandbuch](QCA-AID-Nutzerhandbuch.md)**: Umfassende Anleitung mit methodischen Grundlagen
-- **[Konfigurationsanleitung](QCA_AID_app/KONFIGURATION_ANLEITUNG.md)**: Detaillierte Einstellungen
-- **[Lokale Modelle Guide](QCA_AID_assets/docs/user_doc/LOCAL_MODELS_GUIDE.md)**: LM Studio & Ollama einrichten
-- **[Changelog](CHANGELOG.md)**: Vollständige Release-Historie
+Die Webapp hat **4 Hauptbereiche** (Tabs): Konfiguration → Codebook → Analyse → Explorer.
 
-## 🎯 Hauptfunktionen
+### 📌 Tab: Konfiguration (Modell & technische Parameter)
 
-### Webapp (empfohlen für Einsteiger)
+Hier stellen Sie ein, **welche KI** Ihre Texte analysiert und **wie** die Verarbeitung abläuft.
 
-Die webbasierte Benutzeroberfläche bietet:
+#### LLM-Anbieter & Modell
 
-- **Grafische Konfigurationsverwaltung**: Alle Einstellungen über intuitive Oberfläche
-- **Visueller Codebook-Editor**: Kategorien strukturiert bearbeiten
-- **Integrierte Analyse-Steuerung**: Analysen direkt starten und überwachen
-- **Echtzeit-Fortschrittsanzeige**: Live-Updates während der Analyse
-- **Explorer-Integration**: Ergebnisse direkt visualisieren
-- **Localhost-Only**: Alle Daten bleiben auf Ihrem Computer
+| Einstellung | Erklärung | Empfehlung |
+|------------|-----------|------------|
+| **Anbieter (Provider)** | Wer liefert die KI? | **Anfänger:** OpenAI ⭐ · **Datenschutz:** Local (LM Studio/Ollama) |
+| **Modell** | Welches KI-Modell? | Einsteiger: `gpt-4o-mini` · Lokal: `llama3.1:8b` |
+| **🔄 Lokale Modelle erkennen** | Sucht nach laufenden LM Studio/Ollama-Servern | Einmal klicken nach LM-Studio-Start |
+| **🔧 Custom API Base URL** | Für eigene KI-Endpunkte (z.B. Uni-Server GWDG, Azure). **Sichtbar bei ALLEN Providern** – sobald gesetzt, wird das Modell-Feld zum Freitext-Eingabefeld | Nur wenn von Ihrer Institution bereitgestellt |
+| **API-Key Variable** | Name der Umgebungsvariable für den API-Key (z.B. `GWDG_API_KEY` statt `OPENAI_API_KEY`) | Nur bei Custom-Endpoints nötig |
 
-**Vorteile gegenüber CLI:**
-- Intuitiv, keine Vorkenntnisse erforderlich
-- Automatische Inline-Validierung
-- Visueller Fortschrittsbalken
-- Integrierte Dateiübersicht
+**So richten Sie lokale Modelle ein (datenschutzkonform):**
 
-### Kodierungsfunktionen
+| Schritt | LM Studio (einfach) | Ollama (fortgeschritten) |
+|---------|-------------------|--------------------------|
+| Download | [lmstudio.ai](https://lmstudio.ai/) | [ollama.ai](https://ollama.ai/) |
+| Modell laden | "Discover" → Modell suchen → Download | `ollama pull llama3.1:8b` |
+| Server starten | "Local Server" → "Start Server" | `ollama serve` (automatisch) |
+| In Webapp | Local wählen → "🔄 Erkennen" | Local wählen → "🔄 Erkennen" |
 
-- **Deduktive Kategorienanwendung**: Systematische Anwendung vordefinierter Kategorien
-- **Induktive Kategorienerweiterung**: Erkennung neuer Kategorien im Material
-- **Abduktiver Modus**: Erweiterung nur auf Subkategorien-Ebene
-- **Grounded Theory Modus**: Schrittweise Sammlung von Subcodes
-- **Multi-Coder-Unterstützung**: Parallele Kodierung durch mehrere KI- und menschliche Kodierer
-- **Kontextuelle Kodierung**: Progressive Dokumentenzusammenfassung
-- **Batch-Verarbeitung**: Konfigurierbare Anzahl gleichzeitig zu verarbeitender Segmente
-- **Manueller Kodierungsmodus**: Intuitive Benutzeroberfläche für menschliche Kodierung
+> **Detail-Anleitung:** [`QCA_AID_assets/docs/user_doc/LOCAL_MODELS_GUIDE.md`](QCA_AID_assets/docs/user_doc/LOCAL_MODELS_GUIDE.md)
 
-### Qualitätssicherung
+#### Chunk-Einstellungen (Wie wird Ihr Text zerteilt?)
 
-- **Intercoder-Reliabilitätsanalyse**: Automatische Berechnung der Übereinstimmung
-- **Konsensbildung**: Mehrstufiger Prozess bei divergierenden Kodierungen
-- **Manuelles Code-Review**: Systematische Überprüfung von Kodierungsentscheidungen
-- **Kategoriesystem-Validierung**: Überprüfung und Optimierung
-- **Sättigungsprüfungen**: Automatische Erkennung theoretischer Sättigung
-- **Fortschrittssicherung**: Automatische Sicherung des Kodierfortschritts
+Die KI kann nur Textabschnitte einer bestimmten Länge verarbeiten. Deshalb werden Ihre Dokumente in "Chunks" aufgeteilt.
 
-### Export und Dokumentation
+| Einstellung | Was bedeutet das? | Empfehlung |
+|------------|-------------------|------------|
+| **Chunk-Größe** | Maximale Zeichen pro Textabschnitt | **1000** (Standard) · Interviews: 1000 · Lange Texte: 1500 · Kurze Dok.: 800 |
+| **Überlappung** | Wie viele Zeichen überlappen sich benachbarte Abschnitte? | **50** (Standard) · Verhindert, dass relevante Stellen am Abschnittsende zerschnitten werden |
+| **Batch-Größe** | Wie viele Abschnitte gleichzeitig analysieren? | **5** (Standard) · Höher = schneller, aber ungenauer. 3-4 = höchste Präzision, 10-12 = schnell |
 
-- **Umfassender Analysebericht**: Excel-Export mit Kodierungen und Statistiken
-- **Kategorienentwicklungs-Dokumentation**: Nachvollziehbare Historisierung
-- **Codebook-Export**: Speicherung des erweiterten Kodierungssystems
-- **Attributbasierte Analyse**: Automatische Extraktion von Metadaten
-- **Token-Tracking**: Dokumentation der verwendeten API-Tokens
+#### Relevanz-Schwellwert (Was wird analysiert?)
 
-## 🔧 LLM-Provider
+Steuert, welche Textstellen die KI als "relevant für Ihre Forschungsfrage" einstuft.
 
-QCA-AID unterstützt mehrere LLM-Provider:
+| Wert | Bedeutung | Wann sinnvoll? |
+|------|-----------|---------------|
+| **0,3** ⭐ | Standard – KI entscheidet wie gewohnt | Für die meisten Analysen **empfohlen** |
+| 0,0–0,2 | Weniger streng – auch zweifelhafte Stellen werden einbezogen | Bei explorativen Studien oder Angst vor Datenverlust |
+| 0,4–0,6 | Strenger – nur klar relevante Stellen | Bei großen Datenmengen oder sehr klarer Forschungsfrage |
+| 0,7–1,0 | Sehr streng – nur hochrelevante Stellen | Nur für spezifische Teilanalysen |
 
-| Provider | Modelle | Datenschutz | API-Key |
-|----------|---------|-------------|---------|
-| **Lokal** ⭐ | LM Studio, Ollama | ✅ **100% Lokal** | Nicht erforderlich |
-| **OpenAI** | GPT-5.4, GPT-4o, GPT-4o-mini | ⚠️ Cloud | `OPENAI_API_KEY` |
-| **Anthropic** | Claude Sonnet 4.5, Claude 3.5 | ⚠️ Cloud | `ANTHROPIC_API_KEY` |
-| **Mistral** | Mistral Large, Medium, Small | ⚠️ Cloud | `MISTRAL_API_KEY` |
-| **OpenRouter** | Verschiedene Modelle | ⚠️ Cloud | `OPENROUTER_API_KEY` |
+> **Faustregel:** Mit 0,3 starten → Ergebnisse prüfen → bei Bedarf anpassen.
 
-### API-Keys einrichten
+#### Coder-Einstellungen (KI-"Persönlichkeiten")
 
-Erstellen Sie eine `.env` Datei im Projektverzeichnis:
+Sie können mehrere KI-Kodierer parallel arbeiten lassen (für Qualitätsvergleiche).
 
-```bash
-# OpenAI
-OPENAI_API_KEY=sk-proj-...
+| Einstellung | Erklärung | Empfehlung |
+|------------|-----------|------------|
+| **Temperatur** | Wie "kreativ" kodiert die KI? | 0,2–0,3 für deduktiv (präzise) · 0,4–0,6 für abduktiv · 0,7+ für induktiv/explorativ |
+| **Coder-ID** | Name des KI-Kodierers | Eindeutigen Namen vergeben (z.B. "auto_konservativ") |
 
-# Anthropic
-ANTHROPIC_API_KEY=sk-ant-...
+> **Mehrere Coder:** Im Codebook unter CONFIG → `CODER_SETTINGS` als JSON-Array konfigurieren (siehe Nutzerhandbuch).
 
-# Mistral
-MISTRAL_API_KEY=...
+#### Qualitätssicherung
 
-# OpenRouter
-OPENROUTER_API_KEY=sk-or-...
-```
+| Einstellung | Erklärung |
+|------------|-----------|
+| **Review-Modus** | `consensus` = Nur Übereinstimmungen · `majority` = Mehrheit · `manual` = Sie entscheiden |
+| **Auto-Save** | Wie oft (Minuten) automatisch gespeichert wird |
+| **Attribut-Labels** | Metadaten aus Dateinamen (z.B. `attribut1` = "Hochschultyp") – siehe Abschnitt Dokumente |
 
-**Wichtig:** Fügen Sie `.env` zu Ihrer `.gitignore` hinzu!
+---
 
-### Lokale Modelle einrichten
+### 📋 Tab: Codebook (Ihr Kategoriensystem)
 
-**LM Studio (empfohlen für Einsteiger):**
-1. Download: [https://lmstudio.ai/](https://lmstudio.ai/)
-2. Modell herunterladen und Server starten (Port 1234)
-3. In Webapp: "Local (LM Studio/Ollama)" wählen und "🔄 Erkennen" klicken
+Hier definieren Sie, **nach welchen Kategorien** die Texte durchsucht werden sollen.
 
-**Ollama (für fortgeschrittene Nutzer):**
-1. Download: [https://ollama.ai/](https://ollama.ai/)
-2. Modell laden: `ollama pull llama3.1:8b`
-3. In Webapp: "Local (LM Studio/Ollama)" wählen
+#### Aufbau eines Codebooks
 
-**Vorteile lokaler Modelle:**
-- ✅ 100% Datenschutz - Keine Datenübermittlung
-- ✅ Kostenlos - Keine API-Gebühren
-- ✅ Offline-fähig - Keine Internetverbindung erforderlich
-- ✅ DSGVO-konform - Ideal für sensible Forschungsdaten
+| Bereich | Inhalt | Beispiel |
+|---------|--------|---------|
+| **Forschungsfrage** | Ihre zentrale Forschungsfrage | "Welche Digitalisierungsstrategien verfolgen Hochschulen?" |
+| **Kodierregeln** | Allgemeine Regeln, Formatregeln, Ausschlusskriterien | "Literaturverzeichnisse nicht kodieren" |
+| **Deduktive Kategorien** | Ihre vorab definierten Kategorien | "Strategien", "Technologien", "Herausforderungen" |
+| **CONFIG** | Technische Einstellungen (s.o.) | Modell, Chunk-Größe, Batch-Größe |
 
-## 📖 CLI-Nutzung
+#### Kategorien richtig definieren
 
-### Projektverzeichnis wechseln
+Jede Kategorie braucht:
 
-Die CLI unterstützt Projektverzeichnis-Wechsel über zwei Methoden:
-
-**Methode 1: Umgebungsvariable (temporär)**
-```bash
-# Windows
-set QCA_AID_PROJECT_ROOT=C:\Pfad\zu\meinem\Projekt
-python QCA-AID.py
-
-# Linux/Mac
-export QCA_AID_PROJECT_ROOT=/pfad/zu/meinem/projekt
-python QCA-AID.py
-```
-
-**Methode 2: Konfigurationsdatei (persistent)**
-
-Erstellen Sie eine `.qca-aid-project.json` im QCA-AID-Verzeichnis:
 ```json
 {
-  "project_root": "C:/Pfad/zu/meinem/Projekt"
+  "Kategorienname": {
+    "definition": "Präzise Definition (min. 15 Wörter) mit klarer Abgrenzung",
+    "rules": ["Konkrete Kodierregeln für diese Kategorie"],
+    "examples": ["Mindestens 2 Beispiele aus dem Textmaterial"],
+    "subcategories": {
+      "Sub_1": "Beschreibung",
+      "Sub_2": "Beschreibung"
+    }
+  }
 }
 ```
 
-**Priorität:**
-1. Umgebungsvariable `QCA_AID_PROJECT_ROOT`
-2. `.qca-aid-project.json` Datei
-3. QCA-AID-Verzeichnis (Standard)
+> ⚠️ **Wichtig:** Unschärfe Definitionen führen zu freizügiger Kodierung. Textnahe Codes sind besser als abstrakte!  
+> 💡 **Tipp:** Begrenzen Sie Hauptkategorien auf **5–7** und stellen Sie sicher, dass sie sich gegenseitig ausschließen.
 
-### Verzeichnisstruktur
+#### Codebook speichern
 
+| Format | Vorteil | Datei |
+|--------|---------|-------|
+| **Excel (.xlsx)** | Vertraute Tabellen-Oberfläche – ideal für Einsteiger | `QCA-AID-Codebook.xlsx` |
+| **JSON (.json)** | 10× schneller, git-freundlich – ideal für Fortgeschrittene | `QCA-AID-Codebook.json` |
+
+> Die Formate synchronisieren sich automatisch – Änderungen in einem werden ins andere übernommen.
+
+---
+
+### ▶️ Tab: Analyse (Durchführung)
+
+| Bereich | Was Sie sehen/tun |
+|---------|------------------|
+| **Eingabedateien** | Liste aller Dateien im Input-Ordner – mit Vorschau und Attributen |
+| **Konfiguration prüfen** | ✅ Grüner Haken = alles bereit |
+| **Codebook validieren** | ✅ Grüner Haken = Kategorien sind gültig |
+| **🚀 Analyse starten** | Startet die Kodierung – nach einem Klick läuft alles automatisch |
+| **Fortschritt** | Echtzeit-Balken + Live-Logs während der Analyse |
+| **Stopp-Funktion** | Analyse bei Bedarf unterbrechen |
+
+---
+
+### 📊 Tab: Explorer (Ergebnisse)
+
+| Funktion | Beschreibung |
+|----------|-------------|
+| **Output-Dateien** | Alle bisher erstellten Analyseergebnisse |
+| **Vorschau** | Schnelle Inhaltsübersicht pro Datei |
+| **Visualisierungen** | Heatmaps, Balkendiagramme, Netzwerke (konfigurierbar) |
+| **Download** | Diagramme als PNG/PDF speichern |
+
+---
+
+## 🎯 Analyse-Modi im Überblick
+
+| Modus | Neue Kategorien? | Wofür? |
+|-------|-----------------|--------|
+| **`deductive`** | ❌ Keine | Theorieprüfung, Replikationsstudien ⭐ Standard |
+| **`abductive`** | 🔹 Nur Subkategorien | Theorie verfeinern, Nuancen entdecken |
+| **`inductive` (full)** | ✅ Haupt- & Subkategorien | Exploration neuer Phänomene |
+| **`grounded`** | 🧱 Schrittweise | Datengetriebene Theorieentwicklung |
+
+---
+
+## 📄 Dokumente vorbereiten
+
+### Unterstützte Formate
+`*.txt` (bevorzugt) · `*.pdf` · `*.docx`
+
+### Namenskonvention (für automatische Metadaten)
 ```
-QCA-AID/
-├── input/                    # Eingabedokumente (.txt, .pdf, .docx)
-├── output/                   # Analyseergebnisse
-├── QCA-AID-Codebook.xlsx    # Konfiguration (Excel)
-├── QCA-AID-Codebook.json    # Konfiguration (JSON)
-├── .qca-aid-project.json    # Projekt-Einstellungen (optional)
-└── QCA-AID.py               # Hauptskript
+attribut1_attribut2_attribut3_name.txt
 ```
+**Beispiel:** `Universität_Professor_Informatik_Interview-2024.txt`
 
-### Eingabedateien
+Die Attribute werden automatisch extrahiert und in der Konfiguration als Labels definiert (z.B. `attribut1` = "Hochschultyp").
 
-Unterstützte Formate: `.txt`, `.pdf`, `.docx`
-
-**Namenskonvention für Attribute:**
+### Empfohlene Ordnerstruktur
 ```
-attribut1_attribut2_name.txt
-Beispiel: university-type_position_2024-01-01.txt
-```
-
-Die Attribute werden für spätere Analysen genutzt.
-
-### Konfiguration
-
-**Excel-Format (QCA-AID-Codebook.xlsx):**
-- Vertraute Oberfläche, einfache Bearbeitung
-- Ideal für Einsteiger
-
-**JSON-Format (QCA-AID-Codebook.json):**
-- 10x schneller beim Laden
-- Ideal für Versionskontrolle mit Git
-- Bessere Automatisierung
-
-**Automatische Synchronisation:** Beide Formate werden automatisch synchronisiert. Änderungen in einer Datei werden in die andere übertragen.
-
-### Codebook-Struktur
-
-**Tabellenblätter (Excel) / Hauptbereiche (JSON):**
-
-1. **FORSCHUNGSFRAGE**: Zentrale Forschungsfrage
-2. **KODIERREGELN**: 
-   - Allgemeine Kodierregeln
-   - Formatregeln
-   - Ausschlusskriterien für Relevanzprüfung
-3. **DEDUKTIVE_KATEGORIEN**: 
-   - Hauptkategorien mit Definition, Regeln, Beispielen
-   - Subkategorien
-4. **CONFIG**: Technische Einstellungen
-
-**Wichtige CONFIG-Parameter:**
-
-```
-MODEL_PROVIDER: OpenAI, Anthropic, Mistral, Local
-MODEL_NAME: z.B. gpt-4o-mini
-CHUNK_SIZE: 800-1500 (empfohlen: 1000)
-CHUNK_OVERLAP: 30-100 (empfohlen: 50)
-BATCH_SIZE: 5-8 (empfohlen: 5)
-ANALYSIS_MODE: deductive, abductive, full, grounded
-CODE_WITH_CONTEXT: true/false
-```
-
-### Analyse starten
-
-**Empfohlen: Webapp (Standard)**
-```bash
-# Windows
-start.bat
-
-# Oder manuell
-python start_QCA-AID-app.py
+mein-projekt/
+├── input/          ← Ihre Dokumente hier (.txt, .pdf, .docx)
+├── output/         ← Analyseergebnisse (wird automatisch erstellt)
+└── config/         ← Konfigurationen (optional)
 ```
 
-**Alternative: CLI**
-```bash
-# Dokumente in input/ Ordner legen
-# Codebook konfigurieren
-python QCA-AID.py
-```
+> **Projekt wechseln?** In der Webapp: "📁 Projekt-Verzeichnis ändern" → Ordner auswählen.  
+> Oder CLI: `export QCA_AID_PROJECT_ROOT=/pfad/zum/projekt`
 
-**Hinweis:** Beim ersten Start führen Sie `setup.bat` (Windows) aus, um alle Abhängigkeiten automatisch zu installieren.
+---
 
-Die Ergebnisse werden im `output/` Verzeichnis gespeichert:
-- `QCA-AID_Analysis_[DATUM].xlsx`: Hauptergebnisdatei
-- `category_revisions.json`: Kategorienentwicklung
-- `codebook_inductive.json`: Erweitertes Kategoriensystem
+## 📈 Ergebnisse nutzen
 
-## 🎓 Analysemodi
+Die Analyse erzeugt eine Excel-Datei `QCA-AID_Analysis_[DATUM].xlsx` mit diesen Arbeitsblättern:
 
-![Analyse-Modi](analysis-modes.png)
+| Sheet | Inhalt |
+|-------|--------|
+| **Codings** | Alle kodierten Textstellen mit Kategorie, Konfidenz, Begründung |
+| **Frequencies** | Häufigkeitsverteilungen pro Kategorie (auch nach Attributen) |
+| **Reliability** | Intercoder-Übereinstimmung (Cohens Kappa) |
+| **Inductive_Categories** | Neu entdeckte Kategorien (bei induktiven Modi) |
+| **Category_Development** | Änderungshistorie des Kategoriensystems |
 
-### Deduktiver Modus (`deductive`)
-- Ausschließlich vordefinierte Kategorien
-- Für Theorieprüfung und Replikationsstudien
+Außerdem: `category_revisions.json` (Kategorienentwicklung) und `codebook_inductive.json` (erweitertes Codebook).
 
-### Abduktiver Modus (`abductive`)
-- Erweiterung nur auf Subkategorien-Ebene
-- Für theoriegeleitete Analysen mit Offenheit für Nuancen
+---
 
-### Vollständiger Modus (`full`)
-- Neue Haupt- und Subkategorien möglich
-- Für explorative Analysen
+## 💡 Best Practices & Qualitätssicherung
 
-### Grounded Theory Modus (`grounded`)
-- Schrittweise Sammlung von Subcodes
-- Spätere Hauptkategoriengenerierung
-- Für datengetriebene Theorieentwicklung
+### 🔄 Empfohlener Workflow
+1. **Pilotphase (10–20% der Daten):** Testanalyse → manuelle Prüfung → Kategorien anpassen
+2. **Hauptanalyse:** Mit optimiertem Codebook alle Dokumente analysieren
+3. **Stichprobenkontrolle:** 10% der Kodierungen manuell prüfen
+4. **Intercoder-Vergleich:** Mehrere KI-Coder (versch. Temperaturen) laufen lassen → Kappa-Wert prüfen
 
-## 💡 Best Practices
+### 📊 Qualitäts-Benchmarks (Cohens Kappa)
+| Wert | Bedeutung |
+|------|-----------|
+| κ > 0,8 | 🟢 Exzellent – Analyse fortsetzen |
+| κ 0,6–0,8 | 🟡 Gut – Stichprobenkontrolle |
+| κ 0,4–0,6 | 🟠 Moderat – Kategorien überarbeiten |
+| κ < 0,4 | 🔴 Schlecht – Grundlegende Überarbeitung |
 
-### Kategoriensystem-Design
-- Begrenzen Sie Hauptkategorien auf 5-7
-- Stellen Sie sicher, dass sie sich gegenseitig ausschließen
-- Definieren Sie klare Abgrenzungskriterien
-- Entwickeln Sie Subkategorien schrittweise
+### 🎯 3 Erfolgsregeln
+1. **Präzise Kategorien** → klare Definitionen + Beispiele + Abgrenzung
+2. **Manuelle Kontrolle** → immer einen Teil der Ergebnisse selbst prüfen
+3. **Iterativ arbeiten** → erst piloten, dann optimieren, dann skalieren
 
-### Kodierregeln
-- Formulieren Sie Regeln präzise und operationalisierbar
-- Geben Sie Beispiele für typische und grenzwertige Fälle
-- Definieren Sie Ausschlusskriterien klar
-
-### Qualitätssicherung
-- Kodieren Sie regelmäßig manuell (z.B. 10% der Segmente)
-- Vergleichen Sie mit automatischen Kodierungen
-- Nutzen Sie Intercoder-Reliabilitätsanalyse
-- Dokumentieren Sie Änderungen am Kategoriensystem
-
-### Performance-Optimierung
-
-**Batch-Größe:**
-- Einsteiger: `BATCH_SIZE = 5-6` (optimale Balance)
-- Große Datenmengen: `BATCH_SIZE = 10-12` (Geschwindigkeit)
-- Hohe Präzision: `BATCH_SIZE = 3-4` (beste Qualität)
-
-**Chunk-Einstellungen:**
-- Interviews: `CHUNK_SIZE: 1000, CHUNK_OVERLAP: 50`
-- Längere Texte: `CHUNK_SIZE: 1500, CHUNK_OVERLAP: 100`
-- Kurze Dokumente: `CHUNK_SIZE: 800, CHUNK_OVERLAP: 30`
+---
 
 ## ⚠️ Wichtige Hinweise
 
-**Entwicklungsstatus:**
-- QCA-AID befindet sich in aktiver Entwicklung
-- Empfohlen für Testzwecke mit manueller Validierung
-- Kodieren Sie 10% der Dokumente manuell für Intercoder-Analyse
-- Prüfen Sie regelmäßig auf Updates
+### Entwicklungsstand
+- **Aktive Entwicklung** (Version 0.12.7.4) – nicht alle Funktionen arbeiten optimal
+- Nutzung zu **Testzwecken empfohlen** mit manueller Validierung
+- Prüfen Sie regelmäßig auf [Updates](CHANGELOG.md)
 
-**Qualitätskontrolle:**
-- KI-Ergebnisse sind nicht perfekt
-- Ergebnisse hängen von der Qualität der Eingabedaten ab
-- Präzise Kategorienformulierung ist entscheidend
-- Unscharfe Definitionen führen zu freizügiger Kodierung
-- Textnahe Codes sind meist besser als abstrakte
+### Datenschutz
+| Modell-Typ | Daten bleiben lokal | Internet nötig |
+|-----------|-------------------|---------------|
+| **Lokal** (LM Studio/Ollama) | ✅ **100%** | ❌ Nein – offline-fähig |
+| **Cloud** (OpenAI, Anthropic, Mistral) | ❌ Daten an Dritte | ✅ Ja |
+| **Custom Endpoint** (z.B. GWDG) | ⚠️ Im institutionellen Rechenzentrum | ✅ Ja |
 
-**Nutzung auf eigene Verantwortung, ohne jegliche Gewährleistung.**
+> **Für sensible Daten:** Ausschließlich lokale Modelle verwenden!
 
-## 🐛 Häufige Probleme
+### Haftungsausschluss
+- KI-Ergebnisse sind **nicht perfekt** und hängen von der Qualität der Eingabedaten ab
+- Sie verwenden das Tool **auf eigene Verantwortung**, ohne jegliche Gewährleistung
+- Gefahr der **Überkonfidenz** in automatisierte Ergebnisse – bitte kritisch bleiben!
 
-### Installation schlägt fehl
-- **Windows:** Installieren Sie Microsoft Visual C++ Build Tools
-- **Mac/Linux:** Installieren Sie `build-essential`
+---
 
-### spaCy-Import-Fehler
-```bash
-python -m spacy download de_core_news_sm
-```
+## ❓ Häufige Probleme & Lösungen
 
-### API-Schlüssel nicht gefunden
-- Überprüfen Sie `.env` Datei im Projektverzeichnis
-- Prüfen Sie Gültigkeit und Guthaben des API-Schlüssels
+| Problem | Lösung |
+|---------|--------|
+| **Python 3.13?** | Python 3.11 installieren (s.o.) – 3.13 wird nicht unterstützt |
+| **setup.bat schließt sofort** | `setup_debug.bat` nutzen oder manuell installieren |
+| **API-Key nicht gefunden** | `.env`-Datei im QCA-AID-Ordner prüfen – wird seit v0.12.7.4 automatisch geladen |
+| **Port 8501 belegt** | Andere Streamlit-Instanz schließen: `taskkill /f /im python.exe` (Windows) / `pkill -f streamlit` (Mac/Linux) |
+| **spaCy-Fehler** | `python -m spacy download de_core_news_sm` ausführen |
+| **PDF nicht lesbar** | Gescannte PDFs: Vorher mit OCR bearbeiten oder als .txt speichern |
+| **Analyse zu langsam** | Batch-Größe erhöhen (max. 12) oder schnelleres Modell wählen |
+| **Hohe Kosten** | Lokales Modell nutzen oder auf `gpt-4o-mini` wechseln |
+| **Analyse bricht ab** | Kleinere Chunks (800), kleinere Batch-Größe (3), Timeout erhöhen |
+| **Zu viele neue Kategorien** | `abductive` statt `inductive` Modus wählen |
 
-### Dokumentverarbeitung schlägt fehl
-- Konvertieren Sie Dokumente zu `.txt`
-- Entfernen Sie Sonderzeichen und komplexe Formatierungen
-- Entfernen Sie Literaturverzeichnisse
+> **Ausführliche Fehlerbehebung:** Kapitel 13 im [Nutzerhandbuch](QCA-AID-Nutzerhandbuch.md#13-häufige-probleme-und-lösungen)
+
+---
+
+## 📚 Weiterführende Dokumentation
+
+| Dokument | Inhalt |
+|----------|--------|
+| **[QCA-AID-Nutzerhandbuch.md](QCA-AID-Nutzerhandbuch.md)** | Vollständige Anleitung – Installation, Webapp, Codebook, Ergebnisse |
+| **[LOCAL_MODELS_GUIDE.md](QCA_AID_assets/docs/user_doc/LOCAL_MODELS_GUIDE.md)** | Lokale Modelle einrichten (LM Studio, Ollama) – Schritt für Schritt |
+| **[CUSTOM_PROVIDER_GUIDE.md](QCA_AID_assets/docs/user_doc/CUSTOM_PROVIDER_GUIDE.md)** | Eigene KI-Endpoints konfigurieren (GWDG, Azure, ...) |
+| **[CHANGELOG.md](CHANGELOG.md)** | Alle Neuerungen und Bugfixes pro Version |
+
+---
 
 ## 📄 Zitiervorschlag
 
 ```
 Henke, J. (2026). QCA-AID: Qualitative Content Analysis with AI-supported Discovery 
-(Version 0.12.4) [Software]. Institut für Hochschulforschung Halle-Wittenberg. 
+(Version 0.12.7.4) [Software]. Institut für Hochschulforschung Halle-Wittenberg. 
 https://github.com/JustusHenke/QCA-AID
 ```
 
-**BibTeX:**
-```bibtex
-@software{Henke_QCA-AID_2025,
-  author       = {Henke, Justus},
-  title        = {{QCA-AID: Qualitative Content Analysis with AI-supported Discovery}},
-  month        = december,
-  year         = {2025},
-  publisher    = {Institut für Hochschulforschung Halle-Wittenberg},
-  version      = {0.12.2},
-  url          = {https://github.com/JustusHenke/QCA-AID}
-}
-```
+---
 
 ## 📧 Kontakt & Feedback
 
-Feedback ist willkommen!  
-**Kontakt:** justus.henke@hof.uni-halle.de
+**Feedback ist willkommen!**  
+Justus Henke · justus.henke@hof.uni-halle.de  
+Institut für Hochschulforschung Halle-Wittenberg
+
+---
 
 ## 📜 Lizenz
 
-Siehe [LICENSE](LICENSE) Datei für Details.
+Siehe [LICENSE](LICENSE).

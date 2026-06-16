@@ -3,7 +3,7 @@
 
 ![QCA-AID Banner](banner-qca-aid.png)
 
-**Version:** 0.12.3  
+**Version:** 0.12.7.4  
 **Zielgruppe:** Sozialwissenschaftler:innen mit Erfahrung in qualitativer Forschung  
 **Autor:** Justus Henke, Institut für Hochschulforschung Halle-Wittenberg
 
@@ -194,93 +194,129 @@ Die KI in QCA-AID fungiert als:
 
 ### 5.1 Systemvoraussetzungen
 
-**Hardware:**
-- Mindestens 4 GB RAM (8 GB empfohlen)
-- 2 GB freier Festplattenspeicher
-- Internetverbindung (für Cloud-Modelle)
+| Komponente | Mindestens | Empfohlen |
+|-----------|-----------|-----------|
+| **Arbeitsspeicher** | 4 GB RAM | 8 GB RAM (bei lokalen KI-Modellen 16 GB) |
+| **Festplatte** | 2 GB frei | 10 GB frei (für lokale KI-Modelle) |
+| **Betriebssystem** | Windows 10 · macOS 11+ · Linux | jeweils aktuell |
+| **Python** | **3.10 oder 3.11** – nicht 3.12/3.13! | Python 3.11.11 |
+| **Browser** | Firefox, Chrome, Edge | aktuellste Version |
+| **Internet** | Für Cloud-KI-Modelle nötig | – |
 
-**Software:**
-- **Python 3.10 oder 3.11** (WICHTIG: Nicht Python 3.13!)
-- Windows 10/11, macOS 10.14+, oder Linux
-- Moderner Webbrowser (für Webapp)
+> ⚠️ **Python 3.12 und 3.13 werden nicht unterstützt.** Bitte Python 3.11 installieren.
 
 ### 5.2 Schritt-für-Schritt Installation
 
 #### Schritt 1: Python installieren
 
-**⚠️ Wichtiger Hinweis:** Verwenden Sie Python 3.11 oder älter, da QCA-AID derzeit nicht mit Python 3.13 kompatibel ist!
+| Plattform | Vorgehen |
+|-----------|----------|
+| **Windows** | [python.org](https://www.python.org/downloads/release/python-3110/) → `python-3.11.0-amd64.exe` herunterladen → **☑ "Add Python to PATH"** aktivieren → Installieren → **Neu starten!** |
+| **macOS** | Mit [Homebrew](https://brew.sh): `brew install python@3.11` – **oder** Installer von [python.org](https://www.python.org/downloads/release/python-3110/) |
+| **Linux** (Debian/Ubuntu) | `sudo apt update && sudo apt install python3.11 python3.11-venv` |
+| **Linux** (Fedora) | `sudo dnf install python3.11` |
 
-1. Download von [python.org](https://www.python.org/downloads/release/python-3110/)
-2. Installation mit "Add to PATH" aktivieren
-3. Überprüfung: `python --version` in der Kommandozeile
+**Nach der Installation prüfen:**
+```bash
+python --version
+# Ausgabe: Python 3.11.x
+```
+> ❓ Falls `python` nicht gefunden wird: Prüfen Sie, ob Sie "Add Python to PATH" aktiviert haben (Windows) bzw. ob Python über den Paketmanager installiert ist (Linux). Ggf. `python3 --version` versuchen.
 
 #### Schritt 2: QCA-AID herunterladen
 
-**Option A: Git (empfohlen)**
+**Variante A: Mit Git (empfohlen für Updates)**
+
+Öffnen Sie ein Terminal (Eingabeaufforderung unter Windows) und geben Sie ein:
+
 ```bash
 git clone https://github.com/JustusHenke/QCA-AID.git
 cd QCA-AID
 ```
 
-**Option B: ZIP-Download**
-1. GitHub-Repository besuchen
-2. "Code" → "Download ZIP"
-3. Entpacken und in Ordner wechseln
+> **Git installieren:** [git-scm.com](https://git-scm.com/) – Vorteil: Sie können später mit `git pull` einfach Updates einspielen.
+
+**Variante B: Ohne Git (ZIP-Download)**
+1. [github.com/JustusHenke/QCA-AID](https://github.com/JustusHenke/QCA-AID) öffnen
+2. Auf grünen Button **"Code"** klicken → **"Download ZIP"**
+3. ZIP-Datei entpacken
+4. In den Ordner `QCA-AID` wechseln
 
 #### Schritt 3: Abhängigkeiten installieren
 
+**Einfachste Methode (Windows):**
+Einfach auf `setup.bat` doppelklicken – das Skript installiert alles automatisch.
+
+**Falls `setup.bat` sofort schließt:** Stattdessen `setup_debug.bat` doppelklicken (bleibt offen und zeigt Fehler).
+
+**Manuelle Installation (alle Plattformen):**
+
+Öffnen Sie ein Terminal im QCA-AID-Ordner und führen Sie aus:
+
 ```bash
-# Alle Pakete installieren
+# 1. Abhängigkeiten installieren
 pip install -r requirements.txt
 
-# Deutsches Sprachmodell für spaCy
+# 2. Deutsches Sprachmodell laden
 python -m spacy download de_core_news_sm
 ```
 
-**Windows-spezifisch:** Falls Fehler auftreten, installieren Sie die Microsoft Visual C++ Build Tools:
-- Download: [Visual Studio Build Tools](https://visualstudio.microsoft.com/de/visual-cpp-build-tools/)
-- Aktivieren Sie "C++ Build Tools" inklusive MSVC und Windows SDK
+| Bei Fehlern… | Lösung |
+|-------------|--------|
+| **Windows: "Microsoft Visual C++ 14.0 is required"** | [Visual Studio Build Tools](https://visualstudio.microsoft.com/de/visual-cpp-build-tools/) installieren – dort "C++ Build Tools" + MSVC + Windows SDK aktivieren |
+| **macOS/Linux: "externally-managed-environment"** | Virtuelle Umgebung erstellen: `python3.11 -m venv venv && source venv/bin/activate` (Mac) oder `source venv/bin/activate` (Linux) – danach `pip install -r requirements.txt` wiederholen |
+| **"pip not found"** | Python-Paketmanager nachinstallieren: `python -m ensurepip --upgrade` |
 
-#### Schritt 4: Installation testen
+#### Schritt 4: API-Schlüssel einrichten (nur für Cloud-KI nötig)
+
+Für Cloud-Modelle (OpenAI, Anthropic, Mistral) benötigen Sie einen API-Schlüssel. Erstellen Sie eine Datei namens `.env` im QCA-AID-Ordner:
+
+```
+OPENAI_API_KEY=sk-proj-xxxxxxxxxxxxxxxxxxxx
+# ANTHROPIC_API_KEY=sk-ant-xxxxxxxxxxxxxxxxxx  # nur wenn nötig
+# MISTRAL_API_KEY=xxxxxxxxxxxxxxxxxxxxxxxxxxxx  # nur wenn nötig
+```
+
+> 🔐 **Seit Version 0.12.7.4** wird die `.env`-Datei **automatisch geladen** – kein manuelles Laden nötig.
+> 🔐 **Kein API-Key nötig** bei lokalen Modellen (LM Studio / Ollama) – 100% datenschutzkonform.
+> ⚠️ `.env` nie öffentlich teilen und zur `.gitignore` hinzufügen!
+
+**Wo bekomme ich einen API-Key?**
+- **OpenAI:** [platform.openai.com/api-keys](https://platform.openai.com/api-keys) – nach Registrierung Guthaben aufladen (ca. 5–10 € reichen für eine Studie)
+- **Anthropic:** [console.anthropic.com](https://console.anthropic.com/)
+- **Mistral:** [console.mistral.ai](https://console.mistral.ai/)
+- **OpenRouter** (Zugang zu vielen Modellen): [openrouter.ai/keys](https://openrouter.ai/keys)
+
+#### Schritt 5: Installation testen
 
 ```bash
-# Webapp starten (einfachster Test)
-python QCA_AID_app/start_webapp.py
-
-# Oder Kommandozeilen-Version
-python QCA-AID.py
+python start_webapp.py
 ```
 
-### 5.3 Erste Konfiguration
+Daraufhin öffnet sich automatisch Ihr Browser mit der QCA-AID Webapp unter `http://127.0.0.1:8501`. **Fertig!** 🎉
 
-#### API-Schlüssel einrichten
+> **Webapp startet nicht?** → Siehe Abschnitt [13.3 Webapp-spezifische Probleme](#133-webapp-spezifische-probleme)
 
-Erstellen Sie eine `.env`-Datei im QCA-AID-Verzeichnis:
+### 5.3 Projektverzeichnis einrichten
 
+QCA-AID arbeitet projektbasiert. Die empfohlene Struktur:
+
+```
+mein-forschungsprojekt/
+├── input/          ← Ihre Textdateien hier ablegen (.txt, .pdf, .docx)
+├── output/         ← Analyseergebnisse (wird automatisch erstellt)
+└── config/         ← Konfigurationsdateien (optional)
+```
+
+**In der Webapp:** Klicken Sie auf "📁 Projekt-Verzeichnis ändern" und wählen Sie Ihren Projektordner aus. Die Einstellung wird gespeichert.
+
+**Oder per Umgebungsvariable (für Fortgeschrittene):**
 ```bash
-# OpenAI (empfohlen für Einsteiger)
-OPENAI_API_KEY=sk-proj-...
+# Windows (Eingabeaufforderung)
+set QCA_AID_PROJECT_ROOT=C:\Pfad\zu\meinem\Projekt
 
-# Anthropic (Claude)
-ANTHROPIC_API_KEY=sk-ant-...
-
-# Mistral
-MISTRAL_API_KEY=...
-
-# OpenRouter
-OPENROUTER_API_KEY=sk-or-...
-```
-
-**Sicherheitshinweis:** Fügen Sie `.env` zu Ihrer `.gitignore` hinzu!
-
-#### Verzeichnisstruktur erstellen
-
-```
-mein-projekt/
-├── input/          # Ihre Textdateien (.txt, .pdf, .docx)
-├── output/         # Analyseergebnisse
-├── config/         # Konfigurationsdateien (optional)
-└── codebooks/      # Codebook-Dateien (optional)
+# macOS / Linux
+export QCA_AID_PROJECT_ROOT=/pfad/zu/meinem/projekt
 ```
 
 ---
@@ -295,248 +331,208 @@ mein-projekt/
 | **OpenAI** | ⚠️ Cloud | 💰💰 Moderat | ⭐⭐⭐⭐⭐ Exzellent | ⭐⭐⭐⭐⭐ Einfach |
 | **Anthropic** | ⚠️ Cloud | 💰💰💰 Hoch | ⭐⭐⭐⭐⭐ Exzellent | ⭐⭐⭐⭐ Einfach |
 | **Mistral** | ⚠️ Cloud | 💰 Günstig | ⭐⭐⭐⭐ Sehr gut | ⭐⭐⭐⭐ Einfach |
+| **OpenRouter** | ⚠️ Cloud | 💰💰 variabel | ⭐⭐⭐⭐⭐ viele Modelle | ⭐⭐⭐⭐ Einfach |
+| **Custom Endpoint** 🎓 | ⚠️ In Uni-RZ | 💰 Oft kostenlos | ⭐⭐⭐⭐ variiert | ⭐⭐ Mittel |
 
 ### 6.2 Lokale Modelle (Empfohlen für sensible Daten)
 
-**Vorteile:**
-- ✅ **100% Datenschutz** - Keine Datenübermittlung
-- ✅ **Kostenlos** - Keine API-Gebühren
-- ✅ **DSGVO-konform** - Ideal für Forschungsdaten
-- ✅ **Offline-fähig** - Keine Internetverbindung nötig
+**Vorteile auf einen Blick:**
+- ✅ **100% Datenschutz** – Ihre Daten verlassen nie Ihren Rechner
+- ✅ **Kostenlos** – Keine API-Gebühren
+- ✅ **DSGVO-konform** – Ideal für personenbezogene Forschungsdaten
+- ✅ **Offline-fähig** – Keine Internetverbindung nötig
 
-**Einrichtung mit LM Studio (Empfohlen für Einsteiger):**
+**Zwei Wege zu lokalen Modellen:**
 
-1. **Download:** [lmstudio.ai](https://lmstudio.ai/)
-2. **Modell herunterladen:**
-   - "Discover" Tab öffnen
-   - Nach "Llama 3.1 8B" suchen
-   - Download starten
-3. **Server starten:**
-   - "Local Server" Tab
-   - Modell auswählen
-   - "Start Server" (Port 1234)
-4. **In QCA-AID verwenden:**
-   - Webapp: "Local (LM Studio/Ollama)" wählen
-   - "🔄 Erkennen" klicken
-   - Modell auswählen
+| Kriterium | LM Studio | Ollama |
+|-----------|-----------|--------|
+| **Zielgruppe** | Einsteiger, grafische Oberfläche | Fortgeschrittene, Kommandozeile |
+| **Installation** | [lmstudio.ai](https://lmstudio.ai/) herunterladen & installieren | [ollama.ai](https://ollama.ai/) herunterladen & installieren |
+| **Modell laden** | "Discover" → Modell suchen → Download | Terminal: `ollama pull llama3.1:8b` |
+| **Server starten** | "Local Server" → "Start Server" (Port 1234) | Automatisch (Port 11434) |
+| **In QCA-AID** | "Local" wählen → "🔄 Erkennen" | "Local" wählen → "🔄 Erkennen" |
 
-**Empfohlene lokale Modelle:**
+**Empfohlene lokale Modelle (Richtwerte für deutschsprachige Textanalyse):**
 
-| Modell | Größe | RAM-Bedarf | Geschwindigkeit | Qualität |
-|--------|-------|------------|-----------------|----------|
-| **Llama 3.1 8B** | 4.7 GB | 8 GB | ⚡⚡⚡ | ⭐⭐⭐ |
-| **Qwen 2.5 14B** | 8.5 GB | 16 GB | ⚡⚡ | ⭐⭐⭐⭐ |
-| **Mistral 7B** | 4.1 GB | 8 GB | ⚡⚡⚡ | ⭐⭐⭐ |
+| Modell | Größe | RAM nötig | Geschwindigkeit | Qualität |
+|--------|-------|-----------|----------------|----------|
+| **Llama 3.1 8B** | 4,7 GB | 8 GB | ⚡⚡⚡ | ⭐⭐⭐ |
+| **Mistral 7B** | 4,1 GB | 8 GB | ⚡⚡⚡ | ⭐⭐⭐ |
+| **Qwen 2.5 14B** | 8,5 GB | 16 GB | ⚡⚡ | ⭐⭐⭐⭐ |
+| **Llama 3.1 70B** | 40 GB | 32–48 GB | ⚡ | ⭐⭐⭐⭐⭐ |
+
+> **Detail-Anleitung:** [`QCA_AID_assets/docs/user_doc/LOCAL_MODELS_GUIDE.md`](QCA_AID_assets/docs/user_doc/LOCAL_MODELS_GUIDE.md)
 
 ### 6.3 Cloud-Modelle
 
-**OpenAI (Empfohlen für höchste Qualität):**
-- `gpt-4o-mini`: Günstig, schnell, gute Qualität
-- `gpt-4o`: Teurer, beste Qualität
-- `gpt-4-turbo`: Balance aus Geschwindigkeit und Qualität
+#### OpenAI (empfohlen für Einsteiger)
+| Modell | Kosten | Geschwindigkeit | Qualität |
+|--------|--------|----------------|----------|
+| `gpt-4o-mini` ⭐ | 💰 Niedrig | ⚡⚡⚡ | ⭐⭐⭐⭐ |
+| `gpt-4o` | 💰💰 Mittel | ⚡⚡ | ⭐⭐⭐⭐⭐ |
+| `gpt-5.4` (neu) | 💰💰💰 Höher | ⚡⚡ | ⭐⭐⭐⭐⭐ |
 
-**Anthropic (Claude):**
-- `claude-3-5-sonnet`: Sehr gute Textanalyse
-- `claude-3-opus`: Höchste Qualität, teuer
+#### Anthropic (Claude)
+| Modell | Kosten | Geschwindigkeit | Qualität |
+|--------|--------|----------------|----------|
+| `claude-3-5-sonnet` | 💰💰 Mittel | ⚡⚡⚡ | ⭐⭐⭐⭐⭐ |
+| `claude-opus-4-7` (neu) | 💰💰💰 Höher | ⚡ | ⭐⭐⭐⭐⭐ |
 
-**Mistral:**
-- `mistral-large-latest`: Beste Mistral-Qualität
-- `mistral-small-latest`: Günstig, ausreichend
+#### Mistral
+| Modell | Kosten | Geschwindigkeit | Qualität |
+|--------|--------|----------------|----------|
+| `mistral-small-latest` | 💰 Niedrig | ⚡⚡⚡ | ⭐⭐⭐⭐ |
+| `mistral-large-latest` | 💰💰 Mittel | ⚡⚡ | ⭐⭐⭐⭐⭐ |
 
-### 6.4 Modellauswahl-Empfehlungen
+#### OpenRouter (Zugang zu vielen Modellen über eine API)
+OpenRouter bündelt zahlreiche Modelle – nützlich, wenn Sie verschiedene Anbieter vergleichen möchten:
 
-**Für Einsteiger:**
-- Cloud: OpenAI `gpt-4o-mini`
-- Lokal: Llama 3.1 8B
+```bash
+# In der .env-Datei
+OPENROUTER_API_KEY=sk-or-xxxxxxxxxxxxxxxx
+```
 
-**Für sensible Daten:**
-- Nur lokale Modelle verwenden
-- Qwen 2.5 14B (beste Qualität)
+**In der Webapp:** Einfach "OpenRouter" als Anbieter wählen und ein Modell aus dem Dropdown auswählen.
 
-**Für große Projekte:**
-- Cloud: OpenAI `gpt-4o` (beste Qualität)
-- Lokal: Llama 3.1 70B (falls genug RAM)
+> **Neu in 0.12.7.3:** Bei aktivierter Custom API Base URL wird das Modell-Feld zum Freitext-Eingabefeld – Sie können dann jedes beliebige Modell eingeben.
 
-**Für Budgetbeschränkungen:**
-- Cloud: Mistral `mistral-small-latest`
-- Lokal: Mistral 7B
+### 6.4 Custom API Endpoints 🎓 (Institutionelle KI-Nutzung)
+
+**Wofür?** Viele Hochschulen und Forschungseinrichtungen betreiben eigene KI-Server auf Basis OpenAI-kompatibler APIs. Beispiele:
+- **GWDG Academic Cloud** (Göttingen): `https://chat-ai.academiccloud.de/v1`
+- **Azure OpenAI**: `https://ihre-resource.openai.azure.com/`
+- Eigene lokale oder institutionelle Server
+
+**So konfigurieren Sie einen Custom Endpoint in der Webapp:**
+
+1. **Anbieter wählen:** Z.B. "OpenAI" – der Custom Endpoint ist **bei allen Providern** sichtbar
+2. **🔧 Erweiterte Einstellungen ausklappen:** Custom API Base URL eingeben (muss mit `http://` oder `https://` beginnen)
+3. **Modell eingeben:** Sobald eine Base URL gesetzt ist, wird das Modell-Feld zum Freitext (z.B. `openai-gpt-oss-120b`)
+4. **API-Key Variable:** Wenn Ihr Endpoint einen anderen Umgebungsvariablen-Namen verwendet (z.B. `GWDG_API_KEY` statt `OPENAI_API_KEY`), tragen Sie ihn hier ein
+
+**Beispiel für `.env` bei GWDG:**
+```
+GWDG_API_KEY=xxxxxxxxxxxxxxxxxxxxx
+```
+
+**In der Konfigurationsdatei (JSON):**
+```json
+{
+  "model_provider": "OpenAI",
+  "model_name": "openai-gpt-oss-120b",
+  "api_base_url": "https://chat-ai.academiccloud.de/v1",
+  "api_key_env": "GWDG_API_KEY"
+}
+```
+
+> **Detail-Anleitung:** [`QCA_AID_assets/docs/user_doc/CUSTOM_PROVIDER_GUIDE.md`](QCA_AID_assets/docs/user_doc/CUSTOM_PROVIDER_GUIDE.md)
+
+### 6.5 Modellauswahl-Empfehlungen
+
+| Ihre Situation | Empfohlenes Modell | Begründung |
+|---------------|-------------------|------------|
+| **Erste Schritte, kleine Studie** ⭐ | OpenAI `gpt-4o-mini` | Günstig, schnell, sehr gute Qualität |
+| **Sensible Forschungsdaten** | LM Studio + Llama 3.1 8B | 100% datenschutzkonform |
+| **Große Studie (50+ Dokumente)** | OpenAI `gpt-4o` oder `gpt-5.4` | Höchste Qualität für viele Daten |
+| **Sehr knappes Budget** | Lokales Modell (Mistral 7B) | Kostenlos, ausreichende Qualität |
+| **Hochschul-eigene KI-Infrastruktur** | Custom Endpoint (GWDG, Azure, …) | Oft kostenlos, datenschutzkonform |
+| **Methodenvergleich** | OpenRouter (versch. Modelle) | Ein API-Key, viele Modelle
 
 ---
 
-## 7. Konfigurationseinstellungen
+## 7. Konfigurationseinstellungen (Webapp-Tab: Konfiguration)
 
-### 7.1 Konfigurationsformate
+Alle Einstellungen nehmen Sie am besten direkt in der Webapp vor – dort gibt es für jede Option ein Eingabefeld oder einen Schieberegler mit Erklärungstext. Dieses Kapitel erklärt die Bedeutung jeder Einstellung.
 
-QCA-AID unterstützt zwei Formate, die automatisch synchronisiert werden:
+### 7.1 Die Einstellungen im Überblick
 
-**Excel-Format (`QCA-AID-Codebook.xlsx`):**
-- ✅ Vertraute Oberfläche
-- ✅ Einfache Bearbeitung
-- ❌ Langsamer beim Laden
-- ❌ Schwieriger für Versionskontrolle
+#### LLM-Anbieter & Modell (Abschnitt "Modell-Einstellungen")
 
-**JSON-Format (`QCA-AID-Codebook.json`):**
-- ✅ 10x schneller beim Laden
-- ✅ Ideal für Git-Versionskontrolle
-- ✅ Bessere Performance
-- ❌ Erfordert JSON-Kenntnisse
+| Webapp-Feld | Erklärung | Tipp |
+|------------|-----------|------|
+| **Provider** | Wer liefert die KI? | OpenAI ⭐ für Einsteiger · "Local" für Datenschutz · Custom für Uni-Server |
+| **Modell** | Welches KI-Modell? | Dropdown zeigt passende Modelle. **Neu:** Wird zum Freitext-Feld, sobald eine Custom API Base URL gesetzt ist |
+| **🔄 Erkennen** (Local) | Sucht nach LM Studio oder Ollama auf Ihrem Rechner | Einfach klicken nach Start des lokalen Servers |
+| **🔧 Custom API Base URL** (erweiterter Bereich) | Eigene KI-Endpunkt-Adresse | Seit v0.12.7.3 **bei allen Providern sichtbar**. Format: `https://mein-server.de/v1` |
+| **API-Key Variable** | Name der Umgebungsvariable | Nur bei Custom-Endpoints: z.B. `GWDG_API_KEY` statt `OPENAI_API_KEY` |
 
-### 7.2 Grundkonfiguration
+> 💡 **API-Key-Prüfung in Echtzeit:** Die Webapp zeigt direkt an, ob der konfigurierte API-Key gefunden wird.
 
-#### Modell-Einstellungen
+#### Chunk-Einstellungen (Abschnitt "Chunk-Einstellungen")
 
-```json
-{
-  "config": {
-    "MODEL_PROVIDER": "OpenAI",        // "OpenAI", "Anthropic", "Mistral", "local"
-    "MODEL_NAME": "gpt-4o-mini",       // Spezifisches Modell
-    "DATA_DIR": "input",               // Eingabeverzeichnis
-    "OUTPUT_DIR": "output"             // Ausgabeverzeichnis
-  }
-}
+Ihre Dokumente werden in Textabschnitte ("Chunks") zerlegt, da KI-Modelle nur eine begrenzte Textmenge auf einmal verarbeiten können.
+
+| Einstellung | Beschreibung | Empfehlung |
+|------------|-------------|------------|
+| **Chunk-Größe** | Maximale Zeichen pro Textabschnitt | **1000** (Standard). Je nach Textart: 800 (kurze Dokumente), 1200 (wissenschaftliche Texte), 1500 (sehr lange Texte) |
+| **Überlappung** | Überlappung benachbarter Abschnitte in Zeichen | **50** (Standard). Verhindert, dass relevante Stellen genau an der Schnittkante zerschnitten werden |
+| **Batch-Größe** | Wie viele Abschnitte gleichzeitig kodiert werden | **5** (Standard). Niedriger = präziser (3-4), höher = schneller (10-12) |
+
+> **Faustregel Chunk-Größe:** Kleine Chunks = präzise Kodierung, aber weniger Kontext. Große Chunks = mehr Kontext, aber riskieren Mehrfachkodierungen.
+
+#### Relevanz-Schwellwert (Abschnitt "Relevanz-Schwellwert")
+
+Steuert, wie streng die KI Textstellen als relevant für Ihre Forschungsfrage einstuft. Der Wert ist ein Schieberegler in der Webapp (0,0 bis 1,0).
+
+| Position | Wirkung | Wann sinnvoll? |
+|----------|---------|---------------|
+| **0,3** ⭐ | KI entscheidet wie gewohnt – Standard | Für **die meisten Analysen empfohlen** |
+| 0,0–0,2 | Weniger streng – auch zweifelhafte Stellen werden einbezogen | Bei explorativen Studien oder Sorge vor verlorenen Daten |
+| 0,4–0,6 | Strenger – nur klar relevante Stellen | Bei großen Datenmengen oder sehr fokussierter Forschungsfrage |
+| 0,7–1,0 | Sehr streng – nur hochrelevante Stellen | Nur für spezielle Teilanalysen oder Nachkodierungen |
+
+**Empfohlener Workflow:** Mit 0,3 starten, Ergebnisse prüfen, bei Bedarf anpassen.
+
+#### Coder-Einstellungen (Abschnitt "Coder-Einstellungen")
+
+Sie können mehrere KI-Kodierer mit unterschiedlicher Kreativität parallel laufen lassen, um die Qualität zu vergleichen (Intercoder-Reliabilität).
+
+| Einstellung | Beschreibung | Empfehlung |
+|------------|-------------|------------|
+| **Temperatur** (0,0–1,0) | Wie kreativ/flexibel kodiert die KI | **0,2–0,3** für präzise deduktive Kodierung · **0,4–0,6** für abduktive Analyse · **0,7+** für explorative/induktive Analyse |
+| **Coder-ID** | Name des Kodierers (für Nachvollziehbarkeit) | Einen eindeutigen Namen vergeben, z.B. `auto_präzise` |
+
+> **Mehrere Coder im Codebook:** Im CONFIG-Bereich des Codebooks können Sie `CODER_SETTINGS` als JSON-Array hinterlegen, um z.B. drei Coder mit 0,3 / 0,5 / 0,7 Temperatur gleichzeitig laufen zu lassen.
+
+#### Qualitätssicherung & Speicherung
+
+| Einstellung | Erklärung |
+|------------|-----------|
+| **Review-Modus** | `consensus` = Nur Übereinstimmungen mehrerer Coder · `majority` = Mehrheit entscheidet · `manual` = Sie prüfen jeden Konflikt selbst |
+| **Auto-Save** | Automatische Sicherung in Minuten – hilft bei langen Analysen |
+| **Kontextuelle Kodierung** | ✅ Aktiviert = KI fasst den bisherigen Dokumentverlauf zusammen → konsistentere Kodierung, aber langsamer |
+| **Mehrfachkodierungen** | ✅ Aktiviert = ein Textsegment kann mehreren Kategorien zugeordnet werden |
+
+### 7.2 Attribut-Extraktion aus Dateinamen
+
+QCA-AID kann automatisch Metadaten aus den Dateinamen extrahieren. Das ermöglicht spätere Auswertungen nach Gruppen (z.B. "Alle Kodierungen von Universitäten vs. Fachhochschulen").
+
+**Namenskonvention:**
+```
+Attribut1_Attribut2_Attribut3_FreierName.txt
 ```
 
-#### Chunk-Einstellungen
+**In der Webapp einrichten (Tab Konfiguration):**
+1. Attribut-Labels definieren, z.B.:
+   - `attribut1` = **Hochschultyp**
+   - `attribut2` = **Position**
+   - `attribut3` = **Fachbereich**
+2. Dateien entsprechend benennen, z.B.:
+   - `Universität_Professor_Informatik_Interview-2024.txt`
+   - `FH_Studierende_BWL_Fokusgruppe.txt`
 
-```json
-{
-  "CHUNK_SIZE": 1000,        // Textabschnittsgröße (800-1500 Z.)
-  "CHUNK_OVERLAP": 50,       // Überlappung zwischen Chunks (30-100 Z.)
-  "BATCH_SIZE": 5            // Parallel verarbeitete Chunks (3-12)
-}
-```
+**Im Analyse-Output** erscheinen dann separate Spalten für Hochschultyp, Position und Fachbereich – mit denen Sie später filtern und vergleichen können.
 
-**Empfehlungen nach Dokumenttyp:**
+### 7.3 Konfiguration speichern: Excel oder JSON
 
-| Dokumenttyp | CHUNK_SIZE | CHUNK_OVERLAP | BATCH_SIZE |
-|-------------|------------|---------------|------------|
-| **Interviews** | 1000 | 50 | 5 |
-| **Lange Texte** | 1500 | 100 | 4 |
-| **Kurze Dokumente** | 800 | 30 | 8 |
-| **Akademische Papers** | 1200 | 60 | 5 |
+QCA-AID speichert alle Einstellungen zusammen mit dem Codebook. Dabei werden **beide Formate automatisch synchronisiert** – egal, ob Sie Excel oder JSON bearbeiten, die jeweils andere Datei wird mit aktualisiert.
 
-### 7.3 Erweiterte Einstellungen
+| Format | Vorteile | Für wen? |
+|--------|---------|----------|
+| **Excel** (`.xlsx`) | Vertraute Tabellen-Oberfläche, einfache Bedienung | Einsteiger |
+| **JSON** (`.json`) | 10× schneller beim Laden, ideal für Git-Versionierung | Fortgeschrittene |
 
-#### Analysemodus-Konfiguration
-
-```json
-{
-  "ANALYSIS_MODE": "deductive",      // "deductive", "abductive", "grounded"
-  "CODE_WITH_CONTEXT": true,         // Kontextuelle Kodierung
-  "MULTIPLE_CODINGS": true,          // Mehrfachkodierungen erlauben
-  "MULTIPLE_CODING_THRESHOLD": 0.85, // Schwellwert für Mehrfachkodierung
-  "RELEVANCE_THRESHOLD": 0.3         // Relevanz-Schwellwert (0.0-1.0)
-}
-```
-
-#### Relevanz-Schwellwert verstehen
-
-Der `RELEVANCE_THRESHOLD` steuert, welche Textsegmente in die Analyse einbezogen werden:
-
-**🎯 Standard-Wert (0.3):**
-- Entspricht dem natürlichen LLM-Verhalten
-- Verwendet LLM-Relevanzentscheidungen wie sie sind
-- **Empfohlen** für die meisten Analysen
-
-**📈 Höhere Werte (0.4-1.0):**
-- Strengere Filterung, nur hochrelevante Segmente
-- Reduziert Rauschen, kann aber wichtige Inhalte ausschließen
-- Geeignet bei sehr großen Datenmengen oder klaren Forschungsfragen
-
-**📉 Niedrigere Werte (0.0-0.2):**
-- Inkludiert auch vom LLM verworfene Segmente
-- "Rettung" von möglicherweise fälschlich ausgeschlossenen Inhalten
-- Nur bei Verdacht auf zu restriktive LLM-Bewertung verwenden
-
-**⚠️ Wichtige Abwägungen:**
-
-| Schwellwert | Vorteile | Nachteile | Anwendungsfall |
-|-------------|----------|-----------|----------------|
-| **0.0-0.2** | Vollständigkeit, keine verlorenen Inhalte | Mehr Rauschen, längere Analyse | Explorative Studien, unklare Forschungsfragen |
-| **0.3** | Ausgewogen, LLM-optimiert | - | Standard für die meisten Analysen |
-| **0.4-0.6** | Fokussiert, weniger Rauschen | Möglicher Informationsverlust | Große Datenmengen, klare Forschungsfragen |
-| **0.7-1.0** | Nur hochrelevante Inhalte | Hoher Informationsverlust | Sehr spezifische Analysen, Qualitätskontrolle |
-
-#### Coder-Einstellungen
-
-```json
-{
-  "CODER_SETTINGS": [
-    {
-      "temperature": 0.3,    // Konsistenz (0.0-1.0)
-      "coder_id": "auto_1"   // Eindeutige ID
-    },
-    {
-      "temperature": 0.5,    // Etwas kreativer
-      "coder_id": "auto_2"
-    }
-  ]
-}
-```
-
-**Temperature-Empfehlungen:**
-- **0.0-0.3:** Sehr konsistent (deduktive Kodierung)
-- **0.4-0.6:** Ausgewogen (abduktive Kodierung)
-- **0.7-1.0:** Kreativ (induktive Kodierung)
-
-#### Qualitätssicherung
-
-```json
-{
-  "REVIEW_MODE": "consensus",        // "auto", "consensus", "majority", "manual"
-  "AUTO_SAVE_INTERVAL": 10,          // Automatische Sicherung (Minuten)
-  "MANUAL_CODING_ENABLED": false     // Manuelle Kodierung aktivieren
-}
-```
-
-### 7.4 Attribut-Extraktion
-
-QCA-AID kann Metadaten aus Dateinamen extrahieren:
-
-```json
-{
-  "ATTRIBUTE_LABELS": {
-    "attribut1": "Hochschultyp",
-    "attribut2": "Position", 
-    "attribut3": "Fachbereich"
-  }
-}
-```
-
-**Beispiel:**
-- Dateiname: `Universität_Professor_Informatik_Interview.txt`
-- Extrahiert: Hochschultyp="Universität", Position="Professor", Fachbereich="Informatik"
-
-### 7.5 Performance-Optimierung
-
-#### Batch-Größe anpassen
-
-```json
-{
-  "BATCH_SIZE": 8  // Erhöhen für mehr Geschwindigkeit, reduzieren für mehr Präzision
-}
-```
-
-**Empfehlungen:**
-- **Hohe Präzision:** 3-4 (langsamer, genauer)
-- **Standard:** 5-8 (ausgewogen)
-- **Hohe Geschwindigkeit:** 10-12 (schneller, weniger präzise)
-
-#### Kontextuelle Kodierung
-
-```json
-{
-  "CODE_WITH_CONTEXT": true  // Aktiviert progressive Dokumentzusammenfassung
-}
-```
-
-**Vorteile:**
-- Bessere Kontextsensitivität
-- Konsistentere Kodierung innerhalb von Dokumenten
-
-**Nachteile:**
-- Langsamere Verarbeitung
-- Höherer Token-Verbrauch
+**Seit Version 0.12.7:** Codebook wird automatisch mit der Konfiguration geladen – kein separater "Codebook laden"-Schritt mehr nötig.
 
 ---
 ## 8. Codebook-Entwicklung und -Pflege
@@ -649,7 +645,7 @@ Ein vollständiges Codebook besteht aus vier Hauptkomponenten:
 
 #### Induktive Codes importieren
 
-**[Screenshot-Platzhalter: Webapp Codebook-Tab mit Import-Button]**
+In der Webapp unter **Codebook-Tab → Abschnitt "Induktive Codes"** wird automatisch angezeigt, wenn neue Codes aus einer früheren Analyse verfügbar sind.
 
 1. **Automatische Erkennung:** Webapp scannt Output-Ordner nach induktiven Codes
 2. **Import-Dialog:** Auswahl der Analyse-Datei mit gewünschten Codes
@@ -691,7 +687,21 @@ git diff HEAD~1 QCA-AID-Codebook.json
 - Begründungen für Anpassungen notieren
 - Datum und Version dokumentieren
 
-### 8.5 Validierung und Qualitätskontrolle
+### 8.5 Codebook speichern und verwalten (Webapp)
+
+**Speichern in der Webapp:**
+- Ein Klick auf **"Speichern"** schreibt das Codebook sowohl als `QCA-AID-Codebook.xlsx` als auch als `QCA-AID-Codebook.json`
+- **Seit Version 0.12.7:** Das Codebook wird automatisch mit der Konfiguration geladen – kein separater "Codebook laden"-Dialog mehr nötig
+- Der zuletzt verwendete Speicherpfad wird für künftige Speichervorgänge automatisch übernommen
+
+**Versionskontrolle mit Git (empfohlen für Projekte):**
+```bash
+git add QCA-AID-Codebook.json     # JSON ist besser für Git geeignet
+git commit -m "Kategorien erweitert: KI-Tools hinzugefügt"
+git tag -a v1.0 -m "Finales Codebook Hauptanalyse"
+```
+
+### 8.6 Validierung und Qualitätskontrolle
 
 #### Automatische Validierung
 
@@ -722,102 +732,164 @@ QCA-AID prüft automatisch:
 
 ### 9.1 Webapp-Übersicht
 
-Die QCA-AID Webapp bietet eine intuitive Benutzeroberfläche mit vier Hauptbereichen:
+Nach dem Start (`python start_webapp.py`) öffnet sich Ihr Browser mit der QCA-AID Webapp. Sie hat **vier Haupt-Tabs** (oben in der Navigation):
 
-**[Screenshot-Platzhalter: Webapp-Hauptansicht mit Tabs]**
+| Tab | Symbol | Wofür? |
+|-----|--------|--------|
+| **Konfiguration** | ⚙️ | KI-Modell wählen, Chunk-Größe, Relevanz-Schwellwert und alle technischen Parameter |
+| **Codebook** | 📋 | Kategorien definieren, bearbeiten und aus vorherigen Analysen importieren |
+| **Analyse** | ▶️ | Analyse starten, Fortschritt verfolgen, Ergebnisse live einsehen |
+| **Explorer** | 📊 | Ergebnisse visualisieren, Diagramme erstellen und exportieren |
 
-1. **Konfiguration:** Technische Einstellungen und Modellauswahl
-2. **Codebook:** Kategorienentwicklung und -verwaltung
-3. **Analyse:** Durchführung und Überwachung von Analysen
-4. **Explorer:** Ergebnisvisualisierung und -export
+Die Webapp läuft **nur auf Ihrem Rechner** (localhost) – niemand sonst hat Zugriff auf Ihre Daten.
 
 ### 9.2 Projekt-Management
 
-#### Projekt-Root festlegen
+Zu Beginn wählen Sie Ihr Projektverzeichnis aus:
 
-**[Screenshot-Platzhalter: Projekt-Verzeichnis-Dialog]**
-
-1. **Verzeichnis wählen:** Klick auf "📁 Projekt-Verzeichnis ändern"
-2. **Ordner auswählen:** Navigation zum gewünschten Projektordner
-3. **Automatische Speicherung:** Einstellungen werden in `.qca-aid-project.json` gespeichert
+1. **Oben in der Seitenleiste** klicken Sie auf "📁 Projekt-Verzeichnis ändern"
+2. **Ordner auswählen:** Navigieren Sie zu Ihrem Projektordner (der die `input/`- und `output/`-Unterordner enthält)
+3. **Automatische Speicherung:** Ihre Wahl wird in `.qca-aid-project.json` gespeichert und beim nächsten Start wieder verwendet
 
 **Empfohlene Projektstruktur:**
 ```
 mein-forschungsprojekt/
-├── input/                    # Eingabedateien
-│   ├── interviews/
-│   ├── documents/
-│   └── transcripts/
-├── output/                   # Analyseergebnisse
-├── config/                   # Konfigurationsdateien
-├── codebooks/               # Codebook-Versionen
-└── .qca-aid-project.json    # Projekt-Einstellungen
+├── input/              ← Ihre Textdateien hier ablegen (.txt, .pdf, .docx)
+├── output/             ← Analyseergebnisse (wird automatisch erstellt)
+├── config/             ← Konfigurationsdateien (optional)
+└── codebooks/          ← Codebook-Versionen (optional)
 ```
 
-### 9.3 Konfiguration-Tab
+> **Projekt wechseln?** Die Webapp merkt sich Ihr Projekt – Sie können aber jederzeit ein anderes auswählen.
 
-**[Screenshot-Platzhalter: Konfiguration-Tab mit Einstellungen]**
+### 9.3 Konfiguration-Tab (⚙️)
 
-#### Datei-Browser verwenden
+Dieser Tab ist in mehrere Abschnitte unterteilt, die nacheinander durchgehen.
 
-1. **Konfiguration laden:** Klick auf 📁 neben Pfad-Eingabe
-2. **Datei auswählen:** Navigation zu `.json` oder `.xlsx` Datei
-3. **Automatische Erkennung:** Format wird automatisch erkannt
-4. **Validierung:** Echtzeit-Überprüfung der Einstellungen
+#### 1. Konfigurationsdatei laden
 
-#### Modell-Einstellungen
+Oben sehen Sie ein Pfad-Eingabefeld mit 📁-Button. Hier laden Sie eine bestehende `.json`- oder `.xlsx`-Konfigurationsdatei.  
+**Seit Version 0.12.7:** Das Codebook wird automatisch mitgeladen – kein separater Schritt nötig.
 
-**Cloud-Modelle:**
-1. **Anbieter wählen:** OpenAI, Anthropic, Mistral
-2. **Modell auswählen:** Dropdown zeigt verfügbare Modelle
-3. **API-Key prüfen:** Automatische Validierung
+#### 2. Modell-Einstellungen
 
-**Lokale Modelle:**
-1. **"Local" auswählen:** Provider auf "Local (LM Studio/Ollama)" setzen
-2. **Erkennung starten:** Klick auf "🔄 Lokale Modelle erkennen"
-3. **Modell wählen:** Aus erkannten Modellen auswählen
+**Cloud-Modell einrichten (empfohlen für Einsteiger):**
+1. **Provider wählen:** "OpenAI", "Anthropic", "Mistral" oder "OpenRouter"
+2. **Modell aus Dropdown wählen** – die Liste zeigt passende Modelle
+3. Der **API-Key wird automatisch geprüft**: entweder aus der `.env`-Datei (seit v0.12.7.4 automatisch geladen) oder aus einer Umgebungsvariable
 
-#### Performance-Einstellungen
+**Lokales Modell einrichten (für Datenschutz):**
+1. **Provider** auf "Local (LM Studio/Ollama)" stellen
+2. **"🔄 Lokale Modelle erkennen" klicken** – die Webapp sucht nach laufenden LM Studio- oder Ollama-Servern auf Ihrem Rechner
+3. Aus den erkannten Modellen auswählen
 
-**[Screenshot-Platzhalter: Performance-Einstellungen Panel]**
+**Custom API Endpoint (für Hochschul-KI-Server):**
+1. **Ausklappbaren Bereich "🔧 Erweiterte Einstellungen: Custom API Base URL" öffnen**
+2. **Adresse eintragen:** z.B. `https://chat-ai.academiccloud.de/v1` (GWDG)
+3. **Hinweis:** Sobald eine Base URL gesetzt ist, wird das Modell-Feld zum Freitext – Sie können dann jedes beliebige Modell eingeben
+4. **API-Key Variable:** Wenn Ihr Endpoint eine eigene Umgebungsvariable nutzt (z.B. `GWDG_API_KEY`), tragen Sie den Namen hier ein
 
-- **Chunk-Größe:** Schieberegler für Textabschnittsgröße
-- **Batch-Größe:** Balance zwischen Geschwindigkeit und Qualität
-- **Kontextuelle Kodierung:** Toggle für erweiterten Kontext
+#### 3. Chunk-Einstellungen (Schieberegler)
 
-#### Relevanz-Schwellwert konfigurieren
+| Regler | Bereich | Standard | Erklärung |
+|-------|---------|---------|-----------|
+| **Chunk-Größe** | 400–2000 | 1000 | Maximale Zeichen pro Textabschnitt |
+| **Überlappung** | 0–200 | 50 | Überlappung benachbarter Abschnitte in Zeichen |
+| **Batch-Größe** | 1–20 | 5 | Wie viele Abschnitte gleichzeitig kodiert werden |
 
-**[Screenshot-Platzhalter: Relevanz-Schwellwert Slider in der UI]**
+#### 4. Relevanz-Schwellwert (Schieberegler)
 
-Der Relevanz-Schwellwert ist eine wichtige Einstellung, die bestimmt, welche Textsegmente in die Analyse einbezogen werden:
+Der Schieberegler hat drei Zonen, die farblich markiert sind:
 
-**🎯 Relevanz-Schwellwert Slider (0.0-1.0):**
-- **Standard-Position:** 0.3 (empfohlen für die meisten Analysen)
-- **Echtzeit-Feedback:** Beschreibung der aktuellen Einstellung
-- **Warnungen:** Automatische Hinweise bei extremen Werten
+| Zone | Bereich | Anzeige | Wofür? |
+|------|---------|---------|--------|
+| 🟢 **Standard** | 0,3 | "Verwendet LLM-Entscheidungen wie sie sind" | Normalbetrieb |
+| 🔵 **Streng** | 0,4–1,0 | "Nur hochrelevante Segmente" | Weniger Rauschen |
+| 🟠 **Inklusiv** | 0,0–0,2 | "Inkludiert LLM-verworfene Segmente" | Maximale Vollständigkeit |
 
-**Praktische Anwendung in der UI:**
+#### 5. Weitere Einstellungen
 
-1. **Standard verwenden (0.3):**
-   - Slider bleibt auf Standard-Position
-   - Info-Text: "Verwendet LLM-Entscheidungen wie sie sind"
-   - Keine besonderen Warnungen
+- **Kontextuelle Kodierung:** ✅ = aktiviert – die KI fasst den bisherigen Dokumentverlauf zusammen und kodiert konsistenter (aber langsamer)
+- **Mehrfachkodierungen:** ✅ = erlaubt – ein Text kann mehreren Kategorien zugeordnet werden
+- **Attribut-Labels:** Hier definieren Sie die Metadaten aus Dateinamen (siehe Abschnitt 7.2)
 
-2. **Strengere Filterung (0.4-1.0):**
-   - Slider nach rechts bewegen
-   - Info-Text: "Sehr strenge Filterung, nur hochrelevante Segmente"
-   - Blaue Info-Box erscheint
+### 9.4 Codebook-Tab (📋)
 
-3. **Inklusivere Filterung (0.0-0.2):**
-   - Slider nach links bewegen
-   - Warnung: "⚠️ Wert unter 0.3: Inkludiert LLM-verworfene Segmente"
-   - Orange Warnbox erscheint
+Hier entwickeln und pflegen Sie Ihr Kategoriensystem.
 
-**Empfohlene Workflow:**
-1. **Erste Analyse:** Standard-Wert (0.3) verwenden
-2. **Ergebnisse prüfen:** Sind wichtige Inhalte ausgeschlossen?
-3. **Anpassung:** Bei Bedarf Schwellwert reduzieren (0.1-0.2)
-4. **Qualitätskontrolle:** Bei zu viel Rauschen Schwellwert erhöhen (0.4-0.5)
+#### Kategorien bearbeiten
+
+Der Editor zeigt für jede Kategorie ein Formular:
+
+1. **Kategorie hinzufügen:** Klick auf "➕ Kategorie hinzufügen"
+2. **Felder ausfüllen:** Name (ohne Leerzeichen), Definition, Regeln, Beispiele, Subkategorien
+3. **Echtzeit-Validierung:** Ungültige Eingaben werden sofort markiert (z.B. zu kurze Definition)
+4. **Speichern:** Änderungen werden in Excel- und JSON-Datei synchronisiert
+
+**Darauf achtet die Validierung:**
+- Definition mindestens 15 Wörter lang
+- Mindestens 2 Beispiele pro Kategorie
+- Mindestens 2 Subkategorien pro Kategorie
+- Keine doppelten Kategoriennamen
+
+#### Induktive Codes importieren
+
+Nach einer Analyse im `full`- oder `abductive`-Modus können neu entdeckte Kategorien zurück ins Codebook übernommen werden:
+
+1. **Hinweis abwarten:** Die Webapp zeigt automatisch an, wenn neue induktive Codes verfügbar sind
+2. **"Induktive Codes importieren" klicken**
+3. **Analyse-Datei auswählen:** Wählen Sie die entsprechende Excel-Datei aus dem Output-Ordner
+4. **Vorschau prüfen:** Sie sehen, welche Codes entdeckt wurden
+5. **Konflikte lösen:** Falls ein Name bereits existiert, können Sie umbenennen
+6. **Import bestätigen:** Neue Codes erscheinen im Codebook
+
+#### Speichern
+
+Das Codebook wird automatisch sowohl als Excel (`.xlsx`) als auch als JSON (`.json`) gespeichert – beide Versionen sind identisch. Excel ist für die manuelle Bearbeitung gedacht, JSON ist schneller und git-freundlich.
+
+### 9.5 Analyse-Tab (▶️)
+
+Hier starten und überwachen Sie die Analyse.
+
+#### Vorbereitung prüfen
+
+Vor dem Start sehen Sie zwei Statusanzeigen:
+
+- **✅ Konfiguration geprüft** – alle technischen Einstellungen sind gültig
+- **✅ Codebook validiert** – alle Kategorien erfüllen die Mindestanforderungen
+
+Erst wenn beide grün sind, wird der Start-Button aktiv.
+
+#### Analyse starten
+
+1. Klick auf **"🚀 Analyse starten"**
+2. Die Verarbeitung läuft automatisch durch alle Dokumente
+3. Sie sehen:
+   - **Fortschrittsbalken** – wie viele Chunks bereits kodiert sind
+   - **Live-Logs** – detaillierte Meldungen zum aktuellen Schritt
+   - **Token-Verbrauch** – wie viele KI-Token bereits verwendet wurden
+
+#### Analyse unterbrechen
+
+- **"Analyse stoppen"** – bricht die laufende Analyse ab. Bereits kodierte Ergebnisse bleiben erhalten.
+- **Automatische Sicherung:** In regelmäßigen Abständen (einstellbar) wird der Zwischenstand gespeichert.
+
+### 9.6 Explorer-Tab (📊)
+
+Nach der Analyse können Sie die Ergebnisse durchstöbern und visualisieren.
+
+#### Datei-Übersicht
+
+- **Alle Output-Dateien** des aktuellen Projekts werden aufgelistet
+- **Vorschau:** Per Klick auf eine Datei sehen Sie den Inhalt
+- **Metadaten:** Datum, Analysemodus, verwendetes Modell
+
+#### Visualisierungen
+
+1. **Explorer-Config laden:** Wählen Sie eine Analyse-Ergebnisdatei aus
+2. **Diagrammtyp wählen:** Heatmaps (Kategorien × Attribute), Balkendiagramme, Kreisdiagramme, Netzwerk-Graphen
+3. **Filter setzen:** Nach Kategorien, Attributen oder Dokumenten eingrenzen
+4. **Export:** Diagramme als PNG oder PDF speichern
 
 ### 9.4 Codebook-Tab
 
@@ -897,9 +969,7 @@ Der Relevanz-Schwellwert ist eine wichtige Einstellung, die bestimmt, welche Tex
 
 ### 10.1 Struktur der Analyseergebnisse
 
-QCA-AID erstellt eine umfassende Excel-Datei mit mehreren Arbeitsblättern:
-
-**[Screenshot-Platzhalter: Excel-Datei mit Sheet-Übersicht]**
+QCA-AID erstellt eine umfassende Excel-Datei (`QCA-AID_Analysis_[DATUM].xlsx`) mit mehreren Arbeitsblättern. Die genaue Anzahl hängt vom gewählten Analysemodus ab.
 
 #### Hauptergebnisse (Sheet: "Codings")
 
@@ -914,7 +984,7 @@ QCA-AID erstellt eine umfassende Excel-Datei mit mehreren Arbeitsblättern:
 - **Begründung:** Erklärung der Kodierentscheidung
 - **Attribut_1/2/3:** Extrahierte Metadaten aus Dateinamen
 
-**[Screenshot-Platzhalter: Codings-Sheet mit Beispieldaten]**
+> **Lesebeispiel:** In der Excel-Tabelle sehen Sie für jede kodierte Textstelle eine Zeile. Sortieren Sie nach "Konfidenz" (aufsteigend), um die unsichersten Kodierungen zuerst zu prüfen.
 
 #### Häufigkeitsanalysen (Sheet: "Frequencies")
 
@@ -924,7 +994,7 @@ QCA-AID erstellt eine umfassende Excel-Datei mit mehreren Arbeitsblättern:
 - Kreuztabellen zwischen Kategorien und Attributen
 - Statistische Kennwerte (Mittelwerte, Standardabweichungen)
 
-**[Screenshot-Platzhalter: Frequencies-Sheet mit Diagrammen]**
+> Dieses Sheet ist besonders nützlich, um zu sehen, welche Kategorien besonders häufig vorkommen und wie sie sich über verschiedene Gruppen (z.B. Hochschultypen) verteilen.
 
 #### Intercoder-Reliabilität (Sheet: "Reliability")
 
@@ -942,7 +1012,7 @@ QCA-AID erstellt eine umfassende Excel-Datei mit mehreren Arbeitsblättern:
 
 ### 10.2 Induktive Kategorien (Sheet: "Inductive_Categories")
 
-**[Screenshot-Platzhalter: Induktive Kategorien mit Entwicklungshistorie]**
+Nur sichtbar bei Analysen im `full`, `abductive` oder `grounded`-Modus. Hier stehen alle neu entdeckten Kategorien, die die KI während der Analyse identifiziert hat.
 
 #### Neue Hauptkategorien
 - **Name:** Automatisch generierter Kategorienname
@@ -969,7 +1039,7 @@ QCA-AID erstellt eine umfassende Excel-Datei mit mehreren Arbeitsblättern:
 
 #### Konfidenzwerte
 
-**[Screenshot-Platzhalter: Konfidenzverteilung als Histogramm]**
+Jede Kodierung erhält einen Konfidenzwert zwischen 0,0 (unsicher) und 1,0 (sehr sicher). Verteilen Sie die Kodierungen nach diesem Wert, um Prioritäten für die manuelle Prüfung zu setzen.
 
 - **Hoch (0.8-1.0):** Eindeutige Zuordnungen, hohe Sicherheit
 - **Mittel (0.6-0.8):** Plausible Zuordnungen, moderate Sicherheit
@@ -1009,7 +1079,7 @@ QCA-AID erstellt eine umfassende Excel-Datei mit mehreren Arbeitsblättern:
 
 ### 11.1 Entscheidungsmatrix für Kodiermodi
 
-**[Screenshot-Platzhalter: Entscheidungsbaum für Modusauswahl]**
+Die folgende Tabelle hilft bei der Auswahl des passenden Analysemodus:
 
 | Forschungsziel | Theoriestand | Datenmenge | Empfohlener Modus | Begründung |
 |----------------|--------------|------------|-------------------|------------|
@@ -1186,130 +1256,36 @@ QCA-AID erstellt eine umfassende Excel-Datei mit mehreren Arbeitsblättern:
 
 ### 11.6 Materialspezifische Empfehlungen
 
-#### Interview-Transkripte
+Die optimale Konfiguration hängt vom Textmaterial ab. Hier eine Kurzübersicht:
 
-**Charakteristika:**
-- Dialogstruktur mit Fragen und Antworten
-- Umgangssprache und Füllwörter
-- Subjektive Perspektiven und Erfahrungen
+| Material | Chunk-Größe | Überlappung | Kontext-Kodierung | Besonderheit |
+|----------|------------|-------------|-------------------|-------------|
+| **Interview-Transkripte** | 1000 | 60 | ✅ Aktivieren | Interviewerfragen ausschließen |
+| **Wissenschaftliche Texte** | 1200 | 40 | ❌ Deaktivieren | Literaturverzeichnisse ausschließen |
+| **Dokumente, Berichte** | 800 | 30 | ❌ Deaktivieren | Inhaltsverzeichnisse ausschließen |
+| **Social Media, Foren** | 500 | 20 | ❌ Deaktivieren | Höhere Temperatur (0,6) für Nuancen |
 
-**Empfohlene Konfiguration:**
-```json
-{
-  "CHUNK_SIZE": 1000,           // Längere Chunks für Kontext
-  "CHUNK_OVERLAP": 60,          // Mehr Überlappung für Dialogkontinuität
-  "CODE_WITH_CONTEXT": true,    // Wichtig für Gesprächskontext
-  "kodierregeln": {
-    "exclusion": [
-      "Interviewerfragen ohne inhaltlichen Bezug",
-      "Füllwörter und Pausen",
-      "Technische Unterbrechungen"
-    ]
-  }
-}
-```
+**In der Webapp einstellen:**
+1. **Konfiguration-Tab** → Chunk-Einstellungen als Schieberegler
+2. **Kontextuelle Kodierung** als An/Aus-Schalter
+3. **Ausschlusskriterien** im Codebook unter "Kodierregeln" → "Ausschlusskriterien"
 
-#### Akademische Texte
-
-**Charakteristika:**
-- Formale Sprache und Fachterminologie
-- Strukturierte Argumentation
-- Literaturverweise und Zitate
-
-**Empfohlene Konfiguration:**
-```json
-{
-  "CHUNK_SIZE": 1200,           // Größere Chunks für komplexe Argumente
-  "CHUNK_OVERLAP": 40,          // Weniger Überlappung bei klarer Struktur
-  "CODE_WITH_CONTEXT": false,   // Weniger wichtig bei strukturierten Texten
-  "kodierregeln": {
-    "exclusion": [
-      "Literaturverzeichnisse",
-      "Methodische Beschreibungen",
-      "Reine Zitate ohne Interpretation"
-    ]
-  }
-}
-```
-
-#### Dokumente und Berichte
-
-**Charakteristika:**
-- Offizielle Sprache
-- Strukturierte Gliederung
-- Fakten und Empfehlungen
-
-**Empfohlene Konfiguration:**
-```json
-{
-  "CHUNK_SIZE": 800,            // Kleinere Chunks für präzise Fakten
-  "CHUNK_OVERLAP": 30,          // Minimale Überlappung
-  "MULTIPLE_CODINGS": false,    // Eindeutige Zuordnungen
-  "kodierregeln": {
-    "exclusion": [
-      "Inhaltsverzeichnisse",
-      "Tabellarische Auflistungen",
-      "Formale Anhänge"
-    ]
-  }
-}
-```
-
-#### Social Media und informelle Texte
-
-**Charakteristika:**
-- Kurze, fragmentierte Texte
-- Umgangssprache und Slang
-- Emotionale Ausdrücke
-
-**Empfohlene Konfiguration:**
-```json
-{
-  "CHUNK_SIZE": 500,            // Kleine Chunks für kurze Posts
-  "CHUNK_OVERLAP": 20,          // Minimale Überlappung
-  "BATCH_SIZE": 10,             // Mehr parallele Verarbeitung
-  "CODER_SETTINGS": [
-    {
-      "temperature": 0.6,       // Höher für umgangssprachliche Nuancen
-      "coder_id": "social_1"
-    }
-  ]
-}
+**Tipp zu Ausschlusskriterien:**
+Im Codebook unter `KODIERREGELN` → `exclusion` können Sie festlegen, was nicht kodiert werden soll:
+- Bei Interviews: "Interviewerfragen ohne inhaltlichen Bezug"
+- Bei wissenschaftlichen Texten: "Literaturverzeichnisse", "Reine Zitate ohne Interpretation"
+- Bei Dokumenten: "Inhaltsverzeichnisse", "Tabellarische Auflistungen"
 ```
 
 ### 11.7 Kombinierte Ansätze
 
-#### Sequenzielle Analyse
+**Sequenziell (empfohlen):**
+1. **Erkunden:** `grounded` oder `full` → neue Kategorien entdecken
+2. **Strukturieren:** `abductive` → Kategorien verfeinern und systematisieren
+3. **Validieren:** `deductive` → Mit endgültigem Codebook alle Dokumente kodieren
 
-**Workflow:**
-1. **Explorative Phase:** `grounded` Modus für erste Kategorienentwicklung
-2. **Strukturierungsphase:** `abductive` Modus für Systematisierung
-3. **Validierungsphase:** `deductive` Modus für finale Überprüfung
-
-#### Parallele Analyse
-
-**Vergleichende Kodierung:**
-- Gleiche Daten mit verschiedenen Modi analysieren
-- Systematischer Vergleich der Ergebnisse
-- Triangulation für höhere Validität
-
-**Beispiel-Konfiguration:**
-```json
-{
-  "ANALYSIS_CONFIGS": [
-    {
-      "name": "deductive_analysis",
-      "ANALYSIS_MODE": "deductive",
-      "OUTPUT_DIR": "output/deductive"
-    },
-    {
-      "name": "inductive_analysis", 
-      "ANALYSIS_MODE": "full",
-      "OUTPUT_DIR": "output/inductive"
-    }
-  ]
-}
-```
+**Parallel (für Methodenvergleich):**
+Führen Sie die Analyse zweimal mit unterschiedlichen Modi durch (z.B. `deductive` und `full`) und vergleichen Sie die Ergebnisse. Die Outputs landen in verschiedenen Ordnern und können im Explorer-Tab nebeneinander betrachtet werden.
 
 ---
 
@@ -1324,8 +1300,7 @@ QCA-AID erstellt eine umfassende Excel-Datei mit mehreren Arbeitsblättern:
 - **Formatierung:** Einheitliche Textformatierung, keine Sonderzeichen
 - **Vollständigkeit:** Überprüfung auf fehlende Textpassagen (besonders bei PDFs)
 - **Kodierung:** UTF-8 Encoding für Umlaute und Sonderzeichen
-
-**[Screenshot-Platzhalter: Beispiel für bereinigte vs. unbereinigte Dokumente]**
+- **Tipp:** Speichern Sie Textdokumente im `.txt`-Format – das ist am robustesten für die Verarbeitung
 
 #### Dateiorganisation
 
@@ -1380,7 +1355,7 @@ projekt/
 - **Neue Kategorien:** Alle induktiven Kategorien validieren
 - **Grenzfälle:** Kodierungen an Kategoriengrenzen kontrollieren
 
-**[Screenshot-Platzhalter: Qualitätskontroll-Dashboard in der Webapp]**
+> **Praxistipp:** Öffnen Sie die Ergebnis-Excel und filtern Sie nach "Konfidenz < 0,6". Diese Kodierungen sollten Sie prioritär manuell prüfen.
 
 ### 12.3 Intercoder-Reliabilität optimieren
 
@@ -1454,28 +1429,26 @@ projekt/
 #### Performance-Tuning
 
 **Batch-Größe optimieren:**
-```python
-# Testlauf mit verschiedenen Batch-Größen
-batch_sizes = [3, 5, 8, 10, 12]
-for size in batch_sizes:
-    # Zeitmessung und Qualitätsbewertung
-    # Optimale Balance finden
-```
+Je nach verwendetem Modell und Dokumenttyp kann eine andere Batch-Größe optimal sein. Testen Sie mit einer kleinen Stichprobe:
+
+- **Hohe Präzision:** Batch-Größe 3–4 (langsamer, genauer)
+- **Ausgewogen:** Batch-Größe 5–8 ⭐ Empfohlen
+- **Hohe Geschwindigkeit:** Batch-Größe 10–12 (schneller, weniger präzise)
 
 **Chunk-Parameter anpassen:**
-- **Zu kleine Chunks:** Kontextverlust, fragmentierte Kodierungen
-- **Zu große Chunks:** Mehrfachkodierungen, unklare Zuordnungen
-- **Optimale Größe:** 800-1200 Zeichen je nach Texttyp
+- **Zu kleine Chunks (< 800):** Kontextverlust, fragmentierte Kodierungen
+- **Zu große Chunks (> 1500):** Mehrfachkodierungen, unklare Zuordnungen
+- **Optimale Größe:** 800–1200 Zeichen je nach Texttyp
 
 #### Kostenoptimierung
 
 **Token-Verbrauch reduzieren:**
 - **Präzise Kategorien:** Weniger Nachfragen durch klarere Definitionen
 - **Optimale Batch-Größe:** Weniger API-Calls durch größere Batches
-- **Günstigere Modelle:** Für einfache Kodierungen ausreichend
-- **Lokale Modelle:** Kostenlos für sensible oder große Datenmengen
+- **Günstigeres Modell:** z.B. `gpt-4o-mini` statt `gpt-4o`
+- **Lokale Modelle:** Kostenlos und unbegrenzt nutzbar
 
-**[Screenshot-Platzhalter: Token-Tracking und Kostenübersicht]**
+> In der Webapp sehen Sie während der Analyse den geschätzten Token-Verbrauch – so behalten Sie die Kosten im Blick.
 
 ### 12.6 Dokumentation und Nachvollziehbarkeit
 
@@ -1581,84 +1554,112 @@ pip install https://github.com/explosion/spacy-models/releases/download/de_core_
 
 #### Problem: setup.bat schließt sofort (Windows)
 
-**Symptom:** Das Setup-Fenster erscheint kurz und schließt sofort wieder
+**Symptom:** Das Setup-Fenster erscheint kurz und schließt sofort wieder, ohne dass Sie die Fehlermeldung lesen können.
 
-**Ursachen:**
-- Windows-Sicherheitseinstellungen blockieren BAT-Dateien
-- Früher Fehler im Setup-Prozess
-- Fehlende Berechtigungen
+**Lösung 1 (Empfohlen): `setup_debug.bat` verwenden**
+Diese Datei wurde speziell für diesen Fall ergänzt: Sie hält das Fenster nach Fehlern offen, sodass Sie die Meldung lesen können. Einfach doppelklicken.
 
-**Lösungen:**
-
-**Lösung 1: setup_debug.bat verwenden (Empfohlen)**
-```bash
-# Führen Sie stattdessen setup_debug.bat aus
-# Diese Datei hält das Fenster offen und zeigt alle Fehlermeldungen
-```
-
-**Lösung 2: Manuell in CMD ausführen**
-```bash
-# 1. Eingabeaufforderung öffnen (Windows + R, dann "cmd" eingeben)
+**Lösung 2: Manuell in der Eingabeaufforderung ausführen**
+```cmd
+# 1. Windows + R → "cmd" eingeben → Enter
 # 2. Zum QCA-AID Ordner navigieren:
 cd "C:\Pfad\zu\QCA-AID"
-
 # 3. Setup ausführen:
 setup.bat
 ```
 
-**Lösung 3: Sicherheitseinstellungen prüfen**
-1. Rechtsklick auf `setup.bat`
-2. "Eigenschaften" wählen
-3. Unten bei "Sicherheit": Auf "Zulassen" oder "Entsperren" klicken
-4. "OK" klicken und erneut versuchen
+**Lösung 3: Datei entsperren**
+1. Rechtsklick auf `setup.bat` → "Eigenschaften"
+2. Unten bei "Sicherheit": **"Zulassen"** oder **"Entsperren"** anklicken
+3. "OK" → erneut versuchen
 
 **Lösung 4: Als Administrator ausführen**
 1. Rechtsklick auf `setup.bat`
 2. "Als Administrator ausführen" wählen
 
 **Lösung 5: Manuelle Installation**
-Falls alle Lösungen fehlschlagen:
-```bash
-# 1. Python installieren (Version 3.8-3.12)
-# Download: https://www.python.org/downloads/
-# WICHTIG: "Add Python to PATH" aktivieren!
-
-# 2. Eingabeaufforderung öffnen und zum QCA-AID Ordner navigieren
-
-# 3. Pakete installieren:
+```cmd
 python -m pip install --upgrade pip
 python -m pip install -r requirements.txt
-
-# 4. (Optional) spaCy Deutsch-Modell:
 python -m spacy download de_core_news_sm
-
-# 5. QCA-AID starten:
-python start_QCA-AID-app.py
+python start_webapp.py
 ```
-
-**Häufige Zusatzprobleme:**
-- **Python nicht gefunden:** Stellen Sie sicher, dass Python mit "Add to PATH" installiert wurde
-- **Zugriff verweigert:** Führen Sie CMD als Administrator aus
-- **Antivirus blockiert:** Fügen Sie den QCA-AID Ordner zur Ausnahmeliste hinzu
 
 ### 13.2 API und Authentifizierung
 
 #### Problem: API-Schlüssel nicht gefunden
 
-**Symptom:** `OpenAI API key not found` oder `Authentication failed`
+**Symptom:** `API key not found` oder `Authentication failed` oder der API-Key-Status in der Webapp zeigt rot
 
-**Lösung:**
+**Mögliche Ursachen und Lösungen:**
+
+**1. `.env`-Datei fehlt oder falsch benannt**
 ```bash
-# .env-Datei im Projektverzeichnis erstellen
-echo "OPENAI_API_KEY=sk-proj-..." > .env
-echo "ANTHROPIC_API_KEY=sk-ant-..." >> .env
+# Prüfen, ob die .env-Datei existiert:
+# Windows (Eingabeaufforderung):
+dir .env
+# macOS / Linux:
+ls -la .env
 
-# Oder Umgebungsvariable setzen (Windows)
+# Falls nicht: .env-Datei im QCA-AID-Ordner erstellen:
+# Inhalt: OPENAI_API_KEY=sk-proj-xxxxxxxxxxxx
+```
+
+> **Seit Version 0.12.7.4** wird `.env` automatisch geladen – Sie müssen nichts weiter tun. Die Webapp sucht an drei Stellen: aktuelles Verzeichnis → Repository-Root → `~/.environ.env`.
+
+**2. Falscher Umgebungsvariablen-Name bei Custom Endpoints**
+Wenn Sie einen Custom API Endpoint nutzen (z.B. GWDG), geben Sie in der Webapp unter **"API-Key Variable"** den exakten Namen an, den Sie in der `.env`-Datei verwendet haben, z.B. `GWDG_API_KEY`.
+
+**3. Umgebungsvariable manuell setzen**
+```bash
+# Windows (Eingabeaufforderung, temporär für diese Sitzung):
+set OPENAI_API_KEY=sk-proj-...
+
+# Windows (dauerhaft):
 setx OPENAI_API_KEY "sk-proj-..."
 
-# Oder Umgebungsvariable setzen (Linux/Mac)
+# macOS / Linux (temporär):
 export OPENAI_API_KEY="sk-proj-..."
+
+# macOS / Linux (dauerhaft in ~/.bashrc oder ~/.zshrc):
+echo 'export OPENAI_API_KEY="sk-proj-..."' >> ~/.zshrc
 ```
+
+**4. Proxy / Firewall blockiert**
+Wenn Sie sich in einem Uni-Netzwerk befinden, kann ein Proxy die Verbindung blockieren. Kontaktieren Sie in dem Fall Ihre IT-Abteilung.
+
+#### Problem: Leere oder unvollständige Antworten bei lokalen Modellen (LM Studio / Ollama)
+
+**Symptom:** Die Analyse bleibt hängen oder liefert leere JSON-Antworten, besonders beim Start der ersten Analyse.
+
+**Ursache:** Lokale Modelle brauchen manchmal einen "Warm-up"-Durchlauf. Cold-Start-Probleme sind bekannt.
+
+**Lösung:**
+- **Seit Version 0.12.7.2** wird automatisch ein zweiter Versuch mit 2s Pause unternommen, bevor ein Fehler gemeldet wird
+- Falls das Problem weiter besteht: Einfach die Analyse neu starten – nach dem ersten Batch läuft es meist stabil
+- Hilft auch: Ein kleiner Test-Prompt im LM Studio Chatfenster vor dem Start der Analyse
+
+#### Problem: Custom API Key Environment Variable wird nicht erkannt
+
+**Symptom:** Bei Nutzung eines Custom Endpoints (z.B. GWDG) erscheint "API-Key nicht gefunden", obwohl die Variable in der `.env`-Datei steht.
+
+**Ursache vor 0.12.7.4:** Die `.env`-Datei wurde nirgendwo automatisch geladen.
+
+**Lösung:**
+- **Seit Version 0.12.7.4** wird `.env` automatisch geladen – einfach aktualisieren
+- Stellen Sie sicher, dass der **Name der Umgebungsvariable** in der Webapp unter "API-Key Variable" exakt dem Eintrag in der `.env`-Datei entspricht
+- Beispiel: In `.env` steht `GWDG_API_KEY=xyz` → in der Webapp "API-Key Variable" = `GWDG_API_KEY`
+
+#### Problem: Analyse bricht mit JSON-Fehler ab
+
+**Symptom:** `JSONDecodeError` oder "Ungültige JSON-Antwort" während der Analyse.
+
+**Lösung:**
+- **Seit Version 0.12.7.1/0.12.7.2** werden JSON-Fehler automatisch abgefangen:
+  - Bei leeren Antworten: automatischer Wiederholungsversuch mit Pause
+  - Bei fehlerhaften JSON: Reparaturversuch (Klammern schließen, Kommas entfernen)
+  - Bei anhaltenden Fehlern: Überspringen des betroffenen Batches (kein Datenverlust)
+- Falls die Analyse dennoch abbricht: Einfach neu starten – der Fortschritt wurde automatisch gespeichert
 
 #### Problem: Rate Limit exceeded
 
@@ -2074,52 +2075,7 @@ git checkout HEAD~1 QCA-AID-Codebook.json
 
 ---
 
-## 14. Anhang: Screenshots und Beispiele
-
-### 14.1 Screenshot-Platzhalter
-
-**Hinweis:** Die folgenden Bereiche sind für Screenshots vorgesehen, die Sie nach der Erstellung des Handbuchs einfügen können:
-
-#### Installation und Setup
-- [ ] **Python-Installation:** Download-Seite und Installationsoptionen
-- [ ] **Verzeichnisstruktur:** Beispiel eines organisierten Projektordners
-- [ ] **Erste Webapp-Ansicht:** Startbildschirm nach erfolgreicher Installation
-
-#### Webapp-Bedienung
-- [ ] **Hauptnavigation:** Übersicht der vier Haupttabs
-- [ ] **Projekt-Dialog:** Auswahl des Projekt-Root-Verzeichnisses
-- [ ] **Datei-Browser:** Native Dateiauswahl-Dialoge
-- [ ] **Konfiguration-Tab:** Vollständige Ansicht aller Einstellungen
-- [ ] **Modell-Auswahl:** Dropdown mit verfügbaren Modellen
-- [ ] **Lokale Modelle:** Erkennungs-Dialog für LM Studio/Ollama
-
-#### Codebook-Entwicklung
-- [ ] **Codebook-Editor:** Kategorien-Eingabeformular
-- [ ] **Validierung:** Echtzeit-Feedback bei Eingabefehlern
-- [ ] **Import-Dialog:** Induktive Codes aus vorherigen Analysen
-- [ ] **JSON-Vorschau:** Strukturansicht des Codebooks
-- [ ] **Kategorien-Übersicht:** Liste aller definierten Kategorien
-
-#### Analyse-Durchführung
-- [ ] **Eingabedateien:** Liste mit Dateivorschau
-- [ ] **Analyse-Start:** Konfigurationsprüfung und Start-Button
-- [ ] **Fortschrittsanzeige:** Live-Updates während der Analyse
-- [ ] **Log-Ausgabe:** Detaillierte Fortschrittsinformationen
-- [ ] **Fehlerbehandlung:** Beispiele für Fehlermeldungen und Lösungen
-
-#### Ergebnisse und Output
-- [ ] **Excel-Übersicht:** Struktur der Ergebnisdatei mit Sheets
-- [ ] **Codings-Sheet:** Beispieldaten mit Kodierungen
-- [ ] **Häufigkeitsanalyse:** Diagramme und Statistiken
-- [ ] **Reliabilitäts-Report:** Intercoder-Übereinstimmung
-- [ ] **Induktive Kategorien:** Neu entwickelte Kategorien
-
-#### Explorer und Visualisierung
-- [ ] **Explorer-Übersicht:** Ergebnisdateien und Metadaten
-- [ ] **Diagramm-Konfiguration:** Einstellungen für Visualisierungen
-- [ ] **Netzwerk-Analyse:** Beispiel einer Akteurs-Netzwerk-Visualisierung
-- [ ] **Heatmap:** Kategorie-Häufigkeiten nach Attributen
-- [ ] **Export-Optionen:** Download und Sharing-Funktionen
+## 14. Anhang: Beispielkonfigurationen und Vorlagen
 
 ### 14.2 Beispiel-Konfigurationen
 
@@ -2211,6 +2167,34 @@ git checkout HEAD~1 QCA-AID-Codebook.json
     ]
   }
 }
+```
+
+#### Beispiel 4: Sensible Daten mit Custom Endpoint (GWDG)
+
+**Forschungskontext:**
+- Personenbezogene Interviews, keine Cloud-Dienste erlaubt
+- Hochschule stellt eigenen KI-Endpoint via GWDG Academic Cloud
+- Datenschutzkonforme Verarbeitung im Rechenzentrum der Hochschule
+
+**Konfiguration:**
+```json
+{
+  "config": {
+    "MODEL_PROVIDER": "OpenAI",
+    "MODEL_NAME": "openai-gpt-oss-120b",
+    "API_BASE_URL": "https://chat-ai.academiccloud.de/v1",
+    "API_KEY_ENV": "GWDG_API_KEY",
+    "ANALYSIS_MODE": "deductive",
+    "CHUNK_SIZE": 1000,
+    "BATCH_SIZE": 5,
+    "CODE_WITH_CONTEXT": true
+  }
+}
+```
+
+**Dazugehörige `.env`-Datei:**
+```
+GWDG_API_KEY=xxxxxxxxxxxxxxxxxxxxx
 ```
 
 ### 14.3 Musterdokumente
@@ -2324,7 +2308,7 @@ QCA-AID bietet Sozialwissenschaftler:innen ein mächtiges Werkzeug zur KI-unters
 
 ### Weiterentwicklung
 
-QCA-AID wird kontinuierlich weiterentwickelt. Aktuelle Entwicklungen und Updates finden Sie im [GitHub-Repository](https://github.com/JustusHenke/QCA-AID) und im [Changelog](CHANGELOG.md).
+QCA-AID wird kontinuierlich weiterentwickelt. Die aktuellste Version ist **0.12.7.4** (Juni 2026). Aktuelle Entwicklungen und Updates finden Sie im [GitHub-Repository](https://github.com/JustusHenke/QCA-AID) und im [Changelog](CHANGELOG.md).
 
 **Kontakt für Feedback und Fragen:**  
 Justus Henke  
