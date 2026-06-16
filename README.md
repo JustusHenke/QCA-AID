@@ -232,7 +232,7 @@ Jede Kategorie braucht:
 |-------|-----------------|--------|
 | **`deductive`** | ❌ Keine | Theorieprüfung, Replikationsstudien ⭐ Standard |
 | **`abductive`** | 🔹 Nur Subkategorien | Theorie verfeinern, Nuancen entdecken |
-| **`inductive` (full)** | ✅ Haupt- & Subkategorien | Exploration neuer Phänomene |
+| **`inductive`** | ✅ Haupt- & Subkategorien | Exploration neuer Phänomene |
 | **`grounded`** | 🧱 Schrittweise | Datengetriebene Theorieentwicklung |
 
 ---

@@ -835,7 +835,7 @@ Der Editor zeigt für jede Kategorie ein Formular:
 
 #### Induktive Codes importieren
 
-Nach einer Analyse im `full`- oder `abductive`-Modus können neu entdeckte Kategorien zurück ins Codebook übernommen werden:
+Nach einer Analyse im `inductive`- oder `abductive`-Modus können neu entdeckte Kategorien zurück ins Codebook übernommen werden:
 
 1. **Hinweis abwarten:** Die Webapp zeigt automatisch an, wenn neue induktive Codes verfügbar sind
 2. **"Induktive Codes importieren" klicken**
@@ -1013,7 +1013,7 @@ QCA-AID erstellt eine umfassende Excel-Datei (`QCA-AID_Analysis_[DATUM].xlsx`) m
 
 ### 10.2 Induktive Kategorien (Sheet: "Inductive_Categories")
 
-Nur sichtbar bei Analysen im `full`, `abductive` oder `grounded`-Modus. Hier stehen alle neu entdeckten Kategorien, die die KI während der Analyse identifiziert hat.
+Nur sichtbar bei Analysen im `inductive`, `abductive` oder `grounded`-Modus. Hier stehen alle neu entdeckten Kategorien, die die KI während der Analyse identifiziert hat.
 
 #### Neue Hauptkategorien
 - **Name:** Automatisch generierter Kategorienname
@@ -1193,7 +1193,7 @@ Die folgende Tabelle hilft bei der Auswahl des passenden Analysemodus:
 
 ```json
 {
-  "ANALYSIS_MODE": "full",
+  "ANALYSIS_MODE": "inductive",
   "CODER_SETTINGS": [
     {
       "temperature": 0.6,        // Höher für Kreativität
@@ -1286,7 +1286,7 @@ Im Codebook unter `KODIERREGELN` → `exclusion` können Sie festlegen, was nich
 3. **Validieren:** `deductive` → Mit endgültigem Codebook alle Dokumente kodieren
 
 **Parallel (für Methodenvergleich):**
-Führen Sie die Analyse zweimal mit unterschiedlichen Modi durch (z.B. `deductive` und `full`) und vergleichen Sie die Ergebnisse. Die Outputs landen in verschiedenen Ordnern und können im Explorer-Tab nebeneinander betrachtet werden.
+Führen Sie die Analyse zweimal mit unterschiedlichen Modi durch (z.B. `deductive` und `inductive`) und vergleichen Sie die Ergebnisse. Die Outputs landen in verschiedenen Ordnern und können im Explorer-Tab nebeneinander betrachtet werden.
 
 ---
 
