@@ -17,14 +17,15 @@
 4. [Rolle der KI in QCA-AID](#4-rolle-der-ki-in-qca-aid)
 5. [Installation und Einrichtung](#5-installation-und-einrichtung)
 6. [LLM-Anbieter und Modellauswahl](#6-llm-anbieter-und-modellauswahl)
-7. [Konfigurationseinstellungen](#7-konfigurationseinstellungen)
+7. [Konfigurationseinstellungen (Webapp-Tab: Konfiguration)](#7-konfigurationseinstellungen-webapp-tab-konfiguration)
 8. [Codebook-Entwicklung und -Pflege](#8-codebook-entwicklung-und-pflege)
 9. [Arbeiten mit der Webapp](#9-arbeiten-mit-der-webapp)
 10. [Output-Sheets und Ergebnisinterpretation](#10-output-sheets-und-ergebnisinterpretation)
 11. [Optimaler Kodiermodus nach Forschungszielen](#11-optimaler-kodiermodus-nach-forschungszielen)
 12. [Best Practices und Qualitätssicherung](#12-best-practices-und-qualitätssicherung)
 13. [Häufige Probleme und Lösungen](#13-häufige-probleme-und-lösungen)
-14. [Anhang: Screenshots und Beispiele](#14-anhang-screenshots-und-beispiele)
+14. [Anhang: Beispielkonfigurationen und Vorlagen](#14-anhang-beispielkonfigurationen-und-vorlagen)
+15. [Fazit und Ausblick](#fazit-und-ausblick)
 
 ---
 

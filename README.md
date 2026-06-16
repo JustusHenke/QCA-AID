@@ -11,14 +11,14 @@ Für Sozialwissenschaftler:innen, die größere Textmengen systematisch auswerte
 
 ## 📋 Inhaltsverzeichnis
 
-1. [Schnellstart (2 Minuten)](#-schnellstart-2-minuten)
-2. [Webapp-Bedienung – alle Einstellungen erklärt](#-webapp-bedienung--alle-einstellungen-erklärt)
-3. [Analyse-Modi im Überblick](#-analyse-modi-im-überblick)
-4. [Dokumente vorbereiten](#-dokumente-vorbereiten)
-5. [Ergebnisse nutzen](#-ergebnisse-nutzen)
-6. [Best Practices & Qualitätssicherung](#-best-practices--qualitätssicherung)
-7. [Wichtige Hinweise](#-wichtige-hinweise)
-8. [Häufige Probleme & Lösungen](#-häufige-probleme--lösungen)
+1. [Schnellstart (2 Minuten)](#schnellstart-2-minuten)
+2. [Webapp-Bedienung – alle Einstellungen erklärt](#webapp-bedienung--alle-einstellungen-erklärt)
+3. [Analyse-Modi im Überblick](#analyse-modi-im-überblick)
+4. [Dokumente vorbereiten](#dokumente-vorbereiten)
+5. [Ergebnisse nutzen](#ergebnisse-nutzen)
+6. [Best Practices & Qualitätssicherung](#best-practices--qualitätssicherung)
+7. [Wichtige Hinweise](#wichtige-hinweise)
+8. [Häufige Probleme & Lösungen](#häufige-probleme--lösungen)
 
 > **📖 Ausführliches Handbuch:** [`QCA-AID-Nutzerhandbuch.md`](QCA-AID-Nutzerhandbuch.md)  
 > **📦 Neueste Änderungen:** [`CHANGELOG.md`](CHANGELOG.md)
