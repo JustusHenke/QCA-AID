@@ -305,7 +305,7 @@ Außerdem: `category_revisions.json` (Kategorienentwicklung) und `codebook_induc
 ## ⚠️ Wichtige Hinweise
 
 ### Entwicklungsstand
-- **Aktive Entwicklung** (Version 0.12.7.4) – nicht alle Funktionen arbeiten optimal
+- **Aktive Entwicklung** (Version 0.12.8) – nicht alle Funktionen arbeiten optimal
 - Nutzung zu **Testzwecken empfohlen** mit manueller Validierung
 - Prüfen Sie regelmäßig auf [Updates](CHANGELOG.md)
 
@@ -359,7 +359,7 @@ Außerdem: `category_revisions.json` (Kategorienentwicklung) und `codebook_induc
 
 ```
 Henke, J. (2026). QCA-AID: Qualitative Content Analysis with AI-supported Discovery 
-(Version 0.12.7.4) [Software]. Institut für Hochschulforschung Halle-Wittenberg. 
+(Version 0.12.8) [Software]. Institut für Hochschulforschung Halle-Wittenberg. 
 https://github.com/JustusHenke/QCA-AID
 ```
 

@@ -302,6 +302,7 @@ class ConfigManager:
             ),
             "api_base_url": DEFAULT_CONFIG.get("API_BASE_URL", None),
             "custom_api_key_env": DEFAULT_CONFIG.get("API_KEY_ENV", None),
+            "max_subcategories": DEFAULT_CONFIG.get("MAX_SUBCATEGORIES", 5),
         }
 
         return ConfigData.from_dict(config_dict)
@@ -449,6 +450,12 @@ class ConfigManager:
                 ),
                 "custom_api_key_env": global_config.get(
                     "api_key_env", global_config.get("API_KEY_ENV", None)
+                ),
+                "max_subcategories": int(
+                    global_config.get(
+                        "max_subcategories",
+                        global_config.get("MAX_SUBCATEGORIES", 5),
+                    )
                 ),
             }
 

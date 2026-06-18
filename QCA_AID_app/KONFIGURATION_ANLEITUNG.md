@@ -39,6 +39,30 @@ Die Konfiguration steuert alle technischen Parameter der QCA-AID Analyse.
 - **abductive**: Bestehende Kategorien um Subkategorien erweitern
 - **grounded**: Codes sammeln, später Hauptkategorien generieren
 
+#### Grounded Mode – Besonderheiten
+
+Im **Grounded Mode** ist im Codebook **ausschließlich die Forschungsfrage verpflichtend**.
+Deduktive (vordefinierte) Kategorien sind hier **optional**, da das Hauptkategorien-System
+während der Analyse **emergent** aus dem Material entsteht.
+
+- **Codebook**: Forschungsfrage definieren – Kategorien können leer bleiben
+- **Analyse-Ablauf** (3 Phasen):
+  1. **Phase 1 – Subcode-Sammlung**: Aus den Textsegmenten werden inkrementell Subcodes gesammelt.
+  2. **Phase 2 – Hauptkategorien-Generierung**: Aus den gesammelten Subcodes werden vom LLM Hauptkategorien gebildet.
+  3. **Phase 3 – Kodierung**: Alle Segmente werden mit den generierten Hauptkategorien kodiert.
+
+#### Maximale Subkategorien (nur Grounded Mode)
+
+In der **Konfiguration** erscheint im Grounded Mode zusätzlich das Feld
+**„Maximale Subkategorien je Hauptkategorie"** (Default: **5**, Bereich 1–50).
+
+- Bestimmt, auf wie viele Subkategorien die in Phase 1 gesammelten Subcodes
+  pro Hauptkategorie **verdichtet** werden.
+- Niedrigere Werte (3–5) → fokussiertere, leichter handhabbare Kategorien
+- Höhere Werte (8–15) → differenziertere, feinkörnigere Kategorien
+- Wird über `MAX_SUBCATEGORIES` in der Config persistiert und in Phase 2 als
+  Verdichtungs-Instruktion an das LLM übergeben.
+
 ### Review-Modi
 
 - **auto**: Automatische Übernahme aller Kodierungen
@@ -84,6 +108,8 @@ Das Codebook definiert Ihr Kategoriensystem für die qualitative Inhaltsanalyse.
 - Zentrale Fragestellung Ihrer Analyse
 - Leitet die Kategorienentwicklung und Kodierung
 - Sollte präzise und fokussiert formuliert sein
+- **Im Grounded Mode** ist die Forschungsfrage das **einzige Pflichtfeld** im Codebook
+  (Kategorien entstehen emergent)
 
 ### Kodierregeln
 

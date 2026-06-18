@@ -1520,6 +1520,49 @@ def render_analysis_settings():
         config.analysis_mode = new_analysis_mode
         st.session_state.config_modified = True
 
+    # ─────────────────────────────────────────────────────────────
+    # GROUNDED MODE: Max. Subkategorien (Phase-2-Verdichtung)
+    # ─────────────────────────────────────────────────────────────
+    # Nur sichtbar im Grounded Mode. Im ersten Durchlauf gesammelte
+    # Subcodes werden in Phase 2 auf diesen Maximalwert je Hauptkategorie
+    # verdichtet.
+    if new_analysis_mode == "grounded":
+        with st.container():
+            st.markdown("**🔬 Grounded-Mode Optionen**")
+
+            new_max_subcats = st.number_input(
+                "Maximale Subkategorien je Hauptkategorie",
+                min_value=1,
+                max_value=50,
+                value=int(getattr(config, "max_subcategories", 5)),
+                step=1,
+                key="max_subcategories_input",
+                help=(
+                    "Legt fest, auf wie viele Subkategorien die im ersten "
+                    "Durchlauf gesammelten Subcodes je Hauptkategorie "
+                    "verdichtet werden (Phase 2). Niedrigere Werte führen "
+                    "zu fokussierteren Kategorien, höhere zu differenzierteren. "
+                    "Default: 5."
+                ),
+            )
+
+            if new_max_subcats != config.max_subcategories:
+                config.max_subcategories = int(new_max_subcats)
+                st.session_state.config_modified = True
+
+            # Sanity-Hinweis bei sehr hohem Wert
+            if new_max_subcats > 15:
+                st.info(
+                    f"ℹ️ Hoher Wert ({new_max_subcats}): Die Hauptkategorien "
+                    "werden sehr differenziert. Bei wenig Material ggf. "
+                    "Reduktion auf 3–7 erwägen."
+                )
+
+            st.caption(
+                "💡 Tipp: 3–7 ist für die meisten qualitativen Studien ein "
+                "guter Ausgangspunkt."
+            )
+
     # Review Mode
     review_mode_options = ["auto", "manual", "consensus", "majority"]
     current_review_idx = (

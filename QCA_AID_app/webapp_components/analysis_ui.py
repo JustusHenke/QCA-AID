@@ -85,9 +85,22 @@ def render_analysis_tab():
         not isinstance(codebook_data.deduktive_kategorien, dict)
         or len(codebook_data.deduktive_kategorien) == 0
     ):
-        readiness_issues.append("Codebook enthält keine Kategorien")
+        # Im Grounded Mode sind keine deduktiven Kategorien erforderlich –
+        # sie entstehen emergent aus dem Material.
+        if config.analysis_mode != "grounded":
+            readiness_issues.append("Codebook enthält keine Kategorien")
+        else:
+            readiness_warnings.append(
+                "Codebook enthält keine Kategorien (im Grounded Mode OK – "
+                "Hauptkategorien werden emergent gebildet)"
+            )
+    # Forschungsfrage ist in ALLEN Modi Pflicht
+    if codebook_data is not None and (
+        not codebook_data.forschungsfrage or not codebook_data.forschungsfrage.strip()
+    ):
+        readiness_issues.append("Forschungsfrage fehlt im Codebook")
     else:
-        # Check if categories have subcategories
+        # Check if categories have subcategories (nur relevant wenn Kategorien vorhanden)
         categories_without_subcats = [
             name
             for name, cat in codebook_data.deduktive_kategorien.items()

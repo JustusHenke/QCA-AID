@@ -169,6 +169,7 @@ CONFIG = {
     },
     "EXPORT_ANNOTATED_PDFS": True,  # Aktiviert/deaktiviert PDF-Annotation
     "PDF_ANNOTATION_FUZZY_THRESHOLD": 0.85,  # Schwellenwert für Fuzzy-Text-Matching
+    "MAX_SUBCATEGORIES": 5,  # Nur Grounded Mode: Maximale Anzahl Subkategorien je Hauptkategorie. Die im ersten Durchlauf gesammelten Subcodes werden in Phase 2 auf diesen Wert verdichtet.
     "PDF_SIDEBAR_BAR_WIDTH": 8,  # Breite der Sidebar-Marker in Pixeln
     "PDF_SIDEBAR_SPACING": 2,  # Abstand zwischen Sidebar-Markern
     "INDUCTIVE_CODER_TEMPERATURE": 0.2,  # Temperature für den InductiveCoder

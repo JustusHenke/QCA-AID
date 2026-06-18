@@ -3,7 +3,7 @@
 
 ![QCA-AID Banner](banner-qca-aid.png)
 
-**Version:** 0.12.7.4  
+**Version:** 0.12.8  
 **Zielgruppe:** Sozialwissenschaftler:innen mit Erfahrung in qualitativer Forschung  
 **Autor:** Justus Henke, Institut für Hochschulforschung Halle-Wittenberg
 
@@ -162,6 +162,15 @@ QCA-AID bietet vier verschiedene Analysemodi, die sich in ihrer Offenheit für n
 - Sehr zeitaufwendig
 - Hohe analytische Anforderungen
 - Unvorhersagbare Ergebnisse
+
+> 🆕 **Neu in 0.12.8:** Im Grounded Mode ist im Codebook **ausschließlich die Forschungsfrage verpflichtend**. Deduktive Kategorien sind hier **optional**, da das Hauptkategorien-System während der Analyse **emergent** entsteht. Zusätzlich können Sie über die Konfiguration eine **maximale Anzahl Subkategorien je Hauptkategorie** festlegen (Default 5) – die im ersten Durchlauf gesammelten Subcodes werden dann in Phase 2 vom LLM auf diesen Wert verdichtet.
+
+**Codebook im Grounded Mode:**
+- ✅ **Forschungsfrage** — verpflichtend
+- 🔓 **Deduktive Kategorien** — optional (Hauptkategorien entstehen emergent)
+- 🔓 **Kodierregeln** — empfohlen (geben dem LLM Orientierung in Phase 1)
+
+Der Analyse-Tab blockiert bei leerem Codebook nicht mehr, wenn Grounded Mode aktiv ist.
 
 ---
 
@@ -1236,6 +1245,7 @@ Die folgende Tabelle hilft bei der Auswahl des passenden Analysemodus:
 ```json
 {
   "ANALYSIS_MODE": "grounded",
+  "MAX_SUBCATEGORIES": 5,
   "CODER_SETTINGS": [
     {
       "temperature": 0.8,        // Hoch für maximale Offenheit
@@ -1249,11 +1259,49 @@ Die folgende Tabelle hilft bei der Auswahl des passenden Analysemodus:
 }
 ```
 
+#### 🚀 Codebook im Grounded Mode (ab 0.12.8)
+
+Im Grounded Mode ist **ausschließlich die Forschungsfrage** verpflichtend:
+
+- ✅ **Forschungsfrage** — verpflichtend (im Codebook-Tab)
+- 🔓 **Deduktive Kategorien** — **optional**. Hauptkategorien entstehen emergent aus Phase 1+2.
+- 🔓 **Kodierregeln** — empfohlen, geben dem LLM in Phase 1 Orientierung.
+
+Sie können also einfach die Forschungsfrage definieren und die Analyse starten – das Kategoriensystem wird vom LLM aus den Daten entwickelt.
+
+#### 🚀 Maximale Subkategorien (ab 0.12.8)
+
+In der **Konfiguration** erscheint im Grounded Mode ein zusätzliches Feld
+**„Maximale Subkategorien je Hauptkategorie“** (Default: **5**, Bereich 1–50).
+
+| Wert | Wirkung | Empfehlung |
+|------|---------|------------|
+| **3–5** ⭐ | Fokussierte, leicht handhabbare Kategorien | Für die meisten qualitativen Studien |
+| **6–10** | Ausgewogene Differenzierung | Bei reichhaltigem Datenmaterial |
+| **11–15** | Detaillierte Feinkörnigkeit | Nur bei sehr umfangreichem Material und speziellem Bedarf |
+
+**Was passiert intern?** Die in Phase 1 gesammelten Subcodes übersteigen diesen
+Wert in der Regel. In Phase 2 wird das LLM angewiesen, sehr ähnliche / synonyme
+Subcodes zu jeweils einer Subkategorie zusammenzufassen, bis die Maximalzahl
+pro Hauptkategorie eingehalten wird.
+
+#### 3-Phasen-Ablauf (seit Grounded-Mode-Optimierung)
+
+Der Grounded Mode läuft intern in drei Phasen ab – diese Kenntnis hilft Ihnen
+bei der Interpretation der Logs und der Ergebnisprüfung:
+
+1. **Phase 1 – Subcode-Sammlung:** Iterative Extraktion von Subcodes aus dem Material (≈ 2 API-Calls pro Batch: Relevanzprüfung + Subcode-Extraktion). Die Sammlung wächst stateful über alle Batches hinweg, bis ein Sättigungskriterium greift.
+2. **Phase 2 – Hauptkategorien-Generierung:** Ein einzelner API-Call, in dem das LLM die gesammelten Subcodes zu Hauptkategorien gruppiert und auf max. `MAX_SUBCATEGORIES` Subkategorien je Hauptkategorie **verdichtet**.
+3. **Phase 3 – Kodierung:** Alle relevanten Segmente werden mit den generierten Hauptkategorien kodiert (Batch-Verarbeitung, ≈ 1 API-Call pro Kodierer pro Batch).
+
 #### Besonderheiten
 
 - **Schrittweise Entwicklung:** Codes werden zunächst gesammelt, später zu Hauptkategorien gruppiert
 - **Iterative Analyse:** Mehrere Durchgänge mit Anpassung des Kategoriensystems
 - **Theoretische Sättigung:** Analyse bis keine neuen Kategorien mehr entstehen
+- **Reiner Modus:** Anders als `inductive`/`abductive` werden im Grounded Mode **keine** initialen Kategorien aus dem Codebook verwendet — die Hauptkategorien entstehen rein datengetrieben.
+
+---
 
 ### 11.6 Materialspezifische Empfehlungen
 
@@ -2309,7 +2357,7 @@ QCA-AID bietet Sozialwissenschaftler:innen ein mächtiges Werkzeug zur KI-unters
 
 ### Weiterentwicklung
 
-QCA-AID wird kontinuierlich weiterentwickelt. Die aktuellste Version ist **0.12.7.4** (Juni 2026). Aktuelle Entwicklungen und Updates finden Sie im [GitHub-Repository](https://github.com/JustusHenke/QCA-AID) und im [Changelog](CHANGELOG.md).
+QCA-AID wird kontinuierlich weiterentwickelt. Die aktuellste Version ist **0.12.8** (Juni 2026). Aktuelle Entwicklungen und Updates finden Sie im [GitHub-Repository](https://github.com/JustusHenke/QCA-AID) und im [Changelog](CHANGELOG.md).
 
 **Kontakt für Feedback und Fragen:**  
 Justus Henke  

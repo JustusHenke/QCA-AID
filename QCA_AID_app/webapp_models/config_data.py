@@ -90,6 +90,11 @@ class ConfigData:
     custom_api_key_env: Optional[str] = (
         None  # Benutzerdefinierter Env-Var-Name für Custom-API-Key (z.B. 'CUSTOM_API_KEY', 'GWDG_API_KEY')
     )
+    max_subcategories: int = (
+        5  # Maximale Anzahl Subkategorien je Hauptkategorie (nur Grounded Mode).
+        # Die im ersten Durchlauf gesammelten Subcodes werden in Phase 2 auf diese
+        # Maximalzahl pro Hauptkategorie verdichtet.
+    )
 
     def validate(self) -> Tuple[bool, List[str]]:
         """
@@ -178,6 +183,21 @@ class ConfigData:
             ):
                 errors.append("API base URL must start with http:// or https://")
 
+        # Validate max_subcategories (Grounded Mode)
+        if self.analysis_mode == "grounded":
+            if not isinstance(self.max_subcategories, int):
+                errors.append(
+                    f"Max subcategories must be an integer, got {type(self.max_subcategories).__name__}"
+                )
+            elif self.max_subcategories < 1:
+                errors.append(
+                    f"Max subcategories must be at least 1, got {self.max_subcategories}"
+                )
+            elif self.max_subcategories > 50:
+                errors.append(
+                    f"Max subcategories must not exceed 50, got {self.max_subcategories}"
+                )
+
         return len(errors) == 0, errors
 
     def to_dict(self) -> Dict:
@@ -204,6 +224,7 @@ class ConfigData:
             "enable_optimization": self.enable_optimization,
             "api_base_url": self.api_base_url,
             "custom_api_key_env": self.custom_api_key_env,
+            "max_subcategories": self.max_subcategories,
         }
 
     @classmethod
@@ -262,4 +283,7 @@ class ConfigData:
             custom_api_key_env=data.get(
                 "custom_api_key_env", None
             ),  # Default: None (use provider default env var name)
+            max_subcategories=data.get(
+                "max_subcategories", 5
+            ),  # Default: 5 (Grounded Mode: max Subkategorien je Hauptkategorie)
         )

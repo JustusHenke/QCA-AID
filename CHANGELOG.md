@@ -4,6 +4,50 @@
 
 ---
 
+## Neu in 0.12.8 (2026-06-18)
+
+### 🧪 Grounded Mode — Forschungsfrage als einziges Pflichtfeld
+
+Im **Grounded Mode** (`ANALYSIS_MODE=grounded`) ist im Codebook ab sofort **ausschließlich die Forschungsfrage** verpflichtend. Deduktive (vordefinierte) Kategorien sind **optional**, da das Hauptkategorien-System während der Analyse **emergent** aus dem Material entsteht (3-Phasen-Workflow: Subcode-Sammlung → Hauptkategorien-Generierung → Kodierung).
+
+- **`CodebookData.validate(analysis_mode=...)`** akzeptiert jetzt einen optionalen `analysis_mode`. Im Grounded Mode wird die Kategorie-Pflicht übersprungen – nur die Forschungsfrage wird validiert.
+- **Codebook-UI**: Modus-aware Status-Banner. Im Grounded Mode erscheint ein eigener Hinweis („Hauptkategorien werden emergent gebildet – Forschungsfrage reicht"), statt der bisherigen „Aktion erforderlich"-Warnung.
+- **Analyse-UI**: Der Readiness-Check blockiert im Grounded Mode nicht mehr wegen eines leeren Codebooks. Stattdessen wird eine Warnung angezeigt, dass die emergent-generierten Kategorien noch fehlen – das ist erwartetes Verhalten.
+- **Rückwärtskompatibilität**: Alle anderen Modi (`deductive`, `inductive`, `abductive`) verhalten sich unverändert – das leere Codebook bleibt dort ein harter Fehler.
+
+### 🎛️ Neue Konfigurationsoption: Maximale Subkategorien je Hauptkategorie
+
+- **Neues Feld `max_subcategories`** in `ConfigData` (Default: **5**, Bereich 1–50). Wird in JSON als `max_subcategories` und in `CONFIG` als `MAX_SUBCATEGORIES` persistiert.
+- **UI-Feld in der Konfiguration** erscheint **nur im Grounded Mode** (direkt unter dem Analyse-Modus-Dropdown) als Number-Input inklusive Tipp („3–7 ist für die meisten Studien ein guter Ausgangspunkt") und Sanity-Hinweis bei Werten >15.
+- **Validierung**: Nur im Grounded Mode geprüft; in anderen Modi ignoriert.
+- **Config-Manager** transportiert das Feld round-trip über JSON und XLSX (`get_default_config()`, `_load_from_xlsx()`).
+
+### 🧠 Verdichtungs-Logik in Phase 2 (LLM-gestützt)
+
+- **`OptimizationController.generate_grounded_main_categories(max_subcategories=N)`** akzeptiert den Parameter und reicht ihn an den Prompt weiter.
+- **`_build_main_categories_generation_prompt(max_subcategories=N)`** blendet eine **Verdichtungs-Regel** in den LLM-Prompt ein, **wenn** die Anzahl gesammelter Subcodes den Maximalwert übersteigt. Die Regel lautet sinngemäß:
+  - Maximal N Subkategorien je Hauptkategorie
+  - Synonyme / sehr ähnliche Subcodes zu einer Subkategorie zusammenfassen
+  - 3–12 Hauptkategorien insgesamt
+- Bei kleinen Datenmengen (Subcodes ≤ max) **kein** Verdichtungs-Hinweis im Prompt → minimaler Prompt-Overhead.
+- **Sicherheits-Clamp** auf `[1, 50]` in beiden Methoden.
+- **`analysis_manager.py`** reicht `CONFIG['MAX_SUBCATEGORIES']` an den Controller durch.
+
+### 📚 Dokumentation
+
+- **`KONFIGURATION_ANLEITUNG.md`**: Neuer Abschnitt „Grounded Mode – Besonderheiten" erläutert Pflicht-/Optional-Felder, 3-Phasen-Ablauf und das neue `max_subcategories`-Feld mit Empfehlungen.
+- **`QCA-AID-Nutzerhandbuch.md`**:
+  - Abschnitt 3.4 (Grounded Theory Modus) um Hinweis-Box zur 0.12.8-Erweiterung ergänzt.
+  - Abschnitt 11.5 komplett überarbeitet: Konfigurationsbeispiel mit `MAX_SUBCATEGORIES`, neuer Block „Codebook im Grounded Mode (ab 0.12.8)", Tabelle mit Werte-Empfehlungen und interner Erläuterung der 3-Phasen-Logik.
+- **`examples/config-grounded.json`**: Enthält jetzt `"MAX_SUBCATEGORIES": 5`.
+
+### 🧹 Sonstiges
+
+- QCA-AID Version auf 0.12.8 gehoben (Datum 2026-06-18).
+- CHANGELOG.md aktualisiert.
+
+---
+
 ## Neu in 0.12.7.4 (2026-06-05)
 
 ### 🔑 .env-Autoload für API-Keys
