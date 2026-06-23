@@ -2268,6 +2268,38 @@ class IntegratedAnalysisManager:
 
             print(f"✅ Phase 1 abgeschlossen: {len(subcode_results)} Subcode-Analysen")
 
+            # PHASE 1.5: LLM-gestützte konzeptuelle Verdichtung der Roh-Subcodes.
+            # Hintergrund: Ohne diesen Schritt produziert Phase 1 oft 100+ Roh-
+            # Subcodes auf gleicher Abstraktionsebene, die später in Phase 2
+            # durch das harte max_subcategories-Limit zu 80%+ verloren gehen.
+            # Target: Reduktion auf konzeptuell abstrahierte Subcodes via LLM
+            # (semantisches Clustering, nicht Jaccard/Heuristik).
+            subcodes_count = len(
+                self.optimization_controller.grounded_subcodes_collection
+            )
+            # Ziel-Wert: 50 oder die Hälfte, je nachdem was größer ist (min 30)
+            target_pre_cluster = max(30, min(50, subcodes_count // 2))
+            if subcodes_count > target_pre_cluster:
+                consolidated = (
+                    await self.optimization_controller._consolidate_subcodes_with_llm(
+                        subcodes=list(
+                            self.optimization_controller.grounded_subcodes_collection
+                        ),
+                        research_question=self.research_question,
+                        target_count=target_pre_cluster,
+                    )
+                )
+                if consolidated and len(consolidated) < subcodes_count:
+                    self.optimization_controller.grounded_subcodes_collection = (
+                        consolidated
+                    )
+                    # IDs neu vergeben für klare Reihenfolge nach Verdichtung
+                    for i, sc in enumerate(
+                        self.optimization_controller.grounded_subcodes_collection,
+                        1,
+                    ):
+                        sc["id"] = i
+
             # PHASE 2: Hauptkategorien-Generierung
             if len(self.optimization_controller.grounded_subcodes_collection) >= 5:
                 # WICHTIG: Im Grounded Mode KEINE initial_categories verwenden (rein induktiv)

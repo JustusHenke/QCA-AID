@@ -4672,8 +4672,12 @@ class OptimizationController:
                             for sc in self.grounded_subcodes_collection
                         ]
                         if subcode_name not in existing_names:
+                            # FIX: Vergibt deterministische ID für strikte
+                            # Referenzierung in Phase 2 (vermeidet Paraphrasierung
+                            # und Paraphrasen-Drift im LLM-Output).
                             self.grounded_subcodes_collection.append(
                                 {
+                                    "id": len(self.grounded_subcodes_collection) + 1,
                                     "name": subcode_name,
                                     "definition": code.get("definition", ""),
                                     "keywords": code.get("keywords", keywords),
@@ -4690,8 +4694,10 @@ class OptimizationController:
                         sc.get("name", "") for sc in self.grounded_subcodes_collection
                     ]
                     if subcode_name not in existing_names:
+                        # FIX: Vergibt deterministische ID (siehe oben)
                         self.grounded_subcodes_collection.append(
                             {
+                                "id": len(self.grounded_subcodes_collection) + 1,
                                 "name": subcode_name,
                                 "definition": f"Grounded Theory Subcode: {subcode_name}",
                                 "keywords": keywords,
@@ -4995,6 +5001,7 @@ class OptimizationController:
         for subcode in self.grounded_subcodes_collection:
             subcodes_data.append(
                 {
+                    "id": subcode.get("id"),  # FIX: ID mitführen für strikte Referenz
                     "name": subcode.get("name", ""),
                     "definition": subcode.get("definition", ""),
                     "keywords": subcode.get("keywords", []),
@@ -5061,6 +5068,15 @@ class OptimizationController:
                 result, None
             )
 
+            # FIX: Deterministische Limitierung der Subkategorien je Hauptkategorie
+            # auf `max_subcategories`. Passiert NACH dem LLM-Call, damit das LLM
+            # bei der thematischen Zuordnung nicht durch Limits abgelenkt wird.
+            # Ranking-Kriterien: Confidence (primär), Keyword-Vielfalt (sekundär),
+            # Definition-Länge (Tiefe, tertiär).
+            generated_categories = self._enforce_max_subcategories_limit(
+                generated_categories, max_subcategories
+            )
+
             print(f"✅ {len(generated_categories)} Hauptkategorien generiert")
 
             # Zeige generierte Hauptkategorien
@@ -5099,52 +5115,49 @@ class OptimizationController:
             top_keywords: Häufigste Keywords über alle Subcodes.
             research_question: Forschungsfrage.
             avg_confidence: Durchschnittliche Konfidenz der Subcodes.
-            max_subcategories: Max. Anzahl Subkategorien je Hauptkategorie
-                (Default 5). Das LLM wird angewiesen, die Subcodes auf
-                diesen Wert zu verdichten (synonyme / sehr ähnliche
-                Subcodes zu einer Subkategorie zusammenfassen).
+            max_subcategories: Wird hier nur als Information an das LLM
+                weitergegeben. Die tatsächliche Begrenzung wird im
+                nachgelagerten Schritt `_enforce_max_subcategories_limit`
+                deterministisch per Ranking durchgesetzt.
+
+        FIX (Grounded-Mode Subkategorien-Bug): Das LLM referenziert die
+        Subcodes ausschließlich per numerischer ID. So wird sichergestellt,
+        dass keine Paraphrasen oder Umformulierungen die strikte Zuordnung
+        in Phase 3 zerstören.
         """
-        # Sicherheits-Clamp
+        # Sicherheits-Clamp (nur als Info, keine Limit-Erzwingung)
         try:
             max_subcategories = int(max_subcategories)
         except (TypeError, ValueError):
             max_subcategories = 5
         max_subcategories = max(1, min(max_subcategories, 50))
 
+        # FIX: Subcodes werden mit stabilen IDs aufgelistet. Das LLM darf
+        # in seiner Antwort ausschließlich diese IDs referenzieren.
         subcodes_text = ""
-        for i, subcode in enumerate(subcodes_data, 1):
-            keywords_str = ", ".join(subcode["keywords"][:10])
+        for subcode in subcodes_data:
+            sid = subcode.get("id")
+            keywords_str = ", ".join((subcode.get("keywords") or [])[:10])
             subcodes_text += f"""
-{i}. Subcode: {subcode["name"]}
+[ID {sid}] {subcode["name"]}
    Definition: {subcode["definition"]}
    Keywords: {keywords_str}
-   Konfidenz: {subcode["confidence"]:.2f}
+   Konfidenz: {subcode.get("confidence", 0.7):.2f}
    Textbelege: {len(subcode.get("evidence", []))}
 """
 
         top_keywords_str = ", ".join([kw for kw, _ in top_keywords[:15]])
 
-        # Verdichtungs-Instruktion nur dann einblenden, wenn die Subcode-Liste
-        # die Maximalzahl übersteigt und Verdichtung somit nötig ist.
-        compression_hint = ""
-        if len(subcodes_data) > max_subcategories:
-            compression_hint = (
-            f"\nVERDICHTUNGS-REGEL (WICHTIG):\n"
-            f"- Pro Hauptkategorie dürfen maximal {max_subcategories} "
-            f"Subkategorien ausgegeben werden.\n"
-            f"- Wenn thematisch passende Subcodes diese Zahl übersteigen, "
-            f"fasse sehr ähnliche / synonyme Subcodes zu einer einzigen "
-            f"Subkategorie zusammen (allgemeinere Formulierung).\n"
-            f"- Die Anzahl der Hauptkategorien soll insgesamt zwischen "
-            f"3 und 12 liegen.\n"
-        )
-
+        # FIX: Instruktionen verzichten auf Verdichtung; das macht die
+        # nachgelagerte Ranking-Funktion. Das LLM darf ALLE relevanten
+        # Subcodes pro Hauptkategorie referenzieren – das verbessert die
+        # Treue der Zuordnung.
         return f"""Generiere Hauptkategorien aus gesammelten Subcodes nach Grounded Theory.
 
 FORSCHUNGSFRAGE:
 {research_question}
 
-GESAMMELTE SUBCODES ({len(subcodes_data)}):
+GESAMMELTE SUBCODES ({len(subcodes_data)}, jeweils mit stabiler ID in eckigen Klammern):
 {subcodes_text}
 
 TOP KEYWORDS:
@@ -5157,66 +5170,117 @@ AUFGABE:
 2. Gruppiere verwandte Subcodes zu Hauptkategorien
 3. Entwickle präzise Definitionen für jede Hauptkategorie
 4. Stelle sicher, dass Hauptkategorien die Forschungsfrage abdecken
-{compression_hint}
+5. Die Gesamtanzahl der Hauptkategorien soll zwischen 3 und 12 liegen
+
+⚠️ KRITISCHE AUSGABE-REGELN:
+- Verwende in `related_subcode_ids` AUSSCHLIESSLICH die numerischen IDs aus
+  den eckigen Klammern oben (z.B. [ID 42] → 42).
+- Übernimm die Subcode-Namen NICHT 1:1 in `related_subcodes`. Wenn du sie
+  dennoch auflisten möchtest, kopiere den exakten Original-String.
+- Alle Subcodes, die thematisch zu einer Hauptkategorie passen, sollen
+  referenziert werden. Eine nachträgliche Limitierung erfolgt programmatisch
+  durch Ranking (Confidence + Häufigkeit).
+
 Antworte NUR mit folgendem JSON-Format:
 {{
   "main_categories": [
     {{
       "name": "Hauptkategorie-Name",
       "definition": "Detaillierte Definition der Hauptkategorie",
-      "related_subcodes": ["Subcode1", "Subcode2", ...],
+      "related_subcode_ids": [42, 17, 88, ...],
       "confidence": 0.85,
       "coverage": "Beschreibung wie diese Kategorie die Forschungsfrage abdeckt"
     }},
     ...
   ],
   "analysis_summary": "Zusammenfassung der Kategorienbildung"
-}}"""
+}}
+
+Info: Die spätere Begrenzung auf ca. {max_subcategories} Subkategorien je
+Hauptkategorie erfolgt automatisch – du musst dich nicht darum kümmern."""
 
     def _parse_main_categories_from_grounded(
         self,
         result: Dict[str, Any],
         initial_categories: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
-        """Konvertiert LLM-Ergebnis zu CategoryDefinitions."""
+        """Konvertiert LLM-Ergebnis zu CategoryDefinitions.
+
+        FIX (Grounded-Mode Subkategorien-Bug): Striktes ID-basiertes Mapping.
+
+        Das LLM referenziert in Phase 2 ausschließlich Subcode-IDs aus einer
+        vorgegebenen Liste (siehe _build_main_categories_generation_prompt).
+        Diese Funktion löst die IDs 1:1 zu CategoryDefinitions auf – OHNE
+        Fuzzy-Matching, OHNE Umbenennung. Unbekannte IDs werden mit Warnung
+        verworfen, damit keine Halluzinationen in den Kategorienbaum gelangen.
+
+        Das `max_subcategories`-Limit wird im Prompt NICHT erzwungen – das
+        passiert in einem nachgelagerten Reduktions-Schritt durch deterministisches
+        Ranking (Confidence + Häufigkeit) in `_enforce_max_subcategories_limit`.
+        """
         main_categories = result.get("main_categories", [])
         # WICHTIG: Im Grounded Mode KEINE initial_categories verwenden - rein induktiv!
         generated = {}  # Leeres Dict - keine vordefinierten Kategorien!
 
+        # Lookup-Map: ID -> Subcode-Details (strikt, exakt).
+        # Wir indizieren sowohl numerische/string IDs als auch Namen
+        # (case-insensitive) als Fallback, falls das LLM noch Namen liefert.
+        subcodes_by_id: Dict[str, Dict[str, Any]] = {}
+        for sc in self.grounded_subcodes_collection:
+            sid = sc.get("id")
+            sname = (sc.get("name") or "").strip()
+            if sid is not None:
+                subcodes_by_id[str(sid)] = sc
+            if sname:
+                subcodes_by_id[sname.lower()] = sc
+
+        unmatched_log: List[str] = []
+
         for cat_data in main_categories:
-            cat_name = cat_data.get("name", "").strip()
+            cat_name = (cat_data.get("name") or "").strip()
             if not cat_name:
                 continue
 
-            # Erstelle CategoryDefinition
-            related_subcodes = cat_data.get("related_subcodes", [])
-            subcategories = {}
+            # FIX: Bevorzugt ID-basiertes Feld; Fallback auf alte Feldnamen.
+            related_refs: List[Any] = (
+                cat_data.get("related_subcode_ids")
+                or cat_data.get("subcode_ids")
+                or cat_data.get("assigned_subcode_ids")
+                or cat_data.get("related_subcodes")
+                or cat_data.get("subcodes")
+                or cat_data.get("assigned_subcodes")
+                or []
+            )
 
-            # Erstelle Subkategorien aus related_subcodes
-            for subcode_name in related_subcodes:
-                # Finde Subcode-Details
-                subcode_details = next(
-                    (
-                        sc
-                        for sc in self.grounded_subcodes_collection
-                        if sc.get("name") == subcode_name
+            subcategories: Dict[str, Any] = {}
+            for sub_ref in related_refs:
+                if sub_ref is None:
+                    continue
+                sub_ref_clean = str(sub_ref).strip()
+                if not sub_ref_clean:
+                    continue
+                sub_ref_lower = sub_ref_clean.lower()
+
+                # Strikter Lookup – KEINE Heuristik
+                subcode_details = subcodes_by_id.get(sub_ref_lower)
+                if subcode_details is None:
+                    unmatched_log.append(f"{cat_name} → '{sub_ref_clean}'")
+                    continue
+
+                # Original-Namen aus der Sammlung verwenden (Konsistenz)
+                original_name = subcode_details.get("name", sub_ref_clean)
+                current_date = datetime.now().strftime("%Y-%m-%d")
+                subcategories[original_name] = CategoryDefinition(
+                    name=original_name,
+                    definition=subcode_details.get(
+                        "definition", f"Subcode: {original_name}"
                     ),
-                    None,
+                    examples=[],
+                    rules=[],
+                    subcategories={},
+                    added_date=current_date,
+                    modified_date=current_date,
                 )
-
-                if subcode_details:
-                    current_date = datetime.now().strftime("%Y-%m-%d")
-                    subcategories[subcode_name] = CategoryDefinition(
-                        name=subcode_name,
-                        definition=subcode_details.get(
-                            "definition", f"Subcode: {subcode_name}"
-                        ),
-                        examples=[],
-                        rules=[],
-                        subcategories={},
-                        added_date=current_date,
-                        modified_date=current_date,
-                    )
 
             current_date = datetime.now().strftime("%Y-%m-%d")
             generated[cat_name] = CategoryDefinition(
@@ -5229,7 +5293,343 @@ Antworte NUR mit folgendem JSON-Format:
                 modified_date=current_date,
             )
 
+        # Diagnostisches Logging: nicht aufgelöste Subcode-Referenzen
+        if unmatched_log:
+            print(
+                f"   ⚠️  {len(unmatched_log)} Subcode-Referenzen aus Phase 2 "
+                f"konnten nicht eindeutig zugeordnet werden und wurden verworfen:"
+            )
+            for entry in unmatched_log[:10]:
+                print(f"      - {entry}")
+            if len(unmatched_log) > 10:
+                print(f"      ... und {len(unmatched_log) - 10} weitere")
+
         return generated
+
+    async def _consolidate_subcodes_with_llm(
+        self,
+        subcodes: List[Dict[str, Any]],
+        research_question: str,
+        target_count: int = 50,
+    ) -> List[Dict[str, Any]]:
+        """Verdichtet Roh-Subcodes konzeptuell via LLM (Phase 1.5).
+
+        Hintergrund (Grounded-Mode Bug 0.12.8.1):
+            In Phase 1 produziert das LLM oft 100+ Roh-Subcodes auf gleicher
+            Abstraktionsebene (deskriptive Einzelbeobachtungen, teils Paraphrasen
+            voneinander). Das harte max_subcategories-Limit in Phase 2 würde
+            80%+ der Subcodes verwerfen → massiver Informationsverlust.
+
+        Diese Methode ruft das LLM mit der Aufgabe auf, ähnliche Subcodes zu
+        abstrahierteren Subcodes zusammenzufassen – rein semantisch, OHNE
+        Wissen um die spätere Hauptkategorien-Zuordnung.
+
+        Args:
+            subcodes: Aktuelle grounded_subcodes_collection (mit id, name, ...).
+            research_question: Forschungsfrage (für thematischen Kontext).
+            target_count: Ziel-Anzahl nach Verdichtung (Default 50).
+
+        Returns:
+            Neue Liste von Subcodes. Jeder Eintrag behält sein `id`-Feld,
+            ergänzt um `merged_from` (Liste der Original-IDs) und `merge_reason`.
+            Bei API-Fehler: Rückgabe der ursprünglichen Liste unverändert.
+        """
+        if not subcodes or len(subcodes) <= target_count:
+            return subcodes
+
+        # Prompt: nummerierte Subcodes mit ID, Name, Definition, Keywords
+        subcodes_listing = ""
+        for sc in subcodes:
+            sid = sc.get("id")
+            sname = (sc.get("name") or "").strip()
+            sdef = (sc.get("definition") or "").strip()
+            keywords = sc.get("keywords") or []
+            kw_str = ", ".join(str(k) for k in keywords[:8] if k)
+            subcodes_listing += (
+                f"[ID {sid}] {sname}\n   Definition: {sdef}\n   Keywords: {kw_str}\n\n"
+            )
+
+        prompt = f"""Du führst eine konzeptuelle Verdichtung von Grounded-Theory-Subcodes durch.
+
+KONTEXT (Forschungsfrage):
+{research_question}
+
+AUFGABE:
+Du erhältst {len(subcodes)} Roh-Subcodes aus Phase 1 einer Grounded-Theory-Analyse.
+Viele davon beschreiben ähnliche Phänomene auf gleicher Abstraktionsebene
+(z.B. Paraphrasen voneinander, oder spezifische Einzelbeobachtungen eines
+übergreifenden Konzepts). Deine Aufgabe ist es, diese konzeptuell
+zusammenzufassen – OHNE dabei Informationen zu verlieren.
+
+REGELN:
+1. Ziel-Anzahl: ca. {target_count} verdichtete Subcodes (darf ±20% abweichen)
+2. Jeder verdichtete Subcode referenziert die IDs aller Original-Subcodes,
+   aus denen er entstanden ist (typisch 2-5 Originale pro Verdichtung)
+3. Subcodes, die inhaltlich unverwechselbar sind, bleiben einzeln erhalten
+4. KEINE Hauptkategorien bilden – nur Subcode-Hierarchie
+5. Verdichtete Namen sollen ABSTRAHIERTER sein als die Originale
+   (z.B. "Fehlende Nachfrage" + "Geringe Studierendennachfrage" +
+   "Nicht-Anfrage bei Studierenden" → "Geringe Studierendennachfrage nach Förderangeboten")
+6. KEINE Halluzination: nur Zusammenfassen, was in den Originalen steht
+
+ROH-SUBCODES ({len(subcodes)}):
+{subcodes_listing}
+
+Antworte NUR mit folgendem JSON-Format:
+{{
+  "consolidated_subcodes": [
+    {{
+      "name": "Abstrahierter Name",
+      "definition": "Abstrahierte Definition, die alle Originale abdeckt",
+      "merged_from_ids": [1, 5, 12],
+      "merge_reason": "Begründung: Alle drei beschreiben X aus unterschiedlichen Perspektiven",
+      "keywords": ["keyword1", "keyword2", "keyword3"]
+    }},
+    ...
+  ],
+  "saturation_note": "Kurze Einschätzung: Sind die Subcodes thematisch gesättigt? Was fehlt ggf.?"
+}}"""
+
+        try:
+            from QCA_AID_assets.utils.llm.response import LLMResponse
+            from QCA_AID_assets.utils.tracking.token_tracker import (
+                get_global_token_counter,
+            )
+
+            token_counter = get_global_token_counter()
+            token_counter.start_request()
+
+            response = await self.llm_provider.create_completion(
+                model=self.model_name,
+                messages=[
+                    {
+                        "role": "system",
+                        "content": (
+                            "Du bist ein Experte für Grounded Theory und qualitative "
+                            "Datenanalyse. Du antwortest auf Deutsch. Antworte "
+                            "ausschließlich mit einem JSON-Objekt."
+                        ),
+                    },
+                    {"role": "user", "content": prompt},
+                ],
+                temperature=0.3,  # Niedrig für konsistente Verdichtung
+                response_format={"type": "json_object"},
+            )
+
+            token_counter.track_response(response, self.model_name)
+
+            llm_response = LLMResponse(response)
+            result = json.loads(llm_response.extract_json())
+
+            consolidated = result.get("consolidated_subcodes", [])
+            if not consolidated:
+                print(
+                    "   ⚠️  Pre-Clustering: LLM lieferte leere Liste, "
+                    "verwende Original-Subcodes unverändert"
+                )
+                return subcodes
+
+            # Mappe die LLM-Cluster zurück auf die Original-Subcode-Strukturen.
+            # Wir übernehmen Felder aus dem Original mit höchstem Confidence
+            # und ergänzen die Verdichtungs-Metadaten aus dem LLM.
+            subcodes_by_id = {
+                sc.get("id"): sc for sc in subcodes if sc.get("id") is not None
+            }
+
+            new_subcodes: List[Dict[str, Any]] = []
+            next_id = max(subcodes_by_id.keys(), default=0) + 1
+            seen_ids = set()
+            unmatched_ids: List[int] = []
+
+            for cluster in consolidated:
+                merged_from = cluster.get("merged_from_ids") or []
+                # Validierung: IDs müssen in der Original-Liste sein
+                valid_origs = [mid for mid in merged_from if mid in subcodes_by_id]
+                if not valid_origs:
+                    continue
+
+                # Repräsentant: Original mit höchstem Confidence
+                rep = max(
+                    valid_origs,
+                    key=lambda mid: float(
+                        subcodes_by_id[mid].get("confidence", 0.7) or 0.7
+                    ),
+                )
+                rep_sc = subcodes_by_id[rep]
+
+                # Keywords vereinen (max 15)
+                all_kws: List[str] = []
+                for mid in valid_origs:
+                    for k in subcodes_by_id[mid].get("keywords") or []:
+                        if k and k not in all_kws:
+                            all_kws.append(str(k))
+                # LLM-Keywords können zusätzlich aufgenommen werden
+                for k in cluster.get("keywords") or []:
+                    if k and k not in all_kws:
+                        all_kws.append(str(k))
+                all_kws = all_kws[:15]
+
+                # Evidence vereinen
+                all_evid = []
+                for mid in valid_origs:
+                    for ev in subcodes_by_id[mid].get("evidence") or []:
+                        if ev and ev not in all_evid:
+                            all_evid.append(ev)
+
+                # Confidence: max der beteiligten Originale
+                max_conf = max(
+                    float(subcodes_by_id[mid].get("confidence", 0.7) or 0.7)
+                    for mid in valid_origs
+                )
+
+                new_subcodes.append(
+                    {
+                        "id": next_id,
+                        "name": (
+                            cluster.get("name") or rep_sc.get("name") or ""
+                        ).strip(),
+                        "definition": (
+                            cluster.get("definition") or rep_sc.get("definition") or ""
+                        ).strip(),
+                        "keywords": all_kws,
+                        "evidence": all_evid,
+                        "confidence": max_conf,
+                        "merged_from": valid_origs,
+                        "merge_reason": cluster.get("merge_reason", ""),
+                        "is_consolidated": True,
+                    }
+                )
+                next_id += 1
+                seen_ids.update(valid_origs)
+
+            # FIX: Originale, die das LLM NICHT zugeordnet hat, bleiben
+            # zusätzlich erhalten (Vorsichtsprinzip – lieber behalten als
+            # versehentlich verlieren). Das LLM könnte welche vergessen.
+            for sc in subcodes:
+                if sc.get("id") not in seen_ids:
+                    sc_copy = dict(sc)
+                    sc_copy["is_consolidated"] = False
+                    new_subcodes.append(sc_copy)
+                    unmatched_ids.append(sc.get("id"))
+
+            # Diagnostik
+            original_count = len(subcodes)
+            consolidated_count = len(new_subcodes)
+            merged_origs = sum(1 for sc in new_subcodes if sc.get("is_consolidated"))
+            kept_singles = consolidated_count - merged_origs
+
+            print(
+                f"   🧬 Pre-Clustering (LLM): {original_count} → {consolidated_count} "
+                f"Subcodes ({merged_origs} verdichtet + {kept_singles} unverändert)"
+            )
+            if result.get("saturation_note"):
+                print(f"   📊 Sättigungs-Einschätzung: {result['saturation_note']}")
+
+            return new_subcodes
+
+        except Exception as e:
+            print(
+                f"   ⚠️  Pre-Clustering fehlgeschlagen: {e}\n"
+                f"   ↪  Verwende Original-Subcodes unverändert"
+            )
+            import traceback
+
+            traceback.print_exc()
+            return subcodes
+
+    def _enforce_max_subcategories_limit(
+        self,
+        categories: Dict[str, Any],
+        max_subcategories: int,
+    ) -> Dict[str, Any]:
+        """Reduziert die Subkategorien je Hauptkategorie deterministisch auf max_subcategories.
+
+        FIX (Grounded-Mode Subkategorien-Bug): Wird nach Phase 2 aufgerufen,
+        damit das LLM bei der thematischen Zuordnung nicht durch Limits
+        abgelenkt wird. Das passiert hier programmatisch per Ranking.
+
+        Ranking-Kriterien (in Reihenfolge der Priorität):
+          1. Confidence des Subcodes (höher = besser)
+          2. Anzahl Textbelege (mehr = belastbarer)
+          3. Anzahl unterschiedlicher Keywords (mehr = breiter anwendbar)
+
+        Args:
+            categories: Dict mit Hauptkategorie -> CategoryDefinition
+            max_subcategories: Maximale Anzahl Subkategorien je Hauptkategorie
+
+        Returns:
+            Gleiches Dict, aber mit reduzierten Subkategorien je Hauptkategorie.
+        """
+        try:
+            max_subcategories = int(max_subcategories)
+        except (TypeError, ValueError):
+            max_subcategories = 5
+        max_subcategories = max(1, min(max_subcategories, 50))
+
+        if not categories:
+            return categories
+
+        # Lookup: Subcode-Name -> Subcode-Details (für Ranking-Metriken)
+        subcodes_lookup: Dict[str, Dict[str, Any]] = {}
+        for sc in self.grounded_subcodes_collection:
+            sname = (sc.get("name") or "").strip()
+            if sname:
+                subcodes_lookup[sname] = sc
+                subcodes_lookup[sname.lower()] = sc
+
+        def _subcode_score(name: str) -> Tuple[float, int, int, int]:
+            """Liefert (confidence, evidence_count, keyword_diversity, name_len)
+            als Tuple – höhere Werte = besser."""
+            sc = subcodes_lookup.get(name) or subcodes_lookup.get(name.lower())
+            if not sc:
+                return (0.0, 0, 0, 0)
+            confidence = float(sc.get("confidence", 0.7) or 0.7)
+            evidence_count = len(sc.get("evidence") or [])
+            keywords = sc.get("keywords") or []
+            keyword_diversity = len({(k or "").strip().lower() for k in keywords if k})
+            return (confidence, evidence_count, keyword_diversity, len(name))
+
+        reduced_count = 0
+        for cat_name, cat_def in categories.items():
+            if not hasattr(cat_def, "subcategories") or not cat_def.subcategories:
+                continue
+            if len(cat_def.subcategories) <= max_subcategories:
+                continue
+
+            # Ranking: höhere Tupel = besser; negative len(name) für kürzere Namen zuerst
+            ranked = sorted(
+                cat_def.subcategories.items(),
+                key=lambda item: (
+                    _subcode_score(item[0])[0],  # confidence
+                    _subcode_score(item[0])[1],  # evidence
+                    _subcode_score(item[0])[2],  # keyword diversity
+                    -_subcode_score(item[0])[3],  # kürzerer Name = kompakter
+                ),
+                reverse=True,
+            )
+
+            kept_names = {name for name, _ in ranked[:max_subcategories]}
+            dropped = [name for name, _ in ranked[max_subcategories:]]
+            new_subs = {
+                name: cat_def.subcategories[name]
+                for name in cat_def.subcategories
+                if name in kept_names
+            }
+            cat_def.subcategories = new_subs
+            reduced_count += len(dropped)
+            if dropped:
+                print(
+                    f"   ✂️  '{cat_name}': {len(dropped)} Subkategorien auf "
+                    f"{max_subcategories} reduziert (Ranking nach Confidence/Evidenz)"
+                )
+
+        if reduced_count:
+            print(
+                f"   📊 Insgesamt {reduced_count} Subkategorien durch deterministisches "
+                f"Ranking entfernt (Limit: {max_subcategories} je Hauptkategorie)"
+            )
+
+        return categories
 
     async def code_with_grounded_categories(
         self,

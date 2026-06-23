@@ -4,6 +4,76 @@
 
 ---
 
+## Neu in 0.12.8.2 (2026-06-23)
+
+### 🧬 Grounded Mode — Phase 1.5: Konzeptuelle Subcode-Verdichtung via LLM
+
+Nach dem ersten Fix in 0.12.8.1 (strikte ID-basierte Subcode-Zuordnung) wurde ein zweites, tieferliegendes Architektur-Problem sichtbar: Die in Phase 1 vom LLM gesammelten Subcodes sind **deskriptive Einzelbeobachtungen auf gleicher Abstraktionsebene** – oft Paraphrasen oder Detailvarianten voneinander. In einem realen Lauf mit 182 Roh-Subcodes führte das harte `max_subcategories=5`-Limit pro Hauptkategorie dazu, dass **188 von 213 Subcodes (88%) verworfen** wurden, weil 36-49 Subcodes je Hauptkategorie konkurrierten.
+
+**Fix:** Neuer Zwischenschritt **Phase 1.5** zwischen Subcode-Sammlung und Hauptkategorien-Generierung.
+
+- **Neue Methode** `OptimizationController._consolidate_subcodes_with_llm(subcodes, research_question, target_count=50)`:
+  - Fordert das LLM auf, ähnliche Roh-Subcodes konzeptuell zu abstrahierteren Subcodes zusammenzufassen
+  - Strikt vertikale Verdichtung (Subcode-Hierarchie) – **keine** Hauptkategorien-Bildung
+  - Jeder verdichtete Subcode enthält `merged_from_ids` (vollständige Provenienz) und `merge_reason` (Begründung)
+  - Ziel-Anzahl dynamisch: `max(30, min(50, subcodes_count // 2))`
+  - **Vorsichtsprinzip**: Originale, die das LLM nicht zuordnet, bleiben zusätzlich erhalten (lieber behalten als versehentlich verlieren)
+  - **Sättigungs-Einschätzung**: Das LLM gibt zusätzlich eine Einschätzung zur thematischen Sättigung zurück
+  - **Robuster Fallback**: Bei API-Fehler werden Original-Subcodes unverändert verwendet – die Analyse läuft weiter
+
+- **Integration in `analysis_manager.py`** zwischen Phase 1 und Phase 2:
+  - IDs werden nach Verdichtung neu vergeben (1, 2, 3, ...) für saubere Phase-2-Referenzierung
+  - Verwendet dieselbe LLM-Provider-Instanz wie der Rest der Pipeline
+
+**Drei-Stufen-Architektur jetzt:**
+
+```
+Phase 1   Roh-Subcodes (LLM, deskriptiv, 100+ Einträge)
+Phase 1.5 Pre-Clustering (LLM, konzeptuell → ca. 50 Einträge)        ← NEU
+Phase 2   Hauptkategorien (LLM, thematische Zuordnung)
+          + deterministisches Ranking auf max_subcategories
+Phase 3   Kodierung (LLM, gegen Hauptkategorien + Subkategorien)
+```
+
+**Erwarteter Effekt:** Statt 88% Informationsverlust durch das harte Ranking sollten in der finalen Tabelle jetzt deutlich mehr abstrahierte, aber inhaltlich valide Subkategorien sichtbar sein. Das LLM bekommt in Phase 2 außerdem ein **deutlich saubereres Subcode-Set** – weniger Drifts und Paraphrasen-Rauschen.
+
+### 🧹 Sonstiges
+
+- QCA-AID Version auf 0.12.8.2 gehoben (Datum 2026-06-23).
+- CHANGELOG.md aktualisiert.
+
+---
+
+## Neu in 0.12.8.1 (2026-06-23)
+
+### 🐛 Grounded Mode — Subkategorien wurden verschluckt
+
+Im Grounded Mode konnten nach Phase 2 (Hauptkategorien-Generierung) nur noch **1 von 182** Subcodes tatsächlich als Subkategorie zugeordnet werden – die Export-Tabelle zeigte daher trotz großer Materialbasis praktisch leere Subkategorie-Zeilen.
+
+**Root Cause** (drei kaskadierende Bugs):
+
+1. **Phase-2-Prompt war überlastet**: Das LLM sollte gleichzeitig 182 Subcodes gruppieren, paraphrasierte Namen liefern (`related_subcodes`) und eigenständig auf `max_subcategories=5` verdichten. Bei Modellen wie `qwen3.6-35b-a3b` resultierte das in Namens-Drift – das LLM formulierte Subcode-Namen um, und der strikte `==`-Lookup in der Folgeverarbeitung schlug fehl.
+2. **Striktes Namens-Matching** in `_parse_main_categories_from_grounded`: Bereits ein abweichender Buchstabe führte zum Verlust der Subkategorie.
+3. **Phase 3 ohne Subkategorien**: Da Phase 2 bereits leere `subcategories` zurückgab, konnte das LLM in Phase 3 keine Subkategorien vergeben.
+
+**Fix (in `QCA_AID_assets/optimization/controller.py`):**
+
+- **Striktes ID-basiertes Mapping**: Gesammelte Subcodes erhalten beim Anlegen eine deterministische `id` (`1, 2, 3, ...`). Der Phase-2-Prompt präsentiert sie als `[ID 42] Subcode-Name` und fordert ausschließlich numerische IDs in `related_subcode_ids` zurück – **kein** Freitext, **keine** Paraphrasierung.
+- **`_parse_main_categories_from_grounded` nutzt strikten Lookup** auf `id` bzw. Original-Name (case-insensitive). Unbekannte Referenzen werden mit Warnung geloggt, statt unbemerkt verloren zu gehen.
+- **Verdichtung wandert aus dem LLM-Prompt**: Die `max_subcategories`-Regel steht nicht mehr im Prompt (verhindert Drift), sondern wird durch die neue Methode **`_enforce_max_subcategories_limit`** deterministisch umgesetzt.
+- **Ranking-Kriterien** der neuen Methode (in Reihenfolge der Priorität): Confidence des Subcodes → Anzahl Textbelege → Anzahl unterschiedlicher Keywords → kürzerer Name.
+- **Diagnostik**: Nicht aufgelöste Subcode-IDs werden im Log mit `⚠️ X Subcode-Referenzen aus Phase 2 konnten nicht eindeutig zugeordnet werden und wurden verworfen` ausgewiesen, statt unbemerkt zu verschwinden.
+- **Abwärtskompatibilität**: Die alten Feldnamen (`related_subcodes`, `subcodes`, `assigned_subcodes`) werden weiterhin als Fallback akzeptiert.
+
+**Erwartetes Verhalten beim nächsten Lauf:** alle Hauptkategorien zeigen jetzt `└─ X Subkategorien`-Zeilen, und die Export-Tabelle enthält korrekt zugeordnete Subkategorien pro Hauptkategorie (begrenzt durch `MAX_SUBCATEGORIES` aus der Config). HINWEIS: Bei hoher Subcode-Anzahl (>50) wird das harte 5er-Limit in Phase 2 trotzdem viele Subkategorien verwerfen – Abhilfe in Version 0.12.8.2 (Phase 1.5 Pre-Clustering).
+
+### 🧹 Sonstiges
+
+- QCA-AID Version auf 0.12.8.1 gehoben (Datum 2026-06-23).
+- CHANGELOG.md aktualisiert.
+
+---
+
 ## Neu in 0.12.8 (2026-06-18)
 
 ### 🧪 Grounded Mode — Forschungsfrage als einziges Pflichtfeld

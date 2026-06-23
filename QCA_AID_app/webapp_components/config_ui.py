@@ -705,7 +705,7 @@ def _load_model_pricing(provider_display_name: str, model_id: str) -> Optional[t
     # Map display names to config file names
     # For Mistral, we'll search in OpenRouter since Mistral models are there
     provider_file_map = {
-        "OpenAI": ["openai.json"],
+        "OpenAI / Custom API Provider": ["openai.json"],
         "Anthropic": ["anthropic.json"],
         "Mistral": ["openrouter.json"],  # Mistral models are in OpenRouter
         "OpenRouter": ["openrouter.json"],
@@ -932,7 +932,7 @@ def render_model_settings():
 
     # Map provider IDs to display names (define at function scope)
     provider_display_map = {
-        "openai": "OpenAI",
+        "openai": "OpenAI / Custom API Provider",
         "anthropic": "Anthropic",
         "mistral": "Mistral",
         "openrouter": "OpenRouter",
@@ -1007,7 +1007,7 @@ def render_model_settings():
             st.error(f"Fehler beim Laden der Provider: {e}")
             # Fallback to hardcoded options
             provider_options = [
-                "OpenAI",
+                "OpenAI / Custom API Provider",
                 "Anthropic",
                 "Mistral",
                 "OpenRouter",
@@ -1017,7 +1017,7 @@ def render_model_settings():
     else:
         # Fallback to hardcoded options if manager not available
         provider_options = [
-            "OpenAI",
+            "OpenAI / Custom API Provider",
             "Anthropic",
             "Mistral",
             "OpenRouter",
@@ -1286,7 +1286,7 @@ def render_model_settings():
                 current_model_idx = 0
         else:
             # Fallback zu hardcodierten Optionen
-            if new_provider == "OpenAI":
+            if new_provider == "OpenAI / Custom API Provider":
                 model_options = [
                     "gpt-4o",
                     "gpt-4o-mini",
