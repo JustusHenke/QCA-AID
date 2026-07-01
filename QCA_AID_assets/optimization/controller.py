@@ -1526,69 +1526,78 @@ class OptimizationController:
                             )
                             all_results.extend(batch_results)
                         else:
-                        # Process individually for small batches
-                        for segment in batch:
-                            seg_prefs = (
-                                category_preselections.get(segment["segment_id"], {})
-                                if category_preselections
-                                else {}
-                            )
-                            preferred_cats = seg_prefs.get("preferred_categories", [])
-
-                            # Filter categories if preferences exist
-                            effective_categories = category_definitions
-                            if preferred_cats:
-                                effective_categories = {
-                                    name: definition
-                                    for name, definition in category_definitions.items()
-                                    if name in preferred_cats
-                                }
-
-                            # Get progressive context paraphrases for this segment
-                            context_paraphrases = []
-                            if use_context and document_paraphrases:
-                                context_paraphrases = (
-                                    self._get_progressive_context_paraphrases(
-                                        segment["segment_id"],
-                                        document_paraphrases,
-                                        context_paraphrase_count,
+                            # Process individually for small batches
+                            for segment in batch:
+                                seg_prefs = (
+                                    category_preselections.get(
+                                        segment["segment_id"], {}
                                     )
+                                    if category_preselections
+                                    else {}
+                                )
+                                preferred_cats = seg_prefs.get(
+                                    "preferred_categories", []
                                 )
 
-                            # Analyze single segment
-                            result = await self.unified_analyzer.analyze_single(
-                                segment=segment,
-                                category_definitions=effective_categories,
-                                research_question=research_question,
-                                coding_rules=coding_rules,
-                                batch_size=batch_size,
-                                temperature=coder_temperature,
-                                context_paraphrases=context_paraphrases
-                                if context_paraphrases
-                                else None,
-                            )
+                                # Filter categories if preferences exist
+                                effective_categories = category_definitions
+                                if preferred_cats:
+                                    effective_categories = {
+                                        name: definition
+                                        for name, definition in category_definitions.items()
+                                        if name in preferred_cats
+                                    }
 
-                            if result:
-                                formatted_res = self._format_single_coding_result(
-                                    result, coder_id, preferred_cats, seg_prefs
-                                )
-                                all_results.append(formatted_res)
-
-                                # Invoke paraphrase callback
-                                if paraphrase_callback and formatted_res.get(
-                                    "result", {}
-                                ).get("paraphrase"):
-                                    paraphrase_callback(
-                                        segment["segment_id"],
-                                        formatted_res["result"]["paraphrase"],
+                                # Get progressive context paraphrases for this segment
+                                context_paraphrases = []
+                                if use_context and document_paraphrases:
+                                    context_paraphrases = (
+                                        self._get_progressive_context_paraphrases(
+                                            segment["segment_id"],
+                                            document_paraphrases,
+                                            context_paraphrase_count,
+                                        )
                                     )
+
+                                # Analyze single segment
+                                result = await self.unified_analyzer.analyze_single(
+                                    segment=segment,
+                                    category_definitions=effective_categories,
+                                    research_question=research_question,
+                                    coding_rules=coding_rules,
+                                    batch_size=batch_size,
+                                    temperature=coder_temperature,
+                                    context_paraphrases=context_paraphrases
+                                    if context_paraphrases
+                                    else None,
+                                )
+
+                                if result:
+                                    formatted_res = self._format_single_coding_result(
+                                        result, coder_id, preferred_cats, seg_prefs
+                                    )
+                                    all_results.append(formatted_res)
+
+                                    # Invoke paraphrase callback
+                                    if paraphrase_callback and formatted_res.get(
+                                        "result", {}
+                                    ).get("paraphrase"):
+                                        paraphrase_callback(
+                                            segment["segment_id"],
+                                            formatted_res["result"]["paraphrase"],
+                                        )
 
                     except Exception as coder_error:
                         # FIX: Bei Fehler in einem Kodierer-Batch: Teilergebnisse bewahren,
                         # nicht den gesamten Batch verlieren
-                        print(f"   ❌ Fehler bei Kodierer '{coder_id}' in Batch {batch_num}: {coder_error}")
-                        print(f"   ⚠️ Fahre mit verfügbaren Teilergebnissen fort ({len(all_results)} bisher)")
+                        print(
+                            f"   ❌ Fehler bei Kodierer '{coder_id}' in Batch {batch_num}: {coder_error}"
+                        )
+                        print(
+                            f"   ⚠️ Fahre mit verfügbaren Teilergebnissen fort ({len(all_results)} bisher)"
+                        )
                         import traceback
+
                         traceback.print_exc()
                         # Continue with other coders - don't let one failed coder lose all results
 
