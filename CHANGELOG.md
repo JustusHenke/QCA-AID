@@ -4,6 +4,131 @@
 
 ---
 
+## Neu in 0.12.9.3 (2026-07-01)
+
+### ⚡ Parallele Relevanzprüfung und Kategoriepräferenzen
+
+**Problem:** Die Relevanzprüfung (Schritt 1) und Kategoriepräferenzen (Schritt 2) verarbeiteten Batches sequenziell – obwohl jeder Batch unabhängig ist und keine Abhängigkeiten zwischen Batches bestehen.
+
+**Lösung:** `asyncio.gather()` für Relevanz- und Kategoriepräferenz-Batches:
+
+- **`analyze_relevance_simple`** (`unified_relevance_analyzer.py`):
+  - Neue Helper-Methode `_process_single_relevance_batch()` mit vollständiger Retry/Fallback-Logik
+  - Hauptmethode erstellt Tasks für alle Batches und führt sie mit `asyncio.gather(*, return_exceptions=True)` parallel aus
+  - Ergebnisse werden nach Abschluss in Reihenfolge zusammengeführt
+
+- **`analyze_category_preferences`** (`unified_relevance_analyzer.py`):
+  - Analoge Refaktorisierung mit `_process_single_category_preferences_batch()`
+  - Parallele Verarbeitung aller Kategoriepräferenz-Batches
+
+**Gesamte Pipeline jetzt parallel:**
+
+```
+Schritt 1: Relevanz-Batches        → 🚀 PARALLEL (asyncio.gather)
+Schritt 2: Kategoriepräferenzen     → 🚀 PARALLEL (asyncio.gather)
+Schritt 3: auto_1 + auto_2 Kodierung → 🚀 PARALLEL (asyncio.gather, seit 0.12.9)
+```
+
+**Erwarteter Effekt:**
+- Schritt 1: −60-70% (14 Batches parallel statt sequenziell)
+- Schritt 2: −60-70% (10 Batches parallel statt sequenziell)
+- Gesamtlaufzeit bei 105 Segmenten: von ~1h auf ~20-30 Min geschätzt
+
+### 🧹 Sonstiges
+
+- QCA-AID Version auf 0.12.9.3 gehoben (Datum 2026-07-01).
+- CHANGELOG.md aktualisiert.
+
+---
+
+## Neu in 0.12.9.2 (2026-07-01)
+
+### 🐛 Bugfix: LLM gibt "SEGMENT N" als segment_id zurück statt des korrekten Dokumentnamens
+
+**Problem:** In Batches mit 8 Segmenten gab das LLM gelegentlich "SEGMENT 1", "SEGMENT 2" etc. als `segment_id` in der JSON-Antwort zurück, obwohl der Prompt den korrekten Namen enthielt (z.B. `keinDS_na_privat_HS395.docx_chunk_5`). Der Grund: Der Prompt formatiert Segmente als `SEGMENT {i+1} (ID: {seg['segment_id']})`, und das LLM wählte vereinfachend das Präfix statt der ID in Klammern.
+
+**Symptom:** Die Export-Tabelle zeigte 18 "Unbekanntes_Dokument"-Zeilen mit `segment_id` wie "SEGMENT 1-1", "SEGMENT 2-2" etc., die nicht zu den echten segment_ids passten.
+
+**Fix** in `unified_relevance_analyzer.py._parse_batch_result()`:
+- Validiert jede LLM-Antwort-`segment_id` gegen die Menge der Original-segment_ids
+- Erkennt "SEGMENT N"-Pattern und ersetzt es durch die korrekte `segment_id` via positionalem Mapping (idx-th Result → idx-th Segment)
+- Bei allen nicht-passenden IDs: Fallback auf positionales Mapping
+
+**Gleichzeitig** (0.12.9.1): Text-Fix in `controller.py` – `result["text"]` wird jetzt immer gesetzt, nicht nur bei Mehrfachkodierung.
+
+### 🧹 Sonstiges
+
+- QCA-AID Version auf 0.12.9.2 gehoben (Datum 2026-07-01).
+- CHANGELOG.md aktualisiert.
+
+---
+
+## Neu in 0.12.9.1 (2026-07-01)
+
+### 🐛 Bugfix: Segment-Texte fehlten im Export bei normaler Kodierung
+
+**Problem:** Die Export-Tabelle zeigte für die meisten Segmente "Unbekanntes_Dokument" und "[Original-Text nicht verfügbar]" statt der echten Dokumentnamen und Transkript-Texte. Die Coding-Matrix war korrekt (Dokument-Spalten zeigten richtige Namen), aber die Segment-Text-Tabelle war leer.
+
+**Root Cause:** In `_batch_analyze_deductive()` (und analog in inductive/abductive) wurde der Text aus dem Segment nur bei **Mehrfachkodierung** (`first_result["result"]["text"] = original_text`) in das Ergebnis geschrieben. Bei **normaler Kodierung** wurde `_format_single_coding_result()` aufgerufen, das kein `text`-Feld im Result-Dictionary setzte. Der Export versuchte dann vergeblich, den Text über `segment_id` im Cache zu finden – aber der Cache war nur aus den fehlerhaften Coding-Ergebnissen befüllt.
+
+**Fix (4 Stellen):**
+- `_batch_analyze_deductive` (deductive): `formatted_res["result"]["text"] = original_text` nach `_format_single_coding_result()`
+- `_batch_analyze_deductive` (inductive): `ind_format_res["result"]["text"] = original_text` nach `_format_single_coding_result_inductive()`
+- `_batch_analyze_deductive` (abductive): `abd_format_res["result"]["text"] = original_text` nach `_format_single_coding_result_abductive()`
+- Parallele Closures (deductive/abductive): `formatted_res["result"]["text"] = segment["text"]` bei Einzelsegment-Verarbeitung
+
+### 🧹 Sonstiges
+
+- QCA-AID Version auf 0.12.9.1 gehoben (Datum 2026-07-01).
+- CHANGELOG.md aktualisiert.
+
+---
+
+## Neu in 0.12.9 (2026-07-01)
+
+### ⚡ Parallele Multi-Kodierung — API-Laufzeit halbiert
+
+**Problem:** Im Multi-Kodierer-Modus (2 Kodierer mit unterschiedlichen Temperaturen für Intercoder-Reliability) wurden beide Kodierer **strikt sequenziell** verarbeitet – auto_1 musste alle Batches abschließen, bevor auto_2 starten konnte. Bei 105 Segmenten mit 13 Batches und Mehrfachkodierung resultierte das in einer Kodierungszeit von über 2 Stunden (statt erwarteter ~30 Minuten). Die `Geschwindigkeit`-Anzeige sank kontinuierlich, da der Durchschnittsberechner `total_segments / elapsed_time` den steigenden Zeitverbrauch widerspiegelte.
+
+**Ursachenanalyse:**
+- `asyncio` war bereits importiert und `AsyncOpenAI` unterstützt parallele Requests
+- Der `OptimizationController` rief jedoch `await self._batch_analyze_deductive(...)` sequenziell im `for coder_config in coder_settings:`-Loop auf
+- Jeder `await`-Aufruf blockierte den Event-Loop bis zum Abschluss des gesamten Batches inkl. aller fokussierten Mehrfachkodierungs-Calls
+- Der `DynamicCacheManager` war für die Kodierungs-Performance irrelevant (0% Hit Rate, Cache ist ein No-Op bei frischen Analysen)
+
+**Lösung:** `asyncio.gather()` für parallele Kodierung beider Kodierer in allen Analysemodi:
+
+- **Deductive Mode** (`_analyze_deductive`):
+  - Statt `for coder_config: await _batch_analyze_deductive()` → `_coder_task_deductive()` async-Funktion pro Kodierer + `asyncio.gather(*tasks, return_exceptions=True)`
+  - Jeder Kodierer verarbeitet seinen gesamten Batch inkl. fokussierter Mehrfachkodierung unabhängig
+  - Ergebnisse werden erst nach `gather` gemeinsam in `all_results` eingefügt
+
+- **Inductive Mode** (`_analyze_inductive`):
+  - Statt `for coder_config: await _analyze_inductive_coding_only()` → direkte Task-Erstellung + `asyncio.gather()`
+  - `_store_results_for_reliability()` wird erst nach Abschluss aller Kodierer aufgerufen (Thread-sicher)
+
+- **Abductive Mode** (`_analyze_abductive`):
+  - Gleiches Muster wie Deductive: async Closure-Funktion `_coder_task_abductive()` pro Kodierer + `asyncio.gather()`
+  - Funktioniert sowohl für Batch- als auch für Einzelsegment-Verarbeitung
+
+**Sicherheitsgarantien:**
+- `return_exceptions=True` → Ein fehlgeschlagener Kodierer killt den anderen nicht
+- AsyncIO ist single-threaded (Cooperative Multitasking) → Keine Race Conditions im Cache oder in der Reliability-DB
+- Closure-Variablen (`_cid`, `_ctemp`) werden als Parameter übergeben (kein Late-Binding-Fehler)
+- `Grounded Mode` bleibt unverändert (nur Single-Coder)
+
+**Erwarteter Effekt:**
+- Kodierungszeit: **−50%** (beide Coder laufen parallel statt sequenziell)
+- Relevanzprüfung und Kategoriepräferenzen waren bereits shared (1× API-Call für alle Kodierer)
+- Gesamtlaufzeit bei deduktiver Analyse mit 105 Segmenten: von ~2h auf ~1h geschätzt
+
+### 🧹 Sonstiges
+
+- QCA-AID Version auf 0.12.9 gehoben (Datum 2026-07-01).
+- CHANGELOG.md aktualisiert.
+
+---
+
 ## Neu in 0.12.8.4 (2026-07-01)
 
 ### 🛡️ API-Fehler-Resilienz — Drei-Stufen-Schutz gegen vorzeitigen Abbruch

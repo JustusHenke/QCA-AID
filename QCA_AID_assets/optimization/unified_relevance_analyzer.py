@@ -113,47 +113,31 @@ class UnifiedRelevanceAnalyzer:
             deduktive_kategorien=categories or {},
         )
 
-    async def analyze_relevance_simple(
+    async def _process_single_relevance_batch(
         self,
-        segments: List[Dict[str, str]],
+        batch: List[Dict[str, str]],
+        batch_num: int,
+        total_batches: int,
         research_question: str,
-        batch_size: int = 5,
         relevance_threshold: float = 0.0,
-        return_all_results: bool = False,
-    ) -> List[Dict[str, Any]]:
+    ) -> Tuple[List[Dict], List[Dict]]:
         """
-        Simple relevance check without category preferences (for inductive/abductive/grounded modes).
-        Uses batching to respect batch_size limits.
-
-        Args:
-            segments: List of dicts with 'segment_id' and 'text'
-            research_question: Research question context
-            batch_size: Maximum segments per API call
-            relevance_threshold: Minimum confidence for relevant segments (default: 0.0)
-            return_all_results: If True, return all LLM results (relevant + non-relevant), if False return only relevant (default: False)
+        Process a single relevance batch. Used by analyze_relevance_simple for parallel execution.
 
         Returns:
-            List of dicts with relevance information (only relevant segments by default, or all if return_all_results=True)
+            Tuple of (all_results, filtered_results) for this batch
         """
-        all_results = []  # Alle LLM-Ergebnisse (relevant + nicht-relevant)
-        results = []  # Nur die finalen relevanten Ergebnisse
+        batch_all_results = []
+        batch_filtered_results = []
 
-        # Process in batches
-        total_batches = (len(segments) + batch_size - 1) // batch_size
         print(
-            f"   🔄 Verarbeite {len(segments)} Segmente in {total_batches} Batches (Batch-Größe: {batch_size})"
+            f"   📦 Relevanz-Batch {batch_num}/{total_batches}: {len(batch)} Segmente"
         )
 
-        for i in range(0, len(segments), batch_size):
-            batch = segments[i : i + batch_size]
-            if not batch:
-                continue
+        max_retries = 2
+        last_error = None
 
-            batch_num = (i // batch_size) + 1
-            print(
-                f"   📦 Relevanz-Batch {batch_num}/{total_batches}: {len(batch)} Segmente"
-            )
-
+        for attempt in range(max_retries + 1):
             try:
                 start_time = asyncio.get_event_loop().time()
                 token_counter.start_request()
@@ -198,7 +182,7 @@ class UnifiedRelevanceAnalyzer:
                         f"   🔄 Retry Batch {batch_num}/{total_batches} (leere/ungültige LLM-Antwort)..."
                     )
                     try:
-                        await asyncio.sleep(2)  # Kurze Pause vor Retry
+                        await asyncio.sleep(2)
                         token_counter.start_request()
                         retry_response = await self.llm_provider.create_completion(
                             model=self.model_name,
@@ -243,15 +227,15 @@ class UnifiedRelevanceAnalyzer:
                                 "classification_confidence": 0.5,
                                 "relevance_reasoning": "Fallback: JSON-Parsing der LLM-Antwort fehlgeschlagen",
                             }
-                            all_results.append(fallback_result)
-                            results.append(
+                            batch_all_results.append(fallback_result)
+                            batch_filtered_results.append(
                                 {
                                     "segment_id": segment["segment_id"],
                                     "research_relevance": 0.5,
                                     "relevance_reasoning": "Fallback: JSON-Parsing der LLM-Antwort fehlgeschlagen",
                                 }
                             )
-                        continue
+                        return batch_all_results, batch_filtered_results
 
                 # Adapt standard prompt response format to expected format
                 standard_results = result.get("segment_results", [])
@@ -262,32 +246,21 @@ class UnifiedRelevanceAnalyzer:
                     if segment_number <= len(batch):
                         segment_id = batch[segment_number - 1]["segment_id"]
                     else:
-                        # Fallback if segment_number is out of range
                         segment_id = f"unknown_segment_{segment_number}"
 
-                    # Extrahiere LLM-Entscheidung und beide Confidence-Werte
                     is_relevant = std_result.get("is_relevant", False)
 
-                    # FIX: Robuste Extraktion der Confidence-Werte
-                    # Priorität: spezifische Felder > generisches confidence Feld > Fallback
                     relevance_strength = std_result.get("relevance_strength")
                     classification_confidence = std_result.get(
                         "classification_confidence"
                     )
                     generic_confidence = std_result.get("confidence", 0.0)
 
-                    # Wenn spezifische Felder fehlen, verwende generisches confidence
                     if relevance_strength is None:
                         relevance_strength = generic_confidence
-                        print(
-                            f"   ⚠️ DEBUG: Using generic confidence for relevance_strength in {segment_id}: {generic_confidence}"
-                        )
 
                     if classification_confidence is None:
                         classification_confidence = generic_confidence
-                        print(
-                            f"   ⚠️ DEBUG: Using generic confidence for classification_confidence in {segment_id}: {generic_confidence}"
-                        )
 
                     research_relevance = (
                         float(relevance_strength)
@@ -295,7 +268,6 @@ class UnifiedRelevanceAnalyzer:
                         else 0.0
                     )
 
-                    # Erstelle Ergebnis für alle LLM-Bewertungen (für Statistik)
                     all_result = {
                         "segment_id": segment_id,
                         "is_relevant": is_relevant,
@@ -310,64 +282,13 @@ class UnifiedRelevanceAnalyzer:
                         ),
                         "key_aspects": std_result.get("key_aspects", []),
                     }
-                    all_results.append(all_result)
+                    batch_all_results.append(all_result)
 
-                    # DEBUG: Intelligente Inkonsistenz-Erkennung
-                    reasoning = all_result["relevance_reasoning"].lower()
-                    if not is_relevant:
-                        # Positive Relevanz-Indikatoren (sollten bei is_relevant=False nicht vorkommen)
-                        positive_indicators = [
-                            "ist relevant",
-                            "direkt relevant",
-                            "zentral für",
-                            "wichtig für die forschung",
-                            "behandelt relevante aspekte",
-                            "liefert relevante",
-                            "beiträgt zur forschung",
-                            "für die forschungsfrage relevant",
-                            "thematisiert relevante",
-                        ]
-                        # Negative Indikatoren (sind OK bei is_relevant=False)
-                        negative_indicators = [
-                            "nicht relevant",
-                            "keine relevanten",
-                            "keinen direkten bezug",
-                            "zu allgemein",
-                            "keine spezifischen",
-                            "administrative informationen",
-                            "lediglich kontakt",
-                            "ohne spezifischen bezug",
-                            "fehlt der bezug",
-                            "nicht zur forschungsfrage",
-                        ]
-
-                        has_positive = any(
-                            indicator in reasoning for indicator in positive_indicators
-                        )
-                        has_negative = any(
-                            indicator in reasoning for indicator in negative_indicators
-                        )
-
-                        # Nur warnen wenn positive Indikatoren ohne negative vorhanden sind
-                        if has_positive and not has_negative:
-                            print(
-                                f"   ⚠️ INKONSISTENZ {segment_id}: is_relevant=False aber reasoning beschreibt Relevanz"
-                            )
-                            print(
-                                f"      Confidence: {research_relevance}, Reasoning: {all_result['relevance_reasoning'][:150]}..."
-                            )
-
-                    # Filterlogik: Berücksichtige sowohl LLM-Entscheidung als auch Confidence-Schwelle
-                    # Bei niedrigen Schwellen (<0.3): Inkludiere auch LLM-verworfene Segmente mit ausreichender Confidence
-                    # Bei Standard-Schwelle (0.3): Verwende LLM-Entscheidungen
-                    # Bei hohen Schwellen (>0.3): Zusätzliche Filterung auch bei LLM-relevanten Segmenten
-
+                    # Filterlogik
                     include_segment = False
                     if relevance_threshold < 0.3:
-                        # Niedrige Schwelle: Inkludiere basierend auf Confidence, ignoriere LLM is_relevant
                         include_segment = research_relevance >= relevance_threshold
                     else:
-                        # Standard/Hohe Schwelle: LLM muss relevant markiert haben UND Confidence-Schwelle erreichen
                         include_segment = (
                             is_relevant and research_relevance >= relevance_threshold
                         )
@@ -380,30 +301,152 @@ class UnifiedRelevanceAnalyzer:
                                 "justification", "Keine Begründung verfügbar"
                             ),
                         }
-                        results.append(adapted_result)
+                        batch_filtered_results.append(adapted_result)
+
+                return batch_all_results, batch_filtered_results
 
             except Exception as e:
-                # Handle batch errors gracefully
-                print(
-                    f"   ⚠️ Fehler in Relevanzprüfung Batch {i // batch_size + 1}: {e}"
-                )
-                # Fallback: Alle Segmente als relevant markieren, damit nichts verloren geht
-                for segment in batch:
-                    all_results.append(
-                        {
-                            "segment_id": segment["segment_id"],
-                            "is_relevant": True,
-                            "research_relevance": 0.5,
-                            "relevance_reasoning": f"Fallback (relevant): Fehler bei der Analyse: {str(e)}",
-                        }
+                last_error = e
+                if attempt < max_retries:
+                    is_transient = False
+                    error_str = str(e).lower()
+                    for marker in [
+                        "error code: 500",
+                        "error code: 502",
+                        "error code: 503",
+                        "error code: 429",
+                        "error code: 529",
+                    ]:
+                        if marker in error_str:
+                            is_transient = True
+                            break
+                    if is_transient:
+                        wait_time = 2**attempt + 1
+                        print(
+                            f"   ⚠️ API-Fehler (transient) in Batch {batch_num} (Versuch {attempt + 1}/{max_retries + 1}): {e}"
+                        )
+                        print(f"   🔄 Wiederhole Batch in {wait_time}s...")
+                        await asyncio.sleep(wait_time)
+                    else:
+                        break
+                else:
+                    break
+
+        # All retries exhausted - fallback
+        print(f"   ⚠️ Fehler in Relevanzprüfung Batch {batch_num}: {last_error}")
+        for segment in batch:
+            batch_all_results.append(
+                {
+                    "segment_id": segment["segment_id"],
+                    "is_relevant": True,
+                    "research_relevance": 0.5,
+                    "classification_confidence": 0.5,
+                    "relevance_reasoning": f"Fallback (relevant): Fehler bei der Analyse: {str(last_error)}",
+                }
+            )
+            batch_filtered_results.append(
+                {
+                    "segment_id": segment["segment_id"],
+                    "research_relevance": 0.5,
+                    "relevance_reasoning": f"Fallback (relevant): Fehler bei der Analyse: {str(last_error)}",
+                }
+            )
+        return batch_all_results, batch_filtered_results
+
+    async def analyze_relevance_simple(
+        self,
+        segments: List[Dict[str, str]],
+        research_question: str,
+        batch_size: int = 5,
+        relevance_threshold: float = 0.0,
+        return_all_results: bool = False,
+    ) -> List[Dict[str, Any]]:
+        """
+        Simple relevance check without category preferences (for inductive/abductive/grounded modes).
+        Uses parallel batching for faster processing.
+
+        Args:
+            segments: List of dicts with 'segment_id' and 'text'
+            research_question: Research question context
+            batch_size: Maximum segments per API call
+            relevance_threshold: Minimum confidence for relevant segments (default: 0.0)
+            return_all_results: If True, return all LLM results (relevant + non-relevant), if False return only relevant (default: False)
+
+        Returns:
+            List of dicts with relevance information (only relevant segments by default, or all if return_all_results=True)
+        """
+        all_results = []  # Alle LLM-Ergebnisse (relevant + nicht-relevant)
+        results = []  # Nur die finalen relevanten Ergebnisse
+
+        # Process in batches
+        total_batches = (len(segments) + batch_size - 1) // batch_size
+        print(
+            f"   🔄 Verarbeite {len(segments)} Segmente in {total_batches} Batches (Batch-Größe: {batch_size})"
+        )
+
+        # 🚀 PARALLEL: Alle Relevanz-Batches gleichzeitig verarbeiten
+        if total_batches > 1:
+            # Create tasks for all batches
+            batch_tasks = []
+            for i in range(0, len(segments), batch_size):
+                batch = segments[i : i + batch_size]
+                batch_num = (i // batch_size) + 1
+                if batch:
+                    task = self._process_single_relevance_batch(
+                        batch=batch,
+                        batch_num=batch_num,
+                        total_batches=total_batches,
+                        research_question=research_question,
+                        relevance_threshold=relevance_threshold,
                     )
-                    results.append(
-                        {
-                            "segment_id": segment["segment_id"],
-                            "research_relevance": 0.5,
-                            "relevance_reasoning": f"Fallback (relevant): Fehler bei der Analyse: {str(e)}",
-                        }
-                    )
+                    batch_tasks.append((batch_num, task))
+
+            # Execute all batches in parallel
+            gather_results = await asyncio.gather(
+                *[t[1] for t in batch_tasks], return_exceptions=True
+            )
+
+            # Merge results in order
+            for (batch_num, _), result in zip(batch_tasks, gather_results):
+                if isinstance(result, Exception):
+                    print(f"   ⚠️ Fehler in Relevanzprüfung Batch {batch_num}: {result}")
+                    # Find the batch segments for fallback
+                    start_idx = (batch_num - 1) * batch_size
+                    end_idx = min(start_idx + batch_size, len(segments))
+                    for segment in segments[start_idx:end_idx]:
+                        all_results.append(
+                            {
+                                "segment_id": segment["segment_id"],
+                                "is_relevant": True,
+                                "research_relevance": 0.5,
+                                "classification_confidence": 0.5,
+                                "relevance_reasoning": f"Fallback (relevant): Fehler bei der Analyse: {str(result)}",
+                            }
+                        )
+                        results.append(
+                            {
+                                "segment_id": segment["segment_id"],
+                                "research_relevance": 0.5,
+                                "relevance_reasoning": f"Fallback (relevant): Fehler bei der Analyse: {str(result)}",
+                            }
+                        )
+                else:
+                    batch_all, batch_filtered = result
+                    all_results.extend(batch_all)
+                    results.extend(batch_filtered)
+        else:
+            # Single batch - no need for parallel processing
+            batch = segments
+            batch_num = 1
+            batch_all, batch_filtered = await self._process_single_relevance_batch(
+                batch=batch,
+                batch_num=batch_num,
+                total_batches=total_batches,
+                research_question=research_question,
+                relevance_threshold=relevance_threshold,
+            )
+            all_results.extend(batch_all)
+            results.extend(batch_filtered)
 
         # Statistiken berechnen
         llm_relevant_count = sum(1 for r in all_results if r.get("is_relevant", False))
@@ -703,6 +746,147 @@ class UnifiedRelevanceAnalyzer:
             segments_text=segments_text, categories=category_definitions
         )
 
+    async def _process_single_category_preferences_batch(
+        self,
+        batch: List[Dict[str, str]],
+        batch_num: int,
+        total_batches: int,
+        category_definitions: Dict[str, str],
+        research_question: str,
+        coding_rules: List[str],
+    ) -> List[Dict]:
+        """Process a single category preferences batch."""
+        batch_results = []
+
+        print(
+            f"   📦 Kategoriepräferenzen-Batch {batch_num}/{total_batches}: {len(batch)} Segmente"
+        )
+
+        try:
+            start_time = asyncio.get_event_loop().time()
+            token_counter.start_request()
+
+            prompt = self._build_category_preferences_prompt(
+                segments=batch,
+                category_definitions=category_definitions,
+                research_question=research_question,
+                coding_rules=coding_rules,
+            )
+
+            response = await self.llm_provider.create_completion(
+                model=self.model_name,
+                messages=[
+                    {
+                        "role": "system",
+                        "content": "Du bist ein Experte für qualitative Inhaltsanalyse. Du antwortest auf Deutsch. Antworte ausschließlich mit einem JSON-Objekt.",
+                    },
+                    {"role": "user", "content": prompt},
+                ],
+                temperature=self.temperature,
+                response_format={"type": "json_object"},
+            )
+
+            token_counter.track_response(response, self.model_name)
+            processing_time_ms = (asyncio.get_event_loop().time() - start_time) * 1000
+
+            record_api_call(
+                call_type="category_preferences",
+                tokens_used=self._estimate_tokens(prompt, response),
+                processing_time_ms=processing_time_ms,
+                success=True,
+            )
+
+            llm_response = LLMResponse(response)
+            json_text = llm_response.extract_json()
+
+            if not json_text or json_text.strip() == "":
+                raise ValueError("Empty JSON response from LLM")
+
+            result = json.loads(json_text)
+
+            if not isinstance(result, dict):
+                raise ValueError(f"Expected dict from LLM, got {type(result)}")
+
+            if "segment_results" in result:
+                standard_results = result.get("segment_results", [])
+
+                if not isinstance(standard_results, list):
+                    standard_results = []
+
+                for std_result in standard_results:
+                    if std_result is None or not isinstance(std_result, dict):
+                        continue
+
+                    segment_number = std_result.get("segment_number", 1)
+                    if segment_number <= len(batch):
+                        segment_id = batch[segment_number - 1]["segment_id"]
+                    else:
+                        segment_id = f"unknown_segment_{segment_number}"
+
+                    category_scores = std_result.get("category_scores", {})
+                    preferred_categories = std_result.get("preferred_categories", [])
+                    reasoning = std_result.get(
+                        "reasoning", "Keine Begründung verfügbar"
+                    )
+
+                    if not isinstance(category_scores, dict):
+                        category_scores = {}
+                    if not isinstance(preferred_categories, list):
+                        preferred_categories = []
+                    if not isinstance(reasoning, str):
+                        reasoning = (
+                            str(reasoning)
+                            if reasoning is not None
+                            else "Keine Begründung verfügbar"
+                        )
+
+                    batch_results.append(
+                        {
+                            "segment_id": segment_id,
+                            "category_preferences": category_scores,
+                            "top_categories": preferred_categories,
+                            "preference_reasoning": reasoning,
+                        }
+                    )
+
+                # Check for missing segments
+                processed_ids = {r["segment_id"] for r in batch_results}
+                for segment in batch:
+                    if segment["segment_id"] not in processed_ids:
+                        batch_results.append(
+                            {
+                                "segment_id": segment["segment_id"],
+                                "category_preferences": {},
+                                "top_categories": [],
+                                "preference_reasoning": "Keine Kategoriepräferenzen ermittelt (fehlende LLM-Response)",
+                            }
+                        )
+            else:
+                # Fallback format
+                for segment in batch:
+                    batch_results.append(
+                        {
+                            "segment_id": segment["segment_id"],
+                            "category_preferences": {},
+                            "top_categories": [],
+                            "preference_reasoning": "Keine Kategoriepräferenzen ermittelt (Fallback)",
+                        }
+                    )
+
+        except Exception as e:
+            print(f"   ⚠️ Fehler in Kategoriepräferenzen Batch {batch_num}: {e}")
+            for segment in batch:
+                batch_results.append(
+                    {
+                        "segment_id": segment["segment_id"],
+                        "category_preferences": {},
+                        "top_categories": [],
+                        "preference_reasoning": f"Fehler bei der Analyse: {str(e)}",
+                    }
+                )
+
+        return batch_results
+
     async def analyze_category_preferences(
         self,
         segments: List[Dict[str, str]],
@@ -713,233 +897,65 @@ class UnifiedRelevanceAnalyzer:
     ) -> List[Dict[str, Any]]:
         """
         Bestimme Kategoriepräferenzen für bereits als relevant bestätigte Segmente.
-        Uses batching to respect batch_size limits.
-
-        Diese Methode führt KEINE Relevanzprüfung durch, sondern bestimmt nur
-        welche Kategorien am besten zu den Segmenten passen.
-
-        Args:
-            segments: Liste bereits relevanter Segmente mit 'segment_id' und 'text'
-            category_definitions: Dictionary mapping category names to descriptions
-            research_question: Research question context
-            coding_rules: List of coding rules
-            batch_size: Maximum segments per API call
-
-        Returns:
-            List of dicts with category preference information
+        Uses parallel batching for faster processing.
         """
         results = []
 
-        # Process in batches
         total_batches = (len(segments) + batch_size - 1) // batch_size
         print(
             f"   🔄 Verarbeite {len(segments)} Segmente in {total_batches} Batches (Batch-Größe: {batch_size})"
         )
 
-        for i in range(0, len(segments), batch_size):
-            batch = segments[i : i + batch_size]
-            if not batch:
-                continue
+        # 🚀 PARALLEL: Alle Kategoriepräferenz-Batches gleichzeitig verarbeiten
+        if total_batches > 1:
+            batch_tasks = []
+            for i in range(0, len(segments), batch_size):
+                batch = segments[i : i + batch_size]
+                batch_num = (i // batch_size) + 1
+                if batch:
+                    task = self._process_single_category_preferences_batch(
+                        batch=batch,
+                        batch_num=batch_num,
+                        total_batches=total_batches,
+                        category_definitions=category_definitions,
+                        research_question=research_question,
+                        coding_rules=coding_rules,
+                    )
+                    batch_tasks.append((batch_num, task))
 
-            batch_num = (i // batch_size) + 1
-            print(
-                f"   📦 Kategoriepräferenzen-Batch {batch_num}/{total_batches}: {len(batch)} Segmente"
+            gather_results = await asyncio.gather(
+                *[t[1] for t in batch_tasks], return_exceptions=True
             )
 
-            try:
-                start_time = asyncio.get_event_loop().time()
-                token_counter.start_request()
-
-                prompt = self._build_category_preferences_prompt(
-                    segments=batch,
-                    category_definitions=category_definitions,
-                    research_question=research_question,
-                    coding_rules=coding_rules,
-                )
-
-                response = await self.llm_provider.create_completion(
-                    model=self.model_name,
-                    messages=[
-                        {
-                            "role": "system",
-                            "content": "Du bist ein Experte für qualitative Inhaltsanalyse. Du antwortest auf Deutsch. Antworte ausschließlich mit einem JSON-Objekt.",
-                        },
-                        {"role": "user", "content": prompt},
-                    ],
-                    temperature=self.temperature,
-                    response_format={"type": "json_object"},
-                )
-
-                token_counter.track_response(response, self.model_name)
-                processing_time_ms = (
-                    asyncio.get_event_loop().time() - start_time
-                ) * 1000
-
-                record_api_call(
-                    call_type="category_preferences",
-                    tokens_used=self._estimate_tokens(prompt, response),
-                    processing_time_ms=processing_time_ms,
-                    success=True,
-                )
-
-                llm_response = LLMResponse(response)
-                json_text = llm_response.extract_json()
-
-                # Additional safety check for JSON parsing
-                if not json_text or json_text.strip() == "":
-                    raise ValueError("Empty JSON response from LLM")
-
-                result = json.loads(json_text)
-
-                # Ensure result is a dictionary
-                if not isinstance(result, dict):
-                    raise ValueError(f"Expected dict from LLM, got {type(result)}")
-
-                # Debug: Log the structure of the result
-                # print(f"   🔍 DEBUG: LLM response structure: {list(result.keys())}")
-                if "segment_results" in result:
-                    segment_results = result["segment_results"]
-                    # print(f"   🔍 DEBUG: segment_results type: {type(segment_results)}, length: {len(segment_results) if isinstance(segment_results, list) else 'N/A'}")
-                    if isinstance(segment_results, list) and len(segment_results) > 0:
-                        # print(f"   🔍 DEBUG: First segment_result type: {type(segment_results[0])}")
-                        if segment_results[0] is not None:
-                            # print(f"   🔍 DEBUG: First segment_result keys: {list(segment_results[0].keys()) if isinstance(segment_results[0], dict) else 'Not a dict'}")
-                            pass
-
-                # Parse category preference results
-                if "segment_results" in result:
-                    standard_results = result.get("segment_results", [])
-
-                    # Ensure standard_results is a list
-                    if not isinstance(standard_results, list):
-                        print(
-                            f"   ⚠️ Expected list for segment_results, got {type(standard_results)}"
-                        )
-                        standard_results = []
-
-                    for std_result in standard_results:
-                        # Skip None results
-                        if std_result is None:
-                            print(f"   ⚠️ Skipping None result in segment_results")
-                            continue
-
-                        # Ensure std_result is a dictionary
-                        if not isinstance(std_result, dict):
-                            print(
-                                f"   ⚠️ Expected dict for segment result, got {type(std_result)}"
-                            )
-                            continue
-
-                        # Map segment_number to actual segment_id
-                        segment_number = std_result.get("segment_number", 1)
-                        if segment_number <= len(batch):
-                            segment_id = batch[segment_number - 1]["segment_id"]
-                        else:
-                            # Fallback if segment_number is out of range
-                            segment_id = f"unknown_segment_{segment_number}"
-                            print(
-                                f"   ⚠️ Segment number {segment_number} out of range for batch size {len(batch)}"
-                            )
-
-                        # Safely extract data with None checks
-                        category_scores = std_result.get("category_scores", {})
-                        preferred_categories = std_result.get(
-                            "preferred_categories", []
-                        )
-                        reasoning = std_result.get(
-                            "reasoning", "Keine Begründung verfügbar"
-                        )
-
-                        # Ensure extracted data has correct types
-                        if not isinstance(category_scores, dict):
-                            print(
-                                f"   ⚠️ Expected dict for category_scores, got {type(category_scores)}"
-                            )
-                            category_scores = {}
-
-                        if not isinstance(preferred_categories, list):
-                            print(
-                                f"   ⚠️ Expected list for preferred_categories, got {type(preferred_categories)}"
-                            )
-                            preferred_categories = []
-
-                        if not isinstance(reasoning, str):
-                            reasoning = (
-                                str(reasoning)
-                                if reasoning is not None
-                                else "Keine Begründung verfügbar"
-                            )
-
-                        adapted_result = {
-                            "segment_id": segment_id,
-                            "category_preferences": category_scores,
-                            "top_categories": preferred_categories,
-                            "preference_reasoning": reasoning,
-                        }
-                        results.append(adapted_result)
-
-                    # Ensure we have results for all segments in the batch
-                    processed_segment_ids = {
-                        r["segment_id"]
-                        for r in results
-                        if r["segment_id"] in [s["segment_id"] for s in batch]
-                    }
-                    missing_segments = [
-                        s for s in batch if s["segment_id"] not in processed_segment_ids
-                    ]
-
-                    if missing_segments:
-                        print(
-                            f"   ⚠️ Creating default results for {len(missing_segments)} missing segments"
-                        )
-                        for segment in missing_segments:
-                            results.append(
-                                {
-                                    "segment_id": segment["segment_id"],
-                                    "category_preferences": {},
-                                    "top_categories": [],
-                                    "preference_reasoning": "Keine Kategoriepräferenzen ermittelt (fehlende LLM-Response)",
-                                }
-                            )
-                else:
-                    # Fallback to original format if available
+            for (batch_num, _), result in zip(batch_tasks, gather_results):
+                if isinstance(result, Exception):
                     print(
-                        f"   🔍 DEBUG: Using fallback format, available keys: {list(result.keys())}"
+                        f"   ⚠️ Fehler in Kategoriepräferenzen Batch {batch_num}: {result}"
                     )
-                    batch_results = result.get("results", [])
-
-                    # If no results found, create default entries
-                    if not batch_results:
-                        print(
-                            f"   ⚠️ No results found in LLM response, creating default entries"
+                    start_idx = (batch_num - 1) * batch_size
+                    end_idx = min(start_idx + batch_size, len(segments))
+                    for segment in segments[start_idx:end_idx]:
+                        results.append(
+                            {
+                                "segment_id": segment["segment_id"],
+                                "category_preferences": {},
+                                "top_categories": [],
+                                "preference_reasoning": f"Fehler: {str(result)}",
+                            }
                         )
-                        for segment in batch:
-                            results.append(
-                                {
-                                    "segment_id": segment["segment_id"],
-                                    "category_preferences": {},
-                                    "top_categories": [],
-                                    "preference_reasoning": "Keine Kategoriepräferenzen ermittelt (LLM-Response unvollständig)",
-                                }
-                            )
-                    else:
-                        results.extend(batch_results)
-
-            except Exception as e:
-                # Handle batch errors gracefully
-                print(
-                    f"   ⚠️ Fehler in Kategoriepräferenzen Batch {i // batch_size + 1}: {e}"
-                )
-                # Add default results for failed batch
-                for segment in batch:
-                    results.append(
-                        {
-                            "segment_id": segment["segment_id"],
-                            "category_preferences": {},
-                            "top_categories": [],
-                            "preference_reasoning": f"Fehler bei der Analyse: {str(e)}",
-                        }
-                    )
+                else:
+                    results.extend(result)
+        else:
+            batch = segments
+            batch_results = await self._process_single_category_preferences_batch(
+                batch=batch,
+                batch_num=1,
+                total_batches=total_batches,
+                category_definitions=category_definitions,
+                research_question=research_question,
+                coding_rules=coding_rules,
+            )
+            results.extend(batch_results)
 
         return results
 
@@ -951,7 +967,6 @@ class UnifiedRelevanceAnalyzer:
         coding_rules: List[str],
     ) -> str:
         """Build prompt for category preferences using standard QCA_Prompts."""
-        # Update prompt handler with current context
         self.update_prompt_context(
             research_question, coding_rules, category_definitions
         )
@@ -1415,19 +1430,35 @@ class UnifiedRelevanceAnalyzer:
     ) -> List[UnifiedAnalysisResult]:
         """
         Parse the batch JSON response into UnifiedAnalysisResult objects.
+        Validates and corrects segment_ids that the LLM may have returned incorrectly
+        (e.g., "SEGMENT 1" instead of the actual segment_id).
         """
         results_list = batch_json.get("results", [])
         parsed_objects = []
 
-        # Create a map for quick lookup of original segment data if needed
-        # (though currently we just need the IDs to match up or verify)
-
-        for item in results_list:
+        for idx, item in enumerate(results_list):
             segment_id = item.get("segment_id")
 
             # Basic validation that we got a result for a known segment
             if not segment_id:
                 continue
+
+            # FIX: Validate segment_id against original segments
+            # The LLM sometimes returns "SEGMENT N" instead of the actual segment_id
+            valid_ids = {seg["segment_id"] for seg in original_segments}
+            if segment_id not in valid_ids:
+                # Try positional mapping: idx-th result → idx-th segment
+                if idx < len(original_segments):
+                    corrected_id = original_segments[idx]["segment_id"]
+                    # Also try matching by partial name if "SEGMENT N" pattern
+                    if segment_id.startswith("SEGMENT "):
+                        item["segment_id"] = corrected_id
+                        segment_id = corrected_id
+                    else:
+                        # Non-standard ID that doesn't match any original segment
+                        # Still try positional mapping as best-effort
+                        item["segment_id"] = corrected_id
+                        segment_id = corrected_id
 
             parsed_objects.append(self._parse_comprehensive_result(item, segment_id))
 

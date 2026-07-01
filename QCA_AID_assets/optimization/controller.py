@@ -1497,25 +1497,25 @@ class OptimizationController:
 
                 print(f"   📦 Batch {batch_num}/{total_batches}: {len(batch)} Segmente")
 
-                # Für jeden Kodierer in diesem Batch
+                # 🚀 PARALLEL: Alle Kodierer gleichzeitig verarbeiten
+                coder_tasks = []
                 for coder_config in coder_settings:
-                    coder_id = coder_config.get("coder_id", "auto_1")
-                    coder_temperature = coder_config.get("temperature", temperature)
-
+                    cid = coder_config.get("coder_id", "auto_1")
+                    ctemp = coder_config.get("temperature", temperature)
                     print(
-                        f"      🔄 Analysiere mit Kodierer '{coder_id}' (Temperature: {coder_temperature})"
+                        f"      🔄 Starte Kodierer '{cid}' (Temperature: {ctemp}) parallel"
                     )
 
-                    try:
-                        # Process this batch with this coder
+                    # Erstelle Task für diesen Kodierer (Closure-safe durch Parameter-Bindung)
+                    async def _coder_task_deductive(_cid, _ctemp):
                         if config["enable_batching"] and len(batch) > 1:
-                            batch_results = await self._batch_analyze_deductive(
+                            return await self._batch_analyze_deductive(
                                 batch=batch,
                                 category_definitions=category_definitions,
                                 research_question=research_question,
                                 coding_rules=coding_rules,
-                                temperature=coder_temperature,
-                                coder_id=coder_id,
+                                temperature=_ctemp,
+                                coder_id=_cid,
                                 category_preselections=category_preselections,
                                 analysis_mode=analysis_mode,
                                 batch_size=batch_size,
@@ -1524,9 +1524,9 @@ class OptimizationController:
                                 context_paraphrase_count=context_paraphrase_count,
                                 paraphrase_callback=paraphrase_callback,
                             )
-                            all_results.extend(batch_results)
                         else:
                             # Process individually for small batches
+                            results = []
                             for segment in batch:
                                 seg_prefs = (
                                     category_preselections.get(
@@ -1538,8 +1538,6 @@ class OptimizationController:
                                 preferred_cats = seg_prefs.get(
                                     "preferred_categories", []
                                 )
-
-                                # Filter categories if preferences exist
                                 effective_categories = category_definitions
                                 if preferred_cats:
                                     effective_categories = {
@@ -1547,8 +1545,6 @@ class OptimizationController:
                                         for name, definition in category_definitions.items()
                                         if name in preferred_cats
                                     }
-
-                                # Get progressive context paraphrases for this segment
                                 context_paraphrases = []
                                 if use_context and document_paraphrases:
                                     context_paraphrases = (
@@ -1558,27 +1554,24 @@ class OptimizationController:
                                             context_paraphrase_count,
                                         )
                                     )
-
-                                # Analyze single segment
                                 result = await self.unified_analyzer.analyze_single(
                                     segment=segment,
                                     category_definitions=effective_categories,
                                     research_question=research_question,
                                     coding_rules=coding_rules,
                                     batch_size=batch_size,
-                                    temperature=coder_temperature,
+                                    temperature=_ctemp,
                                     context_paraphrases=context_paraphrases
                                     if context_paraphrases
                                     else None,
                                 )
-
                                 if result:
                                     formatted_res = self._format_single_coding_result(
-                                        result, coder_id, preferred_cats, seg_prefs
+                                        result, _cid, preferred_cats, seg_prefs
                                     )
-                                    all_results.append(formatted_res)
-
-                                    # Invoke paraphrase callback
+                                    # FIX: Text auch bei Einzelsegment-Verarbeitung einfügen
+                                    formatted_res["result"]["text"] = segment["text"]
+                                    results.append(formatted_res)
                                     if paraphrase_callback and formatted_res.get(
                                         "result", {}
                                     ).get("paraphrase"):
@@ -1586,20 +1579,29 @@ class OptimizationController:
                                             segment["segment_id"],
                                             formatted_res["result"]["paraphrase"],
                                         )
+                            return results
 
-                    except Exception as coder_error:
-                        # FIX: Bei Fehler in einem Kodierer-Batch: Teilergebnisse bewahren,
-                        # nicht den gesamten Batch verlieren
-                        print(
-                            f"   ❌ Fehler bei Kodierer '{coder_id}' in Batch {batch_num}: {coder_error}"
-                        )
-                        print(
-                            f"   ⚠️ Fahre mit verfügbaren Teilergebnissen fort ({len(all_results)} bisher)"
-                        )
-                        import traceback
+                    coder_tasks.append((cid, ctemp, _coder_task_deductive(cid, ctemp)))
 
-                        traceback.print_exc()
-                        # Continue with other coders - don't let one failed coder lose all results
+                # Führe alle Kodierer parallel aus
+                if coder_tasks:
+                    gather_results = await asyncio.gather(
+                        *[t[2] for t in coder_tasks], return_exceptions=True
+                    )
+
+                    for (cid, ctemp, _), result in zip(coder_tasks, gather_results):
+                        if isinstance(result, Exception):
+                            print(
+                                f"   ❌ Fehler bei Kodierer '{cid}' in Batch {batch_num}: {result}"
+                            )
+                            import traceback
+
+                            traceback.print_exc()
+                        else:
+                            print(
+                                f"      ✅ Kodierer '{cid}' abgeschlossen: {len(result)} Ergebnisse"
+                            )
+                            all_results.extend(result)
 
             # DEBUG: Track actual API calls made by optimization controller
             calls_after = token_counter.session_stats.get("requests", 0)
@@ -2631,6 +2633,8 @@ class OptimizationController:
                     formatted_res = self._format_single_coding_result(
                         r, coder_id, preferred_cats, seg_prefs
                     )
+                    # FIX: Text auch bei normaler Kodierung einfügen (nicht nur bei Mehrfachkodierung)
+                    formatted_res["result"]["text"] = original_text
                     first_coding_results.append(formatted_res)
 
             # Verarbeite fokussierten Batch für zusätzliche Kodierungen
@@ -3086,41 +3090,54 @@ class OptimizationController:
 
         coding_results = []
         if coder_settings and len(coder_settings) > 1:
-            # Multi-Coder: Kodiere mit jedem Kodierer separat (OHNE separate Relevanzprüfung)
+            # 🚀 PARALLEL: Alle Kodierer gleichzeitig verarbeiten (OHNE separate Relevanzprüfung)
             print(
-                f"   🔄 Multi-Coder Mode: Kodierung mit {len(coder_settings)} Kodierern"
+                f"   🔄 Multi-Coder Mode: PARALLELE Kodierung mit {len(coder_settings)} Kodierern"
             )
+
+            coder_tasks = []
             for coder_config in coder_settings:
-                coder_id = coder_config.get("coder_id", "auto_1")
-                coder_temp = coder_config.get(
+                cid = coder_config.get("coder_id", "auto_1")
+                ctemp = coder_config.get(
                     "temperature", temperature or self.inductive_temperature
                 )
+                print(f"   🔄 Starte Kodierer '{cid}' (Temperature: {ctemp}) parallel")
 
-                print(
-                    f"   🔄 Analysiere mit Kodierer '{coder_id}' (Temperature: {coder_temp})"
-                )
-
-                # Direkte Kodierung OHNE separate Relevanzprüfung
-                coder_results = await self._analyze_inductive_coding_only(
+                task = self._analyze_inductive_coding_only(
                     segments=relevant_segments,
                     category_definitions=cat_defs,
                     research_question=research_question,
                     coding_rules=coding_rules or [],
-                    temperature=coder_temp,
-                    coder_id=coder_id,
+                    temperature=ctemp,
+                    coder_id=cid,
                     batch_size=batch_size,
                     use_context=use_context,
                     document_paraphrases=document_paraphrases,
                     context_paraphrase_count=context_paraphrase_count,
                     paraphrase_callback=paraphrase_callback,
                 )
+                coder_tasks.append((cid, ctemp, task))
 
-                # Store results for reliability analysis
-                await self._store_results_for_reliability(
-                    coder_results, "inductive", coder_id, coder_temp
-                )
+            # Führe alle Kodierer parallel aus
+            gather_results = await asyncio.gather(
+                *[t[2] for t in coder_tasks], return_exceptions=True
+            )
 
-                coding_results.extend(coder_results)
+            for (cid, ctemp, _), result in zip(coder_tasks, gather_results):
+                if isinstance(result, Exception):
+                    print(f"   ❌ Fehler bei Kodierer '{cid}': {result}")
+                    import traceback
+
+                    traceback.print_exc()
+                else:
+                    print(
+                        f"      ✅ Kodierer '{cid}' abgeschlossen: {len(result)} Ergebnisse"
+                    )
+                    # Store results for reliability analysis
+                    await self._store_results_for_reliability(
+                        result, "inductive", cid, ctemp
+                    )
+                    coding_results.extend(result)
 
         elif coder_settings:
             # Single-Coder
@@ -3360,9 +3377,12 @@ class OptimizationController:
                         )
                 else:
                     # Keine Mehrfachkodierung erforderlich - normale Kodierung
-                    first_coding_results.append(
-                        self._format_single_coding_result_inductive(r, coder_id)
+                    ind_format_res = self._format_single_coding_result_inductive(
+                        r, coder_id
                     )
+                    # FIX: Text auch bei normaler Kodierung einfügen (nicht nur bei Mehrfachkodierung)
+                    ind_format_res["result"]["text"] = original_text
+                    first_coding_results.append(ind_format_res)
 
             # Verarbeite fokussierten Batch für zusätzliche Kodierungen
             focused_results = []
@@ -3907,12 +3927,12 @@ class OptimizationController:
         # 3. Abduktive Kodierung mit erweiterten Kategorien UND Präferenzen
         coding_results = []
         if coder_settings and len(coder_settings) > 1:
-            # Multi-Coder Mode: Batch-weise Verarbeitung mit allen Kodierern (übernommen aus deductive)
+            # 🚀 PARALLEL: Alle Kodierer gleichzeitig verarbeiten
             print(
-                f"   🔄 Multi-Coder Mode: Batch-weise Verarbeitung mit {len(coder_settings)} Kodierern"
+                f"   🔄 Multi-Coder Mode: PARALLELE Batch-Verarbeitung mit {len(coder_settings)} Kodierern"
             )
 
-            # Process segments in batches, with each batch coded by all coders
+            # Process segments in batches, with each batch coded by all coders in parallel
             total_batches = (len(relevant_segments) + batch_size - 1) // batch_size
 
             for i in range(0, len(relevant_segments), batch_size):
@@ -3921,98 +3941,115 @@ class OptimizationController:
 
                 print(f"   📦 Batch {batch_num}/{total_batches}: {len(batch)} Segmente")
 
-                # Für jeden Kodierer in diesem Batch
+                # Erstelle Tasks für alle Kodierer in diesem Batch
+                coder_tasks = []
                 for coder_config in coder_settings:
-                    coder_id = coder_config.get("coder_id", "auto_1")
-                    coder_temp = coder_config.get("temperature", temperature)
-
+                    cid = coder_config.get("coder_id", "auto_1")
+                    ctemp = coder_config.get("temperature", temperature)
                     print(
-                        f"      🔄 Analysiere mit Kodierer '{coder_id}' (Temperature: {coder_temp})"
+                        f"      🔄 Starte Kodierer '{cid}' (Temperature: {ctemp}) parallel"
                     )
 
-                    # Process this batch with this coder
-                    if config["enable_batching"] and len(batch) > 1:
-                        batch_results = await self._batch_analyze_abductive_direct(
-                            batch=batch,
-                            category_definitions=cat_defs,
-                            research_question=research_question,
-                            coding_rules=coding_rules or [],
-                            temperature=coder_temp,
-                            coder_id=coder_id,
-                            category_preselections=category_preselections,
-                            analysis_mode="abductive",
-                            batch_size=batch_size,
-                            use_context=use_context,
-                            document_paraphrases=document_paraphrases,
-                            context_paraphrase_count=context_paraphrase_count,
-                            paraphrase_callback=paraphrase_callback,
-                        )
-
-                        # Store results for reliability analysis
-                        await self._store_results_for_reliability(
-                            batch_results, "abductive", coder_id, coder_temp
-                        )
-
-                        coding_results.extend(batch_results)
-                    else:
-                        # Process individually for small batches (übernommen aus deductive)
-                        for segment in batch:
-                            seg_prefs = (
-                                category_preselections.get(segment["segment_id"], {})
-                                if category_preselections
-                                else {}
-                            )
-                            preferred_cats = seg_prefs.get("preferred_categories", [])
-
-                            # Filter categories if preferences exist
-                            effective_categories = cat_defs
-                            if preferred_cats:
-                                effective_categories = {
-                                    name: definition
-                                    for name, definition in cat_defs.items()
-                                    if name in preferred_cats
-                                }
-
-                            # Get progressive context paraphrases for this segment
-                            context_paraphrases = []
-                            if use_context and document_paraphrases:
-                                context_paraphrases = (
-                                    self._get_progressive_context_paraphrases(
-                                        segment["segment_id"],
-                                        document_paraphrases,
-                                        context_paraphrase_count,
-                                    )
-                                )
-
-                            # Analyze single segment using unified analyzer
-                            result = await self.unified_analyzer.analyze_single(
-                                segment=segment,
-                                category_definitions=effective_categories,
+                    async def _coder_task_abductive(_cid, _ctemp):
+                        if config["enable_batching"] and len(batch) > 1:
+                            return await self._batch_analyze_abductive_direct(
+                                batch=batch,
+                                category_definitions=cat_defs,
                                 research_question=research_question,
-                                coding_rules=coding_rules,
+                                coding_rules=coding_rules or [],
+                                temperature=_ctemp,
+                                coder_id=_cid,
+                                category_preselections=category_preselections,
+                                analysis_mode="abductive",
                                 batch_size=batch_size,
-                                temperature=coder_temp,
-                                context_paraphrases=context_paraphrases
-                                if context_paraphrases
-                                else None,
+                                use_context=use_context,
+                                document_paraphrases=document_paraphrases,
+                                context_paraphrase_count=context_paraphrase_count,
+                                paraphrase_callback=paraphrase_callback,
                             )
-
-                            if result:
-                                formatted_res = (
-                                    self._format_single_coding_result_abductive(
-                                        result, coder_id, preferred_cats, seg_prefs
+                        else:
+                            results = []
+                            for segment in batch:
+                                seg_prefs = (
+                                    category_preselections.get(
+                                        segment["segment_id"], {}
                                     )
+                                    if category_preselections
+                                    else {}
                                 )
-                                coding_results.append(formatted_res)
-
-                                # Invoke paraphrase callback
-                                if paraphrase_callback and formatted_res.get(
-                                    "result", {}
-                                ).get("paraphrase"):
-                                    paraphrase_callback(
-                                        segment["segment_id"],
-                                        formatted_res["result"]["paraphrase"],
+                                preferred_cats = seg_prefs.get(
+                                    "preferred_categories", []
+                                )
+                                effective_categories = cat_defs
+                                if preferred_cats:
+                                    effective_categories = {
+                                        name: definition
+                                        for name, definition in cat_defs.items()
+                                        if name in preferred_cats
+                                    }
+                                context_paraphrases = []
+                                if use_context and document_paraphrases:
+                                    context_paraphrases = (
+                                        self._get_progressive_context_paraphrases(
+                                            segment["segment_id"],
+                                            document_paraphrases,
+                                            context_paraphrase_count,
+                                        )
                                     )
+                                result = await self.unified_analyzer.analyze_single(
+                                    segment=segment,
+                                    category_definitions=effective_categories,
+                                    research_question=research_question,
+                                    coding_rules=coding_rules,
+                                    batch_size=batch_size,
+                                    temperature=_ctemp,
+                                    context_paraphrases=context_paraphrases
+                                    if context_paraphrases
+                                    else None,
+                                )
+                                if result:
+                                    formatted_res = (
+                                        self._format_single_coding_result_abductive(
+                                            result, _cid, preferred_cats, seg_prefs
+                                        )
+                                    )
+                                    # FIX: Text auch bei Einzelsegment-Verarbeitung einfügen
+                                    formatted_res["result"]["text"] = segment["text"]
+                                    results.append(formatted_res)
+                                    if paraphrase_callback and formatted_res.get(
+                                        "result", {}
+                                    ).get("paraphrase"):
+                                        paraphrase_callback(
+                                            segment["segment_id"],
+                                            formatted_res["result"]["paraphrase"],
+                                        )
+                            return results
+
+                    coder_tasks.append((cid, ctemp, _coder_task_abductive(cid, ctemp)))
+
+                # Führe alle Kodierer parallel aus
+                if coder_tasks:
+                    gather_results = await asyncio.gather(
+                        *[t[2] for t in coder_tasks], return_exceptions=True
+                    )
+
+                    for (cid, ctemp, _), result in zip(coder_tasks, gather_results):
+                        if isinstance(result, Exception):
+                            print(
+                                f"   ❌ Fehler bei Kodierer '{cid}' in Batch {batch_num}: {result}"
+                            )
+                            import traceback
+
+                            traceback.print_exc()
+                        else:
+                            print(
+                                f"      ✅ Kodierer '{cid}' abgeschlossen: {len(result)} Ergebnisse"
+                            )
+                            # Store results for reliability analysis
+                            await self._store_results_for_reliability(
+                                result, "abductive", cid, ctemp
+                            )
+                            coding_results.extend(result)
 
         elif coder_settings:
             # Single-Coder Mode (übernommen aus deductive)
@@ -4507,11 +4544,12 @@ class OptimizationController:
                     )
             else:
                 # Keine Mehrfachkodierung erforderlich - normale Kodierung
-                first_coding_results.append(
-                    self._format_single_coding_result_abductive(
-                        r, coder_id, preferred_cats, seg_prefs
-                    )
+                abd_format_res = self._format_single_coding_result_abductive(
+                    r, coder_id, preferred_cats, seg_prefs
                 )
+                # FIX: Text auch bei normaler Kodierung einfügen (nicht nur bei Mehrfachkodierung)
+                abd_format_res["result"]["text"] = original_text
+                first_coding_results.append(abd_format_res)
 
         # Verarbeite fokussierten Batch für zusätzliche Kodierungen
         focused_results = []
