@@ -4,6 +4,36 @@
 
 ---
 
+## Neu in 0.12.8.4 (2026-07-01)
+
+### 🛡️ API-Fehler-Resilienz — Drei-Stufen-Schutz gegen vorzeitigen Abbruch
+
+**Problem:** Ein transientes API-Fehler (z.B. HTTP 500) während der Kodierung löste einen Kaskadeneffekt aus: Die Exception propagierte ungedämpft durch alle Schichten, verlor dabei alle bisherigen Teilergebnisse, und der Fallback auf die Standard-Analyse fand keine Segmente mehr vor (da `processed_segments` bereits alle als „verarbeitet" markiert hatte). Das Ergebnis: 0 verarbeitete Batches, komplett verlorene Analyse.
+
+**Lösung:** Drei unabhängige Schutzmechanismen:
+
+1. **Retry mit exponential backoff** (`unified_relevance_analyzer.py`):
+   - Transiente API-Fehler (500, 502, 503, 429, 529) werden erkannt und bis zu 2 Mal mit steigender Wartezeit (2s → 3s) wiederholt
+   - Nicht-transiente Fehler werden weiterhin sofort geworfen
+   - Betroffene Methode: `analyze_batch()` im `UnifiedRelevanceAnalyzer`
+
+2. **Fehlerisolierte Kodierer-Verarbeitung** (`controller.py`):
+   - `try/except` pro Kodierer-Konfiguration in der deduktiven Batch-Schleife
+   - Fehler in einem Kodierer (z.B. `auto_2`) verlieren nicht die Ergebnisse anderer Kodierer (z.B. `auto_1`)
+   - Betroffene Methode: `_analyze_deductive()` im `OptimizationController`
+
+3. **Funktionierender Standard-Analyse-Fallback** (`analysis_manager.py`):
+   - Beim Fallback auf die Standard-Analyse werden die `processed_segments` für die betroffenen Segmente zurückgesetzt
+   - Die Hauptschleife (`_get_next_batch`) kann die Segmente jetzt korrekt erneut aufgreifen
+   - Betroffene Stelle: `except`-Block in `_analyze_normal_modes()`
+
+### 🧹 Sonstiges
+
+- QCA-AID Version auf 0.12.8.4 gehoben (Datum 2026-07-01).
+- CHANGELOG.md aktualisiert.
+
+---
+
 ## Neu in 0.12.8.3 (2026-07-01)
 
 ### 🔧 ConfigLoader — Codebook-Pfad wird jetzt korrekt aufgelöst
