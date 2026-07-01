@@ -458,6 +458,9 @@ def render_analysis_controls():
                     "DATA_DIR": data_dir,
                     "OUTPUT_DIR": output_dir,
                     "PROJECT_ROOT": str(project_root),
+                    "CODEBOOK_PATH": st.session_state.get(
+                        "current_config_filepath", None
+                    ),
                     "CHUNK_SIZE": config.chunk_size,
                     "CHUNK_OVERLAP": config.chunk_overlap,
                     "BATCH_SIZE": config.batch_size,

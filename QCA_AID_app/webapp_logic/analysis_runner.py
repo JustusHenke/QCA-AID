@@ -112,6 +112,14 @@ class AnalysisRunner:
             if project_root:
                 env["QCA_AID_PROJECT_ROOT"] = str(project_root)
 
+            # ── Codebook-Pfad an Subprocess übergeben ──
+            codebook_path = config.get("CODEBOOK_PATH")
+            if codebook_path:
+                env["QCA_AID_CODEBOOK_PATH"] = str(codebook_path)
+                self.status.add_log(
+                    f"📂 Codebook-Pfad an Subprocess übergeben: {codebook_path}"
+                )
+
             # ── Custom API: API-Key als Umgebungsvariable für Subprocess setzen ──
             # Wenn ein benutzerdefinierter Env-Var-Name konfiguriert ist (z.B. GWDG_API_KEY),
             # lesen wir den Wert daraus und setzen OPENAI_API_KEY für den Subprocess.

@@ -4,6 +4,38 @@
 
 ---
 
+## Neu in 0.12.8.3 (2026-07-01)
+
+### 🔧 ConfigLoader — Codebook-Pfad wird jetzt korrekt aufgelöst
+
+**Problem:** Wenn der Benutzer ein Codebook mit abweichendem Dateinamen (z.B. `QCA-AID-Codebook_deductive.json`) geladen hatte, ignorierte der ConfigLoader diesen Pfad und fiel auf die hartcodierte Standarddatei `QCA-AID-Codebook.json` zurück. Dies führte dazu, dass vordefinierte Kategorien nicht geladen wurden (`0 deduktive Kategorien geladen`) und der gesamte deduktive Workflow mit einem `AttributeError: 'NoneType' object has no attribute 'items'` abbrach.
+
+**Lösung:** Dreistufige Pfad-Auflösung im ConfigLoader (Reihenfolge: Env-Var → Projekt-Settings → Fallback):
+
+- **`ConfigLoader._resolve_last_codebook_path()`** — Neue Methode:
+  1. Prüft Env-Var `QCA_AID_CODEBOOK_PATH` (höchste Priorität, gesetzt vom Webapp-Subprocess)
+  2. Liest `last_codebook_file` aus `.qca-aid-project.json` (Projekt-Settings)
+  3. Fallback auf `QCA-AID-Codebook.json` im Projekt-Root
+- **`AnalysisRunner`** — Übergibt `CODEBOOK_PATH` als Env-Var `QCA_AID_CODEBOOK_PATH` an den Subprocess
+- **`analysis_ui.py`** — `CODEBOOK_PATH` wird aus `session_state.current_config_filepath` ins config_dict übernommen
+- **`main.py`** — Zeigt `📄 Config-Datei: <Pfad>` prominent im Log an (nach ConsoleLogger-Start)
+- **`config_ui.py`** — `📁 Aktuelle Konfiguration:` zeigt jetzt den tatsächlich geladenen Dateinamen statt den hartcodierten Standard
+
+### 🐛 NoneType-Fehler bei leeren Kategorie-Definitionen
+
+**Problem:** `cat_defs if cat_defs else None` in `analysis_manager.py` konvertierte ein leeres Dict `{}` (falsy in Python) zu `None`, was in `controller.py._serialize_category_definitions()` zu `AttributeError: 'NoneType' object has no attribute 'items'` führte.
+
+**Fix:**
+- **`analysis_manager.py`** — `cat_defs if cat_defs else None` → `cat_defs` (leeres Dict wird korrekt weitergegeben)
+- **`controller.py`** — Früher Guard in `_serialize_category_definitions()`: Bei `None` oder `{}` wird sofort `{}` zurückgegeben
+
+### 🧹 Sonstiges
+
+- QCA-AID Version auf 0.12.8.3 gehoben (Datum 2026-07-01).
+- CHANGELOG.md aktualisiert.
+
+---
+
 ## Neu in 0.12.8.2 (2026-06-23)
 
 ### 🧬 Grounded Mode — Phase 1.5: Konzeptuelle Subcode-Verdichtung via LLM

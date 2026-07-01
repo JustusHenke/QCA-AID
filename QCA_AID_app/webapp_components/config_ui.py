@@ -169,20 +169,13 @@ def render_file_operations():
     source = st.session_state.get("config_loaded_from", "default")
 
     if source == "user":
-        # Try to determine which file was loaded
-        project_manager = st.session_state.project_manager
-        project_root = project_manager.get_root_directory()
+        # FIX: Zeige den tatsächlich geladenen Dateinamen (nicht hartcodierten Standard)
+        loaded_filepath = st.session_state.get("current_config_filepath", None)
+        if loaded_filepath:
+            from pathlib import Path as _Path
 
-        # Check for standard files
-        from pathlib import Path
-
-        json_path = Path(project_root) / "QCA-AID-Codebook.json"
-        xlsx_path = Path(project_root) / "QCA-AID-Codebook.xlsx"
-
-        if json_path.exists():
-            st.caption(f"📁 Aktuelle Konfiguration: `{json_path.name}`")
-        elif xlsx_path.exists():
-            st.caption(f"📁 Aktuelle Konfiguration: `{xlsx_path.name}`")
+            loaded_name = _Path(loaded_filepath).name
+            st.caption(f"📁 Aktuelle Konfiguration: `{loaded_name}`")
         else:
             st.caption("📁 Konfiguration aus Datei geladen")
     else:

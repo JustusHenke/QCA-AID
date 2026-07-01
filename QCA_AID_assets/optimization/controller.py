@@ -618,6 +618,9 @@ class OptimizationController:
         """
         serializable_definitions = {}
 
+        if not category_definitions:
+            return serializable_definitions
+
         for name, definition in category_definitions.items():
             if hasattr(definition, "definition"):
                 # CategoryDefinition object

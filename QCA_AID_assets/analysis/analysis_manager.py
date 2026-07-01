@@ -1645,7 +1645,7 @@ class IntegratedAnalysisManager:
                     ) = await self.optimization_controller.analyze_segments(
                         segments=opt_segments,
                         analysis_mode=opt_mode,
-                        category_definitions=cat_defs if cat_defs else None,
+                        category_definitions=cat_defs,
                         research_question=self.research_question,  # Echte Forschungsfrage aus User-Config
                         coding_rules=rules,
                         batch_size=batch_size,
