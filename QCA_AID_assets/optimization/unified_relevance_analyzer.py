@@ -3,11 +3,11 @@ Unified Relevance Analyzer Prototype
 Consolidates multiple API calls into a single comprehensive analysis for deductive mode.
 """
 
-import json
 import asyncio
-from typing import Dict, List, Any, Optional, Tuple
-from dataclasses import dataclass
+import json
 import statistics
+from dataclasses import dataclass
+from typing import Any, Dict, List, Optional, Tuple
 
 from QCA_AID_assets.utils.llm.base import LLMProvider
 from QCA_AID_assets.utils.llm.response import LLMResponse
@@ -15,15 +15,18 @@ from QCA_AID_assets.utils.llm.response import LLMResponse
 # Optional metrics collection for testing/debugging
 try:
     from QCA_AID_assets.optimization.tests.metrics_collector import record_api_call
+
     METRICS_AVAILABLE = True
 except ImportError:
     METRICS_AVAILABLE = False
+
     def record_api_call(*args, **kwargs):
         """Dummy function when metrics collector is not available."""
         pass
 
-from QCA_AID_assets.utils.tracking.token_tracker import get_global_token_counter
+
 from QCA_AID_assets.QCA_Prompts import QCAPrompts  # Import für Standard-Prompts
+from QCA_AID_assets.utils.tracking.token_tracker import get_global_token_counter
 
 # Get global token counter instance
 token_counter = get_global_token_counter()
@@ -32,6 +35,7 @@ token_counter = get_global_token_counter()
 @dataclass
 class UnifiedAnalysisResult:
     """Results from unified analysis."""
+
     segment_id: str
     primary_category: str
     all_categories: List[Dict[str, Any]]  # All categories with relevance scores
@@ -49,23 +53,26 @@ class UnifiedAnalysisResult:
 class UnifiedRelevanceAnalyzer:
     """
     Unified analyzer that combines multiple API calls into one comprehensive analysis.
-    
+
     For deductive mode, replaces:
     1. Multiple category relevance checks
     2. Individual coding calls
     3. Confidence scoring calls
-    
+
     With:
     1. Single comprehensive analysis that returns all needed information
     """
-    
-    def __init__(self, llm_provider: LLMProvider, 
-                 model_name: str = "gpt-4",
-                 temperature: float = 0.3,
-                 multiple_coding_threshold: float = 0.7):
+
+    def __init__(
+        self,
+        llm_provider: LLMProvider,
+        model_name: str = "gpt-4",
+        temperature: float = 0.3,
+        multiple_coding_threshold: float = 0.7,
+    ):
         """
         Initialize the unified analyzer.
-        
+
         Args:
             llm_provider: LLM provider instance
             model_name: Model to use for analysis
@@ -75,24 +82,26 @@ class UnifiedRelevanceAnalyzer:
         self.llm_provider = llm_provider
         self.model_name = model_name
         self.temperature = temperature
-        
+
         # Initialize prompt handler with standard prompts
         # Note: We'll use dummy values for initialization, real values come from config
         self.prompt_handler = QCAPrompts(
             forschungsfrage="Placeholder - wird zur Laufzeit gesetzt",
             kodierregeln=["Placeholder - wird zur Laufzeit gesetzt"],
-            deduktive_kategorien={}
+            deduktive_kategorien={},
         )
-        
+
         # Configuration
         self.max_categories_per_segment = 3
         self.min_relevance_score = 0.3
         self.multiple_coding_threshold = multiple_coding_threshold
-        
-    def update_prompt_context(self, research_question: str, coding_rules: List[str], categories: Dict = None):
+
+    def update_prompt_context(
+        self, research_question: str, coding_rules: List[str], categories: Dict = None
+    ):
         """
         Update the prompt handler with actual research context.
-        
+
         Args:
             research_question: The actual research question
             coding_rules: List of coding rules
@@ -101,91 +110,107 @@ class UnifiedRelevanceAnalyzer:
         self.prompt_handler = QCAPrompts(
             forschungsfrage=research_question,
             kodierregeln=coding_rules,
-            deduktive_kategorien=categories or {}
+            deduktive_kategorien=categories or {},
         )
-        
-    async def analyze_relevance_simple(self,
-                                      segments: List[Dict[str, str]],
-                                      research_question: str,
-                                      batch_size: int = 5,
-                                      relevance_threshold: float = 0.0,
-                                      return_all_results: bool = False) -> List[Dict[str, Any]]:
+
+    async def analyze_relevance_simple(
+        self,
+        segments: List[Dict[str, str]],
+        research_question: str,
+        batch_size: int = 5,
+        relevance_threshold: float = 0.0,
+        return_all_results: bool = False,
+    ) -> List[Dict[str, Any]]:
         """
         Simple relevance check without category preferences (for inductive/abductive/grounded modes).
         Uses batching to respect batch_size limits.
-        
+
         Args:
             segments: List of dicts with 'segment_id' and 'text'
             research_question: Research question context
             batch_size: Maximum segments per API call
             relevance_threshold: Minimum confidence for relevant segments (default: 0.0)
             return_all_results: If True, return all LLM results (relevant + non-relevant), if False return only relevant (default: False)
-            
+
         Returns:
             List of dicts with relevance information (only relevant segments by default, or all if return_all_results=True)
         """
         all_results = []  # Alle LLM-Ergebnisse (relevant + nicht-relevant)
-        results = []      # Nur die finalen relevanten Ergebnisse
-        
+        results = []  # Nur die finalen relevanten Ergebnisse
+
         # Process in batches
         total_batches = (len(segments) + batch_size - 1) // batch_size
-        print(f"   🔄 Verarbeite {len(segments)} Segmente in {total_batches} Batches (Batch-Größe: {batch_size})")
-        
+        print(
+            f"   🔄 Verarbeite {len(segments)} Segmente in {total_batches} Batches (Batch-Größe: {batch_size})"
+        )
+
         for i in range(0, len(segments), batch_size):
-            batch = segments[i:i + batch_size]
+            batch = segments[i : i + batch_size]
             if not batch:
                 continue
-            
+
             batch_num = (i // batch_size) + 1
-            print(f"   📦 Relevanz-Batch {batch_num}/{total_batches}: {len(batch)} Segmente")
-                
+            print(
+                f"   📦 Relevanz-Batch {batch_num}/{total_batches}: {len(batch)} Segmente"
+            )
+
             try:
                 start_time = asyncio.get_event_loop().time()
                 token_counter.start_request()
-                
+
                 prompt = self._build_simple_relevance_prompt(batch, research_question)
-                
+
                 response = await self.llm_provider.create_completion(
                     model=self.model_name,
                     messages=[
-                        {"role": "system", "content": "Du bist ein Experte für qualitative Inhaltsanalyse. Du antwortest auf Deutsch. Antworte ausschließlich mit einem JSON-Objekt."},
-                        {"role": "user", "content": prompt}
+                        {
+                            "role": "system",
+                            "content": "Du bist ein Experte für qualitative Inhaltsanalyse. Du antwortest auf Deutsch. Antworte ausschließlich mit einem JSON-Objekt.",
+                        },
+                        {"role": "user", "content": prompt},
                     ],
                     temperature=self.temperature,
-                    response_format={"type": "json_object"}
+                    response_format={"type": "json_object"},
                 )
-                
+
                 token_counter.track_response(response, self.model_name)
-                processing_time_ms = (asyncio.get_event_loop().time() - start_time) * 1000
-                
+                processing_time_ms = (
+                    asyncio.get_event_loop().time() - start_time
+                ) * 1000
+
                 record_api_call(
                     call_type="relevance_simple",
                     tokens_used=self._estimate_tokens(prompt, response),
                     processing_time_ms=processing_time_ms,
-                    success=True
+                    success=True,
                 )
-                
+
                 llm_response = LLMResponse(response)
                 result = None
                 try:
                     result = json.loads(llm_response.extract_json())
                 except json.JSONDecodeError:
                     pass
-                
+
                 # Retry bei leerer/ungültiger Antwort (häufig bei lokalen LLMs)
                 if result is None:
-                    print(f"   🔄 Retry Batch {batch_num}/{total_batches} (leere/ungültige LLM-Antwort)...")
+                    print(
+                        f"   🔄 Retry Batch {batch_num}/{total_batches} (leere/ungültige LLM-Antwort)..."
+                    )
                     try:
                         await asyncio.sleep(2)  # Kurze Pause vor Retry
                         token_counter.start_request()
                         retry_response = await self.llm_provider.create_completion(
                             model=self.model_name,
                             messages=[
-                                {"role": "system", "content": "Du bist ein Experte für qualitative Inhaltsanalyse. Du antwortest auf Deutsch. Antworte ausschließlich mit einem JSON-Objekt."},
-                                {"role": "user", "content": prompt}
+                                {
+                                    "role": "system",
+                                    "content": "Du bist ein Experte für qualitative Inhaltsanalyse. Du antwortest auf Deutsch. Antworte ausschließlich mit einem JSON-Objekt.",
+                                },
+                                {"role": "user", "content": prompt},
                             ],
                             temperature=self.temperature,
-                            response_format={"type": "json_object"}
+                            response_format={"type": "json_object"},
                         )
                         token_counter.track_response(retry_response, self.model_name)
                         retry_llm_response = LLMResponse(retry_response)
@@ -194,31 +219,43 @@ class UnifiedRelevanceAnalyzer:
                     except (json.JSONDecodeError, Exception) as retry_e:
                         raw_content = ""
                         try:
-                            raw_content = retry_llm_response.content[:200] if retry_llm_response.content else "(leer)"
+                            raw_content = (
+                                retry_llm_response.content[:200]
+                                if retry_llm_response.content
+                                else "(leer)"
+                            )
                         except Exception:
-                            raw_content = llm_response.content[:200] if llm_response.content else "(leer)"
+                            raw_content = (
+                                llm_response.content[:200]
+                                if llm_response.content
+                                else "(leer)"
+                            )
                         print(f"   ⚠️ Retry Batch {batch_num} fehlgeschlagen: {retry_e}")
                         print(f"   ⚠️ LLM-Antwort (Auszug): {raw_content}")
-                        print(f"   ↪ Fallback: Alle {len(batch)} Segmente als relevant markiert")
+                        print(
+                            f"   ↪ Fallback: Alle {len(batch)} Segmente als relevant markiert"
+                        )
                         for segment in batch:
                             fallback_result = {
                                 "segment_id": segment["segment_id"],
                                 "is_relevant": True,
                                 "research_relevance": 0.5,
                                 "classification_confidence": 0.5,
-                                "relevance_reasoning": "Fallback: JSON-Parsing der LLM-Antwort fehlgeschlagen"
+                                "relevance_reasoning": "Fallback: JSON-Parsing der LLM-Antwort fehlgeschlagen",
                             }
                             all_results.append(fallback_result)
-                            results.append({
-                                "segment_id": segment["segment_id"],
-                                "research_relevance": 0.5,
-                                "relevance_reasoning": "Fallback: JSON-Parsing der LLM-Antwort fehlgeschlagen"
-                            })
+                            results.append(
+                                {
+                                    "segment_id": segment["segment_id"],
+                                    "research_relevance": 0.5,
+                                    "relevance_reasoning": "Fallback: JSON-Parsing der LLM-Antwort fehlgeschlagen",
+                                }
+                            )
                         continue
-                
+
                 # Adapt standard prompt response format to expected format
                 standard_results = result.get("segment_results", [])
-                
+
                 for std_result in standard_results:
                     # Map segment_number to actual segment_id
                     segment_number = std_result.get("segment_number", 1)
@@ -227,139 +264,195 @@ class UnifiedRelevanceAnalyzer:
                     else:
                         # Fallback if segment_number is out of range
                         segment_id = f"unknown_segment_{segment_number}"
-                    
+
                     # Extrahiere LLM-Entscheidung und beide Confidence-Werte
                     is_relevant = std_result.get("is_relevant", False)
-                    
+
                     # FIX: Robuste Extraktion der Confidence-Werte
                     # Priorität: spezifische Felder > generisches confidence Feld > Fallback
                     relevance_strength = std_result.get("relevance_strength")
-                    classification_confidence = std_result.get("classification_confidence")
+                    classification_confidence = std_result.get(
+                        "classification_confidence"
+                    )
                     generic_confidence = std_result.get("confidence", 0.0)
-                    
+
                     # Wenn spezifische Felder fehlen, verwende generisches confidence
                     if relevance_strength is None:
                         relevance_strength = generic_confidence
-                        print(f"   ⚠️ DEBUG: Using generic confidence for relevance_strength in {segment_id}: {generic_confidence}")
-                    
+                        print(
+                            f"   ⚠️ DEBUG: Using generic confidence for relevance_strength in {segment_id}: {generic_confidence}"
+                        )
+
                     if classification_confidence is None:
                         classification_confidence = generic_confidence
-                        print(f"   ⚠️ DEBUG: Using generic confidence for classification_confidence in {segment_id}: {generic_confidence}")
-                    
-                    research_relevance = float(relevance_strength) if relevance_strength is not None else 0.0
-                    
+                        print(
+                            f"   ⚠️ DEBUG: Using generic confidence for classification_confidence in {segment_id}: {generic_confidence}"
+                        )
+
+                    research_relevance = (
+                        float(relevance_strength)
+                        if relevance_strength is not None
+                        else 0.0
+                    )
+
                     # Erstelle Ergebnis für alle LLM-Bewertungen (für Statistik)
                     all_result = {
                         "segment_id": segment_id,
                         "is_relevant": is_relevant,
                         "research_relevance": research_relevance,
                         "classification_confidence": classification_confidence,
-                        "relevance_reasoning": std_result.get("justification", std_result.get("reasoning", "Keine Begründung verfügbar")),
-                        "aspects_found": std_result.get("aspects_found", std_result.get("core_topics_found", [])),
-                        "key_aspects": std_result.get("key_aspects", [])
+                        "relevance_reasoning": std_result.get(
+                            "justification",
+                            std_result.get("reasoning", "Keine Begründung verfügbar"),
+                        ),
+                        "aspects_found": std_result.get(
+                            "aspects_found", std_result.get("core_topics_found", [])
+                        ),
+                        "key_aspects": std_result.get("key_aspects", []),
                     }
                     all_results.append(all_result)
-                    
+
                     # DEBUG: Intelligente Inkonsistenz-Erkennung
                     reasoning = all_result["relevance_reasoning"].lower()
                     if not is_relevant:
                         # Positive Relevanz-Indikatoren (sollten bei is_relevant=False nicht vorkommen)
                         positive_indicators = [
-                            "ist relevant", "direkt relevant", "zentral für", "wichtig für die forschung",
-                            "behandelt relevante aspekte", "liefert relevante", "beiträgt zur forschung",
-                            "für die forschungsfrage relevant", "thematisiert relevante"
+                            "ist relevant",
+                            "direkt relevant",
+                            "zentral für",
+                            "wichtig für die forschung",
+                            "behandelt relevante aspekte",
+                            "liefert relevante",
+                            "beiträgt zur forschung",
+                            "für die forschungsfrage relevant",
+                            "thematisiert relevante",
                         ]
                         # Negative Indikatoren (sind OK bei is_relevant=False)
                         negative_indicators = [
-                            "nicht relevant", "keine relevanten", "keinen direkten bezug", "zu allgemein",
-                            "keine spezifischen", "administrative informationen", "lediglich kontakt",
-                            "ohne spezifischen bezug", "fehlt der bezug", "nicht zur forschungsfrage"
+                            "nicht relevant",
+                            "keine relevanten",
+                            "keinen direkten bezug",
+                            "zu allgemein",
+                            "keine spezifischen",
+                            "administrative informationen",
+                            "lediglich kontakt",
+                            "ohne spezifischen bezug",
+                            "fehlt der bezug",
+                            "nicht zur forschungsfrage",
                         ]
-                        
-                        has_positive = any(indicator in reasoning for indicator in positive_indicators)
-                        has_negative = any(indicator in reasoning for indicator in negative_indicators)
-                        
+
+                        has_positive = any(
+                            indicator in reasoning for indicator in positive_indicators
+                        )
+                        has_negative = any(
+                            indicator in reasoning for indicator in negative_indicators
+                        )
+
                         # Nur warnen wenn positive Indikatoren ohne negative vorhanden sind
                         if has_positive and not has_negative:
-                            print(f"   ⚠️ INKONSISTENZ {segment_id}: is_relevant=False aber reasoning beschreibt Relevanz")
-                            print(f"      Confidence: {research_relevance}, Reasoning: {all_result['relevance_reasoning'][:150]}...")
-                    
+                            print(
+                                f"   ⚠️ INKONSISTENZ {segment_id}: is_relevant=False aber reasoning beschreibt Relevanz"
+                            )
+                            print(
+                                f"      Confidence: {research_relevance}, Reasoning: {all_result['relevance_reasoning'][:150]}..."
+                            )
+
                     # Filterlogik: Berücksichtige sowohl LLM-Entscheidung als auch Confidence-Schwelle
                     # Bei niedrigen Schwellen (<0.3): Inkludiere auch LLM-verworfene Segmente mit ausreichender Confidence
                     # Bei Standard-Schwelle (0.3): Verwende LLM-Entscheidungen
                     # Bei hohen Schwellen (>0.3): Zusätzliche Filterung auch bei LLM-relevanten Segmenten
-                    
+
                     include_segment = False
                     if relevance_threshold < 0.3:
                         # Niedrige Schwelle: Inkludiere basierend auf Confidence, ignoriere LLM is_relevant
                         include_segment = research_relevance >= relevance_threshold
                     else:
                         # Standard/Hohe Schwelle: LLM muss relevant markiert haben UND Confidence-Schwelle erreichen
-                        include_segment = is_relevant and research_relevance >= relevance_threshold
-                    
+                        include_segment = (
+                            is_relevant and research_relevance >= relevance_threshold
+                        )
+
                     if include_segment:
                         adapted_result = {
                             "segment_id": segment_id,
                             "research_relevance": research_relevance,
-                            "relevance_reasoning": std_result.get("justification", "Keine Begründung verfügbar")
+                            "relevance_reasoning": std_result.get(
+                                "justification", "Keine Begründung verfügbar"
+                            ),
                         }
                         results.append(adapted_result)
-                    
+
             except Exception as e:
                 # Handle batch errors gracefully
-                print(f"   ⚠️ Fehler in Relevanzprüfung Batch {i//batch_size + 1}: {e}")
+                print(
+                    f"   ⚠️ Fehler in Relevanzprüfung Batch {i // batch_size + 1}: {e}"
+                )
                 # Fallback: Alle Segmente als relevant markieren, damit nichts verloren geht
                 for segment in batch:
-                    all_results.append({
-                        "segment_id": segment["segment_id"],
-                        "is_relevant": True,
-                        "research_relevance": 0.5,
-                        "relevance_reasoning": f"Fallback (relevant): Fehler bei der Analyse: {str(e)}"
-                    })
-                    results.append({
-                        "segment_id": segment["segment_id"],
-                        "research_relevance": 0.5,
-                        "relevance_reasoning": f"Fallback (relevant): Fehler bei der Analyse: {str(e)}"
-                    })
-        
+                    all_results.append(
+                        {
+                            "segment_id": segment["segment_id"],
+                            "is_relevant": True,
+                            "research_relevance": 0.5,
+                            "relevance_reasoning": f"Fallback (relevant): Fehler bei der Analyse: {str(e)}",
+                        }
+                    )
+                    results.append(
+                        {
+                            "segment_id": segment["segment_id"],
+                            "research_relevance": 0.5,
+                            "relevance_reasoning": f"Fallback (relevant): Fehler bei der Analyse: {str(e)}",
+                        }
+                    )
+
         # Statistiken berechnen
-        llm_relevant_count = sum(1 for r in all_results if r.get('is_relevant', False))
+        llm_relevant_count = sum(1 for r in all_results if r.get("is_relevant", False))
         final_relevant_count = len(results)
         total_count = len(all_results)
-        
+
         # Verbesserte Log-Ausgabe mit allen Segmenten
         # print(f"   🔍 DEBUG: Relevance check returned {total_count} total results")
-        
+
         # Extrahiere und logge Forschungsaspekte (falls verfügbar)
         if results and len(all_results) > 0:
             try:
                 # Suche nach research_question_aspects in der ersten LLM-Antwort
                 first_result_raw = None
                 for result in all_results:
-                    if hasattr(result, 'get') and result.get('aspects_found'):
+                    if hasattr(result, "get") and result.get("aspects_found"):
                         first_result_raw = result
                         break
-                
-                if first_result_raw and 'aspects_found' in first_result_raw:
-                    aspects = first_result_raw.get('aspects_found', [])
+
+                if first_result_raw and "aspects_found" in first_result_raw:
+                    aspects = first_result_raw.get("aspects_found", [])
                     if aspects:
                         # print(f"   🎯 Identifizierte Forschungsaspekte: {', '.join(aspects)}")
                         pass
             except Exception as e:
                 pass  # Aspekte-Logging ist optional
-        
+
         if relevance_threshold < 0.3:
-            print(f"   📊 {final_relevant_count} Segmente mit Confidence ≥{relevance_threshold} (inkl. {llm_relevant_count} LLM-relevante + {final_relevant_count - llm_relevant_count} LLM-verworfene)")
+            print(
+                f"   📊 {final_relevant_count} Segmente mit Confidence ≥{relevance_threshold} (inkl. {llm_relevant_count} LLM-relevante + {final_relevant_count - llm_relevant_count} LLM-verworfene)"
+            )
         else:
-            print(f"   📊 {llm_relevant_count} Segmente vom LLM als relevant identifiziert, davon {final_relevant_count} mit Confidence ≥{relevance_threshold}")
-        
+            print(
+                f"   📊 {llm_relevant_count} Segmente vom LLM als relevant identifiziert, davon {final_relevant_count} mit Confidence ≥{relevance_threshold}"
+            )
+
         # Detailliertes Logging aller Ergebnisse
         for i, result in enumerate(all_results, 1):
-            status = "✅ RELEVANT" if result.get('is_relevant', False) else "❌ NICHT RELEVANT"
-            confidence = result.get('research_relevance', 0.0)
-            segment_id = result.get('segment_id', f'unknown_{i}')
-            print(f"   🔍 Segment {i:3d}: {segment_id:<40} → {confidence:.1f} ({status})")
-        
+            status = (
+                "✅ RELEVANT"
+                if result.get("is_relevant", False)
+                else "❌ NICHT RELEVANT"
+            )
+            confidence = result.get("research_relevance", 0.0)
+            segment_id = result.get("segment_id", f"unknown_{i}")
+            print(
+                f"   🔍 Segment {i:3d}: {segment_id:<40} → {confidence:.1f} ({status})"
+            )
+
         # Return results based on parameter
         if return_all_results:
             # Return all LLM results with their specific reasoning
@@ -367,92 +460,106 @@ class UnifiedRelevanceAnalyzer:
         else:
             # Return only relevant segments (original behavior)
             return results
-    
-    def _build_simple_relevance_prompt(self, segments: List[Dict[str, str]], research_question: str) -> str:
+
+    def _build_simple_relevance_prompt(
+        self, segments: List[Dict[str, str]], research_question: str
+    ) -> str:
         """Build relevance prompt using standard QCA_Prompts methodology."""
         # Update prompt handler with current research question
         self.update_prompt_context(research_question, ["Standard-Kodierregeln"], {})
-        
+
         # Format segments for standard prompt
-        segments_text = "\n\n".join([
-            f"SEGMENT {i+1}:\nID: {s['segment_id']}\nTEXT: {s['text']}"
-            for i, s in enumerate(segments)
-        ])
-        
-        # Use standard relevance check prompt with empty exclusion rules
-        exclusion_rules = []  # Can be extended based on configuration
-        
-        return self.prompt_handler.get_relevance_check_prompt(
-            segments_text=segments_text,
-            exclusion_rules=exclusion_rules
+        segments_text = "\n\n".join(
+            [
+                f"SEGMENT {i + 1}:\nID: {s['segment_id']}\nTEXT: {s['text']}"
+                for i, s in enumerate(segments)
+            ]
         )
 
-    async def analyze_relevance_with_preferences(self,
-                                                 segments: List[Dict[str, str]],
-                                                 category_definitions: Dict[str, str],
-                                                 research_question: str,
-                                                 coding_rules: List[str],
-                                                 relevance_threshold: float = 0.0) -> List[Dict[str, Any]]:
+        # Use standard relevance check prompt with empty exclusion rules
+        exclusion_rules = []  # Can be extended based on configuration
+
+        return self.prompt_handler.get_relevance_check_prompt(
+            segments_text=segments_text, exclusion_rules=exclusion_rules
+        )
+
+    async def analyze_relevance_with_preferences(
+        self,
+        segments: List[Dict[str, str]],
+        category_definitions: Dict[str, str],
+        research_question: str,
+        coding_rules: List[str],
+        relevance_threshold: float = 0.0,
+    ) -> List[Dict[str, Any]]:
         """
         Analyze relevance of segments and determine category preferences.
-        
+
         This API call provides:
         - Research question relevance for each segment (only segments marked as relevant by LLM)
         - Category preferences (which categories are most relevant)
         - Initial relevance scores
-        
+
         Args:
             segments: List of dicts with 'segment_id' and 'text'
             category_definitions: Dictionary mapping category names to descriptions
             research_question: Research question context
             coding_rules: List of coding rules
             relevance_threshold: Minimum confidence for relevant segments (default: 0.0)
-            
+
         Returns:
             List of dicts with relevance information and category preferences (only relevant segments)
         """
         all_results = []  # Alle LLM-Ergebnisse (relevant + nicht-relevant)
-        results = []      # Nur die finalen relevanten Ergebnisse
-        
+        results = []  # Nur die finalen relevanten Ergebnisse
+
         try:
             start_time = asyncio.get_event_loop().time()
             token_counter.start_request()
-            
+
             prompt = self._build_relevance_preference_prompt(
                 segments=segments,
                 category_definitions=category_definitions,
                 research_question=research_question,
-                coding_rules=coding_rules
+                coding_rules=coding_rules,
             )
-            
+
             response = await self.llm_provider.create_completion(
                 model=self.model_name,
                 messages=[
-                    {"role": "system", "content": "Du bist ein Experte für qualitative Inhaltsanalyse. Du antwortest auf Deutsch. Antworte ausschließlich mit einem JSON-Objekt."},
-                    {"role": "user", "content": prompt}
+                    {
+                        "role": "system",
+                        "content": "Du bist ein Experte für qualitative Inhaltsanalyse. Du antwortest auf Deutsch. Antworte ausschließlich mit einem JSON-Objekt.",
+                    },
+                    {"role": "user", "content": prompt},
                 ],
                 temperature=self.temperature,
-                response_format={"type": "json_object"}
+                response_format={"type": "json_object"},
             )
-            
+
             token_counter.track_response(response, self.model_name)
             processing_time_ms = (asyncio.get_event_loop().time() - start_time) * 1000
-            
+
             record_api_call(
                 call_type="relevance_with_preferences",
                 tokens_used=self._estimate_tokens(prompt, response),
                 processing_time_ms=processing_time_ms,
-                success=True
+                success=True,
             )
-            
+
             llm_response = LLMResponse(response)
             try:
                 result = json.loads(llm_response.extract_json())
             except json.JSONDecodeError as e:
-                print(f"   ⚠️ JSON-Parsing-Fehler in Relevanzprüfung mit Präferenzen: {e}")
-                raw_content = llm_response.content[:200] if llm_response.content else "(leer)"
+                print(
+                    f"   ⚠️ JSON-Parsing-Fehler in Relevanzprüfung mit Präferenzen: {e}"
+                )
+                raw_content = (
+                    llm_response.content[:200] if llm_response.content else "(leer)"
+                )
                 print(f"   ⚠️ LLM-Antwort (Auszug): {raw_content}")
-                print(f"   ↪ Fallback: Alle {len(segments)} Segmente als relevant markiert")
+                print(
+                    f"   ↪ Fallback: Alle {len(segments)} Segmente als relevant markiert"
+                )
                 for segment in segments:
                     fallback_result = {
                         "segment_id": segment["segment_id"],
@@ -460,25 +567,27 @@ class UnifiedRelevanceAnalyzer:
                         "research_relevance": 0.5,
                         "category_preferences": {},
                         "top_categories": [],
-                        "relevance_reasoning": "Fallback: JSON-Parsing der LLM-Antwort fehlgeschlagen"
+                        "relevance_reasoning": "Fallback: JSON-Parsing der LLM-Antwort fehlgeschlagen",
                     }
                     all_results.append(fallback_result)
-                    results.append({
-                        "segment_id": segment["segment_id"],
-                        "research_relevance": 0.5,
-                        "category_preferences": {},
-                        "top_categories": [],
-                        "relevance_reasoning": "Fallback: JSON-Parsing der LLM-Antwort fehlgeschlagen"
-                    })
+                    results.append(
+                        {
+                            "segment_id": segment["segment_id"],
+                            "research_relevance": 0.5,
+                            "category_preferences": {},
+                            "top_categories": [],
+                            "relevance_reasoning": "Fallback: JSON-Parsing der LLM-Antwort fehlgeschlagen",
+                        }
+                    )
                 return results
-            
+
             # Adapt standard prompt response format to expected format
             # Note: The standard category preselection prompt has a different format
             # We need to adapt it to the expected format for compatibility
             if "segment_results" in result:
                 # Standard format adaptation
                 standard_results = result.get("segment_results", [])
-                
+
                 for std_result in standard_results:
                     # Map segment_number to actual segment_id
                     segment_number = std_result.get("segment_number", 1)
@@ -487,16 +596,20 @@ class UnifiedRelevanceAnalyzer:
                     else:
                         # Fallback if segment_number is out of range
                         segment_id = f"unknown_segment_{segment_number}"
-                    
+
                     # Extrahiere LLM-Entscheidung und Konfidenz
                     is_relevant = std_result.get("is_relevant", False)
                     confidence = std_result.get("confidence", 0.0)
-                    research_relevance = float(confidence) if confidence is not None else (1.0 if is_relevant else 0.0)
-                    
+                    research_relevance = (
+                        float(confidence)
+                        if confidence is not None
+                        else (1.0 if is_relevant else 0.0)
+                    )
+
                     # Get preferred categories (categories with score >= 0.6)
                     preferred_categories = std_result.get("preferred_categories", [])
                     category_preferences = std_result.get("relevance_scores", {})
-                    
+
                     # Erstelle Ergebnis für alle LLM-Bewertungen (für Statistik)
                     all_result = {
                         "segment_id": segment_id,
@@ -504,10 +617,12 @@ class UnifiedRelevanceAnalyzer:
                         "research_relevance": research_relevance,
                         "category_preferences": category_preferences,
                         "top_categories": preferred_categories,
-                        "relevance_reasoning": std_result.get("reasoning", "Keine Begründung verfügbar")
+                        "relevance_reasoning": std_result.get(
+                            "reasoning", "Keine Begründung verfügbar"
+                        ),
                     }
                     all_results.append(all_result)
-                    
+
                     # Filterlogik für Kategorie-Präferenzen (analog zur einfachen Relevanzprüfung)
                     include_segment = False
                     if relevance_threshold < 0.3:
@@ -515,32 +630,42 @@ class UnifiedRelevanceAnalyzer:
                         include_segment = research_relevance >= relevance_threshold
                     else:
                         # Standard/Hohe Schwelle: LLM muss relevant markiert haben UND Confidence-Schwelle erreichen
-                        include_segment = is_relevant and research_relevance >= relevance_threshold
-                    
+                        include_segment = (
+                            is_relevant and research_relevance >= relevance_threshold
+                        )
+
                     if include_segment:
                         adapted_result = {
                             "segment_id": segment_id,
                             "research_relevance": research_relevance,
                             "category_preferences": category_preferences,
                             "top_categories": preferred_categories,
-                            "relevance_reasoning": std_result.get("reasoning", "Keine Begründung verfügbar")
+                            "relevance_reasoning": std_result.get(
+                                "reasoning", "Keine Begründung verfügbar"
+                            ),
                         }
                         results.append(adapted_result)
-                
+
                 # Statistiken berechnen
-                llm_relevant_count = sum(1 for r in all_results if r.get('is_relevant', False))
+                llm_relevant_count = sum(
+                    1 for r in all_results if r.get("is_relevant", False)
+                )
                 final_relevant_count = len(results)
                 total_count = len(all_results)
-                
+
                 # Verbesserte Log-Ausgabe
-                print(f"   🔍 DEBUG: Relevance with preferences returned {total_count} total results")
-                print(f"   📊 {llm_relevant_count} Segmente vom LLM als relevant für die Forschungsfrage identifiziert, darunter {final_relevant_count} Segmente mit hinreichender Konfidenz (≥{relevance_threshold})")
-                
+                print(
+                    f"   🔍 DEBUG: Relevance with preferences returned {total_count} total results"
+                )
+                print(
+                    f"   📊 {llm_relevant_count} Segmente vom LLM als relevant für die Forschungsfrage identifiziert, darunter {final_relevant_count} Segmente mit hinreichender Konfidenz (≥{relevance_threshold})"
+                )
+
                 return results
             else:
                 # Fallback to original format if available
                 return result.get("results", [])
-            
+
         except Exception as e:
             processing_time_ms = (asyncio.get_event_loop().time() - start_time) * 1000
             record_api_call(
@@ -548,112 +673,128 @@ class UnifiedRelevanceAnalyzer:
                 tokens_used=0,
                 processing_time_ms=processing_time_ms,
                 success=False,
-                error_message=str(e)
+                error_message=str(e),
             )
             raise
-    
-    def _build_relevance_preference_prompt(self,
-                                          segments: List[Dict[str, str]],
-                                          category_definitions: Dict[str, str],
-                                          research_question: str,
-                                          coding_rules: List[str]) -> str:
+
+    def _build_relevance_preference_prompt(
+        self,
+        segments: List[Dict[str, str]],
+        category_definitions: Dict[str, str],
+        research_question: str,
+        coding_rules: List[str],
+    ) -> str:
         """Build prompt for relevance checking with category preferences using standard QCA_Prompts."""
         # Update prompt handler with current context
-        self.update_prompt_context(research_question, coding_rules, category_definitions)
-        
-        # Format segments for standard prompt
-        segments_text = "\n\n".join([
-            f"SEGMENT {i+1}:\nID: {s['segment_id']}\nTEXT: {s['text']}"
-            for i, s in enumerate(segments)
-        ])
-        
-        # Use standard relevance with category preselection prompt
-        return self.prompt_handler.get_relevance_with_category_preselection_prompt(
-            segments_text=segments_text,
-            categories=category_definitions
+        self.update_prompt_context(
+            research_question, coding_rules, category_definitions
         )
 
-    async def analyze_category_preferences(self,
-                                          segments: List[Dict[str, str]],
-                                          category_definitions: Dict[str, str],
-                                          research_question: str,
-                                          coding_rules: List[str],
-                                          batch_size: int = 5) -> List[Dict[str, Any]]:
+        # Format segments for standard prompt
+        segments_text = "\n\n".join(
+            [
+                f"SEGMENT {i + 1}:\nID: {s['segment_id']}\nTEXT: {s['text']}"
+                for i, s in enumerate(segments)
+            ]
+        )
+
+        # Use standard relevance with category preselection prompt
+        return self.prompt_handler.get_relevance_with_category_preselection_prompt(
+            segments_text=segments_text, categories=category_definitions
+        )
+
+    async def analyze_category_preferences(
+        self,
+        segments: List[Dict[str, str]],
+        category_definitions: Dict[str, str],
+        research_question: str,
+        coding_rules: List[str],
+        batch_size: int = 5,
+    ) -> List[Dict[str, Any]]:
         """
         Bestimme Kategoriepräferenzen für bereits als relevant bestätigte Segmente.
         Uses batching to respect batch_size limits.
-        
+
         Diese Methode führt KEINE Relevanzprüfung durch, sondern bestimmt nur
         welche Kategorien am besten zu den Segmenten passen.
-        
+
         Args:
             segments: Liste bereits relevanter Segmente mit 'segment_id' und 'text'
             category_definitions: Dictionary mapping category names to descriptions
             research_question: Research question context
             coding_rules: List of coding rules
             batch_size: Maximum segments per API call
-            
+
         Returns:
             List of dicts with category preference information
         """
         results = []
-        
+
         # Process in batches
         total_batches = (len(segments) + batch_size - 1) // batch_size
-        print(f"   🔄 Verarbeite {len(segments)} Segmente in {total_batches} Batches (Batch-Größe: {batch_size})")
-        
+        print(
+            f"   🔄 Verarbeite {len(segments)} Segmente in {total_batches} Batches (Batch-Größe: {batch_size})"
+        )
+
         for i in range(0, len(segments), batch_size):
-            batch = segments[i:i + batch_size]
+            batch = segments[i : i + batch_size]
             if not batch:
                 continue
-            
+
             batch_num = (i // batch_size) + 1
-            print(f"   📦 Kategoriepräferenzen-Batch {batch_num}/{total_batches}: {len(batch)} Segmente")
-                
+            print(
+                f"   📦 Kategoriepräferenzen-Batch {batch_num}/{total_batches}: {len(batch)} Segmente"
+            )
+
             try:
                 start_time = asyncio.get_event_loop().time()
                 token_counter.start_request()
-                
+
                 prompt = self._build_category_preferences_prompt(
                     segments=batch,
                     category_definitions=category_definitions,
                     research_question=research_question,
-                    coding_rules=coding_rules
+                    coding_rules=coding_rules,
                 )
-                
+
                 response = await self.llm_provider.create_completion(
                     model=self.model_name,
                     messages=[
-                        {"role": "system", "content": "Du bist ein Experte für qualitative Inhaltsanalyse. Du antwortest auf Deutsch. Antworte ausschließlich mit einem JSON-Objekt."},
-                        {"role": "user", "content": prompt}
+                        {
+                            "role": "system",
+                            "content": "Du bist ein Experte für qualitative Inhaltsanalyse. Du antwortest auf Deutsch. Antworte ausschließlich mit einem JSON-Objekt.",
+                        },
+                        {"role": "user", "content": prompt},
                     ],
                     temperature=self.temperature,
-                    response_format={"type": "json_object"}
+                    response_format={"type": "json_object"},
                 )
-                
+
                 token_counter.track_response(response, self.model_name)
-                processing_time_ms = (asyncio.get_event_loop().time() - start_time) * 1000
-                
+                processing_time_ms = (
+                    asyncio.get_event_loop().time() - start_time
+                ) * 1000
+
                 record_api_call(
                     call_type="category_preferences",
                     tokens_used=self._estimate_tokens(prompt, response),
                     processing_time_ms=processing_time_ms,
-                    success=True
+                    success=True,
                 )
-                
+
                 llm_response = LLMResponse(response)
                 json_text = llm_response.extract_json()
-                
+
                 # Additional safety check for JSON parsing
                 if not json_text or json_text.strip() == "":
                     raise ValueError("Empty JSON response from LLM")
-                
+
                 result = json.loads(json_text)
-                
+
                 # Ensure result is a dictionary
                 if not isinstance(result, dict):
                     raise ValueError(f"Expected dict from LLM, got {type(result)}")
-                
+
                 # Debug: Log the structure of the result
                 # print(f"   🔍 DEBUG: LLM response structure: {list(result.keys())}")
                 if "segment_results" in result:
@@ -664,27 +805,31 @@ class UnifiedRelevanceAnalyzer:
                         if segment_results[0] is not None:
                             # print(f"   🔍 DEBUG: First segment_result keys: {list(segment_results[0].keys()) if isinstance(segment_results[0], dict) else 'Not a dict'}")
                             pass
-                
+
                 # Parse category preference results
                 if "segment_results" in result:
                     standard_results = result.get("segment_results", [])
-                    
+
                     # Ensure standard_results is a list
                     if not isinstance(standard_results, list):
-                        print(f"   ⚠️ Expected list for segment_results, got {type(standard_results)}")
+                        print(
+                            f"   ⚠️ Expected list for segment_results, got {type(standard_results)}"
+                        )
                         standard_results = []
-                    
+
                     for std_result in standard_results:
                         # Skip None results
                         if std_result is None:
                             print(f"   ⚠️ Skipping None result in segment_results")
                             continue
-                            
+
                         # Ensure std_result is a dictionary
                         if not isinstance(std_result, dict):
-                            print(f"   ⚠️ Expected dict for segment result, got {type(std_result)}")
+                            print(
+                                f"   ⚠️ Expected dict for segment result, got {type(std_result)}"
+                            )
                             continue
-                            
+
                         # Map segment_number to actual segment_id
                         segment_number = std_result.get("segment_number", 1)
                         if segment_number <= len(batch):
@@ -692,121 +837,162 @@ class UnifiedRelevanceAnalyzer:
                         else:
                             # Fallback if segment_number is out of range
                             segment_id = f"unknown_segment_{segment_number}"
-                            print(f"   ⚠️ Segment number {segment_number} out of range for batch size {len(batch)}")
-                        
+                            print(
+                                f"   ⚠️ Segment number {segment_number} out of range for batch size {len(batch)}"
+                            )
+
                         # Safely extract data with None checks
                         category_scores = std_result.get("category_scores", {})
-                        preferred_categories = std_result.get("preferred_categories", [])
-                        reasoning = std_result.get("reasoning", "Keine Begründung verfügbar")
-                        
+                        preferred_categories = std_result.get(
+                            "preferred_categories", []
+                        )
+                        reasoning = std_result.get(
+                            "reasoning", "Keine Begründung verfügbar"
+                        )
+
                         # Ensure extracted data has correct types
                         if not isinstance(category_scores, dict):
-                            print(f"   ⚠️ Expected dict for category_scores, got {type(category_scores)}")
+                            print(
+                                f"   ⚠️ Expected dict for category_scores, got {type(category_scores)}"
+                            )
                             category_scores = {}
-                        
+
                         if not isinstance(preferred_categories, list):
-                            print(f"   ⚠️ Expected list for preferred_categories, got {type(preferred_categories)}")
+                            print(
+                                f"   ⚠️ Expected list for preferred_categories, got {type(preferred_categories)}"
+                            )
                             preferred_categories = []
-                        
+
                         if not isinstance(reasoning, str):
-                            reasoning = str(reasoning) if reasoning is not None else "Keine Begründung verfügbar"
-                        
+                            reasoning = (
+                                str(reasoning)
+                                if reasoning is not None
+                                else "Keine Begründung verfügbar"
+                            )
+
                         adapted_result = {
                             "segment_id": segment_id,
                             "category_preferences": category_scores,
                             "top_categories": preferred_categories,
-                            "preference_reasoning": reasoning
+                            "preference_reasoning": reasoning,
                         }
                         results.append(adapted_result)
-                    
+
                     # Ensure we have results for all segments in the batch
-                    processed_segment_ids = {r["segment_id"] for r in results if r["segment_id"] in [s["segment_id"] for s in batch]}
-                    missing_segments = [s for s in batch if s["segment_id"] not in processed_segment_ids]
-                    
+                    processed_segment_ids = {
+                        r["segment_id"]
+                        for r in results
+                        if r["segment_id"] in [s["segment_id"] for s in batch]
+                    }
+                    missing_segments = [
+                        s for s in batch if s["segment_id"] not in processed_segment_ids
+                    ]
+
                     if missing_segments:
-                        print(f"   ⚠️ Creating default results for {len(missing_segments)} missing segments")
+                        print(
+                            f"   ⚠️ Creating default results for {len(missing_segments)} missing segments"
+                        )
                         for segment in missing_segments:
-                            results.append({
-                                "segment_id": segment["segment_id"],
-                                "category_preferences": {},
-                                "top_categories": [],
-                                "preference_reasoning": "Keine Kategoriepräferenzen ermittelt (fehlende LLM-Response)"
-                            })
+                            results.append(
+                                {
+                                    "segment_id": segment["segment_id"],
+                                    "category_preferences": {},
+                                    "top_categories": [],
+                                    "preference_reasoning": "Keine Kategoriepräferenzen ermittelt (fehlende LLM-Response)",
+                                }
+                            )
                 else:
                     # Fallback to original format if available
-                    print(f"   🔍 DEBUG: Using fallback format, available keys: {list(result.keys())}")
+                    print(
+                        f"   🔍 DEBUG: Using fallback format, available keys: {list(result.keys())}"
+                    )
                     batch_results = result.get("results", [])
-                    
+
                     # If no results found, create default entries
                     if not batch_results:
-                        print(f"   ⚠️ No results found in LLM response, creating default entries")
+                        print(
+                            f"   ⚠️ No results found in LLM response, creating default entries"
+                        )
                         for segment in batch:
-                            results.append({
-                                "segment_id": segment["segment_id"],
-                                "category_preferences": {},
-                                "top_categories": [],
-                                "preference_reasoning": "Keine Kategoriepräferenzen ermittelt (LLM-Response unvollständig)"
-                            })
+                            results.append(
+                                {
+                                    "segment_id": segment["segment_id"],
+                                    "category_preferences": {},
+                                    "top_categories": [],
+                                    "preference_reasoning": "Keine Kategoriepräferenzen ermittelt (LLM-Response unvollständig)",
+                                }
+                            )
                     else:
                         results.extend(batch_results)
-                    
+
             except Exception as e:
                 # Handle batch errors gracefully
-                print(f"   ⚠️ Fehler in Kategoriepräferenzen Batch {i//batch_size + 1}: {e}")
+                print(
+                    f"   ⚠️ Fehler in Kategoriepräferenzen Batch {i // batch_size + 1}: {e}"
+                )
                 # Add default results for failed batch
                 for segment in batch:
-                    results.append({
-                        "segment_id": segment["segment_id"],
-                        "category_preferences": {},
-                        "top_categories": [],
-                        "preference_reasoning": f"Fehler bei der Analyse: {str(e)}"
-                    })
-        
+                    results.append(
+                        {
+                            "segment_id": segment["segment_id"],
+                            "category_preferences": {},
+                            "top_categories": [],
+                            "preference_reasoning": f"Fehler bei der Analyse: {str(e)}",
+                        }
+                    )
+
         return results
-    
-    def _build_category_preferences_prompt(self,
-                                          segments: List[Dict[str, str]],
-                                          category_definitions: Dict[str, str],
-                                          research_question: str,
-                                          coding_rules: List[str]) -> str:
+
+    def _build_category_preferences_prompt(
+        self,
+        segments: List[Dict[str, str]],
+        category_definitions: Dict[str, str],
+        research_question: str,
+        coding_rules: List[str],
+    ) -> str:
         """Build prompt for category preferences using standard QCA_Prompts."""
         # Update prompt handler with current context
-        self.update_prompt_context(research_question, coding_rules, category_definitions)
-        
-        # Format segments for standard prompt
-        segments_text = "\n\n".join([
-            f"SEGMENT {i+1}:\nID: {s['segment_id']}\nTEXT: {s['text']}"
-            for i, s in enumerate(segments)
-        ])
-        
-        # Use new category preferences prompt
-        return self.prompt_handler.get_category_preferences_prompt(
-            segments_text=segments_text,
-            categories=category_definitions
+        self.update_prompt_context(
+            research_question, coding_rules, category_definitions
         )
 
-    async def analyze_relevance_comprehensive(self,
-                                            segment_text: str,
-                                            segment_id: str,
-                                            category_definitions: Dict[str, str],
-                                            research_question: str,
-                                            coding_rules: List[str]) -> UnifiedAnalysisResult:
+        # Format segments for standard prompt
+        segments_text = "\n\n".join(
+            [
+                f"SEGMENT {i + 1}:\nID: {s['segment_id']}\nTEXT: {s['text']}"
+                for i, s in enumerate(segments)
+            ]
+        )
+
+        # Use new category preferences prompt
+        return self.prompt_handler.get_category_preferences_prompt(
+            segments_text=segments_text, categories=category_definitions
+        )
+
+    async def analyze_relevance_comprehensive(
+        self,
+        segment_text: str,
+        segment_id: str,
+        category_definitions: Dict[str, str],
+        research_question: str,
+        coding_rules: List[str],
+    ) -> UnifiedAnalysisResult:
         """
         Perform comprehensive relevance analysis for deductive mode.
-        
+
         This single API call replaces multiple individual calls for:
         - Category relevance checking
         - Primary category selection
         - Multiple coding determination
         - Confidence scoring
-        
+
         Args:
             segment_text: Text segment to analyze
             segment_id: Unique identifier for the segment
             category_definitions: Dictionary mapping category names to descriptions
             research_question: Research question context
             coding_rules: List of coding rules
-            
+
         Returns:
             UnifiedAnalysisResult containing all analysis results
         """
@@ -815,44 +1001,51 @@ class UnifiedRelevanceAnalyzer:
             segment_text=segment_text,
             category_definitions=category_definitions,
             research_question=research_question,
-            coding_rules=coding_rules
+            coding_rules=coding_rules,
         )
-        
+
         try:
             # Track API call
             start_time = asyncio.get_event_loop().time()
             # Track token usage
             token_counter.start_request()
-            
+
             response = await self.llm_provider.create_completion(
                 model=self.model_name,
                 messages=[
-                    {"role": "system", "content": "Du bist ein Experte für qualitative Inhaltsanalyse nach Mayring. Du antwortest auf Deutsch."},
-                    {"role": "user", "content": prompt}
+                    {
+                        "role": "system",
+                        "content": "Du bist ein Experte für qualitative Inhaltsanalyse nach Mayring. Du antwortest auf Deutsch.",
+                    },
+                    {"role": "user", "content": prompt},
                 ],
                 temperature=self.temperature,
-                response_format={"type": "json_object"}
+                response_format={"type": "json_object"},
             )
-            
+
             # Track response
             token_counter.track_response(response, self.model_name)
-            
+
             processing_time_ms = (asyncio.get_event_loop().time() - start_time) * 1000
-            
+
             # Record the API call
             record_api_call(
                 call_type="unified_relevance_analysis",
                 tokens_used=self._estimate_tokens(prompt, response),
                 processing_time_ms=processing_time_ms,
-                success=True
+                success=True,
             )
-            
+
             llm_response = LLMResponse(response)
             try:
                 result = json.loads(llm_response.extract_json())
             except json.JSONDecodeError as e:
-                print(f"   ⚠️ JSON-Parsing-Fehler in umfassender Relevanzanalyse für {segment_id}: {e}")
-                raw_content = llm_response.content[:200] if llm_response.content else "(leer)"
+                print(
+                    f"   ⚠️ JSON-Parsing-Fehler in umfassender Relevanzanalyse für {segment_id}: {e}"
+                )
+                raw_content = (
+                    llm_response.content[:200] if llm_response.content else "(leer)"
+                )
                 print(f"   ⚠️ LLM-Antwort (Auszug): {raw_content}")
                 # Fallback: Relevantes Ergebnis mit niedriger Konfidenz
                 return UnifiedAnalysisResult(
@@ -861,81 +1054,89 @@ class UnifiedRelevanceAnalyzer:
                     all_categories=[],
                     relevance_scores={},
                     confidence=0.5,
-                    requires_multiple_coding=False
+                    requires_multiple_coding=False,
                 )
-            
+
             # Parse comprehensive result
             return self._parse_comprehensive_result(result, segment_id)
-            
+
         except Exception as e:
             processing_time_ms = (asyncio.get_event_loop().time() - start_time) * 1000
-            
+
             # Record failed API call
             record_api_call(
                 call_type="unified_relevance_analysis",
                 tokens_used=0,
                 processing_time_ms=processing_time_ms,
                 success=False,
-                error_message=str(e)
+                error_message=str(e),
             )
             raise
-    
-    def _build_comprehensive_prompt(self,
-                                  segment_text: str,
-                                  category_definitions: Dict[str, str],
-                                  research_question: str,
-                                  coding_rules: List[str],
-                                  context_paraphrases: Optional[List[str]] = None) -> str:
+
+    def _build_comprehensive_prompt(
+        self,
+        segment_text: str,
+        category_definitions: Dict[str, str],
+        research_question: str,
+        coding_rules: List[str],
+        context_paraphrases: Optional[List[str]] = None,
+    ) -> str:
         """
         Build a comprehensive prompt using centralized QCA_Prompts methodology.
         """
         # Update prompt handler with current context
-        self.update_prompt_context(research_question, coding_rules, category_definitions)
-        
+        self.update_prompt_context(
+            research_question, coding_rules, category_definitions
+        )
+
         # Format categories for standard prompt
         categories_overview = []
         for name, definition in category_definitions.items():
-            categories_overview.append({
-                'name': name,
-                'definition': definition,
-                'subcategories': {},  # Can be extended
-                'examples': [],
-                'rules': []
-            })
-        
+            categories_overview.append(
+                {
+                    "name": name,
+                    "definition": definition,
+                    "subcategories": {},  # Can be extended
+                    "examples": [],
+                    "rules": [],
+                }
+            )
+
         # Use centralized comprehensive deductive prompt
         return self.prompt_handler.get_comprehensive_deductive_prompt(
             segment_text=segment_text,
             categories_overview=categories_overview,
             multiple_coding_threshold=self.multiple_coding_threshold,
-            context_paraphrases=context_paraphrases
+            context_paraphrases=context_paraphrases,
         )
-    
-    def _parse_comprehensive_result(self, result: Dict[str, Any], segment_id: str) -> UnifiedAnalysisResult:
+
+    def _parse_comprehensive_result(
+        self, result: Dict[str, Any], segment_id: str
+    ) -> UnifiedAnalysisResult:
         """
         Parse comprehensive analysis result into structured format.
         """
         # Extract relevance scores
         relevance_scores = result.get("relevance_scores", {})
-        
+
         # Get primary category
         primary_category = result.get("primary_category", "")
-        
+
         # Get all categories with details
         all_categories = result.get("all_categories", [])
-        
+
         # Determine if multiple coding is required
         requires_multiple_coding = result.get("requires_multiple_coding", False)
-        
+
         # Get confidence score
         confidence = result.get("confidence", 0.5)
-        
+
         # Extract additional coding details
         subcategories = result.get("subcategories", [])
         keywords = result.get("keywords", "")
         paraphrase = result.get("paraphrase", "")
         justification = result.get("justification", "")
-        
+
         return UnifiedAnalysisResult(
             segment_id=segment_id,
             primary_category=primary_category,
@@ -947,71 +1148,75 @@ class UnifiedRelevanceAnalyzer:
             subcategories=subcategories,
             keywords=keywords,
             paraphrase=paraphrase,
-            justification=justification
+            justification=justification,
         )
-    
+
     def _estimate_tokens(self, prompt: str, response: Dict[str, Any]) -> int:
         """
         Estimate token usage for API call tracking.
         """
         # Simple estimation: ~4 tokens per 100 characters
         prompt_chars = len(prompt)
-        
-        if isinstance(response, dict) and 'choices' in response:
-            response_text = response['choices'][0].get('message', {}).get('content', '')
+
+        if isinstance(response, dict) and "choices" in response:
+            response_text = response["choices"][0].get("message", {}).get("content", "")
             response_chars = len(response_text)
         else:
             response_chars = 0
-            
+
         total_chars = prompt_chars + response_chars
         return max(1, int(total_chars * 0.04))
-    
-    async def analyze_batch(self,
-                           segments: List[Dict[str, str]],
-                           category_definitions: Dict[str, str],
-                           research_question: str,
-                           coding_rules: List[str],
-                           batch_size: int = 5,
-                           temperature: Optional[float] = None,
-                           context_paraphrases: Optional[List[str]] = None,
-                           segment_category_mapping: Optional[Dict[str, List[str]]] = None) -> List[UnifiedAnalysisResult]:
+
+    async def analyze_batch(
+        self,
+        segments: List[Dict[str, str]],
+        category_definitions: Dict[str, str],
+        research_question: str,
+        coding_rules: List[str],
+        batch_size: int = 5,
+        temperature: Optional[float] = None,
+        context_paraphrases: Optional[List[str]] = None,
+        segment_category_mapping: Optional[Dict[str, List[str]]] = None,
+    ) -> List[UnifiedAnalysisResult]:
         """
         Analyze a batch of segments with unified processing.
-        
+
         Args:
             segments: List of dicts with 'segment_id' and 'text'
             category_definitions: Dictionary mapping category names to descriptions
             research_question: Research question context
             coding_rules: List of coding rules
             batch_size: Maximum segments per API call
-            
+
         Returns:
             List of UnifiedAnalysisResult objects
         """
         results = []
-        
+
         # Process in batches (simplified logging)
         total_batches = (len(segments) + batch_size - 1) // batch_size
         if len(segments) > batch_size:
-            print(f"   🔄 Verarbeite {len(segments)} Segmente in {total_batches} Batches")
-        
+            print(
+                f"   🔄 Verarbeite {len(segments)} Segmente in {total_batches} Batches"
+            )
+
         for i in range(0, len(segments), batch_size):
-            batch = segments[i:i + batch_size]
-            
+            batch = segments[i : i + batch_size]
+
             if len(batch) == 0:
                 continue
-            
+
             batch_num = (i // batch_size) + 1
-                
+
             max_retries = 2
             last_error = None
-            
+
             for attempt in range(max_retries + 1):
                 try:
                     # Track API call
                     start_time = asyncio.get_event_loop().time()
                     token_counter.start_request()  # Track request start
-                    
+
                     # Build batch prompt
                     prompt = self._build_batch_prompt(
                         segments=batch,
@@ -1019,162 +1224,230 @@ class UnifiedRelevanceAnalyzer:
                         research_question=research_question,
                         coding_rules=coding_rules,
                         context_paraphrases=context_paraphrases,
-                        segment_category_mapping=segment_category_mapping
+                        segment_category_mapping=segment_category_mapping,
                     )
-                    
+
                     # DEBUG: Log context paraphrases usage (only if multiple batches or context available)
-                    if context_paraphrases and (total_batches > 1 or len(segments) <= batch_size):
-                        first_segment_id = batch[0]['segment_id'] if batch else "unknown"
-                        print(f"      📝 Nutze {len(context_paraphrases)} Kontext-Paraphrasen (Segment: {first_segment_id})")
+                    if context_paraphrases and (
+                        total_batches > 1 or len(segments) <= batch_size
+                    ):
+                        first_segment_id = (
+                            batch[0]["segment_id"] if batch else "unknown"
+                        )
+                        print(
+                            f"      📝 Nutze {len(context_paraphrases)} Kontext-Paraphrasen (Segment: {first_segment_id})"
+                        )
                     elif not context_paraphrases and total_batches > 1:
-                        first_segment_id = batch[0]['segment_id'] if batch else "unknown"
-                        print(f"      📝 Keine Kontext-Paraphrasen (Segment: {first_segment_id})")
-                    
+                        first_segment_id = (
+                            batch[0]["segment_id"] if batch else "unknown"
+                        )
+                        print(
+                            f"      📝 Keine Kontext-Paraphrasen (Segment: {first_segment_id})"
+                        )
+
                     # Use provided temperature or fallback to instance temperature
-                    use_temperature = temperature if temperature is not None else self.temperature
-                    
+                    use_temperature = (
+                        temperature if temperature is not None else self.temperature
+                    )
+
                     response = await self.llm_provider.create_completion(
                         model=self.model_name,
                         messages=[
-                            {"role": "system", "content": "Du bist ein Experte für qualitative Inhaltsanalyse. Du antwortest auf deutsch. Antworte ausschliesslich mit einem JSON-Objekt."},
-                            {"role": "user", "content": prompt}
+                            {
+                                "role": "system",
+                                "content": "Du bist ein Experte für qualitative Inhaltsanalyse. Du antwortest auf deutsch. Antworte ausschliesslich mit einem JSON-Objekt.",
+                            },
+                            {"role": "user", "content": prompt},
                         ],
                         temperature=use_temperature,
-                        response_format={"type": "json_object"}
+                        response_format={"type": "json_object"},
                     )
-                    
-                    token_counter.track_response(response, self.model_name)  # Track response
-                    processing_time_ms = (asyncio.get_event_loop().time() - start_time) * 1000
-                    
+
+                    token_counter.track_response(
+                        response, self.model_name
+                    )  # Track response
+                    processing_time_ms = (
+                        asyncio.get_event_loop().time() - start_time
+                    ) * 1000
+
                     # Record the API call (for additional metrics)
                     record_api_call(
                         call_type="unified_relevance_analysis_batch",
                         tokens_used=self._estimate_tokens(prompt, response),
                         processing_time_ms=processing_time_ms,
-                        success=True
+                        success=True,
                     )
-                    
+
                     llm_response = LLMResponse(response)
                     batch_result_json = json.loads(llm_response.extract_json())
-                    
+
                     # Parse batch results
                     parsed_results = self._parse_batch_result(batch_result_json, batch)
                     results.extend(parsed_results)
                     last_error = None
                     break  # Success - exit retry loop
-                    
+
                 except json.JSONDecodeError as e:
                     last_error = e
-                    processing_time_ms = (asyncio.get_event_loop().time() - start_time) * 1000
+                    processing_time_ms = (
+                        asyncio.get_event_loop().time() - start_time
+                    ) * 1000
                     record_api_call(
                         call_type="unified_relevance_analysis_batch",
                         tokens_used=0,
                         processing_time_ms=processing_time_ms,
                         success=False,
-                        error_message=str(e)
+                        error_message=str(e),
                     )
                     if attempt < max_retries:
-                        print(f"      ⚠️ JSON-Fehler in Batch {batch_num}/{total_batches} (Versuch {attempt + 1}/{max_retries + 1}): {e}")
+                        print(
+                            f"      ⚠️ JSON-Fehler in Batch {batch_num}/{total_batches} (Versuch {attempt + 1}/{max_retries + 1}): {e}"
+                        )
                         print(f"      🔄 Wiederhole Batch...")
                         await asyncio.sleep(1)  # Brief pause before retry
                     else:
-                        print(f"      ❌ JSON-Fehler in Batch {batch_num}/{total_batches} nach {max_retries + 1} Versuchen: {e}")
+                        print(
+                            f"      ❌ JSON-Fehler in Batch {batch_num}/{total_batches} nach {max_retries + 1} Versuchen: {e}"
+                        )
                         print(f"      ⏭️ Überspringe Batch, fahre mit nächstem fort...")
-                        
+
                 except Exception as e:
-                    # Non-JSON errors: don't retry, raise immediately
-                    processing_time_ms = (asyncio.get_event_loop().time() - start_time) * 1000
+                    # Check if this is a transient API error (500, 502, 503, 429)
+                    is_transient = False
+                    error_str = str(e).lower()
+                    transient_markers = [
+                        "error code: 500",
+                        "error code: 502",
+                        "error code: 503",
+                        "error code: 429",
+                        "error code: 529",
+                        "internalservererror",
+                        "badgateway",
+                        "serviceunavailable",
+                        "ratelimit",
+                    ]
+                    for marker in transient_markers:
+                        if marker in error_str:
+                            is_transient = True
+                            break
+
+                    processing_time_ms = (
+                        asyncio.get_event_loop().time() - start_time
+                    ) * 1000
                     record_api_call(
                         call_type="unified_relevance_analysis_batch",
                         tokens_used=0,
                         processing_time_ms=processing_time_ms,
                         success=False,
-                        error_message=str(e)
+                        error_message=str(e),
                     )
-                    raise e
+
+                    if is_transient and attempt < max_retries:
+                        wait_time = 2**attempt + 1  # 2s, 3s exponential backoff
+                        print(
+                            f"      ⚠️ API-Fehler (transient) in Batch {batch_num}/{total_batches} (Versuch {attempt + 1}/{max_retries + 1}): {e}"
+                        )
+                        print(f"      🔄 Wiederhole Batch in {wait_time}s...")
+                        last_error = e
+                        await asyncio.sleep(wait_time)
+                    else:
+                        # Non-transient or exhausted retries: raise
+                        raise e
 
         return results
 
-    def _build_batch_prompt(self,
-                          segments: List[Dict[str, str]],
-                          category_definitions: Dict[str, str],
-                          research_question: str,
-                          coding_rules: List[str],
-                          context_paraphrases: Optional[List[str]] = None,
-                          segment_category_mapping: Optional[Dict[str, List[str]]] = None) -> str:
+    def _build_batch_prompt(
+        self,
+        segments: List[Dict[str, str]],
+        category_definitions: Dict[str, str],
+        research_question: str,
+        coding_rules: List[str],
+        context_paraphrases: Optional[List[str]] = None,
+        segment_category_mapping: Optional[Dict[str, List[str]]] = None,
+    ) -> str:
         """
         Build batch prompt using centralized QCA_Prompts methodology.
-        
+
         Args:
             segment_category_mapping: Optional mapping from segment_id to allowed categories
         """
         # Update prompt handler with current context
-        self.update_prompt_context(research_question, coding_rules, category_definitions)
-        
+        self.update_prompt_context(
+            research_question, coding_rules, category_definitions
+        )
+
         # Format categories for standard prompt
         categories_overview = []
         for name, definition in category_definitions.items():
-            if hasattr(definition, 'definition'):
+            if hasattr(definition, "definition"):
                 # CategoryDefinition object
-                categories_overview.append({
-                    'name': name,
-                    'definition': definition.definition,
-                    'subcategories': definition.subcategories or {},
-                    'examples': definition.examples or [],
-                    'rules': definition.rules or []
-                })
+                categories_overview.append(
+                    {
+                        "name": name,
+                        "definition": definition.definition,
+                        "subcategories": definition.subcategories or {},
+                        "examples": definition.examples or [],
+                        "rules": definition.rules or [],
+                    }
+                )
             else:
                 # String definition
-                categories_overview.append({
-                    'name': name,
-                    'definition': str(definition),
-                    'subcategories': {},
-                    'examples': [],
-                    'rules': []
-                })
-        
+                categories_overview.append(
+                    {
+                        "name": name,
+                        "definition": str(definition),
+                        "subcategories": {},
+                        "examples": [],
+                        "rules": [],
+                    }
+                )
+
         # Use centralized batch deductive prompt with segment-specific category mapping
         return self.prompt_handler.get_batch_deductive_prompt(
             segments=segments,
             categories_overview=categories_overview,
             context_paraphrases=context_paraphrases,
-            segment_category_mapping=segment_category_mapping
+            segment_category_mapping=segment_category_mapping,
         )
 
-    def _parse_batch_result(self, batch_json: Dict[str, Any], original_segments: List[Dict[str, str]]) -> List[UnifiedAnalysisResult]:
+    def _parse_batch_result(
+        self, batch_json: Dict[str, Any], original_segments: List[Dict[str, str]]
+    ) -> List[UnifiedAnalysisResult]:
         """
         Parse the batch JSON response into UnifiedAnalysisResult objects.
         """
         results_list = batch_json.get("results", [])
         parsed_objects = []
-        
+
         # Create a map for quick lookup of original segment data if needed
         # (though currently we just need the IDs to match up or verify)
-        
+
         for item in results_list:
             segment_id = item.get("segment_id")
-            
+
             # Basic validation that we got a result for a known segment
             if not segment_id:
                 continue
 
             parsed_objects.append(self._parse_comprehensive_result(item, segment_id))
-            
+
         return parsed_objects
-    
-    async def analyze_batch_inductive(self,
-                                    segments: List[Dict[str, str]],
-                                    research_question: str,
-                                    batch_size: int = 3,
-                                    temperature: Optional[float] = None,
-                                    context_paraphrases: Optional[List[str]] = None,
-                                    existing_categories: Optional[Dict[str, Any]] = None,
-                                    batch_number: int = 1,
-                                    total_batches: int = 1,
-                                    material_coverage: float = 0.0) -> List[Dict[str, Any]]:
+
+    async def analyze_batch_inductive(
+        self,
+        segments: List[Dict[str, str]],
+        research_question: str,
+        batch_size: int = 3,
+        temperature: Optional[float] = None,
+        context_paraphrases: Optional[List[str]] = None,
+        existing_categories: Optional[Dict[str, Any]] = None,
+        batch_number: int = 1,
+        total_batches: int = 1,
+        material_coverage: float = 0.0,
+    ) -> List[Dict[str, Any]]:
         """
         Analyze a batch of segments for inductive category development with saturation tracking.
-        
+
         Args:
             segments: Segments to analyze
             research_question: Research question
@@ -1187,88 +1460,120 @@ class UnifiedRelevanceAnalyzer:
             material_coverage: Percentage of material processed so far
         """
         results = []
-        
+
         # Process in batches
         total_internal_batches = (len(segments) + batch_size - 1) // batch_size
-        print(f"   🔄 Verarbeite {len(segments)} Segmente in {total_internal_batches} internen Batches (Batch-Größe: {batch_size})")
-        
+        print(
+            f"   🔄 Verarbeite {len(segments)} Segmente in {total_internal_batches} internen Batches (Batch-Größe: {batch_size})"
+        )
+
         for i in range(0, len(segments), batch_size):
-            batch = segments[i:i + batch_size]
-            if not batch: continue
-            
+            batch = segments[i : i + batch_size]
+            if not batch:
+                continue
+
             internal_batch_num = (i // batch_size) + 1
-            print(f"   📦 Induktive-Batch {internal_batch_num}/{total_internal_batches}: {len(batch)} Segmente")
-            
+            print(
+                f"   📦 Induktive-Batch {internal_batch_num}/{total_internal_batches}: {len(batch)} Segmente"
+            )
+
             try:
-                from QCA_AID_assets.utils.tracking.token_tracker import get_global_token_counter
+                from QCA_AID_assets.utils.tracking.token_tracker import (
+                    get_global_token_counter,
+                )
+
                 token_counter = get_global_token_counter()
                 token_counter.start_request()  # Track request start
-                
+
                 prompt = self._build_inductive_batch_prompt(
-                    batch, 
+                    batch,
                     research_question,
                     existing_categories=existing_categories,
                     batch_number=batch_number,
                     total_batches=total_batches,
-                    material_coverage=material_coverage
+                    material_coverage=material_coverage,
                 )
-                
+
                 # Use provided temperature or fallback to instance temperature
-                use_temperature = temperature if temperature is not None else self.temperature
-                
+                use_temperature = (
+                    temperature if temperature is not None else self.temperature
+                )
+
                 response = await self.llm_provider.create_completion(
                     model=self.model_name,
                     messages=[
-                        {"role": "system", "content": "Du bist ein Experte für qualitative Inhaltsanalyse und induktive Kategorienentwicklung. Du antwortest auf Deutsch. Antworte ausschließlich mit einem JSON-Objekt."},
-                        {"role": "user", "content": prompt}
+                        {
+                            "role": "system",
+                            "content": "Du bist ein Experte für qualitative Inhaltsanalyse und induktive Kategorienentwicklung. Du antwortest auf Deutsch. Antworte ausschließlich mit einem JSON-Objekt.",
+                        },
+                        {"role": "user", "content": prompt},
                     ],
                     temperature=use_temperature,
-                    response_format={"type": "json_object"}
+                    response_format={"type": "json_object"},
                 )
-                
+
                 token_counter.track_response(response, self.model_name)
-                
+
                 # Parse response
                 from QCA_AID_assets.utils.llm.response import LLMResponse
+
                 llm_response = LLMResponse(response)
                 try:
                     result = json.loads(llm_response.extract_json())
                 except json.JSONDecodeError as e:
-                    print(f"   ⚠️ JSON-Parsing-Fehler in Induktive-Batch {internal_batch_num}: {e}")
-                    raw_content = llm_response.content[:200] if llm_response.content else "(leer)"
+                    print(
+                        f"   ⚠️ JSON-Parsing-Fehler in Induktive-Batch {internal_batch_num}: {e}"
+                    )
+                    raw_content = (
+                        llm_response.content[:200] if llm_response.content else "(leer)"
+                    )
                     print(f"   ⚠️ LLM-Antwort (Auszug): {raw_content}")
                     continue
-                
+
                 # Extract results and development assessment
-                batch_results = result.get('results', [])
-                development_assessment = result.get('development_assessment', {})
-                
+                batch_results = result.get("results", [])
+                development_assessment = result.get("development_assessment", {})
+
                 # Add development assessment to each result for tracking
                 for batch_result in batch_results:
-                    batch_result['development_assessment'] = development_assessment
-                
+                    batch_result["development_assessment"] = development_assessment
+
                 results.extend(batch_results)
-                
-                print(f"   ✅ Batch {internal_batch_num}: {len(batch_results)} Ergebnisse")
+
+                print(
+                    f"   ✅ Batch {internal_batch_num}: {len(batch_results)} Ergebnisse"
+                )
                 if development_assessment:
-                    saturation = development_assessment.get('theoretical_saturation', 0.0)
-                    recommendation = development_assessment.get('recommendation', 'continue')
-                    print(f"      📊 Sättigung: {saturation:.2f}, Empfehlung: {recommendation}")
-                
+                    saturation = development_assessment.get(
+                        "theoretical_saturation", 0.0
+                    )
+                    recommendation = development_assessment.get(
+                        "recommendation", "continue"
+                    )
+                    print(
+                        f"      📊 Sättigung: {saturation:.2f}, Empfehlung: {recommendation}"
+                    )
+
             except Exception as e:
                 print(f"   ❌ Fehler in Induktive-Batch {internal_batch_num}: {str(e)}")
                 import traceback
+
                 traceback.print_exc()
-                
+
         return results
 
-    def _build_inductive_batch_prompt(self, segments: List[Dict[str, str]], research_question: str, 
-                                     existing_categories: Optional[Dict[str, Any]] = None,
-                                     batch_number: int = 1, total_batches: int = 1,
-                                     material_coverage: float = 0.0) -> str:
+    def _build_inductive_batch_prompt(
+        self,
+        segments: List[Dict[str, str]],
+        research_question: str,
+        existing_categories: Optional[Dict[str, Any]] = None,
+        batch_number: int = 1,
+        total_batches: int = 1,
+        material_coverage: float = 0.0,
+    ) -> str:
         """
         Build inductive batch prompt using the same methodology as standard analysis.
-        
+
         Args:
             segments: List of segments to analyze
             research_question: Research question
@@ -1279,22 +1584,24 @@ class UnifiedRelevanceAnalyzer:
         """
         # Update prompt handler with current context
         self.update_prompt_context(research_question, ["Standard-Kodierregeln"], {})
-        
+
         # Format segments for prompt
-        segments_text = "\n\n".join([f"SEGMENT {i+1}:\n{s['text']}" for i, s in enumerate(segments)])
-        
+        segments_text = "\n\n".join(
+            [f"SEGMENT {i + 1}:\n{s['text']}" for i, s in enumerate(segments)]
+        )
+
         # Formatiere bestehende induktive Kategorien als Kontext (aber nicht als Einschränkung)
         existing_context = ""
         if existing_categories:
             existing_names = list(existing_categories.keys())
             existing_context = f"""
             BESTEHENDE INDUKTIVE KATEGORIEN (als Kontext, NICHT als Einschränkung):
-            {', '.join(existing_names)}
-            
+            {", ".join(existing_names)}
+
             WICHTIG: Entwickle NEUE, EIGENSTÄNDIGE Kategorien, die sich thematisch von den bestehenden unterscheiden.
             Beachte aber die bereits entwickelten Kategorien um Redundanzen zu vermeiden.
             """
-        
+
         # Material- und Batch-Kontext für Sättigungsbeurteilung
         progress_context = f"""
         BATCH-KONTEXT:
@@ -1302,7 +1609,7 @@ class UnifiedRelevanceAnalyzer:
         - Materialabdeckung: {material_coverage:.1%}
         - Bereits entwickelte Kategorien: {len(existing_categories) if existing_categories else 0}
         """
-        
+
         return f"""
         FORSCHUNGSFRAGE (ZENTRALE ORIENTIERUNG):
         {research_question}
@@ -1354,7 +1661,7 @@ class UnifiedRelevanceAnalyzer:
                     "subcategories": {{
                         "Kategorie1": [
                             {{
-                                "name": "Subkategorie Name", 
+                                "name": "Subkategorie Name",
                                 "definition": "Subkategorie Definition"
                             }}
                         ]
@@ -1378,165 +1685,215 @@ class UnifiedRelevanceAnalyzer:
         }}
         """
 
-    async def analyze_batch_abductive(self,
-                                    segments: List[Dict[str, str]],
-                                    category_definitions: Dict[str, str],
-                                    research_question: str,
-                                    batch_size: int = 4,
-                                    temperature: Optional[float] = None,
-                                    context_paraphrases: Optional[List[str]] = None,
-                                    segment_category_mapping: Optional[Dict[str, List[str]]] = None) -> List[Dict[str, Any]]:
+    async def analyze_batch_abductive(
+        self,
+        segments: List[Dict[str, str]],
+        category_definitions: Dict[str, str],
+        research_question: str,
+        batch_size: int = 4,
+        temperature: Optional[float] = None,
+        context_paraphrases: Optional[List[str]] = None,
+        segment_category_mapping: Optional[Dict[str, List[str]]] = None,
+    ) -> List[Dict[str, Any]]:
         """
         Analyze batch for abductive mode (extending knowledge).
         """
         results = []
-        
+
         # Process in batches
         total_batches = (len(segments) + batch_size - 1) // batch_size
-        print(f"   🔄 Verarbeite {len(segments)} Segmente in {total_batches} Batches (Batch-Größe: {batch_size})")
-        
+        print(
+            f"   🔄 Verarbeite {len(segments)} Segmente in {total_batches} Batches (Batch-Größe: {batch_size})"
+        )
+
         for i in range(0, len(segments), batch_size):
-            batch = segments[i:i + batch_size]
-            if not batch: continue
-            
+            batch = segments[i : i + batch_size]
+            if not batch:
+                continue
+
             batch_num = (i // batch_size) + 1
-            print(f"   📦 Abduktive-Batch {batch_num}/{total_batches}: {len(batch)} Segmente")
-            
+            print(
+                f"   📦 Abduktive-Batch {batch_num}/{total_batches}: {len(batch)} Segmente"
+            )
+
             try:
                 token_counter.start_request()  # Track request start
-                
-                prompt = self._build_abductive_batch_prompt(batch, category_definitions, research_question, segment_category_mapping)
+
+                prompt = self._build_abductive_batch_prompt(
+                    batch,
+                    category_definitions,
+                    research_question,
+                    segment_category_mapping,
+                )
                 # Use provided temperature or fallback to instance temperature
-                use_temperature = temperature if temperature is not None else self.temperature
-                
+                use_temperature = (
+                    temperature if temperature is not None else self.temperature
+                )
+
                 response = await self.llm_provider.create_completion(
                     model=self.model_name,
                     messages=[
-                        {"role": "system", "content": "Du bist ein Experte für qualitative Inhaltsanalyse (Abduktiv). Antworte als JSON."},
-                        {"role": "user", "content": prompt}
+                        {
+                            "role": "system",
+                            "content": "Du bist ein Experte für qualitative Inhaltsanalyse (Abduktiv). Antworte als JSON.",
+                        },
+                        {"role": "user", "content": prompt},
                     ],
                     temperature=use_temperature,
-                    response_format={"type": "json_object"}
+                    response_format={"type": "json_object"},
                 )
-                
-                token_counter.track_response(response, self.model_name)  # Track response
-                
+
+                token_counter.track_response(
+                    response, self.model_name
+                )  # Track response
+
                 llm_response = LLMResponse(response)
                 try:
                     batch_json = json.loads(llm_response.extract_json())
                 except json.JSONDecodeError as e:
                     print(f"   ⚠️ JSON-Parsing-Fehler in Abduktive-Batch: {e}")
-                    raw_content = llm_response.content[:200] if llm_response.content else "(leer)"
+                    raw_content = (
+                        llm_response.content[:200] if llm_response.content else "(leer)"
+                    )
                     print(f"   ⚠️ LLM-Antwort (Auszug): {raw_content}")
                     continue
-                
+
                 # Handle the actual LLM response format with "results"
                 if "results" in batch_json:
                     batch_results = batch_json.get("results", [])
-                    
+
                     # The extended_categories are already in each result, no need to add them separately
                     results.extend(batch_results)
                 elif "segment_assignments" in batch_json:
                     # Handle alternative schema with extended_categories and segment_assignments
                     batch_results = batch_json.get("segment_assignments", [])
-                    
+
                     # Add extended_categories info to each result for processing
                     extended_categories = batch_json.get("extended_categories", {})
                     for result in batch_results:
                         result["_extended_categories"] = extended_categories
-                    
+
                     results.extend(batch_results)
                 else:
                     # Fallback for unknown schema
-                    print(f"   ⚠️ WARNING: Unknown LLM response schema: {list(batch_json.keys())}")
+                    print(
+                        f"   ⚠️ WARNING: Unknown LLM response schema: {list(batch_json.keys())}"
+                    )
                     results.extend(batch_json.get("results", []))
             except Exception:
                 pass
         return results
 
-    def _build_abductive_batch_prompt(self, segments: List[Dict[str, str]], categories: Dict[str, str], rq: str,
-                                     segment_category_mapping: Optional[Dict[str, List[str]]] = None) -> str:
+    def _build_abductive_batch_prompt(
+        self,
+        segments: List[Dict[str, str]],
+        categories: Dict[str, str],
+        rq: str,
+        segment_category_mapping: Optional[Dict[str, List[str]]] = None,
+    ) -> str:
         """Build abductive batch prompt using disciplined QCA_Prompts methodology."""
         # Update prompt handler with current context
         self.update_prompt_context(rq, ["Standard-Kodierregeln"], categories)
-        
+
         # Format categories for standard prompt
         categories_overview = []
         for name, definition in categories.items():
-            if hasattr(definition, 'definition'):
+            if hasattr(definition, "definition"):
                 # CategoryDefinition object
-                categories_overview.append({
-                    'name': name,
-                    'definition': definition.definition,
-                    'subcategories': definition.subcategories or {},
-                    'examples': definition.examples or [],
-                    'rules': definition.rules or []
-                })
+                categories_overview.append(
+                    {
+                        "name": name,
+                        "definition": definition.definition,
+                        "subcategories": definition.subcategories or {},
+                        "examples": definition.examples or [],
+                        "rules": definition.rules or [],
+                    }
+                )
             else:
                 # String definition
-                categories_overview.append({
-                    'name': name,
-                    'definition': str(definition),
-                    'subcategories': {},
-                    'examples': [],
-                    'rules': []
-                })
-        
+                categories_overview.append(
+                    {
+                        "name": name,
+                        "definition": str(definition),
+                        "subcategories": {},
+                        "examples": [],
+                        "rules": [],
+                    }
+                )
+
         # Use centralized batch abductive prompt with segment-specific category mapping
         return self.prompt_handler.get_batch_abductive_prompt(
             segments=segments,
             categories_overview=categories_overview,
             context_paraphrases=None,  # Context paraphrases not typically used in abductive mode
-            segment_category_mapping=segment_category_mapping
+            segment_category_mapping=segment_category_mapping,
         )
 
-    async def analyze_batch_grounded(self,
-                                   segments: List[Dict[str, str]],
-                                   research_question: str,
-                                   batch_size: int = 3,
-                                   temperature: Optional[float] = None,
-                                   context_paraphrases: Optional[List[str]] = None) -> List[Dict[str, Any]]:
+    async def analyze_batch_grounded(
+        self,
+        segments: List[Dict[str, str]],
+        research_question: str,
+        batch_size: int = 3,
+        temperature: Optional[float] = None,
+        context_paraphrases: Optional[List[str]] = None,
+    ) -> List[Dict[str, Any]]:
         """
         Analyze batch for grounded theory (open coding).
         """
         results = []
-        
+
         # Process in batches
         total_batches = (len(segments) + batch_size - 1) // batch_size
-        print(f"   🔄 Verarbeite {len(segments)} Segmente in {total_batches} Batches (Batch-Größe: {batch_size})")
-        
+        print(
+            f"   🔄 Verarbeite {len(segments)} Segmente in {total_batches} Batches (Batch-Größe: {batch_size})"
+        )
+
         for i in range(0, len(segments), batch_size):
-            batch = segments[i:i + batch_size]
-            if not batch: continue
-            
+            batch = segments[i : i + batch_size]
+            if not batch:
+                continue
+
             batch_num = (i // batch_size) + 1
-            print(f"   📦 Grounded-Batch {batch_num}/{total_batches}: {len(batch)} Segmente")
-            
+            print(
+                f"   📦 Grounded-Batch {batch_num}/{total_batches}: {len(batch)} Segmente"
+            )
+
             try:
                 token_counter.start_request()  # Track request start
-                
+
                 prompt = self._build_grounded_batch_prompt(batch, research_question)
                 # Use provided temperature or fallback to instance temperature
-                use_temperature = temperature if temperature is not None else self.temperature
-                
+                use_temperature = (
+                    temperature if temperature is not None else self.temperature
+                )
+
                 response = await self.llm_provider.create_completion(
                     model=self.model_name,
                     messages=[
-                        {"role": "system", "content": "Du bist ein Experte für Grounded Theory (Open Coding). Antworte als JSON."},
-                        {"role": "user", "content": prompt}
+                        {
+                            "role": "system",
+                            "content": "Du bist ein Experte für Grounded Theory (Open Coding). Antworte als JSON.",
+                        },
+                        {"role": "user", "content": prompt},
                     ],
                     temperature=use_temperature,
-                    response_format={"type": "json_object"}
+                    response_format={"type": "json_object"},
                 )
-                
-                token_counter.track_response(response, self.model_name)  # Track response
-                
+
+                token_counter.track_response(
+                    response, self.model_name
+                )  # Track response
+
                 llm_response = LLMResponse(response)
                 try:
                     batch_json = json.loads(llm_response.extract_json())
                 except json.JSONDecodeError as e:
-                    print(f"   ⚠️ JSON-Parsing-Fehler in Grounded-Batch {batch_num}: {e}")
-                    raw_content = llm_response.content[:200] if llm_response.content else "(leer)"
+                    print(
+                        f"   ⚠️ JSON-Parsing-Fehler in Grounded-Batch {batch_num}: {e}"
+                    )
+                    raw_content = (
+                        llm_response.content[:200] if llm_response.content else "(leer)"
+                    )
                     print(f"   ⚠️ LLM-Antwort (Auszug): {raw_content}")
                     continue
                 results.extend(batch_json.get("results", []))
@@ -1544,72 +1901,82 @@ class UnifiedRelevanceAnalyzer:
                 pass
         return results
 
-    def _build_grounded_batch_prompt(self, segments: List[Dict[str, str]], rq: str) -> str:
+    def _build_grounded_batch_prompt(
+        self, segments: List[Dict[str, str]], rq: str
+    ) -> str:
         """Build grounded batch prompt using standard QCA_Prompts methodology."""
         # Update prompt handler with current context
         self.update_prompt_context(rq, ["Standard-Kodierregeln"], {})
-        
+
         # Format segments for standard prompt
-        segments_text = [f"SEGMENT {i+1}: {s['text']}" for i, s in enumerate(segments)]
-        
+        segments_text = [
+            f"SEGMENT {i + 1}: {s['text']}" for i, s in enumerate(segments)
+        ]
+
         # Use centralized JSON schema
         json_schema = self.prompt_handler.get_grounded_json_schema()
-        
+
         return self.prompt_handler.get_grounded_analysis_prompt(
             segments=segments_text,
             existing_subcodes=[],  # Wird später mit tatsächlichen Subcodes gefüllt
-            json_schema=json_schema
+            json_schema=json_schema,
         )
-    
-    def calculate_savings(self, 
-                         individual_calls_per_segment: float,
-                         batch_size: int = 5) -> Dict[str, float]:
+
+    def calculate_savings(
+        self, individual_calls_per_segment: float, batch_size: int = 5
+    ) -> Dict[str, float]:
         """
         Calculate potential API call savings.
-        
+
         Args:
             individual_calls_per_segment: Average API calls per segment in current implementation
             batch_size: Target batch size for optimization
-            
+
         Returns:
             Dictionary with savings metrics
         """
         # Current implementation: multiple calls per segment
         # Our implementation: 1 call per segment (or less with batching)
-        
+
         if batch_size > 1:
             # With perfect batching: 1 call per batch
             calls_per_segment_optimized = 1.0 / batch_size
         else:
             calls_per_segment_optimized = 1.0
-        
+
         reduction = individual_calls_per_segment - calls_per_segment_optimized
-        reduction_percent = (reduction / individual_calls_per_segment) * 100 if individual_calls_per_segment > 0 else 0
-        
+        reduction_percent = (
+            (reduction / individual_calls_per_segment) * 100
+            if individual_calls_per_segment > 0
+            else 0
+        )
+
         return {
             "current_calls_per_segment": individual_calls_per_segment,
             "optimized_calls_per_segment": calls_per_segment_optimized,
             "reduction_per_segment": reduction,
             "reduction_percent": reduction_percent,
             "estimated_savings_100_segments": reduction * 100,
-            "batch_size": batch_size
+            "batch_size": batch_size,
         }
 
 
 # Factory function for easy integration
-def create_unified_analyzer(llm_provider: LLMProvider, 
-                           model_name: str = "gpt-4",
-                           temperature: float = 0.3,
-                           multiple_coding_threshold: float = 0.7) -> UnifiedRelevanceAnalyzer:
+def create_unified_analyzer(
+    llm_provider: LLMProvider,
+    model_name: str = "gpt-4",
+    temperature: float = 0.3,
+    multiple_coding_threshold: float = 0.7,
+) -> UnifiedRelevanceAnalyzer:
     """
     Create a UnifiedRelevanceAnalyzer instance.
-    
+
     Args:
         llm_provider: LLM provider instance
         model_name: Model to use
         temperature: Temperature setting
         multiple_coding_threshold: Threshold for multiple coding decisions
-        
+
     Returns:
         UnifiedRelevanceAnalyzer instance
     """
@@ -1617,114 +1984,123 @@ def create_unified_analyzer(llm_provider: LLMProvider,
         llm_provider=llm_provider,
         model_name=model_name,
         temperature=temperature,
-        multiple_coding_threshold=multiple_coding_threshold
+        multiple_coding_threshold=multiple_coding_threshold,
     )
 
 
 # Test function
 async def test_unified_analyzer():
     """Test the unified analyzer with sample data."""
-    import sys
     import os
-    
+    import sys
+
     # Add parent directory to path
     current_dir = os.path.dirname(os.path.abspath(__file__))
     parent_dir = os.path.dirname(current_dir)
     sys.path.insert(0, parent_dir)
-    
+
     # Mock LLM provider for testing
     class MockLLMProvider:
-        async def create_completion(self, model, messages, temperature, response_format):
+        async def create_completion(
+            self, model, messages, temperature, response_format
+        ):
             # Return mock response
-            prompt = messages[1]['content'] if len(messages) > 1 else messages[0]['content']
-            
+            prompt = (
+                messages[1]["content"] if len(messages) > 1 else messages[0]["content"]
+            )
+
             # Simulate comprehensive analysis response
             mock_response = {
-                "choices": [{
-                    "message": {
-                        "content": json.dumps({
-                            "segment_id": "test_segment_001",
-                            "relevance_scores": {
-                                "Environmental Impact": 0.85,
-                                "Economic Factors": 0.72,
-                                "Policy Implementation": 0.63,
-                                "Technology Adoption": 0.41,
-                                "Stakeholder Engagement": 0.58
-                            },
-                            "primary_category": "Environmental Impact",
-                            "all_categories": [
+                "choices": [
+                    {
+                        "message": {
+                            "content": json.dumps(
                                 {
-                                    "category": "Environmental Impact",
-                                    "relevance_score": 0.85,
-                                    "reasoning": "Segment diskutiert Klimawandelanpassung"
-                                },
-                                {
-                                    "category": "Economic Factors", 
-                                    "relevance_score": 0.72,
-                                    "reasoning": "Erwähnt regionale Vulnerabilitäten"
+                                    "segment_id": "test_segment_001",
+                                    "relevance_scores": {
+                                        "Environmental Impact": 0.85,
+                                        "Economic Factors": 0.72,
+                                        "Policy Implementation": 0.63,
+                                        "Technology Adoption": 0.41,
+                                        "Stakeholder Engagement": 0.58,
+                                    },
+                                    "primary_category": "Environmental Impact",
+                                    "all_categories": [
+                                        {
+                                            "category": "Environmental Impact",
+                                            "relevance_score": 0.85,
+                                            "reasoning": "Segment diskutiert Klimawandelanpassung",
+                                        },
+                                        {
+                                            "category": "Economic Factors",
+                                            "relevance_score": 0.72,
+                                            "reasoning": "Erwähnt regionale Vulnerabilitäten",
+                                        },
+                                    ],
+                                    "requires_multiple_coding": True,
+                                    "confidence": 0.88,
+                                    "analysis_summary": "Segment ist relevant für Umweltauswirkungen und Wirtschaftsfaktoren",
                                 }
-                            ],
-                            "requires_multiple_coding": True,
-                            "confidence": 0.88,
-                            "analysis_summary": "Segment ist relevant für Umweltauswirkungen und Wirtschaftsfaktoren"
-                        })
+                            )
+                        }
                     }
-                }]
+                ]
             }
-            
+
             return mock_response
-    
+
     # Create analyzer with mock provider
     analyzer = UnifiedRelevanceAnalyzer(
-        llm_provider=MockLLMProvider(),
-        model_name="gpt-4",
-        temperature=0.3
+        llm_provider=MockLLMProvider(), model_name="gpt-4", temperature=0.3
     )
-    
+
     # Test data
     category_definitions = {
         "Environmental Impact": "Auswirkungen auf die Umwelt und Ökosysteme",
         "Economic Factors": "Wirtschaftliche Aspekte und Kosten-Nutzen-Analysen",
         "Policy Implementation": "Umsetzung politischer Maßnahmen",
         "Technology Adoption": "Einführung und Nutzung neuer Technologien",
-        "Stakeholder Engagement": "Einbindung von Interessengruppen"
+        "Stakeholder Engagement": "Einbindung von Interessengruppen",
     }
-    
-    research_question = "Wie beeinflussen Klimawandelanpassungsstrategien regionale Vulnerabilitäten?"
+
+    research_question = (
+        "Wie beeinflussen Klimawandelanpassungsstrategien regionale Vulnerabilitäten?"
+    )
     coding_rules = [
         "Konzentriere dich auf explizite Aussagen über Auswirkungen",
         "Berücksichtige implizite Zusammenhänge",
-        "Vermeide Doppelkodierung ähnlicher Konzepte"
+        "Vermeide Doppelkodierung ähnlicher Konzepte",
     ]
-    
+
     # Test single segment analysis
     result = await analyzer.analyze_relevance_comprehensive(
         segment_text="Climate change adaptation strategies must account for regional variations in vulnerability.",
         segment_id="test_segment_001",
         category_definitions=category_definitions,
         research_question=research_question,
-        coding_rules=coding_rules
+        coding_rules=coding_rules,
     )
-    
+
     print("Unified Analysis Result:")
     print(f"  Segment ID: {result.segment_id}")
     print(f"  Primary Category: {result.primary_category}")
     print(f"  Confidence: {result.confidence:.2f}")
     print(f"  Requires Multiple Coding: {result.requires_multiple_coding}")
     print(f"  Relevance Scores: {result.relevance_scores}")
-    
+
     # Calculate savings
-    savings = analyzer.calculate_savings(
-        individual_calls_per_segment=2.2,
-        batch_size=5
-    )
-    
+    savings = analyzer.calculate_savings(individual_calls_per_segment=2.2, batch_size=5)
+
     print("\nEstimated Savings:")
     print(f"  Current API calls/segment: {savings['current_calls_per_segment']:.2f}")
-    print(f"  Optimized API calls/segment: {savings['optimized_calls_per_segment']:.2f}")
+    print(
+        f"  Optimized API calls/segment: {savings['optimized_calls_per_segment']:.2f}"
+    )
     print(f"  Reduction: {savings['reduction_percent']:.1f}%")
-    print(f"  Savings per 100 segments: {savings['estimated_savings_100_segments']:.0f} calls")
-    
+    print(
+        f"  Savings per 100 segments: {savings['estimated_savings_100_segments']:.0f} calls"
+    )
+
     return result
 
 

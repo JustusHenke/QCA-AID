@@ -1873,7 +1873,15 @@ class IntegratedAnalysisManager:
 
                     traceback.print_exc()
                     print(f"⚠️ Falle zurück auf Standard-Analyse...")
-                    # Fallback works automatically by continuing below
+
+                    # FIX: processed_segments zurücksetzen für die opt_segments,
+                    # damit die Standard-Analyse sie erneut aufgreifen kann
+                    opt_segment_ids = {seg["segment_id"] for seg in opt_segments}
+                    cleared_count = len(opt_segment_ids & self.processed_segments)
+                    self.processed_segments -= opt_segment_ids
+                    print(
+                        f"   🔄 {cleared_count} Segmente aus processed_segments entfernt für Standard-Analyse-Fallback"
+                    )
 
         # --- END OPTIMIZATION INTEGRATION ---
 

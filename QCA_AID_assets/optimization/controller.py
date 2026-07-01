@@ -1506,25 +1506,26 @@ class OptimizationController:
                         f"      🔄 Analysiere mit Kodierer '{coder_id}' (Temperature: {coder_temperature})"
                     )
 
-                    # Process this batch with this coder
-                    if config["enable_batching"] and len(batch) > 1:
-                        batch_results = await self._batch_analyze_deductive(
-                            batch=batch,
-                            category_definitions=category_definitions,
-                            research_question=research_question,
-                            coding_rules=coding_rules,
-                            temperature=coder_temperature,
-                            coder_id=coder_id,
-                            category_preselections=category_preselections,
-                            analysis_mode=analysis_mode,
-                            batch_size=batch_size,
-                            use_context=use_context,
-                            document_paraphrases=document_paraphrases,
-                            context_paraphrase_count=context_paraphrase_count,
-                            paraphrase_callback=paraphrase_callback,
-                        )
-                        all_results.extend(batch_results)
-                    else:
+                    try:
+                        # Process this batch with this coder
+                        if config["enable_batching"] and len(batch) > 1:
+                            batch_results = await self._batch_analyze_deductive(
+                                batch=batch,
+                                category_definitions=category_definitions,
+                                research_question=research_question,
+                                coding_rules=coding_rules,
+                                temperature=coder_temperature,
+                                coder_id=coder_id,
+                                category_preselections=category_preselections,
+                                analysis_mode=analysis_mode,
+                                batch_size=batch_size,
+                                use_context=use_context,
+                                document_paraphrases=document_paraphrases,
+                                context_paraphrase_count=context_paraphrase_count,
+                                paraphrase_callback=paraphrase_callback,
+                            )
+                            all_results.extend(batch_results)
+                        else:
                         # Process individually for small batches
                         for segment in batch:
                             seg_prefs = (
@@ -1581,6 +1582,15 @@ class OptimizationController:
                                         segment["segment_id"],
                                         formatted_res["result"]["paraphrase"],
                                     )
+
+                    except Exception as coder_error:
+                        # FIX: Bei Fehler in einem Kodierer-Batch: Teilergebnisse bewahren,
+                        # nicht den gesamten Batch verlieren
+                        print(f"   ❌ Fehler bei Kodierer '{coder_id}' in Batch {batch_num}: {coder_error}")
+                        print(f"   ⚠️ Fahre mit verfügbaren Teilergebnissen fort ({len(all_results)} bisher)")
+                        import traceback
+                        traceback.print_exc()
+                        # Continue with other coders - don't let one failed coder lose all results
 
             # DEBUG: Track actual API calls made by optimization controller
             calls_after = token_counter.session_stats.get("requests", 0)
