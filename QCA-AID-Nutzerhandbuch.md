@@ -25,6 +25,8 @@
 12. [Best Practices und Qualitätssicherung](#12-best-practices-und-qualitätssicherung)
 13. [Häufige Probleme und Lösungen](#13-häufige-probleme-und-lösungen)
 14. [Anhang: Beispielkonfigurationen und Vorlagen](#14-anhang-beispielkonfigurationen-und-vorlagen)
+  - [14.1 Beispiel-Codebook](#141-beispiel-codebook)
+  - [14.2 Beispiel-Konfigurationen](#142-beispiel-konfigurationen)
 15. [Fazit und Ausblick](#fazit-und-ausblick)
 
 ---
@@ -2309,6 +2311,12 @@ git checkout HEAD~1 QCA-AID-Codebook.json
 ---
 
 ## 14. Anhang: Beispielkonfigurationen und Vorlagen
+
+### 14.1 Beispiel-Codebook
+
+Ein vollständiges Beispiel-Codebook mit Forschungsfrage, Kodierregeln, deduktiven Kategorien und Konfigurationseinstellungen finden Sie hier:
+- [`QCA-AID-Codebook-Example.json`](QCA_AID_assets/docs/user_doc/QCA-AID-Codebook-Example.json) — Beispiel-Codebook
+- [`QCA-AID-Codebook-Example-Documentation.md`](QCA_AID_assets/docs/user_doc/QCA-AID-Codebook-Example-Documentation.md) — Dokumentation der Struktur und Parameter
 
 ### 14.2 Beispiel-Konfigurationen
 
