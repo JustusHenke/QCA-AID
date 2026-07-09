@@ -1,13 +1,9 @@
 """
-QCA-AID: Qualitative Content Analysis with AI Support
-======================================================
+QCA-AID CLI Entry Point
+=======================
 
-Launcher-Skript für QCA-AID.
-Alle Funktionalität ist in QCA-AID-assets/ organisiert.
-
-Author: Justus Henke
-Contact: justus.henke@hof.uni-halle.de
-Repository: https://github.com/JustusHenke/QCA-AID
+Konsolen-Einstiegspunkt für QCA-AID Hauptanalyse.
+Wird durch pyproject.toml [project.scripts] als `qcaaid`-Befehl registriert.
 """
 
 import argparse
@@ -15,17 +11,13 @@ import asyncio
 import os
 import sys
 
-# Stelle sicher, dass das Skript-Verzeichnis im Python-Path ist
-SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, SCRIPT_DIR)
 
-from QCA_AID_assets.__version__ import __version__, __version_date__
-from QCA_AID_assets.main import main
-from QCA_AID_assets.utils.system import patch_tkinter_for_threaded_exit
+def main():
+    """CLI-Einstiegspunkt für `qcaaid`."""
+    from QCA_AID_assets.__version__ import __version__, __version_date__
+    from QCA_AID_assets.main import main as run_analysis
+    from QCA_AID_assets.utils.system import patch_tkinter_for_threaded_exit
 
-
-def parse_args() -> argparse.Namespace:
-    """CLI-Argumente für QCA-AID parsen."""
     parser = argparse.ArgumentParser(
         prog="qcaaid",
         description="QCA-AID: Qualitative Content Analysis mit KI-Unterstützung",
@@ -92,17 +84,11 @@ Beispiele:
         help="Gespeichertes induktives Codebook laden (falls vorhanden)",
     )
 
-    return parser.parse_args()
-
-
-def cli_main():
-    """Einstiegspunkt für die CLI (auch für console_scripts)."""
-    args = parse_args()
+    args = parser.parse_args()
 
     # Patch für Tkinter-Threading
     patch_tkinter_for_threaded_exit()
 
-    # CLI-Argumente als Dictionary an main() durchreichen
     cli_args = {
         "project_root": args.project_root,
         "mode": args.mode,
@@ -114,18 +100,17 @@ def cli_main():
     }
 
     try:
-        # Windows-spezifische Event Loop Policy setzen
         if os.name == "nt":
             asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 
-        asyncio.run(main(cli_args=cli_args))
+        asyncio.run(run_analysis(cli_args=cli_args))
 
     except KeyboardInterrupt:
         print("\nProgramm durch Benutzer beendet")
     except Exception as e:
         print(f"Fehler im Hauptprogramm: {str(e)}")
-        raise
+        sys.exit(1)
 
 
 if __name__ == "__main__":
-    cli_main()
+    main()

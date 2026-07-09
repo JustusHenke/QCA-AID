@@ -1,17 +1,9 @@
 """
-QCA-AID Explorer
-================
+QCA-AID Explorer CLI Entry Point
+================================
 
-QCA-AID Explorer ist ein Tool zur Analyse von qualitativen Kodierungsdaten.
-Es ermöglicht die Visualisierung von Kodierungsnetzwerken mit Hauptkategorien,
-Subkategorien und Schlüsselwörtern sowie die automatisierte Zusammenfassung
-von kodierten Textsegmenten mit Hilfe von LLM-Modellen.
-
-Launcher-Skript für QCA-AID Explorer.
-
-Author: Justus Henke
-Contact: justus.henke@hof.uni-halle.de
-Repository: https://github.com/JustusHenke/QCA-AID
+Konsolen-Einstiegspunkt für QCA-AID Explorer.
+Wird durch pyproject.toml [project.scripts] als `qcaaid-explorer`-Befehl registriert.
 """
 
 import argparse
@@ -19,16 +11,12 @@ import asyncio
 import os
 import sys
 
-# Stelle sicher, dass das Skript-Verzeichnis im Python-Path ist
-SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, SCRIPT_DIR)
 
-from QCA_AID_assets.__version__ import __version__, __version_date__
-from QCA_AID_assets.explorer import main
+def main():
+    """CLI-Einstiegspunkt für `qcaaid-explorer`."""
+    from QCA_AID_assets.__version__ import __version__, __version_date__
+    from QCA_AID_assets.explorer import main as run_explorer
 
-
-def parse_args() -> argparse.Namespace:
-    """CLI-Argumente für QCA-AID Explorer parsen."""
     parser = argparse.ArgumentParser(
         prog="qcaaid-explorer",
         description="QCA-AID Explorer: Visualisierung und Analyse von Kodierungsdaten",
@@ -69,12 +57,7 @@ Beispiele:
         help="Output-Verzeichnis (überschreibt Config-Einstellung)",
     )
 
-    return parser.parse_args()
-
-
-def cli_main():
-    """Einstiegspunkt für die CLI (auch für console_scripts)."""
-    args = parse_args()
+    args = parser.parse_args()
 
     cli_args = {
         "config": args.config,
@@ -83,18 +66,17 @@ def cli_main():
     }
 
     try:
-        # Windows-spezifische Event Loop Policy setzen
         if os.name == "nt":
             asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 
-        asyncio.run(main(cli_args=cli_args))
+        asyncio.run(run_explorer(cli_args=cli_args))
 
     except KeyboardInterrupt:
         print("\nProgramm durch Benutzer beendet")
     except Exception as e:
         print(f"Fehler im Hauptprogramm: {str(e)}")
-        raise
+        sys.exit(1)
 
 
 if __name__ == "__main__":
-    cli_main()
+    main()

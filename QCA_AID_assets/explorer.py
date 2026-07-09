@@ -24,7 +24,7 @@ from QCA_AID_assets.utils.llm.factory import LLMProviderFactory
 from QCA_AID_assets.utils.prompts import get_default_prompts
 
 
-async def main():
+async def main(cli_args: dict = None) -> None:
     """
     Hauptfunktion für QCA-AID Explorer.
 
@@ -42,10 +42,18 @@ async def main():
     Die Konfiguration wird aus der Datei 'QCA-AID-Explorer-Config.xlsx'
     im gleichen Verzeichnis wie das Skript geladen.
 
+    Args:
+        cli_args: Optionale CLI-Argumente als Dictionary. Unterstützte Keys:
+            - config: str          – Pfad zur Explorer-Config-JSON-Datei
+            - non_interactive: bool – Keine interaktiven Eingaben
+            - output_dir: str      – Output-Verzeichnis (überschreibt Config)
+
     Raises:
         FileNotFoundError: Wenn die Konfigurationsdatei nicht gefunden wird
         ValueError: Wenn keine Explorationsdatei in der Konfiguration angegeben ist
     """
+    cli_args = cli_args or {}
+
     # Import version information
     try:
         from .__version__ import __version__, __version_date__
@@ -61,8 +69,14 @@ async def main():
     SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
     # Go up one level since we're now in QCA_AID_assets/
     SCRIPT_DIR = os.path.dirname(SCRIPT_DIR)
-    CONFIG_FILE = "QCA-AID-Explorer-Config.xlsx"
-    CONFIG_PATH = os.path.join(SCRIPT_DIR, CONFIG_FILE)
+
+    # CLI --config überschreibt Standard-Config-Pfad
+    if cli_args.get("config"):
+        CONFIG_PATH = os.path.abspath(cli_args["config"])
+        SCRIPT_DIR = os.path.dirname(CONFIG_PATH)
+    else:
+        CONFIG_FILE = "QCA-AID-Explorer-Config.xlsx"
+        CONFIG_PATH = os.path.join(SCRIPT_DIR, CONFIG_FILE)
 
     # Lade Konfiguration
     config_loader = ExplorerConfigLoader(CONFIG_PATH)
@@ -91,6 +105,8 @@ async def main():
 
             continue_anyway = (
                 input("Trotzdem fortfahren? (j/n): ").lower().startswith("j")
+                if not cli_args.get("non_interactive")
+                else True  # Im non-interactive Modus: immer fortfahren
             )
             if not continue_anyway:
                 print("Analyse abgebrochen.")
@@ -102,7 +118,7 @@ async def main():
     MODEL_NAME = base_config.get("model", "gpt-4o-mini")
     TEMPERATURE = float(base_config.get("temperature", 0.7))
     SCRIPT_DIR = base_config.get("script_dir") or SCRIPT_DIR
-    OUTPUT_DIR = base_config.get("output_dir", "output")
+    OUTPUT_DIR = cli_args.get("output_dir") or base_config.get("output_dir", "output")
     EXPLORE_FILE = base_config.get("explore_file", "")
     CLEAN_KEYWORDS = str(base_config.get("clean_keywords", "True")).lower() == "true"
     SIMILARITY_THRESHOLD = float(base_config.get("similarity_threshold", 0.7))

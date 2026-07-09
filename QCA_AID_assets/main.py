@@ -448,9 +448,29 @@ async def configure_analysis_start(CONFIG: Dict, codebook_path: str) -> Dict:
 
 
 # Aufgabe: ZusammenfÜhrung aller Komponenten, Steuerung des gesamten Analyseprozesses
-async def main() -> None:
+async def main(cli_args: dict = None) -> None:
+    """Hauptanalyse-Workflow.
+
+    Args:
+        cli_args: Optionale CLI-Argumente als Dictionary. Unterstützte Keys:
+            - project_root: str  – Projektverzeichnis (überschreibt .qca-aid-project.json)
+            - mode: str          – Analysemodus (deductive/abductive/inductive/grounded)
+            - config: str        – Pfad zur Codebook-JSON-Datei
+            - non_interactive: bool – Keine interaktiven Eingaben
+            - no_manual: bool    – Manuelles Kodieren deaktivieren
+            - no_pdf: bool       – PDF-Annotation deaktivieren
+            - use_saved_codebook: bool – Gespeichertes induktives Codebook laden
+    """
+    cli_args = cli_args or {}
     try:
         # 1. Konfiguration laden - ZUERST damit INPUT/OUTPUT_DIR gesetzt sind
+        # CLI --project-root hat höchste Priorität
+        if cli_args.get("project_root"):
+            os.environ["QCA_AID_PROJECT_ROOT"] = cli_args["project_root"]
+        # CLI --config: Codebook-Pfad als Env-Var setzen (wird vom ConfigLoader gelesen)
+        if cli_args.get("config"):
+            os.environ["QCA_AID_CODEBOOK_PATH"] = cli_args["config"]
+
         project_root = _resolve_project_root()
         script_dir = str(project_root)  # Project-specific root for configs and IO
 
@@ -537,15 +557,35 @@ async def main() -> None:
         print("\n📌 ANALYSE-KONFIGURATION")
         codebook_path = os.path.join(CONFIG["OUTPUT_DIR"], "codebook_inductive.json")
 
-        # Check if running from webapp - skip interactive prompts
+        # Determine if we should skip interactive prompts
+        # (webapp mode OR CLI --non-interactive flag)
         is_webapp_mode = os.environ.get("QCA_AID_WEBAPP_MODE") == "1"
+        is_non_interactive = cli_args.get("non_interactive", False)
 
-        if is_webapp_mode:
-            print("ℹ️ Webapp-Modus erkannt - verwende Konfiguration aus JSON")
-            # Use config from loaded JSON file
+        # CLI --mode overrides config
+        if cli_args.get("mode"):
+            CONFIG["ANALYSIS_MODE"] = cli_args["mode"]
+
+        # CLI --no-manual disables manual coding
+        if cli_args.get("no_manual"):
+            CONFIG["MANUAL_CODING_ENABLED"] = False
+
+        # CLI --no-pdf disables PDF annotation
+        if cli_args.get("no_pdf"):
+            CONFIG["EXPORT_ANNOTATED_PDFS"] = False
+
+        if is_webapp_mode or is_non_interactive:
+            if is_non_interactive:
+                print("ℹ️ Non-interactive Modus – verwende Konfiguration aus Codebook")
+            else:
+                print("ℹ️ Webapp-Modus erkannt - verwende Konfiguration aus JSON")
+
+            # Determine whether to use saved codebook
+            use_saved = cli_args.get("use_saved_codebook", False)
+
             config_result = {
                 "analysis_mode": CONFIG.get("ANALYSIS_MODE", "deductive"),
-                "use_saved_codebook": False,
+                "use_saved_codebook": use_saved,
                 "enable_manual_coding": CONFIG.get("MANUAL_CODING_ENABLED", False),
                 "skip_inductive": CONFIG.get("ANALYSIS_MODE", "deductive")
                 == "deductive",

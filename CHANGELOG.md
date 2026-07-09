@@ -4,7 +4,76 @@
 
 ---
 
-## Neu in 0.12.9.3 (2026-07-01)
+## Neu in 0.13.0 (2026-07-09)
+
+### 🖥️ CLI-Modus — QCA-AID als Kommandozeilen-Tool
+
+QCA-AID kann ab sofort vollständig über die Kommandozeile bedient werden — ohne Webapp-Browser. Drei neue globale Befehle stehen nach Installation zur Verfügung:
+
+| Befehl | Zweck |
+|--------|-------|
+| `qcaaid` | Hauptanalyse (Kodierung) — äquivalent zum Analyse-Tab der Webapp |
+| `qcaaid-explorer` | Explorer (Visualisierung) — äquivalent zum Explorer-Tab |
+| `qcaaid-webapp` | Startet die Streamlit-Webapp |
+
+#### Installation
+
+```bash
+# Im QCA-AID-Ordner einmalig ausführen:
+pip install -e . --no-build-isolation
+```
+
+Danach sind `qcaaid`, `qcaaid-explorer` und `qcaaid-webapp` von **jedem Verzeichnis** aus als Terminal-Befehl verfügbar.
+
+#### Neue CLI-Optionen
+
+**`qcaaid` (Hauptanalyse):**
+
+| Option | Beschreibung |
+|--------|-------------|
+| `--version` | Version ausgeben |
+| `--project-root PATH` | Projekt-Verzeichnis festlegen |
+| `--mode MODE` | Analysemodus: `deductive`, `abductive`, `inductive`, `grounded` |
+| `--config PATH` | Pfad zu einer spezifischen Codebook-JSON-Datei |
+| `-n`, `--non-interactive` | Keine interaktiven Eingaben — für Skripte/Pipelines |
+| `--no-manual` | Manuelles Kodieren deaktivieren |
+| `--no-pdf` | PDF-Annotation deaktivieren |
+| `--use-saved-codebook` | Gespeichertes induktives Codebook laden |
+
+**`qcaaid-explorer` (Explorer):**
+
+| Option | Beschreibung |
+|--------|-------------|
+| `--version` | Version ausgeben |
+| `--config PATH` | Pfad zu einer Explorer-Config-JSON-Datei |
+| `-n`, `--non-interactive` | Keine interaktiven Eingaben |
+| `--output-dir PATH` | Output-Verzeichnis festlegen |
+
+#### Implementierung
+
+- **`pyproject.toml`**: Neues Python-Paket-Setup mit `[project.scripts]` für Console-Scripts
+- **`QCA_AID_assets/cli.py`**: CLI-Einstiegspunkt für `qcaaid` (argparse + asyncio)
+- **`QCA_AID_assets/explorer_cli.py`**: CLI-Einstiegspunkt für `qcaaid-explorer`
+- **`QCA_AID_assets/webapp_cli.py`**: CLI-Einstiegspunkt für `qcaaid-webapp`
+- **`QCA-AID.py`** und **`QCA-AID-Explorer.py`**: Um argparse erweitert, CLI-Args werden an `main()` bzw. `explorer.main()` durchgereicht
+- **`main.py`**: `main()` akzeptiert `cli_args` Dictionary; `--non-interactive` überspringt alle interaktiven Eingaben (analog zum Webapp-Modus); `--mode` überschreibt den Analysemodus aus dem Codebook
+- **`explorer.py`**: `main()` akzeptiert `cli_args` Dictionary; `--config` lädt eine spezifische Explorer-Config; `--non-interactive` überspringt interaktive Synchronisations-Abfragen
+
+#### Bugfixes
+
+- **Explorer-Config**: Analyse-Name `"Heatmaü"` → `"Heatmap"` korrigiert
+- **Explorer-Config**: Analyse-Name `"zusamm"` → `"Zusammenfassung_Paraphrasen"` korrigiert
+
+#### Dokumentation
+
+- **`QCA-AID-Nutzerhandbuch.md`**: Neuer Abschnitt §5.4 "QCA-AID per Kommandozeile (CLI) nutzen" mit Installationsanleitung, alle Optionen, Beispiele und typische CLI-Workflows
+- **`README.md`**: Schnellstart-Abschnitt um CLI-Hinweis mit Beispielen ergänzt
+
+### 🧹 Sonstiges
+
+- QCA-AID Version auf 0.13.0 gehoben (Datum 2026-07-09).
+- `pyproject.toml` erstellt (ersetzt `setup.py`/`setup.cfg` als moderner Python-Packaging-Standard).
+- CHANGELOG.md aktualisiert.
 
 ### ⚡ Parallele Relevanzprüfung und Kategoriepräferenzen
 

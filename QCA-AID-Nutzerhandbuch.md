@@ -3,7 +3,7 @@
 
 ![QCA-AID Banner](banner-qca-aid.png)
 
-**Version:** 0.12.8  
+**Version:** 0.13.0  
 **Zielgruppe:** Sozialwissenschaftler:innen mit Erfahrung in qualitativer Forschung  
 **Autor:** Justus Henke, Institut für Hochschulforschung Halle-Wittenberg
 
@@ -330,6 +330,190 @@ export QCA_AID_PROJECT_ROOT=/pfad/zu/meinem/projekt
 ```
 
 ---
+
+### 5.4 QCA-AID per Kommandozeile (CLI) nutzen
+
+Neben der Webapp können Sie QCA-AID auch vollständig über die Kommandozeile bedienen. Das ist besonders nützlich für:
+- **Automatisierte Pipelines** (z.B. Cronjobs, Skripte)
+- **Server-Umgebungen** ohne grafische Oberfläche
+- **Batch-Verarbeitung** mehrerer Projekte nacheinander
+- **Schnelle Analysen** ohne die Webapp zu starten
+
+#### 5.4.1 Installation der CLI-Befehle
+
+Damit die Befehle `qcaaid`, `qcaaid-explorer` und `qcaaid-webapp` von jedem Verzeichnis aus verfügbar sind, installieren Sie QCA-AID als Python-Paket:
+
+```bash
+# Im QCA-AID-Ordner ausführen:
+pip install -e . --no-build-isolation
+```
+
+> **Hinweis:** Der Befehl `--no-build-isolation` vermeidet Probleme mit isolierten Build-Umgebungen unter Windows. Nach der Installation stehen die drei Befehle systemweit zur Verfügung.
+
+**Prüfen, ob die Installation erfolgreich war:**
+```bash
+qcaaid --version
+# Ausgabe: QCA-AID 0.12.9.3 (2026-07-01)
+```
+
+#### 5.4.2 Der `qcaaid`-Befehl (Hauptanalyse)
+
+Startet die qualitative Inhaltsanalyse — das CLI-Äquivalent des Analyse-Tabs in der Webapp.
+
+```bash
+qcaaid [OPTIONEN]
+```
+
+**Verfügbare Optionen:**
+
+| Option | Kurzform | Beschreibung |
+|--------|----------|-------------|
+| `--help` | `-h` | Hilfe anzeigen |
+| `--version` | | Version ausgeben |
+| `--project-root PATH` | | Projekt-Verzeichnis festlegen (überschreibt `.qca-aid-project.json`) |
+| `--mode MODE` | | Analysemodus: `deductive`, `abductive`, `inductive`, `grounded` |
+| `--config PATH` | | Pfad zu einer spezifischen Codebook-JSON-Datei |
+| `--non-interactive` | `-n` | Keine interaktiven Eingaben — für Skripte/Pipelines |
+| `--no-manual` | | Manuelles Kodieren deaktivieren |
+| `--no-pdf` | | PDF-Annotation deaktivieren |
+| `--use-saved-codebook` | | Gespeichertes induktives Codebook laden (falls vorhanden) |
+
+**Beispiele:**
+
+```bash
+# Interaktive Analyse (wie bisher mit python QCA-AID.py)
+qcaaid
+
+# Non-interactive Analyse im deduktiven Modus
+qcaaid -n --mode deductive
+
+# Analyse in einem anderen Projektverzeichnis
+qcaaid --project-root /pfad/zum/projekt -n
+
+# Spezifisches Codebook verwenden, ohne PDF-Annotation
+qcaaid -n --config /pfad/zum/codebook.json --no-pdf
+
+# Induktive Analyse mit gespeichertem Codebook fortsetzen
+qcaaid -n --mode inductive --use-saved-codebook
+```
+
+> **Tipp:** Verwenden Sie `-n` (non-interactive), wenn Sie QCA-AID in Skripten oder automatisierten Workflows einsetzen. Alle Eingaben werden dann aus der Konfiguration übernommen.
+
+#### 5.4.3 Der `qcaaid-explorer`-Befehl (Visualisierung)
+
+Startet den QCA-AID Explorer — das CLI-Äquivalent des Explorer-Tabs in der Webapp.
+
+```bash
+qcaaid-explorer [OPTIONEN]
+```
+
+**Verfügbare Optionen:**
+
+| Option | Kurzform | Beschreibung |
+|--------|----------|-------------|
+| `--help` | `-h` | Hilfe anzeigen |
+| `--version` | | Version ausgeben |
+| `--config PATH` | | Pfad zu einer Explorer-Config-JSON-Datei |
+| `--non-interactive` | `-n` | Keine interaktiven Eingaben |
+| `--output-dir PATH` | | Output-Verzeichnis festlegen (überschreibt Config) |
+
+**Beispiele:**
+
+```bash
+# Explorer interaktiv starten
+qcaaid-explorer
+
+# Non-interactive mit eigener Config
+qcaaid-explorer -n --config /pfad/zur/explorer-config.json
+
+# Eigenes Output-Verzeichnis
+qcaaid-explorer -n --output-dir /pfad/zum/output
+```
+
+#### 5.4.4 Der `qcaaid-webapp`-Befehl (Webapp)
+
+Startet die Streamlit-Webapp — äquivalent zu `python start_QCA-AID-app.py`.
+
+```bash
+qcaaid-webapp
+```
+
+> Danach öffnet sich der Browser automatisch unter `http://127.0.0.1:8501`.
+
+#### 5.4.5 Ohne Installation nutzen (klassischer Aufruf)
+
+Falls Sie QCA-AID nicht als Paket installieren möchten, können Sie weiterhin die Python-Skripte direkt aufrufen. Diese unterstützen jetzt ebenfalls alle CLI-Optionen:
+
+```bash
+# Hauptanalyse
+python QCA-AID.py --help
+python QCA-AID.py -n --mode deductive
+
+# Explorer
+python QCA-AID-Explorer.py --help
+python QCA-AID-Explorer.py -n --config explorer.json
+
+# Webapp
+python start_QCA-AID-app.py
+```
+
+#### 5.4.6 Typische CLI-Workflows
+
+**Szenario 1: Vollständige Analyse-Pipeline (non-interactive)**
+
+```bash
+# 1. Codebook und Konfiguration liegen bereits vor
+# 2. Analyse starten
+qcaaid -n --project-root /projekt/Interviews --mode deductive --no-pdf
+
+# 3. Ergebnisse explorieren
+qcaaid-explorer -n --project-root /projekt/Interviews
+```
+
+**Szenario 2: Mehrere Projekte nacheinander (Batch)**
+
+```bash
+#!/bin/bash
+for projekt in projekt_A projekt_B projekt_C; do
+    echo "=== Analysiere $projekt ==="
+    qcaaid -n --project-root /pfad/$projekt --mode deductive --no-manual --no-pdf
+done
+```
+
+**Szenario 3: Interaktive Analyse mit CLI-Optionen**
+
+```bash
+# Analyse starten, aber Analysemodus interaktiv wählen
+qcaaid --project-root /pfad/zum/projekt
+# → Das Skript fragt interaktiv nach Analysemodus, Codebook etc.
+```
+
+**Szenario 4: Einbindung in ein Python-Skript**
+
+```python
+import subprocess
+
+# QCA-AID non-interactive aufrufen
+result = subprocess.run(
+    [
+        "qcaaid", "-n",
+        "--mode", "deductive",
+        "--project-root", "/pfad/zum/projekt",
+        "--no-pdf",
+    ],
+    capture_output=True,
+    text=True,
+)
+
+if result.returncode == 0:
+    print("Analyse erfolgreich!")
+    # Konsolen-Logs in result.stdout
+else:
+    print(f"Fehler (Code {result.returncode}):")
+    print(result.stderr)
+```
+
+> **Tipp:** Der Return Code ist `0` bei Erfolg und `1` bei Fehler — perfekt für `if`-Abfragen in Python-Skripten. Die vollständigen Konsolen-Logs finden sich in `result.stdout`.
 
 ## 6. LLM-Anbieter und Modellauswahl
 
@@ -2357,7 +2541,7 @@ QCA-AID bietet Sozialwissenschaftler:innen ein mächtiges Werkzeug zur KI-unters
 
 ### Weiterentwicklung
 
-QCA-AID wird kontinuierlich weiterentwickelt. Die aktuellste Version ist **0.12.8** (Juni 2026). Aktuelle Entwicklungen und Updates finden Sie im [GitHub-Repository](https://github.com/JustusHenke/QCA-AID) und im [Changelog](CHANGELOG.md).
+QCA-AID wird kontinuierlich weiterentwickelt. Die aktuellste Version ist **0.13.0** (Juli 2026). Aktuelle Entwicklungen und Updates finden Sie im [GitHub-Repository](https://github.com/JustusHenke/QCA-AID) und im [Changelog](CHANGELOG.md).
 
 **Kontakt für Feedback und Fragen:**  
 Justus Henke  

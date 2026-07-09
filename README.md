@@ -82,6 +82,15 @@ python start_webapp.py
 
 **Fertig!** Sie sehen nun die QCA-AID Webapp – alle weiteren Schritte direkt im Browser.
 
+> **🐍 CLI-Alternative:** QCA-AID kann auch per Kommandozeile genutzt werden.  
+> Siehe [Nutzerhandbuch § 5.4](QCA-AID-Nutzerhandbuch.md#54-qca-aid-per-kommandozeile-cli-nutzen) oder:
+> ```bash
+> pip install -e . --no-build-isolation   # einmalig
+> qcaaid --help                            # Hauptanalyse
+> qcaaid-explorer --help                   # Explorer
+> qcaaid-webapp                            # Webapp
+> ```
+
 ---
 
 ## 🖥️ Webapp-Bedienung – alle Einstellungen erklärt
@@ -305,7 +314,7 @@ Außerdem: `category_revisions.json` (Kategorienentwicklung) und `codebook_induc
 ## ⚠️ Wichtige Hinweise
 
 ### Entwicklungsstand
-- **Aktive Entwicklung** (Version 0.12.8) – nicht alle Funktionen arbeiten optimal
+- **Aktive Entwicklung** (Version 0.13.0) – nicht alle Funktionen arbeiten optimal
 - Nutzung zu **Testzwecken empfohlen** mit manueller Validierung
 - Prüfen Sie regelmäßig auf [Updates](CHANGELOG.md)
 
@@ -359,7 +368,7 @@ Außerdem: `category_revisions.json` (Kategorienentwicklung) und `codebook_induc
 
 ```
 Henke, J. (2026). QCA-AID: Qualitative Content Analysis with AI-supported Discovery 
-(Version 0.12.8) [Software]. Institut für Hochschulforschung Halle-Wittenberg. 
+(Version 0.13.0) [Software]. Institut für Hochschulforschung Halle-Wittenberg. 
 https://github.com/JustusHenke/QCA-AID
 ```
 
