@@ -84,7 +84,6 @@ include = ["QCA_AID_assets*", "QCA_AID_app*"]
 
 [tool.setuptools.package-data]
 QCA_AID_assets = [
-    "docs/**/*",
     "utils/llm/configs/**/*",
     "utils/llm/examples/**/*",
 ]

@@ -557,7 +557,7 @@ else:
 | **Qwen 2.5 14B** | 8,5 GB | 16 GB | ⚡⚡ | ⭐⭐⭐⭐ |
 | **Llama 3.1 70B** | 40 GB | 32–48 GB | ⚡ | ⭐⭐⭐⭐⭐ |
 
-> **Detail-Anleitung:** [`QCA_AID_assets/docs/user_doc/LOCAL_MODELS_GUIDE.md`](QCA_AID_assets/docs/user_doc/LOCAL_MODELS_GUIDE.md)
+> **Detail-Anleitung:** [`docs/LOCAL_MODELS_GUIDE.md`](docs/LOCAL_MODELS_GUIDE.md)
 
 ### 6.3 Cloud-Modelle
 
@@ -621,7 +621,7 @@ GWDG_API_KEY=xxxxxxxxxxxxxxxxxxxxx
 }
 ```
 
-> **Detail-Anleitung:** [`QCA_AID_assets/docs/user_doc/CUSTOM_PROVIDER_GUIDE.md`](QCA_AID_assets/docs/user_doc/CUSTOM_PROVIDER_GUIDE.md)
+> **Detail-Anleitung:** [`docs/CUSTOM_PROVIDER_GUIDE.md`](docs/CUSTOM_PROVIDER_GUIDE.md)
 
 ### 6.5 Modellauswahl-Empfehlungen
 
@@ -2315,8 +2315,8 @@ git checkout HEAD~1 QCA-AID-Codebook.json
 ### 14.1 Beispiel-Codebook
 
 Ein vollständiges Beispiel-Codebook mit Forschungsfrage, Kodierregeln, deduktiven Kategorien und Konfigurationseinstellungen finden Sie hier:
-- [`QCA-AID-Codebook-Example.json`](QCA_AID_assets/docs/user_doc/QCA-AID-Codebook-Example.json) — Beispiel-Codebook
-- [`QCA-AID-Codebook-Example-Documentation.md`](QCA_AID_assets/docs/user_doc/QCA-AID-Codebook-Example-Documentation.md) — Dokumentation der Struktur und Parameter
+- [`QCA-AID-Codebook-Example.json`](docs/QCA-AID-Codebook-Example.json) — Beispiel-Codebook
+- [`QCA-AID-Codebook-Example-Documentation.md`](docs/QCA-AID-Codebook-Example-Documentation.md) — Dokumentation der Struktur und Parameter
 
 ### 14.2 Beispiel-Konfigurationen
 

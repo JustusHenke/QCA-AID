@@ -120,7 +120,7 @@ Hier stellen Sie ein, **welche KI** Ihre Texte analysiert und **wie** die Verarb
 | Server starten | "Local Server" → "Start Server" | `ollama serve` (automatisch) |
 | In Webapp | Local wählen → "🔄 Erkennen" | Local wählen → "🔄 Erkennen" |
 
-> **Detail-Anleitung:** [`QCA_AID_assets/docs/user_doc/LOCAL_MODELS_GUIDE.md`](QCA_AID_assets/docs/user_doc/LOCAL_MODELS_GUIDE.md)
+> **Detail-Anleitung:** [`docs/LOCAL_MODELS_GUIDE.md`](docs/LOCAL_MODELS_GUIDE.md)
 
 #### Chunk-Einstellungen (Wie wird Ihr Text zerteilt?)
 
@@ -358,8 +358,8 @@ Außerdem: `category_revisions.json` (Kategorienentwicklung) und `codebook_induc
 | Dokument | Inhalt |
 |----------|--------|
 | **[QCA-AID-Nutzerhandbuch.md](QCA-AID-Nutzerhandbuch.md)** | Vollständige Anleitung – Installation, Webapp, Codebook, Ergebnisse |
-| **[LOCAL_MODELS_GUIDE.md](QCA_AID_assets/docs/user_doc/LOCAL_MODELS_GUIDE.md)** | Lokale Modelle einrichten (LM Studio, Ollama) – Schritt für Schritt |
-| **[CUSTOM_PROVIDER_GUIDE.md](QCA_AID_assets/docs/user_doc/CUSTOM_PROVIDER_GUIDE.md)** | Eigene KI-Endpoints konfigurieren (GWDG, Azure, ...) |
+| **[LOCAL_MODELS_GUIDE.md](docs/LOCAL_MODELS_GUIDE.md)** | Lokale Modelle einrichten (LM Studio, Ollama) – Schritt für Schritt |
+| **[CUSTOM_PROVIDER_GUIDE.md](docs/CUSTOM_PROVIDER_GUIDE.md)** | Eigene KI-Endpoints konfigurieren (GWDG, Azure, ...) |
 | **[CHANGELOG.md](CHANGELOG.md)** | Alle Neuerungen und Bugfixes pro Version |
 
 ---
