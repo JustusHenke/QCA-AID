@@ -1339,20 +1339,47 @@ async def monitor_progress(analysis_manager: IntegratedAnalysisManager):
         while True:
             progress = analysis_manager.get_progress_report()
 
-            # Formatiere Fortschrittsanzeige
+            # FIX: Detaillierte Fortschrittsanzeige mit Phasen-Info
+            p = progress['progress']
             print("\n--- Analysefortschritt ---")
-            print(f"Verarbeitet: {progress['progress']['processed_segments']} Segmente")
-            print(
-                f"Geschwindigkeit: {progress['progress']['segments_per_hour']:.1f} Segmente/Stunde"
-            )
 
-            # FIX: Zeige zusätzliche Status-Information
-            if "status" in progress["progress"]:
-                print(f"Status: {progress['progress']['status']}")
+            # Phasen-Info
+            phase = p.get('current_phase', '')
+            if phase:
+                print(f"Phase: {phase}")
 
-            # FIX: Zeige Kodierungs-Information für Multi-Coder Szenarien
-            if progress["progress"]["total_codings"] > 0:
-                print(f"Kodierungen: {progress['progress']['coding_info']}")
+            # Batch-Info falls verfügbar
+            phase_batch = p.get('phase_batch_info', '')
+            if phase_batch:
+                print(f"  {phase_batch}")
+
+            # Coder-Info
+            coder = p.get('current_coder_id', '')
+            if coder and not phase_batch:
+                print(f"  Kodierer: {coder}")
+
+            # Fortschritt mit Prozent
+            processed = p.get('processed_segments', 0)
+            total = p.get('total_segments', 0)
+            percent = p.get('progress_percent', 0)
+            if total > 0:
+                print(f"Verarbeitet: {processed}/{total} Segmente ({percent}%)")
+            else:
+                print(f"Verarbeitet: {processed} Segmente")
+
+            # Geschwindigkeit
+            speed = p.get('segments_per_hour', 0)
+            if speed > 0:
+                print(f"Geschwindigkeit: {speed:.1f} Segmente/Stunde")
+
+            # Status
+            status = p.get('status', '')
+            if status:
+                print(f"Status: {status}")
+
+            # Kodierungen
+            if p.get('total_codings', 0) > 0:
+                print(f"Kodierungen: {p.get('coding_info', '')}")
 
             print("------------------------")
 

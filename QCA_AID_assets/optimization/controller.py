@@ -1222,6 +1222,8 @@ class OptimizationController:
                 )
                 return results, updated_categories
             elif analysis_mode == AnalysisMode.GROUNDED:
+                # Extract batch_callback from kwargs if provided
+                batch_cb = kwargs.pop("batch_callback", None)
                 results = await self._analyze_grounded(
                     segments=segments,
                     research_question=research_question,
@@ -1230,6 +1232,7 @@ class OptimizationController:
                     use_context=use_context,
                     document_paraphrases=document_paraphrases,
                     context_paraphrase_count=context_paraphrase_count,
+                    batch_callback=batch_cb,
                     **kwargs,
                 )
                 # Grounded mode doesn't change categories in Phase 1
@@ -2898,6 +2901,8 @@ class OptimizationController:
         saturation_controller = ImprovedSaturationController("inductive")
 
         # 1. SHARED Relevanzprüfung (wie im Standard-Workflow)
+        if batch_callback:
+            batch_callback(batch_num=0, total_batches=0, coder_id="", phase="Phase 1: Relevanzprüfung")
         print(f"   📊 Schritt 1: Relevanzprüfung für {len(segments)} Segmente...")
         print(f"   📋 Forschungsfrage: {research_question}")
         print(
@@ -4624,6 +4629,7 @@ class OptimizationController:
         document_paraphrases: Optional[Dict[str, List[str]]] = None,
         context_paraphrase_count: int = 3,
         paraphrase_callback: Optional[callable] = None,
+        batch_callback: Optional[callable] = None,
         **kwargs,
     ) -> List[Dict[str, Any]]:
         """
@@ -4681,6 +4687,8 @@ class OptimizationController:
             return []
 
         # 2. SHARED Subcode-Sammlung
+        if batch_callback:
+            batch_callback(batch_num=0, total_batches=0, coder_id="", phase="Phase 1: Subcode-Sammlung")
         print(
             f"   🔍 Schritt 2: Subcode-Sammlung aus {len(relevant_segments)} relevanten Segmenten..."
         )
@@ -4695,6 +4703,7 @@ class OptimizationController:
             research_question=research_question,
             batch_size=batch_size,  # Use configured batch_size instead of all segments
             temperature=grounded_temp,
+            progress_callback=batch_callback,
         )
 
         # 3. Sammle Subcodes zentral (stateful)
@@ -5699,6 +5708,8 @@ Antworte NUR mit folgendem JSON-Format:
         coding_rules: Optional[List[str]] = None,
         coder_settings: Optional[List[Dict[str, Any]]] = None,
         batch_size: int = 5,
+        progress_callback: Optional[callable] = None,
+        result_callback: Optional[callable] = None,
     ) -> List[Dict[str, Any]]:
         """
         PHASE 3: Kodiere alle Segmente mit generierten Grounded-Kategorien.
@@ -5739,6 +5750,18 @@ Antworte NUR mit folgendem JSON-Format:
 
                 try:
                     # Verwende analyze_batch direkt mit allen Segmenten (interne Batch-Logik)
+                    # FIX: Uebergabe von progress_callback und coder_id fuer Batch-Logging
+                    def _coder_progress_callback(batch_num, total_batches, coder_id, _coder_id=coder_id, _all_segments=all_segments):
+                        # Aktualisiere die Phasen-Tracking-Variablen ueber den AnalysisManager
+                        # Der Callback wird vom AnalysisManager uebergeben
+                        if progress_callback:
+                            progress_callback(
+                                batch_num=batch_num,
+                                total_batches=total_batches,
+                                coder_id=_coder_id,
+                                total_segments=len(_all_segments),
+                            )
+
                     results = await self.unified_analyzer.analyze_batch(
                         segments=all_segments,
                         category_definitions=cat_defs,
@@ -5746,6 +5769,8 @@ Antworte NUR mit folgendem JSON-Format:
                         coding_rules=coding_rules or [],
                         batch_size=batch_size,
                         temperature=coder_temp,
+                        progress_callback=_coder_progress_callback,
+                        coder_id=coder_id,
                     )
 
                     if results:
@@ -5784,6 +5809,10 @@ Antworte NUR mit folgendem JSON-Format:
                                 f"      └─ Kodierer: {coder_id} | Konfidenz: {result.confidence:.2f}"
                             )
 
+                    # FIX: Progressive Ergebnis-Speicherung ueber result_callback
+                    if results and result_callback:
+                        result_callback(results, coder_id)
+
                     # FIX: Store results for reliability analysis (use original results, not formatted)
                     if results:
                         # Konvertiere UnifiedAnalysisResult zu Dictionary-Format für _store_results_for_reliability
@@ -5814,6 +5843,15 @@ Antworte NUR mit folgendem JSON-Format:
 
             try:
                 # Verwende analyze_batch direkt mit allen Segmenten (interne Batch-Logik)
+                def _fallback_progress_callback(batch_num, total_batches, coder_id, _all_segments=all_segments):
+                    if progress_callback:
+                        progress_callback(
+                            batch_num=batch_num,
+                            total_batches=total_batches,
+                            coder_id="auto_1",
+                            total_segments=len(_all_segments),
+                        )
+
                 results = await self.unified_analyzer.analyze_batch(
                     segments=all_segments,
                     category_definitions=cat_defs,
@@ -5821,6 +5859,8 @@ Antworte NUR mit folgendem JSON-Format:
                     coding_rules=coding_rules or [],
                     batch_size=batch_size,
                     temperature=self.inductive_temperature,
+                    progress_callback=_fallback_progress_callback,
+                    coder_id="auto_1",
                 )
 
                 if results:
@@ -5852,6 +5892,10 @@ Antworte NUR mit folgendem JSON-Format:
                         print(
                             f"      └─ Kodierer: auto_1 | Konfidenz: {result.confidence:.2f}"
                         )
+
+                # FIX: Progressive Ergebnis-Speicherung ueber result_callback
+                if results and result_callback:
+                    result_callback(results, "auto_1")
 
                 # FIX: Store results for reliability analysis (use original results, not formatted)
                 if results:

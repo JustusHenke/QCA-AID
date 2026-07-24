@@ -1192,6 +1192,8 @@ class UnifiedRelevanceAnalyzer:
         temperature: Optional[float] = None,
         context_paraphrases: Optional[List[str]] = None,
         segment_category_mapping: Optional[Dict[str, List[str]]] = None,
+        progress_callback: Optional[callable] = None,
+        coder_id: str = "",
     ) -> List[UnifiedAnalysisResult]:
         """
         Analyze a batch of segments with unified processing.
@@ -1208,11 +1210,19 @@ class UnifiedRelevanceAnalyzer:
         """
         results = []
 
-        # Process in batches (simplified logging)
+        # Process in batches with detailed logging
         total_batches = (len(segments) + batch_size - 1) // batch_size
-        if len(segments) > batch_size:
-            print(
-                f"   🔄 Verarbeite {len(segments)} Segmente in {total_batches} Batches"
+        coder_label = f" ({coder_id})" if coder_id else ""
+        print(
+            f"   🔄 Verarbeite {len(segments)} Segmente in {total_batches} Batches{coder_label}"
+        )
+
+        # FIX: Initialize progress callback with total batches
+        if progress_callback:
+            progress_callback(
+                batch_num=0,
+                total_batches=total_batches,
+                coder_id=coder_id,
             )
 
         for i in range(0, len(segments), batch_size):
@@ -1222,6 +1232,17 @@ class UnifiedRelevanceAnalyzer:
                 continue
 
             batch_num = (i // batch_size) + 1
+
+            # FIX: Log batch progress
+            print(f"   📦 Kodier-Batch {batch_num}/{total_batches}: {len(batch)} Segmente{coder_label}")
+
+            # FIX: Update progress callback
+            if progress_callback:
+                progress_callback(
+                    batch_num=batch_num,
+                    total_batches=total_batches,
+                    coder_id=coder_id,
+                )
 
             max_retries = 2
             last_error = None
@@ -1867,6 +1888,7 @@ class UnifiedRelevanceAnalyzer:
         batch_size: int = 3,
         temperature: Optional[float] = None,
         context_paraphrases: Optional[List[str]] = None,
+        progress_callback: Optional[callable] = None,
     ) -> List[Dict[str, Any]]:
         """
         Analyze batch for grounded theory (open coding).
@@ -1888,6 +1910,14 @@ class UnifiedRelevanceAnalyzer:
             print(
                 f"   📦 Grounded-Batch {batch_num}/{total_batches}: {len(batch)} Segmente"
             )
+
+            # FIX: Update progress callback for phase tracking
+            if progress_callback:
+                progress_callback(
+                    batch_num=batch_num,
+                    total_batches=total_batches,
+                    coder_id="",
+                )
 
             try:
                 token_counter.start_request()  # Track request start

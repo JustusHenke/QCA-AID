@@ -4,6 +4,80 @@
 
 ---
 
+## Neu in 0.13.1 (2026-07-24)
+
+### 📊 Fortschrittsanzeige für Grounded Mode komplett überarbeitet
+
+**Problem:** Die Fortschrittsanzeige im Grounded Mode war seit mehreren Versionen kaputt. Bei einer Analyse mit 423 Segmenten zeigte das Log über 5½ Stunden hinweg ununterbrochen `Verarbeitet: 423 Segmente` — ohne dass sich die Zahl jemals änderte. Die Geschwindigkeitsanzeige produzierte absurde Werte (z.B. 304.073.482 Segmente/Stunde in den ersten Sekunden). Es gab keine Information darüber, in welcher Phase sich die Analyse befand, wie viele Batches bereits verarbeitet waren oder welche Kodierungen bereits vorlagen. Beim Drücken von ESC stand stets `Erstellte Kodierungen: 0`, obwohl bereits hunderte API-Calls gelaufen waren.
+
+**Ursache:** In `_analyze_grounded_mode` (`analysis_manager.py`) wurden alle 423 Segmente sofort zu `processed_segments` hinzugefügt, bevor die eigentliche Analyse begann. Die Fortschrittsüberwachung (`monitor_progress` in `main.py`) las dann einfach `len(processed_segments)` und zeigte immer 423 — unabhängig vom tatsächlichen Verarbeitungsstand.
+
+#### Behobene Probleme
+
+| # | Problem | Fix |
+|---|---------|-----|
+| 1 | `processed_segments` wurde vorab mit allen Segmenten gefüllt → Fortschritt immer 423/423 | Vorab-Befüllung entfernt; Segmente werden erst nach Abschluss von Phase 1 hinzugefügt |
+| 2 | Keine Phasen-Information (`"Optimierte Analyse läuft..."` über Stunden) | Phasen-Tracking mit `current_phase`, `current_phase_batch`, `current_phase_total_batches`, `current_coder_id` in allen Phasen (1, 1.5, 2, 3) |
+| 3 | Kein Batch-Zähler in Phase 3 (Kodierung) — nur sporadische "Keine Kontext-Paraphrasen" Meldungen | `analyze_batch` loggt jetzt `📦 Kodier-Batch N/M: 8 Segmente (auto_1)` für jeden Batch |
+| 4 | Geschwindigkeitsberechnung kaputt (304M Segmente/Stunde am Anfang) | Berechnung nur wenn `elapsed_time > 5s` und `processed_segments > 0` |
+| 5 | `Erstellte Kodierungen: 0` bei jedem ESC-Dialog | `result_callback` speichert Kodierungen progressiv in `self.coding_results` nach jedem Coder-Durchlauf |
+
+#### Neue Ausgabe der Fortschrittsanzeige
+
+**Vorher:**
+```
+--- Analysefortschritt ---
+Verarbeitet: 423 Segmente
+Geschwindigkeit: 172.6 Segmente/Stunde
+Status: Optimierte Analyse läuft...
+------------------------
+```
+
+**Nachher:**
+```
+--- Analysefortschritt ---
+Phase: Phase 3: Kodierung
+  Batch 7/53 (auto_1)
+Verarbeitet: 56/423 Segmente (13.2%)
+Geschwindigkeit: 345.2 Segmente/Stunde
+Status: Phase 3: Kodierung
+Kodierungen: 48
+------------------------
+```
+
+#### Geänderte Dateien
+
+- **`QCA_AID_assets/analysis/analysis_manager.py`**:
+  - Neue Instanzvariablen `current_phase`, `current_phase_batch`, `current_phase_total_batches`, `current_coder_id`
+  - `processed_segments` wird nicht mehr vorab gefüllt
+  - `get_progress_report()` erweitert: Phase, Batch-Info, Coder, `total_segments`, `progress_percent`, `phase_batch_info`
+  - Geschwindigkeitsberechnung mit `elapsed_time > 5` Guard
+  - Phasen-Tracking in `_analyze_grounded_mode` (optimiert) und `_analyze_grounded_mode_standard` (Fallback)
+  - `result_callback` für progressive Kodierungs-Speicherung in Phase 3
+  - `progress_callback` für Batch-Updates an `code_with_grounded_categories`
+
+- **`QCA_AID_assets/main.py`**:
+  - `monitor_progress()` komplett überarbeitet: Zeigt Phase, Batch-Info, Coder, Fortschritt mit Prozent, Geschwindigkeit, Status und Kodierungen
+
+- **`QCA_AID_assets/optimization/controller.py`**:
+  - `code_with_grounded_categories()`: Neuer Parameter `progress_callback` und `result_callback`
+  - `analyze_segments()`: `batch_callback` wird aus `**kwargs` extrahiert und an `_analyze_grounded` weitergegeben
+  - `_analyze_grounded()`: Neuer Parameter `batch_callback`; Callback-Aufruf nach Batch-Verarbeitung
+  - Multi-Coder und Fallback-Pfad: `progress_callback` und `coder_id` werden an `analyze_batch` übergeben
+  - `result_callback` wird nach jedem Coder-Durchlauf aufgerufen
+
+- **`QCA_AID_assets/optimization/unified_relevance_analyzer.py`**:
+  - `analyze_batch()`: Neue Parameter `progress_callback` und `coder_id`
+  - Batch-Logging: `📦 Kodier-Batch N/M: X Segmente (coder_id)` für jeden Batch
+  - `progress_callback` wird zu Beginn und pro Batch aufgerufen
+
+### 🧹 Sonstiges
+
+- QCA-AID Version auf 0.13.1 gehoben (Datum 2026-07-24).
+- CHANGELOG.md aktualisiert.
+
+---
+
 ## Neu in 0.13.0 (2026-07-09)
 
 ### 🖥️ CLI-Modus — QCA-AID als Kommandozeilen-Tool

@@ -103,6 +103,13 @@ class IntegratedAnalysisManager:
             "category_changes": [],
         }
 
+        # FIX: Phase-Tracking fuer detaillierte Fortschrittsanzeige
+        self.current_phase = "Initialisierung"
+        self.current_phase_batch = 0
+        self.current_phase_total_batches = 0
+        self.current_coder_id = ""
+        self._total_segments = 0
+
         # Konfigurationsparameter (unverÄndert)
         self.use_context = config.get("CODE_WITH_CONTEXT", False)
         print(
@@ -2235,10 +2242,15 @@ class IntegratedAnalysisManager:
             {"segment_id": seg_id, "text": text} for seg_id, text in all_segments
         ]
 
-        # Markiere alle Segmente als verarbeitet für Fortschrittsanzeige
-        self.processed_segments.update(seg_id for seg_id, _ in all_segments)
+        # FIX: NICHT alle Segmente vorab als verarbeitet markieren.
+        # Stattdessen werden Segmente pro Batch aktualisiert, um echten
+        # Fortschritt in der Anzeige zu zeigen (statt sofort 423/423).
 
         # PHASE 1: Optimierte Subcode-Sammlung mit OptimizationController
+        self.current_phase = 'Phase 1: Subcode-Sammlung'
+        self.current_phase_batch = 0
+        self.current_phase_total_batches = 0
+        self.current_coder_id = ''
         print(
             f"\n🕵️ PHASE 1: Subcode-Sammlung mit OptimizationController für {len(opt_segments)} Segmente..."
         )
@@ -2259,6 +2271,15 @@ class IntegratedAnalysisManager:
 
             print(f"   🔧 Erstelle coder_settings aus {len(coder_settings)} Kodierern")
 
+            # FIX: batch_callback fuer Phasen-Tracking in Phase 1
+            def _phase1_batch_callback(batch_num, total_batches, coder_id="", phase=""):
+                # Update Phase-Tracking fuer Relevanzpruefung und Subcode-Sammlung
+                if phase:
+                    self.current_phase = phase
+                self.current_phase_batch = batch_num
+                self.current_phase_total_batches = total_batches
+                self.current_coder_id = coder_id
+
             subcode_results = await self.optimization_controller.analyze_segments(
                 segments=opt_segments,
                 analysis_mode=AnalysisMode.GROUNDED,
@@ -2268,6 +2289,7 @@ class IntegratedAnalysisManager:
                 use_context=CONFIG.get("CODE_WITH_CONTEXT", False),
                 document_paraphrases=getattr(self, "document_paraphrases", None),
                 context_paraphrase_count=CONFIG.get("CONTEXT_PARAPHRASE_COUNT", 3),
+                batch_callback=_phase1_batch_callback,
             )
 
             # Extrahiere nur die Ergebnisse (Kategorien werden in Phase 1 nicht verändert)
@@ -2275,6 +2297,12 @@ class IntegratedAnalysisManager:
                 subcode_results, _ = subcode_results
 
             print(f"✅ Phase 1 abgeschlossen: {len(subcode_results)} Subcode-Analysen")
+            # FIX: Update processed_segments nach Phase 1
+            self.processed_segments.update(seg_id for seg_id, _ in all_segments)
+            self.current_phase = 'Phase 1.5: Subcode-Verdichtung'
+            self.current_phase_batch = 0
+            self.current_phase_total_batches = 0
+            self.current_coder_id = ''
 
             # PHASE 1.5: LLM-gestützte konzeptuelle Verdichtung der Roh-Subcodes.
             # Hintergrund: Ohne diesen Schritt produziert Phase 1 oft 100+ Roh-
@@ -2309,6 +2337,10 @@ class IntegratedAnalysisManager:
                         sc["id"] = i
 
             # PHASE 2: Hauptkategorien-Generierung
+            self.current_phase = 'Phase 2: Hauptkategorien-Generierung'
+            self.current_phase_batch = 0
+            self.current_phase_total_batches = 0
+            self.current_coder_id = ''
             if len(self.optimization_controller.grounded_subcodes_collection) >= 5:
                 # WICHTIG: Im Grounded Mode KEINE initial_categories verwenden (rein induktiv)
                 # max_subcategories aus CONFIG lesen (Default 5) -> Verdichtung in Phase 2
@@ -2327,6 +2359,54 @@ class IntegratedAnalysisManager:
 
                 if grounded_categories:
                     # PHASE 3: Kodierung mit Grounded-Kategorien
+                    self.current_phase = 'Phase 3: Kodierung'
+                    self.current_phase_batch = 0
+                    self.current_phase_total_batches = 0
+                    self.current_coder_id = ''
+                    # FIX: Reset coding_results fuer progressive Speicherung
+                    self.coding_results = []
+                    # FIX: Progress-Callback fuer Phase 3 Batch-Tracking
+                    def _phase3_progress_callback(batch_num, total_batches, coder_id, total_segments=0):
+                        self.current_phase_batch = batch_num
+                        self.current_phase_total_batches = total_batches
+                        self.current_coder_id = coder_id
+                        # Update processed_segments fuer echten Fortschritt
+                        if total_segments > 0 and batch_num > 0:
+                            processed_count = min(batch_num * batch_size_val, total_segments)
+                            # Nur hinzufuegen, nicht mehr als total
+                            pass  # processed_segments wird separat verwaltet
+
+                    batch_size_val = batch_size
+
+                    # FIX: Progressive Kodierungs-Speicherung - nicht erst am Ende
+                    def _phase3_result_callback(results, coder_id):
+                        """Speichert Kodierungen sofort fuer ESC-Dialog."""
+                        for result in results:
+                            segment_id = getattr(result, 'segment_id', '')
+                            primary_cat = getattr(result, 'primary_category', 'Nicht kodiert')
+                            confidence_val = getattr(result, 'confidence', 0.7)
+                            subcats = getattr(result, 'subcategories', [])
+                            keywords = getattr(result, 'keywords', '')
+                            paraphrase = getattr(result, 'paraphrase', '')
+                            justification = getattr(result, 'justification', '')
+
+                            coding_result = {
+                                "segment_id": segment_id,
+                                "coder_id": coder_id,
+                                "category": primary_cat,
+                                "subcategories": subcats if subcats else [],
+                                "confidence": {
+                                    "total": confidence_val,
+                                    "category": confidence_val,
+                                    "subcategories": 1.0,
+                                },
+                                "justification": justification if justification else "",
+                                "text": next((s["text"] for s in opt_segments if s["segment_id"] == segment_id), ""),
+                                "paraphrase": paraphrase if paraphrase else "",
+                                "keywords": keywords if keywords else "",
+                            }
+                            self.coding_results.append(coding_result)
+
                     coding_results = await self.optimization_controller.code_with_grounded_categories(
                         all_segments=opt_segments,
                         grounded_categories=grounded_categories,
@@ -2334,6 +2414,8 @@ class IntegratedAnalysisManager:
                         coding_rules=getattr(self, "coding_rules", []),
                         coder_settings=coder_settings,
                         batch_size=batch_size,
+                        progress_callback=_phase3_progress_callback,
+                        result_callback=_phase3_result_callback,
                     )
 
                     # FIX: Konvertiere Ergebnisse zu Standard-Format (wie andere Modi)
@@ -2584,6 +2666,10 @@ class IntegratedAnalysisManager:
         STANDARD GROUNDED MODE ANALYSE (Fallback)
         """
         print("\nℹ️ GROUNDED MODE: Starte Standard Subcode-Sammlung")
+        self.current_phase = 'Phase 1: Subcode-Sammlung (Standard)'
+        self.current_phase_batch = 0
+        self.current_phase_total_batches = 0
+        self.current_coder_id = ''
 
         # Initialisiere Grounded-spezifische Variablen
         self.grounded_subcodes_collection = []
@@ -2661,6 +2747,10 @@ class IntegratedAnalysisManager:
         # PHASE 2: HAUPTKATEGORIEN GENERIEREN
         if len(self.grounded_subcodes_collection) >= 5:
             print(f"\n🕵️ PHASE 2: Generiere Hauptkategorien aus Subcodes...")
+            self.current_phase = 'Phase 2: Hauptkategorien-Generierung (Standard)'
+            self.current_phase_batch = 0
+            self.current_phase_total_batches = 0
+            self.current_coder_id = ''
 
             # Übergebe Subcodes an InductiveCoder
             self.inductive_coder.collected_subcodes = self.grounded_subcodes_collection
@@ -2683,7 +2773,15 @@ class IntegratedAnalysisManager:
                     await coder.update_category_system(grounded_categories)
 
                 # PHASE 3: KODIERUNG MIT GROUNDED KATEGORIEN
+                self.current_phase = 'Phase 3: Kodierung'
+                self.current_phase_batch = 0
+                self.current_phase_total_batches = 0
+                self.current_coder_id = ''
                 print(f"\n📝 PHASE 3: Kodiere alle Segmente mit Grounded-Kategorien...")
+                self.current_phase = 'Phase 3: Kodierung (Standard)'
+                self.current_phase_batch = 0
+                self.current_phase_total_batches = 0
+                self.current_coder_id = ''
                 coding_results = await self._code_all_segments_with_grounded_categories(
                     all_segments, grounded_categories, use_context
                 )
@@ -3533,21 +3631,51 @@ class IntegratedAnalysisManager:
             (total_segments / elapsed_time) * 3600 if elapsed_time > 0 else 0
         )
 
-        # FIX: Verbesserte Status-Information für Optimierung
-        status_info = "Läuft"
+                # FIX: Verbesserte Status-Information mit Phasen-Tracking
+        status_info = self.current_phase or "Läuft"
         if self.optimization_enabled and total_segments > 0 and display_codings == 0:
-            status_info = "Optimierte Analyse läuft..."
+            if not self.current_phase or self.current_phase == "Initialisierung":
+                status_info = "Optimierte Analyse läuft..."
         elif total_segments > 0 and display_codings > 0:
             status_info = "Kodierung abgeschlossen"
+
+        # FIX: Phasen-spezifische Fortschrittsanzeige
+        phase_batch_info = ""
+        if self.current_phase_total_batches > 0:
+            phase_batch_info = f"Batch {self.current_phase_batch}/{self.current_phase_total_batches}"
+        if self.current_coder_id:
+            phase_batch_info += f" ({self.current_coder_id})" if phase_batch_info else self.current_coder_id
+
+        # FIX: Echt-Fortschritt berechnen (nur tatsächlich verarbeitete Segmente)
+        total_target = getattr(self, "_total_segments", total_segments)
+        progress_percent = (
+            round((total_segments / total_target) * 100, 1)
+            if total_target > 0
+            else 0
+        )
+
+        # FIX: Geschwindigkeitsberechnung - nur wenn tatsächlich Segmente verarbeitet wurden
+        # und elapsed_time > 5 Sekunden (vermeidet absurde Werte am Anfang)
+        if total_segments > 0 and elapsed_time > 5:
+            segments_per_hour = (total_segments / elapsed_time) * 3600
+        else:
+            segments_per_hour = 0
 
         return {
             "progress": {
                 "processed_segments": total_segments,
+                "total_segments": total_target,
+                "progress_percent": progress_percent,
                 "total_codings": display_codings,
-                "coding_info": coding_info,  # FIX: Zusätzliche Info für Multi-Coder
+                "coding_info": coding_info,
                 "segments_per_hour": round(segments_per_hour, 2),
                 "elapsed_time": round(elapsed_time, 2),
-                "status": status_info,  # FIX: Zeige aktuellen Status
+                "status": status_info,
+                "current_phase": self.current_phase,
+                "current_phase_batch": self.current_phase_batch,
+                "current_phase_total_batches": self.current_phase_total_batches,
+                "current_coder_id": self.current_coder_id,
+                "phase_batch_info": phase_batch_info,
             },
             "performance": {
                 "avg_batch_processing_time": round(avg_batch_time, 2),
@@ -3564,7 +3692,7 @@ class IntegratedAnalysisManager:
                 "last_update": self.analysis_log[-1]["timestamp"]
                 if self.analysis_log
                 else None,
-                "optimization_enabled": self.optimization_enabled,  # FIX: Zeige ob Optimierung aktiv ist
+                "optimization_enabled": self.optimization_enabled,
             },
         }
 
