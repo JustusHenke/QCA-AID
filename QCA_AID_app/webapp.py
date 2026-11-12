@@ -504,6 +504,20 @@ def main():
     </style>
     """, unsafe_allow_html=True)
     
+    # Layout-Breite: zentriertes Max-Width fuer den Haupt-Inhaltsbereich
+    # (Nutzer-Feedback 0.13.2: Config-Seite wirkte auf breiten Bildschirmen
+    # sehr breit, Dropdowns/Inputs zogen sich auf Vollbreite. App-weit statt
+    # nur Config-Tab, damit Tabs und Weiter-CTA konsistent bleiben.)
+    st.markdown("""
+    <style>
+    section[data-testid="stMain"] [data-testid="stMainBlockContainer"] {
+        max-width: 1100px !important;
+        margin-left: auto !important;
+        margin-right: auto !important;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
     # PERFORMANCE OPTIMIZATION: Cached icon loading
     @st.cache_data
     def load_app_icon():
