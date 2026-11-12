@@ -27,26 +27,26 @@ def display_path_validation_feedback(validation_result: PathValidationResult,
     """
     if not validation_result.is_valid:
         # Show error message
-        st.error(f"❌ {validation_result.error_message}")
+        st.error(f":material/cancel: {validation_result.error_message}")
         
         # Show suggestions if available
         if validation_result.has_suggestions():
-            with st.expander("💡 Vorschläge", expanded=True):
+            with st.expander(":material/lightbulb: Vorschläge", expanded=True):
                 for suggestion in validation_result.suggestions:
                     st.info(suggestion)
     
     elif validation_result.has_warnings():
         # Show warnings for valid but concerning paths
         for warning in validation_result.warnings:
-            st.warning(f"⚠️ {warning}")
+            st.warning(f":material/warning: {warning}")
         
         # Show suggestions if available
         if validation_result.has_suggestions():
             for suggestion in validation_result.suggestions:
-                st.info(f"💡 {suggestion}")
+                st.info(f":material/lightbulb: {suggestion}")
     
     elif show_success:
-        st.success("✅ Pfad ist gültig")
+        st.success(":material/check_circle: Pfad ist gültig")
 
 
 def validate_and_display_path(path: str, path_resolver: PathResolver, 
@@ -77,7 +77,7 @@ def validate_and_display_path(path: str, path_resolver: PathResolver,
         display_path_validation_feedback(result, show_success)
         return result.is_valid
     except Exception as e:
-        st.error(f"❌ Fehler bei Validierung: {str(e)}")
+        st.error(f":material/cancel: Fehler bei Validierung: {str(e)}")
         return False
 
 
@@ -108,20 +108,20 @@ def offer_directory_creation(path: Path, path_resolver: PathResolver) -> bool:
         return False
     
     # Show creation option
-    st.warning(f"⚠️ Verzeichnis existiert nicht: {path_obj}")
+    st.warning(f":material/warning: Verzeichnis existiert nicht: {path_obj}")
     
     col1, col2 = st.columns(2)
     
     with col1:
-        if st.button("📁 Verzeichnis erstellen", key=f"create_dir_{hash(str(path_obj))}"):
+        if st.button(":material/folder: Verzeichnis erstellen", key=f"create_dir_{hash(str(path_obj))}"):
             success, error = path_resolver.create_directory(path_obj)
             
             if success:
-                st.success(f"✅ Verzeichnis erstellt: {path_obj}")
+                st.success(f":material/check_circle: Verzeichnis erstellt: {path_obj}")
                 st.rerun()
                 return True
             else:
-                st.error(f"❌ {error}")
+                st.error(f":material/cancel: {error}")
                 return False
     
     with col2:
@@ -196,7 +196,7 @@ def display_file_operation_success(file_path: Path, operation: str = "geladen") 
         file_info.append(f"Geändert: {mod_time.strftime('%Y-%m-%d %H:%M')}")
     
     # Display success message
-    st.success(f"✅ Datei erfolgreich {operation}: **{path_obj.name}**")
+    st.success(f":material/check_circle: Datei erfolgreich {operation}: **{path_obj.name}**")
     
     # Display file info
     if file_info:
@@ -220,7 +220,7 @@ def get_alternative_paths_ui(path: Path, path_resolver: PathResolver) -> Optiona
     alternatives = path_resolver.suggest_alternatives(path)
     
     if not alternatives:
-        st.info("💡 Keine alternativen Pfade verfügbar")
+        st.info(":material/lightbulb: Keine alternativen Pfade verfügbar")
         return None
     
     st.markdown("**Alternative Speicherorte:**")

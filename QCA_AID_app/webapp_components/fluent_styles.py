@@ -104,22 +104,22 @@ class FluentColors:
     """
     WICHTIG - WCAG 2.1 Konformität:
     
-    ✓ FÜR TEXT UND LINKS (4.5:1 erforderlich):
+    :material/check: FÜR TEXT UND LINKS (4.5:1 erforderlich):
       - PRIMARY_600 (#0d9488) - Kontrast: 4.5:1
       - PRIMARY_700 (#0f766e) - Kontrast: 5.3:1
       - PRIMARY_800 (#115e59) - Kontrast: 7.1:1
       - INTERACTIVE_PRIMARY, INTERACTIVE_HOVER, INTERACTIVE_ACTIVE
     
-    ✓ FÜR GROSSE UI-ELEMENTE (3:1 erforderlich):
+    :material/check: FÜR GROSSE UI-ELEMENTE (3:1 erforderlich):
       - PRIMARY_500 (#14b8a6) - Kontrast: 3.8:1
       - CUSTOM_PRIMARY (#0fcec6) - Kontrast: 2.8:1 (NUR für Hintergründe!)
     
-    ✓ FÜR HINTERGRÜNDE & BORDERS:
+    :material/check: FÜR HINTERGRÜNDE & BORDERS:
       - CUSTOM_PRIMARY (#0fcec6) - Türkis-Hintergrund
       - HOVER_BACKGROUND (#ccfbf1) - Hover-Flächen
       - STROKE_PRIMARY (#0d868b) - Konturen
     
-    ❌ NICHT VERWENDEN:
+    :material/cancel: NICHT VERWENDEN:
       - CUSTOM_PRIMARY (#0fcec6) für Text oder Links
       - PRIMARY_300-400 für kleine Text-Elemente
     

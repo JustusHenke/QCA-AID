@@ -79,7 +79,7 @@ def render_smart_filter_controls(analysis: AnalysisConfig, index: int, category_
     if category_loader and category_loader.is_loaded:
         # Zeige Statistiken
         stats = category_loader.get_statistics()
-        st.info(f"📊 Verfügbare Kategorien: {stats['total_main_categories']} Haupt-, {stats['total_subcategories']} Subkategorien")
+        st.info(f":material/bar_chart: Verfügbare Kategorien: {stats['total_main_categories']} Haupt-, {stats['total_subcategories']} Subkategorien")
         
         # Hauptkategorie mit Multiselect
         main_categories = category_loader.get_main_categories()
@@ -136,11 +136,11 @@ def render_smart_filter_controls(analysis: AnalysisConfig, index: int, category_
             if len(selected_main_list) == 1:
                 category_info = category_loader.get_category_info(selected_main_list[0])
                 if category_info and category_info.get('definition'):
-                    with st.expander(f"ℹ️ Info zu '{selected_main_list[0]}'", expanded=False):
+                    with st.expander(f":material/info: Info zu '{selected_main_list[0]}'", expanded=False):
                         st.markdown(f"**Typ:** {category_info.get('typ', 'N/A')}")
                         st.markdown(f"**Definition:** {category_info.get('definition', 'N/A')}")
             elif len(selected_main_list) > 1:
-                with st.expander(f"ℹ️ Info zu {len(selected_main_list)} Hauptkategorien", expanded=False):
+                with st.expander(f":material/info: Info zu {len(selected_main_list)} Hauptkategorien", expanded=False):
                     for main_cat in selected_main_list:
                         category_info = category_loader.get_category_info(main_cat)
                         if category_info:
@@ -186,7 +186,7 @@ def render_smart_filter_controls(analysis: AnalysisConfig, index: int, category_
     
     else:
         # Fallback: Normale Textfelder wenn keine Kategorien verfügbar
-        st.warning("⚠️ Keine Kategorien verfügbar - verwende Freitext-Eingabe")
+        st.warning(":material/warning: Keine Kategorien verfügbar - verwende Freitext-Eingabe")
         
         # Hauptkategorie als Textfeld
         new_hauptkat = st.text_input(
@@ -315,11 +315,11 @@ def render_smart_filter_controls(analysis: AnalysisConfig, index: int, category_
         is_valid, validation_errors = category_loader.validate_filter_values(main_category, subcategories)
         
         if not is_valid:
-            st.error("❌ **Filter-Validierungsfehler:**")
+            st.error(":material/cancel: **Filter-Validierungsfehler:**")
             for error in validation_errors:
                 st.error(f"• {error}")
         else:
-            st.success("✅ Filter sind gültig")
+            st.success(":material/check_circle: Filter sind gültig")
     
     # Aktualisiere Analysis-Objekt falls nötig
     if updated:
@@ -343,7 +343,7 @@ def render_category_statistics(category_loader: CategoryLoader) -> None:
     
     stats = category_loader.get_statistics()
     
-    st.subheader("📊 Kategorie-Statistiken")
+    st.subheader(":material/bar_chart: Kategorie-Statistiken")
     
     col1, col2, col3 = st.columns(3)
     
@@ -357,7 +357,7 @@ def render_category_statistics(category_loader: CategoryLoader) -> None:
         st.metric("Ø Subkategorien", stats['average_subcategories_per_main'])
     
     # Detaillierte Aufschlüsselung
-    with st.expander("📋 Detaillierte Aufschlüsselung", expanded=False):
+    with st.expander(":material/receipt_long: Detaillierte Aufschlüsselung", expanded=False):
         main_categories = category_loader.get_main_categories()
         category_mapping = category_loader.get_category_mapping()
         
@@ -392,7 +392,7 @@ def render_filter_validation_summary(analysis_configs: List[AnalysisConfig], cat
     if not category_loader or not category_loader.is_loaded:
         return
     
-    st.subheader("🔍 Filter-Validierung")
+    st.subheader(":material/search: Filter-Validierung")
     
     all_valid = True
     validation_results = []
@@ -425,24 +425,24 @@ def render_filter_validation_summary(analysis_configs: List[AnalysisConfig], cat
     
     # Zeige Gesamtstatus
     if all_valid:
-        st.success("✅ Alle aktiven Analysen haben gültige Filter")
+        st.success(":material/check_circle: Alle aktiven Analysen haben gültige Filter")
     else:
-        st.error("❌ Einige aktive Analysen haben ungültige Filter")
+        st.error(":material/cancel: Einige aktive Analysen haben ungültige Filter")
     
     # Zeige Details für jede Analyse
     for result in validation_results:
         if result['is_valid']:
             if result['active']:
-                st.success(f"✅ **{result['name']}** - Filter gültig")
+                st.success(f":material/check_circle: **{result['name']}** - Filter gültig")
             else:
-                st.info(f"ℹ️ **{result['name']}** - Filter gültig (Analyse deaktiviert)")
+                st.info(f":material/info: **{result['name']}** - Filter gültig (Analyse deaktiviert)")
         else:
             if result['active']:
-                st.error(f"❌ **{result['name']}** - Filter ungültig:")
+                st.error(f":material/cancel: **{result['name']}** - Filter ungültig:")
                 for error in result['errors']:
                     st.error(f"   • {error}")
             else:
-                st.warning(f"⚠️ **{result['name']}** - Filter ungültig (Analyse deaktiviert):")
+                st.warning(f":material/warning: **{result['name']}** - Filter ungültig (Analyse deaktiviert):")
                 for error in result['errors']:
                     st.warning(f"   • {error}")
 

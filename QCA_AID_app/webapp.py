@@ -243,10 +243,10 @@ def render_navigation():
     """Tab-Navigation mit WCAG-konformen Farben."""
     
     TABS = [
-        {"id": "config",   "label": "⚙️ Konfiguration"},
-        {"id": "codebook", "label": "📚 Codebook"},
-        {"id": "analysis", "label": "🔬 Analyse"},
-        {"id": "explorer", "label": "📊 Explorer"},
+        {"id": "config",   "label": ":material/settings: Konfiguration"},
+        {"id": "codebook", "label": ":material/menu_book: Codebook"},
+        {"id": "analysis", "label": ":material/biotech: Analyse"},
+        {"id": "explorer", "label": ":material/bar_chart: Explorer"},
     ]
 
     st.markdown("""
@@ -392,7 +392,7 @@ def render_placeholder_tab(tab_name: str):
     Args:
         tab_name: Name des Tabs
     """
-    st.info(f"🚧 Der {tab_name}-Tab wird in einer späteren Aufgabe implementiert.")
+    st.info(f":material/construction: Der {tab_name}-Tab wird in einer späteren Aufgabe implementiert.")
     st.markdown(f"""
     Dieser Tab wird folgende Funktionen bieten:
     
@@ -410,7 +410,7 @@ def render_config_info():
     """
     # Show project root
     st.sidebar.markdown("---")
-    st.sidebar.subheader("📁 Projekt")
+    st.sidebar.subheader(":material/folder: Projekt")
     project_manager = st.session_state.project_manager
     project_root = project_manager.get_root_directory()
     
@@ -425,7 +425,7 @@ def render_config_info():
     st.sidebar.text(f"Root: {root_display}")
     
     st.sidebar.markdown("---")
-    st.sidebar.subheader("📋 Workflow")
+    st.sidebar.subheader(":material/receipt_long: Workflow")
 
     # CRITICAL: Ensure config_data is loaded before accessing it
     if 'config_data' not in st.session_state:
@@ -439,15 +439,15 @@ def render_config_info():
 
     # Show config status
     if st.session_state.config_loaded_from == "auto":
-        st.sidebar.info("📄 Konfiguration automatisch geladen")
+        st.sidebar.info(":material/description: Konfiguration automatisch geladen")
     elif st.session_state.config_loaded_from == "default":
-        st.sidebar.info("📄 Standard-Konfiguration aktiv")
+        st.sidebar.info(":material/description: Standard-Konfiguration aktiv")
     
     if st.session_state.config_modified:
-        st.sidebar.error("💾 Ungespeicherte Änderungen!")
+        st.sidebar.error(":material/save: Ungespeicherte Änderungen!")
     
     # Show basic config info
-    with st.sidebar.expander("ℹ️ Aktuelle Einstellungen", expanded=False):
+    with st.sidebar.expander(":material/info: Aktuelle Einstellungen", expanded=False):
         st.text(f"Modell: {config.model_provider}")
         st.text(f"Name: {config.model_name}")
         st.text(f"Modus: {config.analysis_mode}")
@@ -464,7 +464,7 @@ def main():
     # ✅ WICHTIG: Page Config VOR allen anderen st.* Aufrufen!
     st.set_page_config(
         page_title="QCA-AID Webapp",
-        page_icon="🔬",
+        page_icon=str(Path(__file__).resolve().parent.parent / "qca_aid_icon.png"),
         layout="wide",
         initial_sidebar_state="expanded",
         # ✅ Erzwinge Light Mode Theme
@@ -564,7 +564,7 @@ def main():
         st.markdown("""
         <div class="qca-header">
             <div class="qca-icon-container qca-icon-emoji">
-                <span class="qca-emoji">🔬</span>
+                <span class="qca-emoji">:material/biotech:</span>
             </div>
             <div class="qca-header-text">
                 <h1 class="qca-title">
@@ -599,10 +599,10 @@ def main():
         ### Willkommen!
         
         QCA-AID Webapp ermöglicht die Verwaltung von:
-        - ⚙️ Konfigurationseinstellungen
-        - 📚 Codebook und Kategorien
-        - 🔬 Analysen und Fortschritt
-        - 📊 Ergebnisexploration
+        - :material/settings: Konfigurationseinstellungen
+        - :material/menu_book: Codebook und Kategorien
+        - :material/biotech: Analysen und Fortschritt
+        - :material/bar_chart: Ergebnisexploration
         """)
         
         # Show config info
@@ -646,8 +646,10 @@ def main():
     
     elif active_tab == "codebook":
         # Lazy load beim ersten Zugriff auf Tab
-        if 'codebook_data' not in st.session_state:
-            lazy_load_tab_data("Codebook")
+        # Immer aufrufen: initialisiert codebook_modified etc. (setdefault ist
+        # idempotent; das eigentliche Laden ist intern durch die
+        # 'codebook_data'-Pruefung geschuetzt).
+        lazy_load_tab_data("Codebook")
         render_codebook_tab()
     
     elif active_tab == "analysis":

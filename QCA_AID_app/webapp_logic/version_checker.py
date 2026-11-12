@@ -139,7 +139,7 @@ class VersionChecker:
             st.caption(f"Version {CURRENT_VERSION}")
         with col2:
             # Button zum manuellen Prüfen
-            if st.button("🔄", key="check_version", help="Nach Updates suchen"):
+            if st.button(":material/autorenew:", key="check_version", help="Nach Updates suchen"):
                 with st.spinner("Prüfe..."):
                     update_available, latest_version, error = cls.check_for_updates()
                     if error is None:
@@ -148,5 +148,5 @@ class VersionChecker:
         
         # Zeige Update-Hinweis wenn verfügbar
         if update_available and latest_version:
-            st.sidebar.warning(f"🆕 Version {latest_version} verfügbar! - [Update](https://github.com/JustusHenke/QCA-AID/releases/latest)")
+            st.sidebar.warning(f":material/new_releases: Version {latest_version} verfügbar! - [Update](https://github.com/JustusHenke/QCA-AID/releases/latest)")
 

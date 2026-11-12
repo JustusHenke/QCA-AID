@@ -37,7 +37,7 @@ def render_config_tab():
     - 6.1-6.4: CODER_SETTINGS Verwaltung
     - 9.1-9.4: ATTRIBUTE_LABELS Verwaltung
     """
-    st.header("⚙️ Konfiguration")
+    st.header(":material/settings: Konfiguration")
     st.markdown("Verwalten Sie alle Einstellungen für QCA-AID")
 
     # Get config from session state
@@ -56,12 +56,12 @@ def render_config_tab():
     # R12: Einspaltiger Pflicht/Erweitert-Flow (Reihenfolge geaendert,
     # Widget-Keys und Validierungen unveraendert - R12.4)
     # Pflicht / workflowrelevant direkt sichtbar (R12.1)
-    st.subheader("🤖 Modell-Einstellungen")
+    st.subheader(":material/smart_toy: Modell-Einstellungen")
     render_model_settings()
 
     st.markdown("---")
 
-    st.subheader("⚙️ Analyse-Einstellungen")
+    st.subheader(":material/settings: Analyse-Einstellungen")
     render_analysis_settings()
 
     st.markdown("---")
@@ -69,17 +69,17 @@ def render_config_tab():
     # Nutzer-Feedback (0.13.2): Ueberschrift + Orientierungs-Kachel vor der
     # Gruppe der erweiterten Einstellungen (Chunk/Coder/Attribut-Labels),
     # damit klar ist, was in den eingeklappten Expandern steckt (R12.2-Ergaenzung)
-    st.subheader("\U0001f9e9 Erweiterte Einstellungen")
+    st.subheader(":material/extension: Erweiterte Einstellungen")
     st.info(
         "**Die folgenden drei Abschnitte steuern, wie die Analyse im Detail arbeitet:**\n\n"
-        "- **\U0001f4ca Chunk-Einstellungen** \u2014 wie Ihre Texte in Abschnitte zerlegt werden "
+        "- **:material/bar_chart: Chunk-Einstellungen** \u2014 wie Ihre Texte in Abschnitte zerlegt werden "
         "(Chunk-Gr\u00f6\u00dfe, \u00dcberlappung, Batch-Gr\u00f6\u00dfe)\n"
-        "- **\U0001f465 Coder-Einstellungen** \u2014 welche KI-Coder mit welcher \u201eKreativit\u00e4t\u201c "
+        "- **:material/group: Coder-Einstellungen** \u2014 welche KI-Coder mit welcher \u201eKreativit\u00e4t\u201c "
         "(Temperature) kodieren, optional plus menschlicher Kodierer\n"
-        "- **\U0001f3f7 Attribut-Labels** \u2014 sprechende Anzeigenamen f\u00fcr Attribute im Codebook und Export\n\n"
+        "- **:material/sell: Attribut-Labels** \u2014 sprechende Anzeigenamen aus Dateinamen f\u00fcr Attribute im Codebook und Export\n\n"
         "Die Voreinstellungen sind f\u00fcr den Start gut geeignet. Aufklappen lohnt sich vor allem, "
         "wenn Sie feinere Kodierung, mehrere Coder oder eigene Attribut-Namen m\u00f6chten.",
-        icon="\u2139\ufe0f",
+        icon=":material/info:",
     )
 
     # Erweiterte Einstellungen als standardmaessig eingeklappte Expander (R12.2)
@@ -94,17 +94,17 @@ def render_config_tab():
     )
     labels_expanded = auto_expand("config", "attribute_labels")
 
-    with st.expander("📊 Chunk-Einstellungen", expanded=chunks_expanded):
+    with st.expander(":material/bar_chart: Chunk-Einstellungen", expanded=chunks_expanded):
         if "chunk" in validation_text:
-            st.warning("⚠️ Validierung: Bitte Chunk-Einstellungen prüfen.")
+            st.warning(":material/warning: Validierung: Bitte Chunk-Einstellungen prüfen.")
         render_chunk_settings()
 
-    with st.expander("👥 Coder-Einstellungen", expanded=coder_expanded):
+    with st.expander(":material/group: Coder-Einstellungen", expanded=coder_expanded):
         if "coder" in validation_text or "threshold" in validation_text:
-            st.warning("⚠️ Validierung: Bitte Coder-Einstellungen prüfen.")
+            st.warning(":material/warning: Validierung: Bitte Coder-Einstellungen prüfen.")
         render_coder_settings()
 
-    with st.expander("🏷️ Attribut-Labels", expanded=labels_expanded):
+    with st.expander(":material/sell: Attribut-Labels aus Dateinamen", expanded=labels_expanded):
         render_attribute_labels()
 
     # Show validation status
@@ -121,7 +121,7 @@ def render_project_root_section():
     Requirement 1.3: WHEN ein Benutzer auf "Projekt-Verzeichnis ändern" klickt
                     THEN das System SHALL einen Verzeichnis-Browser-Dialog öffnen
     """
-    st.subheader("📁 Projekt-Verzeichnis")
+    st.subheader(":material/folder: Projekt-Verzeichnis")
 
     # Get project manager from session state
     project_manager = st.session_state.project_manager
@@ -136,7 +136,7 @@ def render_project_root_section():
     with col2:
         st.markdown("<br>", unsafe_allow_html=True)  # Spacing
         if st.button(
-            "📁 Ändern", use_container_width=True, help="Projekt-Verzeichnis ändern"
+            ":material/folder: Ändern", use_container_width=True, help="Projekt-Verzeichnis ändern"
         ):
             # Open directory browser dialog
             new_root = FileBrowserService.open_directory_dialog(
@@ -147,7 +147,7 @@ def render_project_root_section():
                 # Update project root
                 success = project_manager.set_root_directory(new_root)
                 if success:
-                    st.success(f"✅ Projekt-Verzeichnis geändert zu: {new_root}")
+                    st.success(f":material/check_circle: Projekt-Verzeichnis geändert zu: {new_root}")
                     # Save settings
                     project_manager.save_settings()
 
@@ -175,7 +175,7 @@ def render_project_root_section():
 
                     st.rerun()
                 else:
-                    st.error(f"❌ Fehler beim Setzen des Projekt-Verzeichnisses")
+                    st.error(f":material/cancel: Fehler beim Setzen des Projekt-Verzeichnisses")
 
 
 def render_file_operations():
@@ -204,11 +204,11 @@ def render_file_operations():
             from pathlib import Path as _Path
 
             loaded_name = _Path(loaded_filepath).name
-            st.caption(f"📁 Aktuelle Konfiguration: `{loaded_name}`")
+            st.caption(f":material/folder: Aktuelle Konfiguration: `{loaded_name}`")
         else:
-            st.caption("📁 Konfiguration aus Datei geladen")
+            st.caption(":material/folder: Konfiguration aus Datei geladen")
     else:
-        st.caption("📁 Standard-Konfiguration (keine Datei geladen)")
+        st.caption(":material/folder: Standard-Konfiguration (keine Datei geladen)")
 
     col1, col2, col3 = st.columns([2, 2, 1])
 
@@ -217,17 +217,17 @@ def render_file_operations():
 
     with col2:
         # Load button
-        if st.button("📂 Konfiguration laden", use_container_width=True):
+        if st.button(":material/folder_open: Konfiguration laden", use_container_width=True):
             st.session_state.show_load_dialog = True
 
     with col3:
         # Save button
-        if st.button("💾 Speichern", use_container_width=True):
+        if st.button(":material/save: Speichern", use_container_width=True):
             st.session_state.show_save_dialog = True
 
     # Load dialog
     if st.session_state.get("show_load_dialog", False):
-        with st.expander("📂 Konfiguration laden", expanded=True):
+        with st.expander(":material/folder_open: Konfiguration laden", expanded=True):
             # Get project manager for default paths
             project_manager = st.session_state.project_manager
 
@@ -282,7 +282,7 @@ def render_file_operations():
             with col_browse:
                 st.markdown("<br>", unsafe_allow_html=True)  # Spacing
                 # Requirement 8.1, 8.2: Browser button with icon and tooltip
-                if st.button("📁", key="browse_config_load", help="Datei durchsuchen"):
+                if st.button(":material/folder:", key="browse_config_load", help="Datei durchsuchen"):
                     # Open file browser
                     selected_file = FileBrowserService.open_file_dialog(
                         title="Konfigurationsdatei auswählen",
@@ -441,7 +441,7 @@ def render_file_operations():
 
     # Save dialog
     if st.session_state.get("show_save_dialog", False):
-        with st.expander("💾 Konfiguration speichern", expanded=True):
+        with st.expander(":material/save: Konfiguration speichern", expanded=True):
             # Get project manager for default paths
             project_manager = st.session_state.project_manager
 
@@ -568,7 +568,7 @@ def render_file_operations():
             with col_browse:
                 st.markdown("<br>", unsafe_allow_html=True)  # Spacing
                 # Requirement 8.1, 8.2: Browser button with icon and tooltip
-                if st.button("📁", key="browse_config_save", help="Speicherort wählen"):
+                if st.button(":material/folder:", key="browse_config_save", help="Speicherort wählen"):
                     # Open save file dialog
                     selected_file = FileBrowserService.save_file_dialog(
                         title="Konfiguration speichern",
@@ -649,7 +649,7 @@ def render_file_operations():
                         else:
                             # If reload fails, keep modified flag but show warning
                             st.warning(
-                                "⚠️ Konfiguration gespeichert, aber Reload fehlgeschlagen. Bitte laden Sie die Datei manuell neu."
+                                ":material/warning: Konfiguration gespeichert, aber Reload fehlgeschlagen. Bitte laden Sie die Datei manuell neu."
                             )
 
                         # Requirement 8.5: Success confirmation with file info
@@ -803,10 +803,10 @@ def check_api_key_for_provider(provider_display_name: str, provider_display_map:
         api_key = os.getenv(env_var)
         if api_key:
             masked = f"{api_key[:4]}...{api_key[-4:]}" if len(api_key) > 8 else "****"
-            st.success(f"✅ API-Key `{env_var}` gefunden: `{masked}`")
+            st.success(f":material/check_circle: API-Key `{env_var}` gefunden: `{masked}`")
         else:
             st.warning(
-                f"⚠️ API-Key `{env_var}` nicht gefunden – "
+                f":material/warning: API-Key `{env_var}` nicht gefunden – "
                 f"bitte in `.env` oder als Systemvariable setzen"
             )
         return
@@ -831,7 +831,7 @@ def check_api_key_for_provider(provider_display_name: str, provider_display_map:
         # Lokale Modelle - keine Warnung
         if provider_id == "local":
             st.info(
-                "ℹ️ Lokale Modelle benötigen keinen API-Key. Stellen Sie sicher, dass LM Studio (Port 1234) oder Ollama (Port 11434) läuft."
+                ":material/info: Lokale Modelle benötigen keinen API-Key. Stellen Sie sicher, dass LM Studio (Port 1234) oder Ollama (Port 11434) läuft."
             )
         return
 
@@ -840,9 +840,9 @@ def check_api_key_for_provider(provider_display_name: str, provider_display_map:
 
     if not api_key:
         # API-Key fehlt - zeige Warnung mit Anleitung
-        st.warning(f"⚠️ **API-Key für {provider_display_name} nicht gefunden**")
+        st.warning(f":material/warning: **API-Key für {provider_display_name} nicht gefunden**")
 
-        with st.expander("📖 Anleitung: API-Key einrichten", expanded=True):
+        with st.expander(":material/menu_book: Anleitung: API-Key einrichten", expanded=True):
             st.markdown(f"""
             ### So richten Sie Ihren {provider_display_name} API-Key ein:
 
@@ -869,7 +869,7 @@ def check_api_key_for_provider(provider_display_name: str, provider_display_map:
             ```powershell
             setx {api_key_var} "ihr-api-key-hier"
             ```
-            ⚠️ **Wichtig:** Nach `setx` müssen Sie die Webapp **neu starten** (Terminal schließen und neu öffnen)
+            :material/warning: **Wichtig:** Nach `setx` müssen Sie die Webapp **neu starten** (Terminal schließen und neu öffnen)
 
             **Windows (GUI):**
             1. Suchen Sie nach "Umgebungsvariablen" im Startmenü
@@ -920,7 +920,7 @@ def check_api_key_for_provider(provider_display_name: str, provider_display_map:
         # API-Key gefunden - zeige Bestätigung
         # Zeige nur die ersten und letzten 4 Zeichen
         masked_key = f"{api_key[:4]}...{api_key[-4:]}" if len(api_key) > 8 else "****"
-        st.success(f"✅ API-Key für {provider_display_name} gefunden: `{masked_key}`")
+        st.success(f":material/check_circle: API-Key für {provider_display_name} gefunden: `{masked_key}`")
 
 
 def render_model_settings():
@@ -937,7 +937,7 @@ def render_model_settings():
     render_focus_banner(
         "Modell-Einstellungen",
         section_key="model",
-        message="👉 **Modell-Einstellungen**: Hier beheben Sie das gemeldete Problem.",
+        message=":material/arrow_forward: **Modell-Einstellungen**: Hier beheben Sie das gemeldete Problem.",
     )
     config = st.session_state.config_data
 
@@ -981,7 +981,7 @@ def render_model_settings():
             st.session_state.llm_provider_manager = manager
             st.session_state.llm_models_loaded = True
         except Exception as e:
-            st.warning(f"⚠️ Konnte Provider Manager nicht laden: {e}")
+            st.warning(f":material/warning: Konnte Provider Manager nicht laden: {e}")
             st.session_state.llm_provider_manager = None
             st.session_state.llm_models_loaded = False
 
@@ -1066,7 +1066,7 @@ def render_model_settings():
     # ─────────────────────────────────────────────────────────────
     # CUSTOM API BASE URL — für ALLEN Provider sichtbar
     # ─────────────────────────────────────────────────────────────
-    with st.expander("🔧 Custom API Base URL (OpenAI-kompatibel)", expanded=False):
+    with st.expander(":material/build: Custom API Base URL (OpenAI-kompatibel)", expanded=False):
         st.markdown("""
         **Wofür?** Ermöglicht die Verwendung von OpenAI-kompatiblen Endpoints, z.B.:
         - GWDG Academic Cloud: `https://chat-ai.academiccloud.de/v1`
@@ -1094,10 +1094,10 @@ def render_model_settings():
                 new_base_url.startswith("http://")
                 or new_base_url.startswith("https://")
             ):
-                st.error("❌ Base URL muss mit http:// oder https:// beginnen")
+                st.error(":material/cancel: Base URL muss mit http:// oder https:// beginnen")
                 has_custom_url = False
             else:
-                st.success(f"✅ Custom Base URL: `{new_base_url}`")
+                st.success(f":material/check_circle: Custom Base URL: `{new_base_url}`")
 
         # Update config
         new_base_url_val = (
@@ -1110,7 +1110,7 @@ def render_model_settings():
         # ── Custom API Key Env Var Name (nur wenn Custom Base URL gesetzt) ──
         if has_custom_url:
             st.markdown("---")
-            st.markdown("**🔑 Custom API-Key-Umgebungsvariable**")
+            st.markdown("**:material/key: Custom API-Key-Umgebungsvariable**")
             st.info("""
             Geben Sie den Namen der Umgebungsvariable an, in der Ihr API-Key für
             diesen Custom-Endpoint gespeichert ist.
@@ -1150,10 +1150,10 @@ def render_model_settings():
                     if len(api_key_value) > 8
                     else "****"
                 )
-                st.success(f"✅ API-Key `{env_to_check}` gefunden: `{masked}`")
+                st.success(f":material/check_circle: API-Key `{env_to_check}` gefunden: `{masked}`")
             else:
                 st.warning(
-                    f"⚠️ API-Key `{env_to_check}` nicht in Umgebungsvariablen gefunden. Bitte in `.env` oder als Systemvariable setzen."
+                    f":material/warning: API-Key `{env_to_check}` nicht in Umgebungsvariablen gefunden. Bitte in `.env` oder als Systemvariable setzen."
                 )
 
     # ─────────────────────────────────────────────────────────────
@@ -1165,7 +1165,7 @@ def render_model_settings():
     if has_custom_url:
         # ── Freitext-Eingabe bei Custom API ──
         st.info(
-            "ℹ️ Da eine Custom API Base URL konfiguriert ist, können Sie hier ein beliebiges Modell eingeben, das der Endpoint unterstützt."
+            ":material/info: Da eine Custom API Base URL konfiguriert ist, können Sie hier ein beliebiges Modell eingeben, das der Endpoint unterstützt."
         )
 
         new_model = st.text_input(
@@ -1181,7 +1181,7 @@ def render_model_settings():
 
         # Pricing-Info bei Custom API (keine festen Preise bekannt)
         st.caption(
-            "💰 💡 Kosten variieren je nach Custom-Endpoint — bitte beim Anbieter erfragen"
+            ":material/payments: :material/lightbulb: Kosten variieren je nach Custom-Endpoint — bitte beim Anbieter erfragen"
         )
 
     elif new_provider == "Local (LM Studio/Ollama)":
@@ -1189,7 +1189,7 @@ def render_model_settings():
         col1, col2 = st.columns([3, 1])
         with col2:
             if st.button(
-                "🔄 Erkennen",
+                ":material/autorenew: Erkennen",
                 help="Sucht nach laufenden LM Studio oder Ollama Servern",
                 use_container_width=True,
             ):
@@ -1218,20 +1218,20 @@ def render_model_settings():
 
                             if model_options:
                                 st.success(
-                                    f"✅ {len(model_options)} Modell(e) gefunden!"
+                                    f":material/check_circle: {len(model_options)} Modell(e) gefunden!"
                                 )
                                 st.session_state.local_models = model_options
                                 st.rerun()
                             else:
                                 st.warning(
-                                    "⚠️ Keine Chat-Modelle gefunden (nur Embedding-Modelle)"
+                                    ":material/warning: Keine Chat-Modelle gefunden (nur Embedding-Modelle)"
                                 )
                         else:
                             st.warning(
-                                "⚠️ Keine lokalen Modelle gefunden. Stellen Sie sicher, dass LM Studio oder Ollama läuft."
+                                ":material/warning: Keine lokalen Modelle gefunden. Stellen Sie sicher, dass LM Studio oder Ollama läuft."
                             )
                     except Exception as e:
-                        st.error(f"❌ Fehler: {e}")
+                        st.error(f":material/cancel: Fehler: {e}")
 
         if "local_models" in st.session_state and st.session_state.local_models:
             model_options = st.session_state.local_models
@@ -1244,10 +1244,10 @@ def render_model_settings():
             model_options = ['Bitte auf "Erkennen" klicken']
             current_model_idx = 0
             st.info(
-                "ℹ️ **Lokale Modelle verwenden:**\n\n"
+                ":material/info: **Lokale Modelle verwenden:**\n\n"
                 "1. Starten Sie LM Studio (Port 1234) oder Ollama (Port 11434)\n"
                 "2. Laden Sie ein Modell in LM Studio/Ollama\n"
-                "3. Klicken Sie auf '🔄 Erkennen'\n"
+                "3. Klicken Sie auf ':material/autorenew: Erkennen'\n"
                 "4. Wählen Sie ein erkanntes Modell aus"
             )
 
@@ -1262,7 +1262,7 @@ def render_model_settings():
             config.model_name = new_model
             st.session_state.config_modified = True
 
-        st.caption("💰 Kostenlos (lokales Modell)")
+        st.caption(":material/payments: Kostenlos (lokales Modell)")
 
     else:
         # ── Provider-spezifisches Dropdown (Standardfall) ──
@@ -1347,10 +1347,10 @@ def render_model_settings():
         if pricing_info:
             input_cost, output_cost = pricing_info
             st.caption(
-                f"💰 Kosten: \\${input_cost:.2f} / 1M Input-Tokens · \\${output_cost:.2f} / 1M Output-Tokens"
+                f":material/payments: Kosten: \\${input_cost:.2f} / 1M Input-Tokens · \\${output_cost:.2f} / 1M Output-Tokens"
             )
         elif "local" in new_provider.lower():
-            st.caption("💰 Kostenlos (lokales Modell)")
+            st.caption(":material/payments: Kostenlos (lokales Modell)")
 
     # Show pricing information for selected model
     # Load pricing from JSON config files
@@ -1360,14 +1360,14 @@ def render_model_settings():
         input_cost, output_cost = pricing_info
         # Show pricing info as caption for subtle display (escape $ to avoid LaTeX)
         st.caption(
-            f"💰 Kosten: \\${input_cost:.2f} / 1M Input-Tokens · \\${output_cost:.2f} / 1M Output-Tokens"
+            f":material/payments: Kosten: \\${input_cost:.2f} / 1M Input-Tokens · \\${output_cost:.2f} / 1M Output-Tokens"
         )
     elif (
         "local" in new_provider.lower()
         or "ollama" in new_model.lower()
         or "lm-studio" in new_model.lower()
     ):
-        st.caption("💰 Kostenlos (lokales Modell)")
+        st.caption(":material/payments: Kostenlos (lokales Modell)")
 
     if new_model != config.model_name:
         config.model_name = new_model
@@ -1399,14 +1399,14 @@ def render_model_settings():
 
         if not input_path.exists():
             st.warning(
-                f"⚠️ Verzeichnis existiert nicht und wird bei Bedarf erstellt: `{input_path}`"
+                f":material/warning: Verzeichnis existiert nicht und wird bei Bedarf erstellt: `{input_path}`"
             )
         elif not input_path.is_dir():
-            st.error(f"❌ Pfad ist kein Verzeichnis: `{input_path}`")
+            st.error(f":material/cancel: Pfad ist kein Verzeichnis: `{input_path}`")
         else:
-            st.success(f"✅ Verzeichnis gefunden: `{input_path}`")
+            st.success(f":material/check_circle: Verzeichnis gefunden: `{input_path}`")
     else:
-        st.error("❌ Eingabeverzeichnis darf nicht leer sein")
+        st.error(":material/cancel: Eingabeverzeichnis darf nicht leer sein")
 
     new_output_dir = st.text_input(
         "Ausgabeverzeichnis",
@@ -1434,14 +1434,14 @@ def render_model_settings():
 
         if not output_path.exists():
             st.warning(
-                f"⚠️ Verzeichnis existiert nicht und wird bei Bedarf erstellt: `{output_path}`"
+                f":material/warning: Verzeichnis existiert nicht und wird bei Bedarf erstellt: `{output_path}`"
             )
         elif not output_path.is_dir():
-            st.error(f"❌ Pfad ist kein Verzeichnis: `{output_path}`")
+            st.error(f":material/cancel: Pfad ist kein Verzeichnis: `{output_path}`")
         else:
-            st.success(f"✅ Verzeichnis gefunden: `{output_path}`")
+            st.success(f":material/check_circle: Verzeichnis gefunden: `{output_path}`")
     else:
-        st.error("❌ Ausgabeverzeichnis darf nicht leer sein")
+        st.error(":material/cancel: Ausgabeverzeichnis darf nicht leer sein")
 
 
 def render_chunk_settings():
@@ -1484,7 +1484,7 @@ def render_chunk_settings():
 
     # Validate chunk overlap
     if new_chunk_overlap >= new_chunk_size:
-        st.error("⚠️ Chunk-Überlappung muss kleiner als Chunk-Größe sein")
+        st.error(":material/warning: Chunk-Überlappung muss kleiner als Chunk-Größe sein")
 
     # Batch Size
     new_batch_size = st.number_input(
@@ -1539,7 +1539,7 @@ def render_analysis_settings():
     # verdichtet.
     if new_analysis_mode == "grounded":
         with st.container():
-            st.markdown("**🔬 Grounded-Mode Optionen**")
+            st.markdown("**:material/biotech: Grounded-Mode Optionen**")
 
             new_max_subcats = st.number_input(
                 "Maximale Subkategorien je Hauptkategorie",
@@ -1564,13 +1564,13 @@ def render_analysis_settings():
             # Sanity-Hinweis bei sehr hohem Wert
             if new_max_subcats > 15:
                 st.info(
-                    f"ℹ️ Hoher Wert ({new_max_subcats}): Die Hauptkategorien "
+                    f":material/info: Hoher Wert ({new_max_subcats}): Die Hauptkategorien "
                     "werden sehr differenziert. Bei wenig Material ggf. "
                     "Reduktion auf 3–7 erwägen."
                 )
 
             st.caption(
-                "💡 Tipp: 3–7 ist für die meisten qualitativen Studien ein "
+                ":material/lightbulb: Tipp: 3–7 ist für die meisten qualitativen Studien ein "
                 "guter Ausgangspunkt."
             )
 
@@ -1673,7 +1673,7 @@ def render_analysis_settings():
     st.markdown("---")
 
     # Erklärung der LLM-Schwelle
-    st.markdown("### 🎯 Relevanz-Schwellwert")
+    st.markdown("### :material/my_location: Relevanz-Schwellwert")
     st.info("""
     **Wie funktioniert die Relevanz-Bewertung:**
     - Das LLM wendet automatisch eine ~0.3-0.4 Schwelle an (basierend auf Training)
@@ -1694,11 +1694,11 @@ def render_analysis_settings():
     # Warnung bei niedrigen Werten
     if new_relevance_threshold < 0.3:
         st.warning(
-            f"⚠️ Wert unter 0.3: Inkludiert Segmente die das LLM als nicht relevant eingestuft hat (Confidence {new_relevance_threshold:.1f}-0.3)"
+            f":material/warning: Wert unter 0.3: Inkludiert Segmente die das LLM als nicht relevant eingestuft hat (Confidence {new_relevance_threshold:.1f}-0.3)"
         )
     elif new_relevance_threshold > 0.5:
         st.info(
-            f"ℹ️ Wert über 0.5: Sehr strenge Filterung, nur hochrelevante Segmente (Confidence ≥{new_relevance_threshold:.1f})"
+            f":material/info: Wert über 0.5: Sehr strenge Filterung, nur hochrelevante Segmente (Confidence ≥{new_relevance_threshold:.1f})"
         )
 
     if new_relevance_threshold != config.relevance_threshold:
@@ -1708,11 +1708,11 @@ def render_analysis_settings():
     # Info about relevance threshold
     if new_relevance_threshold > 0.0:
         st.info(
-            f"ℹ️ Nur Segmente mit Relevanz-Konfidenz ≥ {new_relevance_threshold:.2f} werden analysiert."
+            f":material/info: Nur Segmente mit Relevanz-Konfidenz ≥ {new_relevance_threshold:.2f} werden analysiert."
         )
     else:
         st.info(
-            "ℹ️ Alle vom LLM als relevant identifizierten Segmente werden analysiert (empfohlen)."
+            ":material/info: Alle vom LLM als relevant identifizierten Segmente werden analysiert (empfohlen)."
         )
 
 
@@ -1736,7 +1736,7 @@ def render_coder_settings():
     # Manual Coding Option
     st.markdown("---")
     manual_enabled = st.checkbox(
-        "🖐️ Manuelles Kodieren aktivieren",
+        ":material/back_hand: Manuelles Kodieren aktivieren",
         value=config.manual_coding_enabled,
         key="manual_coding_enabled_checkbox",
         help="Aktiviert die manuelle Kodierung durch einen menschlichen Kodierer zusätzlich zu den KI-Codern",
@@ -1748,7 +1748,7 @@ def render_coder_settings():
 
     if manual_enabled:
         st.info(
-            "ℹ️ Bei aktivierter manueller Kodierung wird nach der automatischen Kodierung ein Fenster geöffnet, in dem Sie jedes Segment manuell kodieren können."
+            ":material/info: Bei aktivierter manueller Kodierung wird nach der automatischen Kodierung ein Fenster geöffnet, in dem Sie jedes Segment manuell kodieren können."
         )
 
     st.markdown("---")
@@ -1794,13 +1794,13 @@ def render_coder_settings():
                         if j != i
                     ]
                     if new_id in other_ids:
-                        st.error(f"❌ Coder-ID '{new_id}' ist nicht eindeutig")
+                        st.error(f":material/cancel: Coder-ID '{new_id}' ist nicht eindeutig")
                 else:
-                    st.error("❌ Coder-ID darf nicht leer sein")
+                    st.error(":material/cancel: Coder-ID darf nicht leer sein")
 
             with col3:
                 st.markdown("<br>", unsafe_allow_html=True)  # Spacing
-                if st.button("🗑️", key=f"remove_coder_{i}", help="Coder entfernen"):
+                if st.button(":material/delete:", key=f"remove_coder_{i}", help="Coder entfernen"):
                     if len(config.coder_settings) > 1:
                         config.coder_settings.pop(i)
                         st.session_state.config_modified = True
@@ -1811,7 +1811,7 @@ def render_coder_settings():
             st.markdown("---")
 
     # Add new coder button
-    if st.button("➕ Coder hinzufügen", use_container_width=True):
+    if st.button(":material/add: Coder hinzufügen", use_container_width=True):
         # Generate new coder ID
         existing_ids = [c.coder_id for c in config.coder_settings]
         new_id = f"auto_{len(config.coder_settings) + 1}"
@@ -1873,7 +1873,7 @@ def render_attribute_labels():
 
         with col3:
             st.markdown("<br>", unsafe_allow_html=True)  # Spacing
-            if st.button("🗑️", key=f"remove_attr_{key}", help="Attribut entfernen"):
+            if st.button(":material/delete:", key=f"remove_attr_{key}", help="Attribut entfernen"):
                 # Mark for removal (will be processed after loop)
                 attributes_to_remove.append(key)
 
@@ -1893,7 +1893,7 @@ def render_attribute_labels():
             st.rerun()
 
     # Add new attribute section
-    with st.expander("➕ Neues Attribut hinzufügen"):
+    with st.expander(":material/add: Neues Attribut hinzufügen"):
         col1, col2 = st.columns(2)
 
         with col1:
@@ -1917,12 +1917,12 @@ def render_attribute_labels():
                 if new_attr_key not in config.attribute_labels:
                     config.attribute_labels[new_attr_key] = new_attr_label
                     st.session_state.config_modified = True
-                    st.success(f"✅ Attribut '{new_attr_key}' hinzugefügt")
+                    st.success(f":material/check_circle: Attribut '{new_attr_key}' hinzugefügt")
                     st.rerun()
                 else:
-                    st.error(f"❌ Attribut '{new_attr_key}' existiert bereits")
+                    st.error(f":material/cancel: Attribut '{new_attr_key}' existiert bereits")
             else:
-                st.error("❌ Bitte beide Felder ausfüllen")
+                st.error(":material/cancel: Bitte beide Felder ausfüllen")
 
     # Preview section
     if config.attribute_labels:
@@ -1946,12 +1946,12 @@ def render_validation_status():
     is_valid, errors = config.validate()
 
     if is_valid:
-        st.success("✅ Konfiguration ist gültig")
+        st.success(":material/check_circle: Konfiguration ist gültig")
     else:
-        st.error("❌ Konfiguration enthält Fehler:")
+        st.error(":material/cancel: Konfiguration enthält Fehler:")
         for error in errors:
             st.error(f"  • {error}")
 
     # Show modification status
     if st.session_state.config_modified:
-        st.warning("⚠️ Ungespeicherte Änderungen vorhanden")
+        st.warning(":material/warning: Ungespeicherte Änderungen vorhanden")

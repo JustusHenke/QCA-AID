@@ -117,8 +117,8 @@
     }
   },
   "config": {
-    "model_provider": "local",
-    "model_name": "qwen/qwen3.6-35b-a3b",
+    "model_provider": "openrouter",
+    "model_name": "openai/gpt-4o-mini",
     "data_dir": "input",
     "output_dir": "output",
     "chunk_size": 1100,
@@ -148,6 +148,6 @@
     "pdf_annotation_fuzzy_threshold": 0.85,
     "relevance_threshold": 0.3,
     "enable_optimization": true,
-    "api_base_url": null
+    "api_base_url": ""
   }
 }

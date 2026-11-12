@@ -106,8 +106,8 @@ class PerformanceMonitor:
     
     def report(self):
         """Zeigt Performance-Report"""
-        if st.sidebar.checkbox("🔍 Performance Debug", value=False):
-            st.sidebar.markdown("### ⏱️ Startup Times")
+        if st.sidebar.checkbox(":material/search: Performance Debug", value=False):
+            st.sidebar.markdown("### :material/timer: Startup Times")
             for name, duration in self.checkpoints.items():
                 st.sidebar.text(f"{name}: {duration:.2f}s")
 
@@ -122,7 +122,7 @@ def optimized_main():
     # Page config (schnell)
     st.set_page_config(
         page_title="QCA-AID Webapp",
-        page_icon="🔬",
+        page_icon=":material/biotech:",
         layout="wide",
         initial_sidebar_state="expanded"
     )
@@ -147,7 +147,7 @@ def optimized_main():
         </div>
         """, unsafe_allow_html=True)
     else:
-        st.title("🔬 QCA-AID Webapp")
+        st.title(":material/biotech: QCA-AID Webapp")
     
     monitor.checkpoint("Header Render")
     
@@ -161,10 +161,10 @@ def optimized_main():
     
     # Tabs mit lazy loading
     tabs = st.tabs([
-        "⚙️ Konfiguration",
-        "📚 Codebook", 
-        "🔬 Analyse",
-        "📊 Explorer"
+        ":material/settings: Konfiguration",
+        ":material/menu_book: Codebook", 
+        ":material/biotech: Analyse",
+        ":material/bar_chart: Explorer"
     ])
     
     # Nur aktiven Tab laden

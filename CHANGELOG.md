@@ -4,6 +4,26 @@
 
 ---
 
+## Neu in 0.13.3 (2026-11-12)
+
+### Bugfix-Release: Projekt-Codebook hat Vorrang, Material-Icons, LLM-Katalog-Update
+
+### 🐛 Projektverzeichnis-Config hat immer Vorrang
+
+**Problem:** Der Analyse-Subprozess löste den Codebook-Pfad über den Zeiger `last_codebook_file` aus der `.qca-aid-project.json` auf — bevor er die Standard-Datei im Projektverzeichnis prüfte. Stand in diesem Zeiger noch eine Codebook-Kopie aus einer alten Session (z. B. mit `model_provider: local`), lief die Analyse plötzlich gegen den lokalen LM-Studio-Server, obwohl in der Webapp und im Projekt-Codebook OpenRouter eingestellt war. Der Lauf brach dann still mit `400 - No models loaded` ab, während das stille Fallback-Verhalten den Eindruck eines erfolgreichen Laufs erweckte (Alpha = 1.000 bei 0 Kodierungen).
+
+**Lösung:** Neue Prioritätsreihenfolge bei der Codebook-Auflösung:
+1. Env-Var `QCA_AID_CODEBOOK_PATH` (explizite Benutzer-Auswahl in der laufenden Session)
+2. **Standard-Datei im Projektverzeichnis** — gewinnt immer über den gespeicherten Zeiger
+3. Fallback `last_codebook_file` — nur noch, wenn im Projektverzeichnis kein Codebook liegt (mit deutlicher Log-Warnung)
+
+Umgesetzt an beiden Stellen: `QCA_AID_assets/utils/config/loader.py` (`_resolve_last_codebook_path`) und `QCA_AID_app/webapp_logic/project_manager.py` (`get_config_path`/`get_codebook_path`). Zusätzlich wurde der `.qca-aid-project.json`-Zeiger des Test-Projekts auf das korrekte Codebook zurückgesetzt.
+
+### 🧹 Sonstiges
+
+- LLM-Modellkataloge aktualisiert: OpenRouter, OpenAI und Anthropic (`QCA_AID_assets/utils/llm/configs/*.json`), u. a. mit Z.ai GLM-5.3-Modellfamilie.
+- Minimale Streamlit-Version auf >=1.40 angehoben (`pyproject.toml`, `requirements.txt`) — Voraussetzung fuer den `:material/...:`-Icon-Shorthand.
+
 ## Neu in 0.13.2 (2026-11-12)
 
 ### 🧭 Workflow-Navigation — klickbare Schritte und Weiter-Buttons
@@ -39,6 +59,8 @@ Die Readiness-Prüfung meldet Blocker pro Tab — jeder Blocker hat jetzt einen 
 ### 🧹 Sonstiges
 
 - Paginierung der Dateilisten als eigene Komponente (`st.pagination` existiert in Streamlit 1.51 noch nicht).
+- System-Emojis in der Webapp-UI durch Material-Symbols-Icons ersetzt (`:material/...:`-Shorthand, von Streamlit lokal gebuendelt -- offline, themefest, einheitliches Rendering). CLI- und Log-Ausgaben behalten bewusst Emojis. Neue Icon-Registry: `webapp_components/icons.py`; neuer Lint-Test `test_no_emoji_in_webapp.py` verhindert Rueckfall.
+- Statusabhaengige Icons heben sich farblich von statischen ab: erledigt gruen (:green[:material/check_circle:]), Warnung orange, Blocker rot, Hinweis blau (Streamlit-Farb-Markdown, Dark-Mode-sicher); offen/neutral bleibt ungefaerbt. Tab-Badges, Sidebar-Workflow und Codebook-Import-Vorschau sind betroffen. Versteckte \u-Escape-Emojis (z. B. 🧩 in der Erweiterte-Einstellungen-Sektion) aufgedoest; Lint-Test prueft jetzt auch \u-Escapes.
 - Neues Schutznetz gegen vergessene Releases: Ein Guardrail prüft bei jedem Testlauf, dass `pyproject.toml`, `__version__.py` und `CHANGELOG.md` konsistent sind. `python scripts/version_guardrail.py bump <version> --summary "..."` führt Versionsprünge synchron über alle Stellen aus.
 
 ## Neu in 0.13.1 (2026-07-24)

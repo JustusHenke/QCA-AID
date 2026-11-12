@@ -140,10 +140,10 @@ class TestFormatStartSummary:
 # ---------------------------------------------------------------------------
 
 BASE_LABELS = {
-    "config": "⚙️ Konfiguration",
-    "codebook": "📚 Codebook",
-    "analysis": "🔬 Analyse",
-    "explorer": "📊 Explorer",
+    "config": ":material/settings: Konfiguration",
+    "codebook": ":material/menu_book: Codebook",
+    "analysis": ":material/biotech: Analyse",
+    "explorer": ":material/bar_chart: Explorer",
 }
 
 
@@ -200,21 +200,21 @@ class TestApplyTabBadges:
 
     def test_dirty_badge_only_on_dirty_tabs(self):
         labels = apply_tab_badges(BASE_LABELS, dirty_flags={"config": True})
-        assert labels["config"].endswith("⚠️")
-        assert labels["codebook"] == "📚 Codebook"
-        assert labels["analysis"] == "🔬 Analyse"  # Analyse-Tab ist nie dirty
+        assert labels["config"].endswith(":orange[:material/warning:]")
+        assert labels["codebook"] == ":material/menu_book: Codebook"
+        assert labels["analysis"] == ":material/biotech: Analyse"  # Analyse-Tab ist nie dirty
 
     def test_blocker_badge(self):
         labels = apply_tab_badges(BASE_LABELS, blocker_tabs={"codebook", "analysis"})
-        assert labels["codebook"].endswith("❗")
-        assert labels["analysis"].endswith("❗")
-        assert labels["config"] == "⚙️ Konfiguration"
+        assert labels["codebook"].endswith(":red[:material/error:]")
+        assert labels["analysis"].endswith(":red[:material/error:]")
+        assert labels["config"] == ":material/settings: Konfiguration"
 
     def test_combined_badges(self):
         labels = apply_tab_badges(
             BASE_LABELS, dirty_flags={"codebook": True}, blocker_tabs={"codebook"}
         )
-        assert labels["codebook"].endswith("⚠️ ❗")
+        assert labels["codebook"].endswith(":orange[:material/warning:] :red[:material/error:]")
 
     def test_unknown_blocker_tab_ignored(self):
         labels = apply_tab_badges(BASE_LABELS, blocker_tabs={"nonexistent"})

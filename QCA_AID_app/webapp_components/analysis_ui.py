@@ -39,28 +39,28 @@ def _open_folder(path) -> None:
         else:
             subprocess.run(["xdg-open", str(path)])
     except Exception as e:
-        st.error(f"❌ Ordner konnte nicht geöffnet werden: {e}")
+        st.error(f":material/cancel: Ordner konnte nicht geöffnet werden: {e}")
 
 
 def _render_issue_row(issue, key_suffix: str) -> None:
     """Rendert EIN Readiness-Issue mit zielgerichtetem Jump-Button (R11).
 
     - Mit fix_tab: Button "→ Beheben" (set_focus + switch_to_tab, R11.2)
-    - Ohne fix_tab, aber mit open_folder: Button "📂 Ordner öffnen" (R11.4)
+    - Ohne fix_tab, aber mit open_folder: Button ":material/folder_open: Ordner öffnen" (R11.4)
     - Ohne beides: nur die Meldung.
     """
     col_msg, col_action = st.columns([4, 1])
 
     with col_msg:
         if issue.severity == "error":
-            st.error(f"❌ {issue.message}")
+            st.error(f":material/cancel: {issue.message}")
         else:
-            st.warning(f"⚠️ {issue.message}")
+            st.warning(f":material/warning: {issue.message}")
 
     with col_action:
         if issue.open_folder is not None:
             if st.button(
-                "📂 Ordner öffnen",
+                ":material/folder_open: Ordner öffnen",
                 key=f"fix_open_folder_{key_suffix}",
                 use_container_width=True,
             ):
@@ -84,7 +84,7 @@ def render_analysis_tab():
     - 8.1-8.5: Analyse-Steuerung und Fortschrittsanzeige
     - 12.1-12.5: Eingabedateiverwaltung
     """
-    st.header("🔬 Analyse")
+    st.header(":material/biotech: Analyse")
     st.markdown("Starten und überwachen Sie QCA-AID Analysen")
 
     # Workflow readiness über zentralen Readiness-Layer
@@ -130,7 +130,7 @@ def render_analysis_tab():
     if readiness_issue_objs:
         error_objs = [i for i in readiness_issue_objs if i.severity == "error"]
         if error_objs:
-            st.error(f"❌ **Nicht bereit zur Analyse:** {len(error_objs)} Problem(e) gefunden")
+            st.error(f":material/cancel: **Nicht bereit zur Analyse:** {len(error_objs)} Problem(e) gefunden")
             for n, issue in enumerate(error_objs):
                 _render_issue_row(issue, key_suffix=f"err_{n}")
 
@@ -138,14 +138,14 @@ def render_analysis_tab():
             Issue(message=w, severity="warning") for w in loader_warnings
         ]
         if warning_objs:
-            st.warning(f"⚠️ **Bereit mit Einschränkungen:** {len(warning_objs)} Warnung(en)")
+            st.warning(f":material/warning: **Bereit mit Einschränkungen:** {len(warning_objs)} Warnung(en)")
             for n, issue in enumerate(warning_objs):
                 _render_issue_row(issue, key_suffix=f"warn_{n}")
     else:
-        st.success("✅ **Bereit zur Analyse:** Alle Voraussetzungen erfüllt")
+        st.success(":material/check_circle: **Bereit zur Analyse:** Alle Voraussetzungen erfüllt")
         if codebook_data:
             st.info(
-                f"📊 {len(codebook_data.deduktive_kategorien)} Kategorien • {len(input_files)} Eingabedatei(en)"
+                f":material/bar_chart: {len(codebook_data.deduktive_kategorien)} Kategorien • {len(input_files)} Eingabedatei(en)"
             )
 
     # Initialize analysis runner in session state if not exists
@@ -169,31 +169,31 @@ def render_analysis_tab():
 
     with col1:
         # Input files section
-        st.subheader("📁 Eingabedateien")
+        st.subheader(":material/folder: Eingabedateien")
         render_input_files()
 
         st.markdown("---")
 
         # Analysis controls
-        st.subheader("▶️ Analyse-Steuerung")
+        st.subheader(":material/play_arrow: Analyse-Steuerung")
         render_analysis_controls()
 
         st.markdown("---")
 
         # Analysis progress
         if runner.is_running() or runner.get_status().output_file:
-            st.subheader("📊 Fortschritt")
+            st.subheader(":material/bar_chart: Fortschritt")
             render_analysis_progress()
 
     with col2:
         # Results section
-        st.subheader("📄 Ergebnisse")
+        st.subheader(":material/description: Ergebnisse")
         render_results()
 
     # Log streaming - OUTSIDE columns for full width
     if runner.is_running() or runner.get_logs():
         st.markdown("---")
-        st.subheader("📋 Logs")
+        st.subheader(":material/receipt_long: Logs")
         render_log_stream()
 
 
@@ -232,11 +232,11 @@ def render_input_files():
     # Ensure input directory exists
     success, error_msg = file_manager.ensure_directory(input_dir)
     if not success:
-        st.error(f"❌ Fehler beim Erstellen des Eingabeverzeichnisses: {error_msg}")
+        st.error(f":material/cancel: Fehler beim Erstellen des Eingabeverzeichnisses: {error_msg}")
         return
     elif error_msg is None and not Path(input_dir).exists():
         # Directory was just created
-        st.info(f"ℹ️ Eingabeverzeichnis wurde erstellt: {input_dir}")
+        st.info(f":material/info: Eingabeverzeichnis wurde erstellt: {input_dir}")
 
     # List files in input directory
     try:
@@ -244,13 +244,13 @@ def render_input_files():
             directory=input_dir, extensions=[".txt", ".pdf", ".docx", ".doc"]
         )
     except Exception as e:
-        st.error(f"❌ Fehler beim Auflisten der Dateien: {str(e)}")
+        st.error(f":material/cancel: Fehler beim Auflisten der Dateien: {str(e)}")
         return
 
     # Display files
     if not files:
         st.info(
-            "ℹ️ Keine Eingabedateien gefunden. Legen Sie Dateien im Eingabeverzeichnis ab."
+            ":material/info: Keine Eingabedateien gefunden. Legen Sie Dateien im Eingabeverzeichnis ab."
         )
         st.code(f"Eingabeverzeichnis: {input_dir}")
         return
@@ -312,10 +312,10 @@ def render_input_files():
                     label_visibility="collapsed",
                 )
             except Exception as e:
-                st.warning(f"⚠️ Vorschau nicht verfügbar: {str(e)}")
+                st.warning(f":material/warning: Vorschau nicht verfügbar: {str(e)}")
 
     # Show directory stats
-    with st.expander("📊 Verzeichnis-Statistik"):
+    with st.expander(":material/bar_chart: Verzeichnis-Statistik"):
         try:
             stats = file_manager.get_directory_stats(input_dir)
 
@@ -344,7 +344,7 @@ def render_input_files():
                     st.text(f"  {ext}: {count}")
 
         except Exception as e:
-            st.error(f"❌ Fehler beim Laden der Statistik: {str(e)}")
+            st.error(f":material/cancel: Fehler beim Laden der Statistik: {str(e)}")
 
 
 def render_analysis_controls():
@@ -363,7 +363,7 @@ def render_analysis_controls():
     is_running = runner.is_running()
 
     # Display current configuration summary
-    with st.expander("⚙️ Aktuelle Konfiguration", expanded=False):
+    with st.expander(":material/settings: Aktuelle Konfiguration", expanded=False):
         col1, col2 = st.columns(2)
 
         with col1:
@@ -380,10 +380,10 @@ def render_analysis_controls():
     is_valid, errors = config.validate()
 
     if not is_valid:
-        st.error("❌ Konfiguration ist ungültig:")
+        st.error(":material/cancel: Konfiguration ist ungültig:")
         for error in errors:
             st.error(f"  • {error}")
-        st.warning("⚠️ Bitte korrigieren Sie die Konfiguration im Konfigurationsreiter")
+        st.warning(":material/warning: Bitte korrigieren Sie die Konfiguration im Konfigurationsreiter")
         return
 
     # Control buttons
@@ -391,7 +391,7 @@ def render_analysis_controls():
 
     with col1:
         if not is_running:
-            if st.button("▶️ Analyse starten", use_container_width=True, type="primary"):
+            if st.button(":material/play_arrow: Analyse starten", use_container_width=True, type="primary"):
                 # Get project root
                 project_manager = st.session_state.project_manager
                 project_root = project_manager.get_root_directory()
@@ -402,7 +402,7 @@ def render_analysis_controls():
                     config, format="json"
                 )
                 if not save_success:
-                    st.error("❌ Fehler beim Speichern der Konfiguration:")
+                    st.error(":material/cancel: Fehler beim Speichern der Konfiguration:")
                     for error in save_errors:
                         st.error(f"  • {error}")
                     st.stop()
@@ -447,56 +447,56 @@ def render_analysis_controls():
                 success, messages = runner.start_analysis(config_dict)
 
                 if success:
-                    st.success("✅ Analyse gestartet!")
+                    st.success(":material/check_circle: Analyse gestartet!")
                     # Show any warnings
                     for msg in messages:
                         if "erstellt" in msg.lower() or "warnung" in msg.lower():
-                            st.info(f"ℹ️ {msg}")
+                            st.info(f":material/info: {msg}")
                     rerun_preserving_tab()
                 else:
-                    st.error("❌ Fehler beim Starten der Analyse:")
+                    st.error(":material/cancel: Fehler beim Starten der Analyse:")
                     for msg in messages:
                         st.error(f"  • {msg}")
         else:
             # FIX: Zeige Status-Info statt "Analyse läuft" wenn abgeschlossen
             status = runner.get_status()
             if status.current_step == "Abgeschlossen":
-                st.success("✅ Fertig")
+                st.success(":material/check_circle: Fertig")
             elif status.current_step == "Abgebrochen":
-                st.warning("⚠️ Abgebrochen")
+                st.warning(":material/warning: Abgebrochen")
             elif status.error:
-                st.error("❌ Fehler")
+                st.error(":material/cancel: Fehler")
             else:
-                st.info("🔄 Analyse läuft...")
+                st.info(":material/autorenew: Analyse läuft...")
 
     with col2:
         # FIX: Zeige "Analyse stoppen" Button nur wenn Analyse wirklich läuft
         if is_running:
             if st.button(
-                "⏹️ Analyse stoppen", use_container_width=True, type="secondary"
+                ":material/stop_circle: Analyse stoppen", use_container_width=True, type="secondary"
             ):
                 success, error_msg = runner.stop_analysis()
 
                 if success:
-                    st.warning("⚠️ Analyse gestoppt")
+                    st.warning(":material/warning: Analyse gestoppt")
                     rerun_preserving_tab()
                 else:
-                    st.error(f"❌ Fehler beim Stoppen der Analyse: {error_msg}")
+                    st.error(f":material/cancel: Fehler beim Stoppen der Analyse: {error_msg}")
         else:
             # FIX: Zeige alternativen Button oder leeren Platz wenn Analyse nicht läuft
             status = runner.get_status()
             if status.current_step == "Abgeschlossen" or status.output_file:
-                st.success("🎉 Abgeschlossen")
+                st.success(":material/celebration: Abgeschlossen")
             elif status.current_step == "Abgebrochen":
                 if st.button(
-                    "🔄 Erneut versuchen", use_container_width=True, type="primary"
+                    ":material/autorenew: Erneut versuchen", use_container_width=True, type="primary"
                 ):
                     # Reset status für erneuten Versuch
                     runner.status = runner.status.create_initial()
                     rerun_preserving_tab()
             elif status.error:
                 if st.button(
-                    "🔄 Erneut versuchen", use_container_width=True, type="primary"
+                    ":material/autorenew: Erneut versuchen", use_container_width=True, type="primary"
                 ):
                     # Reset status für erneuten Versuch
                     runner.status = runner.status.create_initial()
@@ -520,17 +520,17 @@ def render_analysis_progress():
 
     # Show simple status indicator
     if status.is_running:
-        st.info("🔄 Analyse läuft... Siehe Logs unten für Details")
+        st.info(":material/autorenew: Analyse läuft... Siehe Logs unten für Details")
     elif status.output_file and not status.is_running:
-        st.success(f"✅ Analyse abgeschlossen!")
+        st.success(f":material/check_circle: Analyse abgeschlossen!")
     elif status.error:
-        st.error(f"❌ Analyse fehlgeschlagen: {status.error}")
+        st.error(f":material/cancel: Analyse fehlgeschlagen: {status.error}")
     elif status.current_step == "Abgeschlossen":
-        st.success(f"✅ Analyse erfolgreich abgeschlossen!")
+        st.success(f":material/check_circle: Analyse erfolgreich abgeschlossen!")
     elif status.current_step == "Abgebrochen":
-        st.warning(f"⚠️ Analyse wurde abgebrochen")
+        st.warning(f":material/warning: Analyse wurde abgebrochen")
     elif not status.is_running and status.current_step != "Not started":
-        st.info(f"ℹ️ Status: {status.current_step}")
+        st.info(f":material/info: Status: {status.current_step}")
 
         # Find the newest Excel file in the output directory (in case the old one is locked)
         output_dir = Path(status.output_file).parent
@@ -553,7 +553,7 @@ def render_analysis_progress():
             # Show filename and provide download button
             col1, col2 = st.columns([3, 1])
             with col1:
-                st.info(f"📄 Ergebnisdatei: {filename}")
+                st.info(f":material/description: Ergebnisdatei: {filename}")
             with col2:
                 # Read file for download with error handling
                 try:
@@ -561,7 +561,7 @@ def render_analysis_progress():
                         file_data = f.read()
 
                     st.download_button(
-                        label="⬇️ Download",
+                        label=":material/arrow_downward: Download",
                         data=file_data,
                         file_name=filename,
                         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -569,18 +569,18 @@ def render_analysis_progress():
                     )
                 except PermissionError:
                     st.warning(
-                        f"⚠️ Datei ist noch geöffnet. Bitte schließ Sie {filename} in Excel und laden Sie die Seite neu."
+                        f":material/warning: Datei ist noch geöffnet. Bitte schließ Sie {filename} in Excel und laden Sie die Seite neu."
                     )
                 except Exception as e:
-                    st.error(f"❌ Fehler beim Lesen der Datei: {str(e)}")
+                    st.error(f":material/cancel: Fehler beim Lesen der Datei: {str(e)}")
 
             # Show file path for reference
             st.caption(f"Speicherort: {output_path.absolute()}")
         else:
-            st.info(f"📄 Ergebnisdatei: {os.path.basename(status.output_file)}")
+            st.info(f":material/description: Ergebnisdatei: {os.path.basename(status.output_file)}")
 
     if status.error:
-        st.error(f"❌ Fehler: {status.error}")
+        st.error(f":material/cancel: Fehler: {status.error}")
 
 
 def render_log_stream():
@@ -596,7 +596,7 @@ def render_log_stream():
     logs = runner.get_logs()
 
     if not logs:
-        st.info("ℹ️ Keine Logs verfügbar")
+        st.info(":material/info: Keine Logs verfügbar")
         return
 
     # Display logs in a text area
@@ -615,7 +615,7 @@ def render_log_stream():
 
     # Auto-refresh if analysis is running
     if runner.is_running():
-        st.caption("🔄 Logs werden automatisch aktualisiert...")
+        st.caption(":material/autorenew: Logs werden automatisch aktualisiert...")
         # Trigger rerun every 2 seconds
         import time
 
@@ -651,19 +651,19 @@ def render_results():
     # Ensure output directory exists
     success, error_msg = file_manager.ensure_directory(output_dir)
     if not success:
-        st.error(f"❌ Fehler beim Erstellen des Ausgabeverzeichnisses: {error_msg}")
+        st.error(f":material/cancel: Fehler beim Erstellen des Ausgabeverzeichnisses: {error_msg}")
         return
 
     # List XLSX files in output directory
     try:
         files = file_manager.list_files(directory=output_dir, extensions=[".xlsx"])
     except Exception as e:
-        st.error(f"❌ Fehler beim Auflisten der Ergebnisse: {str(e)}")
+        st.error(f":material/cancel: Fehler beim Auflisten der Ergebnisse: {str(e)}")
         return
 
     # Display results
     if not files:
-        st.info("ℹ️ Noch keine Analyseergebnisse vorhanden")
+        st.info(":material/info: Noch keine Analyseergebnisse vorhanden")
         return
 
     # Performance Optimization: Pagination for long result lists
@@ -674,7 +674,7 @@ def render_results():
     # zum Explorer mit Vorauswahl der Ergebnisdatei (handoff_analysis_file)
     newest = max(files, key=lambda f: f.modified)
     if st.button(
-        "📊 Ergebnisse im Explorer öffnen",
+        ":material/bar_chart: Ergebnisse im Explorer öffnen",
         key="handoff_to_explorer",
         type="primary",
         use_container_width=True,
@@ -687,7 +687,7 @@ def render_results():
 
     with col_btn1:
         # Open file location button - opens the output directory
-        if st.button("📂 Ordner öffnen", key="open_folder_top"):
+        if st.button(":material/folder_open: Ordner öffnen", key="open_folder_top"):
             import platform
             import subprocess
 
@@ -699,13 +699,13 @@ def render_results():
                 else:  # Linux
                     subprocess.run(["xdg-open", output_dir])
 
-                st.success("✅ Ordner geöffnet")
+                st.success(":material/check_circle: Ordner geöffnet")
             except Exception as e:
-                st.error(f"❌ Fehler: {str(e)}")
+                st.error(f":material/cancel: Fehler: {str(e)}")
 
     with col_btn2:
         # Show directory path button
-        if st.button("📋 Pfad kopieren", key="copy_path_top"):
+        if st.button(":material/receipt_long: Pfad kopieren", key="copy_path_top"):
             st.code(output_dir, language=None)
 
     st.markdown("---")
@@ -729,5 +729,5 @@ def render_results():
             # Filename in bold
             st.markdown(f"**{file_info.name}**")
             # Size and date as small text below
-            st.caption(f"📦 {file_info.format_size()} • 📅 {file_info.format_date()}")
+            st.caption(f":material/inventory_2: {file_info.format_size()} • :material/calendar_month: {file_info.format_date()}")
             st.markdown("---")

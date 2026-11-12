@@ -73,7 +73,7 @@ def format_start_summary_text(summary: dict[str, Any]) -> str:
     model = summary.get("model")
     lines.append(f"**Modell:** {provider or '–'} / {model or '–'}")
     if summary.get("llm_costs"):
-        lines.append("💸 **Es fallen LLM-Kosten an.**")
+        lines.append(":material/savings: **Es fallen LLM-Kosten an.**")
     return "\n\n".join(lines)
 
 
@@ -136,7 +136,7 @@ def confirm_explorer_start(summary: dict[str, Any], on_confirm: Callable[[], Non
     col1, col2 = st.columns(2)
 
     with col1:
-        if st.button("▶️ Starten", type="primary", use_container_width=True, key="dlg_explorer_start"):
+        if st.button(":material/play_arrow: Starten", type="primary", use_container_width=True, key="dlg_explorer_start"):
             on_confirm()
 
     with col2:

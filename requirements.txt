@@ -30,7 +30,7 @@ squarify>=0.4.3
 tqdm>=4.67.0
 
 # Streamlit Webapp Requirements
-streamlit>=1.28.0
+streamlit>=1.40.0
 packaging>=23.0
 requests>=2.31.0
 

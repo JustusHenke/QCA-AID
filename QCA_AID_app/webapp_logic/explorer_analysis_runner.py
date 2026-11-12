@@ -178,10 +178,10 @@ class ExplorerAnalysisRunner:
                 messages.extend(analysis_messages)
 
                 if not success:
-                    messages.append(f"⚠️ Fehler bei Analyse '{analysis_config.name}'")
+                    messages.append(f":material/warning: Fehler bei Analyse '{analysis_config.name}'")
                 else:
                     messages.append(
-                        f"✓ Analyse '{analysis_config.name}' erfolgreich abgeschlossen"
+                        f":material/check: Analyse '{analysis_config.name}' erfolgreich abgeschlossen"
                     )
 
             except Exception as e:
@@ -212,13 +212,13 @@ class ExplorerAnalysisRunner:
         # Check if filtering resulted in empty dataset
         if filtered_df.empty:
             messages.append(
-                f"⚠️ WARNUNG: Keine Daten nach Filterung für Analyse '{analysis_config.name}'"
+                f":material/warning: WARNUNG: Keine Daten nach Filterung für Analyse '{analysis_config.name}'"
             )
             messages.append(f"   Angewendete Filter: {analysis_config.filters}")
             messages.append(f"   Diese Analyse wird übersprungen.")
             return False, messages
 
-        messages.append(f"✓ {len(filtered_df)} Datensätze nach Filterung gefunden")
+        messages.append(f":material/check: {len(filtered_df)} Datensätze nach Filterung gefunden")
 
         # Generate filter string for output filename
         filter_str = create_filter_string(analysis_config.filters)
@@ -302,7 +302,7 @@ class ExplorerAnalysisRunner:
 
                 if not prompt_template:
                     messages.append(
-                        "⚠️ Kein Prompt-Template für benutzerdefinierte Zusammenfassung angegeben"
+                        ":material/warning: Kein Prompt-Template für benutzerdefinierte Zusammenfassung angegeben"
                     )
                     return False, messages
 
@@ -324,7 +324,7 @@ class ExplorerAnalysisRunner:
 
             else:
                 messages.append(
-                    f"⚠️ Unbekannter Analysetyp '{analysis_config.analysis_type}'"
+                    f":material/warning: Unbekannter Analysetyp '{analysis_config.analysis_type}'"
                 )
                 return False, messages
 

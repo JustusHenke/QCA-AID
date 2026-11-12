@@ -87,7 +87,7 @@ def render_explorer_model_settings():
             st.session_state.llm_provider_manager = manager
             st.session_state.llm_models_loaded = True
         except Exception as e:
-            st.warning(f"⚠️ Konnte Provider Manager nicht laden: {e}")
+            st.warning(f":material/warning: Konnte Provider Manager nicht laden: {e}")
             st.session_state.llm_provider_manager = None
             st.session_state.llm_models_loaded = False
     
@@ -186,7 +186,7 @@ def render_explorer_model_settings():
     # Modell für Post-hoc-Analysen (Zusammenfassungen, Sentiment), nicht das Modell
     # der Hauptanalyse. Ohne Hinweis wirkt das wie ein Synchronisationsfehler.
     st.caption(
-        "ℹ️ Der Explorer verwendet ein **eigenes Modell** für Post-hoc-Analysen "
+        ":material/info: Der Explorer verwendet ein **eigenes Modell** für Post-hoc-Analysen "
         "(Zusammenfassungen, Sentiment) - unabhängig vom Modell der Hauptanalyse."
     )
     
@@ -200,11 +200,11 @@ def render_explorer_model_settings():
     ):
         col_main1, col_main2 = st.columns([2, 1])
         with col_main1:
-            st.info(f"🤖 Hauptanalyse nutzt: `{main_provider} / {main_model}`")
+            st.info(f":material/smart_toy: Hauptanalyse nutzt: `{main_provider} / {main_model}`")
         with col_main2:
             st.markdown("<br>", unsafe_allow_html=True)
             if st.button(
-                "📋 Von Hauptanalyse übernehmen",
+                ":material/receipt_long: Von Hauptanalyse übernehmen",
                 use_container_width=True,
                 key="explorer_model_from_main",
             ):
@@ -218,7 +218,7 @@ def render_explorer_model_settings():
     st.markdown("---")
     
     # Keyword-Harmonisierung Option
-    st.markdown("**🔧 Erweiterte Optionen**")
+    st.markdown("**:material/build: Erweiterte Optionen**")
     
     col1, col2 = st.columns(2)
     
@@ -272,7 +272,7 @@ def render_explorer_tab():
     - 7.1-7.4: Output-Dateien anzeigen und verwalten
     - 11.1-11.5: Explorer-Konfiguration verwalten
     """
-    st.header("📊 Explorer")
+    st.header(":material/bar_chart: Explorer")
     st.markdown("Analysieren und visualisieren Sie Ihre QCA-AID Ergebnisse")
     
     # Check if explorer is active
@@ -290,7 +290,7 @@ def render_config_file_controls():
     
     Requirements: 1.1, 1.5
     """
-    st.subheader("📁 Konfigurationsdatei")
+    st.subheader(":material/folder: Konfigurationsdatei")
     
     # Show default config path
     manager = st.session_state.explorer_config_manager
@@ -303,12 +303,12 @@ def render_config_file_controls():
         # Show current config source
         source = st.session_state.get('explorer_config_loaded_from', 'default')
         if source == 'file':
-            st.success("✅ Konfiguration aus Datei geladen")
+            st.success(":material/check_circle: Konfiguration aus Datei geladen")
         else:
-            st.info("ℹ️ Standard-Konfiguration (keine Datei geladen)")
+            st.info(":material/info: Standard-Konfiguration (keine Datei geladen)")
     
     with col2:
-        if st.button("📂 Laden", use_container_width=True):
+        if st.button(":material/folder_open: Laden", use_container_width=True):
             manager = st.session_state.explorer_config_manager
             success, loaded_config_data, errors = manager.load_config()
             
@@ -330,20 +330,20 @@ def render_config_file_controls():
                         valid_providers = ['openai', 'anthropic', 'mistral', 'openrouter', 'local']
                         provider = base_config['provider'].lower()
                         if provider not in valid_providers:
-                            st.warning(f"⚠️ Ungültiger Provider '{provider}' in Explorer-Config")
+                            st.warning(f":material/warning: Ungültiger Provider '{provider}' in Explorer-Config")
                     
                 except Exception as e:
                     # Error handling for missing or invalid values
-                    st.warning(f"⚠️ Fehler beim Validieren der Explorer-Einstellungen: {e}")
+                    st.warning(f":material/warning: Fehler beim Validieren der Explorer-Einstellungen: {e}")
                 
-                st.success("✅ Konfiguration erfolgreich geladen")
+                st.success(":material/check_circle: Konfiguration erfolgreich geladen")
                 st.rerun()
             else:
-                st.error(f"❌ Fehler beim Laden: {', '.join(errors)}")
+                st.error(f":material/cancel: Fehler beim Laden: {', '.join(errors)}")
     
     with col3:
         # R3.1: Genau EIN dominierender Speichern-Button; Format via Dropdown (R3.3)
-        if st.button("💾 Speichern", type="primary", use_container_width=True, key="explorer_save_btn"):
+        if st.button(":material/save: Speichern", type="primary", use_container_width=True, key="explorer_save_btn"):
             save_explorer_config_data(format=st.session_state.get("explorer_save_format", "both"))
     
     with col4:
@@ -376,14 +376,14 @@ def _load_categories_for_file(explorer_config_manager, selected_file: str):
         if explorer_config_manager.category_loader.is_loaded:
             stats = explorer_config_manager.category_loader.get_statistics()
             if stats['total_main_categories'] == 0:
-                st.warning("⚠️ Kategorien-Sheet gefunden, aber keine Kategorien darin. Verwende Freitext-Eingabe.")
+                st.warning(":material/warning: Kategorien-Sheet gefunden, aber keine Kategorien darin. Verwende Freitext-Eingabe.")
         else:
-            st.warning("⚠️ Kein Kategorien-Sheet in der Analysedatei gefunden. Verwende Freitext-Eingabe.")
+            st.warning(":material/warning: Kein Kategorien-Sheet in der Analysedatei gefunden. Verwende Freitext-Eingabe.")
     except Exception as e:
         # Failed to load categories - that's OK, we'll use text input
         explorer_config_manager.category_loader = None
         st.session_state.explorer_current_file = selected_file
-        st.warning(f"⚠️ Fehler beim Laden der Kategorien: {str(e)}. Verwende Freitext-Eingabe.")
+        st.warning(f":material/warning: Fehler beim Laden der Kategorien: {str(e)}. Verwende Freitext-Eingabe.")
 
     return explorer_config_manager.get_category_loader()
 
@@ -401,8 +401,8 @@ def render_explorer_config_view():
     # Session state is initialized in webapp.py initialize_session_state()
     # Display any load errors from initialization
     if st.session_state.get('explorer_config_load_errors'):
-        st.error(f"⚠️ Fehler beim Laden der Konfiguration: {', '.join(st.session_state.explorer_config_load_errors)}")
-        st.info("📁 Die Konfigurationsdatei hat möglicherweise ein altes Format. Erstellen Sie eine neue Konfiguration oder laden Sie eine gültige Datei.")
+        st.error(f":material/warning: Fehler beim Laden der Konfiguration: {', '.join(st.session_state.explorer_config_load_errors)}")
+        st.info(":material/folder: Die Konfigurationsdatei hat möglicherweise ein altes Format. Erstellen Sie eine neue Konfiguration oder laden Sie eine gültige Datei.")
         # Clear errors after displaying
         del st.session_state.explorer_config_load_errors
 
@@ -413,25 +413,25 @@ def render_explorer_config_view():
     # =============================================================
     # Kompaktbereich (R9.1): Datei-Auswahl, Summary-Zeile, Start
     # =============================================================
-    st.subheader("🚀 Explorer starten")
+    st.subheader(":material/rocket_launch: Explorer starten")
     selected_file = render_file_selector()
 
     summary = build_start_summary(explorer_config_data, selected_file)
 
     col_file, col_analyses, col_model = st.columns(3)
     with col_file:
-        st.caption(f"📄 Datei: {summary['file_name'] or '– keine gewählt –'}")
+        st.caption(f":material/description: Datei: {summary['file_name'] or '– keine gewählt –'}")
     with col_analyses:
-        analyses_text = f"🔬 Analysen: {summary['active_count']} aktiv"
+        analyses_text = f":material/biotech: Analysen: {summary['active_count']} aktiv"
         if summary['inactive_count']:
             analyses_text += f", {summary['inactive_count']} inaktiv"
         st.caption(analyses_text)
     with col_model:
-        st.caption(f"🤖 Modell: {summary['provider'] or '–'} / {summary['model'] or '–'}")
+        st.caption(f":material/smart_toy: Modell: {summary['provider'] or '–'} / {summary['model'] or '–'}")
 
     # R9.5: Jump-Link zum Analyse-Tab, wenn keine Ergebnisse vorliegen
     if selected_file is None:
-        st.warning("⚠️ **Keine Analyseergebnisse gefunden.** Führen Sie zuerst eine Analyse im Analyse-Tab durch.")
+        st.warning(":material/warning: **Keine Analyseergebnisse gefunden.** Führen Sie zuerst eine Analyse im Analyse-Tab durch.")
         if st.button("→ Zum Analyse-Tab", key="explorer_jump_to_analysis", type="primary"):
             st.session_state.active_tab_key = "analysis"
             st.session_state.active_tab = "Analyse"
@@ -440,7 +440,7 @@ def render_explorer_config_view():
     # R9.3: Start-Button - disabled mit Tooltip, wenn keine Datei gewaehlt
     start_disabled = selected_file is None
     if st.button(
-        "▶️ Explorer starten",
+        ":material/play_arrow: Explorer starten",
         type="primary",
         key="start_explorer_btn",
         use_container_width=True,
@@ -458,33 +458,33 @@ def render_explorer_config_view():
     # =============================================================
     # Details als eingeklappte Expander (R9.1)
     # =============================================================
-    with st.expander("🤖 Modell-Einstellungen", expanded=False):
+    with st.expander(":material/smart_toy: Modell-Einstellungen", expanded=False):
         st.markdown("Wählen Sie das LLM-Modell für die Post-hoc-Analyse (Zusammenfassungen, Sentiment-Analyse, etc.)")
         render_explorer_model_settings()
 
-    with st.expander("🔬 Analysen konfigurieren", expanded=False):
+    with st.expander(":material/biotech: Analysen konfigurieren", expanded=False):
         # Kategorie-Informationen (bisher nach der Dateiauswahl)
         explorer_config_manager = st.session_state.get('explorer_config_manager')
         category_loader = None
         if selected_file and explorer_config_manager:
             category_loader = _load_categories_for_file(explorer_config_manager, selected_file)
         else:
-            st.info("📁 Wählen Sie oben eine Analysedatei aus, um Filter und Analysen zu konfigurieren.")
+            st.info(":material/folder: Wählen Sie oben eine Analysedatei aus, um Filter und Analysen zu konfigurieren.")
 
         if category_loader and category_loader.is_loaded:
             stats = category_loader.get_statistics()
             if stats['total_main_categories'] > 0:
-                with st.expander("📊 Verfügbare Kategorien", expanded=False):
+                with st.expander(":material/bar_chart: Verfügbare Kategorien", expanded=False):
                     from webapp_components.smart_filter_controls import render_category_statistics
                     render_category_statistics(category_loader)
             else:
-                st.info("ℹ️ **Keine Kategorien verfügbar** - Filter verwenden Freitext-Eingabe. Das Kategorien-Sheet ist leer.")
+                st.info(":material/info: **Keine Kategorien verfügbar** - Filter verwenden Freitext-Eingabe. Das Kategorien-Sheet ist leer.")
         elif selected_file:
-            st.info("ℹ️ **Keine Kategorien verfügbar** - Filter verwenden Freitext-Eingabe. Stellen Sie sicher, dass Ihre Analysedatei ein 'Kategorien'-Sheet enthält.")
+            st.info(":material/info: **Keine Kategorien verfügbar** - Filter verwenden Freitext-Eingabe. Stellen Sie sicher, dass Ihre Analysedatei ein 'Kategorien'-Sheet enthält.")
 
         # Unsaved changes indicator
         if st.session_state.get('explorer_config_modified', False):
-            st.warning("⚠️ Ungespeicherte Änderungen")
+            st.warning(":material/warning: Ungespeicherte Änderungen")
 
         render_explorer_config_tabs()
 
@@ -494,7 +494,7 @@ def render_explorer_config_view():
             from webapp_components.smart_filter_controls import render_filter_validation_summary
             render_filter_validation_summary(explorer_config_data.analysis_configs, category_loader)
 
-    with st.expander("🔧 Optionen & Speichern", expanded=False):
+    with st.expander(":material/build: Optionen & Speichern", expanded=False):
         render_config_file_controls()
 
     # Fehler-Log einer fehlgeschlagenen Analyse (falls vorhanden)
@@ -518,20 +518,20 @@ def render_explorer_config_tabs():
         st.markdown(f"**{len(explorer_config.analysis_configs)} Analyse(n) konfiguriert**")
     
     with col2:
-        if st.button("➕ Analyse hinzufügen", use_container_width=True, key="add_analysis_btn"):
+        if st.button(":material/add: Analyse hinzufügen", use_container_width=True, key="add_analysis_btn"):
             # R5.1: Analysen hinzufuegen als echtes Modal (@st.dialog)
             render_add_analysis_dialog()
     
     # If no analyses, show message
     if not explorer_config.analysis_configs:
-        st.info("💡 Keine Analysen konfiguriert. Klicken Sie auf 'Analyse hinzufügen', um zu beginnen.")
+        st.info(":material/lightbulb: Keine Analysen konfiguriert. Klicken Sie auf 'Analyse hinzufügen', um zu beginnen.")
         return
     
     # Create tabs for each analysis
     tab_labels = []
     for i, analysis in enumerate(explorer_config.analysis_configs):
         # Add visual indicator for active/inactive
-        status_icon = "✅" if analysis.active else "⏸️"
+        status_icon = ":material/check_circle:" if analysis.active else ":material/pause:"
         tab_labels.append(f"{status_icon} {analysis.name}")
     
     tabs = st.tabs(tab_labels)
@@ -558,14 +558,14 @@ def render_analysis_tab(analysis: AnalysisConfig, index: int):
     if not analysis.active:
         st.markdown("""
         <div style="background-color: #f0f0f0; padding: 10px; border-radius: 5px; border-left: 4px solid #ff6b6b;">
-            <p style="color: #666; margin: 0;">⏸️ <strong>Diese Analyse ist deaktiviert</strong> - Sie wird beim Ausführen übersprungen</p>
+            <p style="color: #666; margin: 0;">:material/pause: <strong>Diese Analyse ist deaktiviert</strong> - Sie wird beim Ausführen übersprungen</p>
         </div>
         """, unsafe_allow_html=True)
         st.markdown("")
     else:
         st.markdown("""
         <div style="background-color: #e8f5e9; padding: 10px; border-radius: 5px; border-left: 4px solid #4caf50;">
-            <p style="color: #2e7d32; margin: 0;">✅ <strong>Diese Analyse ist aktiv</strong> - Sie wird beim Ausführen durchgeführt</p>
+            <p style="color: #2e7d32; margin: 0;">:material/check_circle: <strong>Diese Analyse ist aktiv</strong> - Sie wird beim Ausführen durchgeführt</p>
         </div>
         """, unsafe_allow_html=True)
         st.markdown("")
@@ -593,7 +593,7 @@ def render_analysis_tab(analysis: AnalysisConfig, index: int):
         
     with col3:
         # Remove button
-        if st.button("🗑️ Entfernen", key=f"remove_{index}", use_container_width=True, type="secondary"):
+        if st.button(":material/delete: Entfernen", key=f"remove_{index}", use_container_width=True, type="secondary"):
             # R7.2: Entfernen nur nach Bestaetigung (Confirm-Dialog)
             confirm_removal(
                 f"Analyse '{analysis.name}'",
@@ -621,7 +621,7 @@ def render_analysis_tab(analysis: AnalysisConfig, index: int):
     st.markdown("---")
     
     # Render filters (common to all analyses)
-    st.markdown("### 🔍 Filter")
+    st.markdown("### :material/search: Filter")
     
     # Hole CategoryLoader vom ExplorerConfigManager
     explorer_config_manager = st.session_state.get('explorer_config_manager')
@@ -641,7 +641,7 @@ def render_analysis_tab(analysis: AnalysisConfig, index: int):
     st.markdown("---")
     
     # Render analysis-specific parameters
-    st.markdown("### ⚙️ Parameter")
+    st.markdown("### :material/settings: Parameter")
     
     if analysis.analysis_type == 'netzwerk':
         render_network_parameters(analysis, index)
@@ -670,7 +670,7 @@ def render_analysis_help_text(analysis_type: str):
     """
     help_texts = {
         'netzwerk': """
-        **📊 Netzwerkanalyse**
+        **:material/bar_chart: Netzwerkanalyse**
         
         Erstellt ein Netzwerkdiagramm, das die Beziehungen zwischen Kategorien visualisiert.
         Knoten repräsentieren Kategorien, Kanten zeigen Co-Occurrences.
@@ -682,7 +682,7 @@ def render_analysis_help_text(analysis_type: str):
         - **Scaling**: Gesamtskalierung des Graphen
         """,
         'heatmap': """
-        **🔥 Heatmap-Analyse**
+        **:material/local_fire_department: Heatmap-Analyse**
         
         Erstellt eine Heatmap zur Visualisierung von Häufigkeiten oder Werten über zwei Dimensionen.
         
@@ -693,7 +693,7 @@ def render_analysis_help_text(analysis_type: str):
         - **Annotations**: Werte in Zellen anzeigen
         """,
         'sunburst': """
-        **☀️ Sunburst-Diagramm**
+        **:material/light_mode: Sunburst-Diagramm**
         
         Erstellt ein interaktives Sunburst-Diagramm zur Visualisierung hierarchischer Daten.
         Zeigt die Beziehungen zwischen Hauptkategorien, Subkategorien und Schlüsselwörtern.
@@ -707,7 +707,7 @@ def render_analysis_help_text(analysis_type: str):
         **Keine Parameter erforderlich** - Die Visualisierung wird automatisch aus den gefilterten Daten erstellt.
         """,
         'treemap': """
-        **🗺️ Treemap-Diagramm**
+        **:material/map: Treemap-Diagramm**
         
         Erstellt ein interaktives Treemap-Diagramm zur Visualisierung hierarchischer Daten.
         Zeigt die Beziehungen zwischen Hauptkategorien, Subkategorien und Schlüsselwörtern als verschachtelte Rechtecke.
@@ -721,7 +721,7 @@ def render_analysis_help_text(analysis_type: str):
         **Keine Parameter erforderlich** - Die Visualisierung wird automatisch aus den gefilterten Daten erstellt.
         """,
         'summary_paraphrase': """
-        **📝 Zusammenfassung (Paraphrase)**
+        **:material/edit_note: Zusammenfassung (Paraphrase)**
         
         Erstellt eine KI-generierte Zusammenfassung der Paraphrasen.
         Verwendet einen vordefinierten Prompt für Paraphrasierung.
@@ -731,7 +731,7 @@ def render_analysis_help_text(analysis_type: str):
         - **Prompt Template**: Optional eigener Prompt (leer = Standard)
         """,
         'summary_reasoning': """
-        **🧠 Zusammenfassung (Reasoning)**
+        **:material/psychology: Zusammenfassung (Reasoning)**
         
         Erstellt eine KI-generierte Zusammenfassung der Reasoning-Texte.
         Verwendet einen vordefinierten Prompt für Reasoning-Analyse.
@@ -741,7 +741,7 @@ def render_analysis_help_text(analysis_type: str):
         - **Prompt Template**: Optional eigener Prompt (leer = Standard)
         """,
         'custom_summary': """
-        **✏️ Benutzerdefinierte Zusammenfassung**
+        **:material/edit: Benutzerdefinierte Zusammenfassung**
         
         Erstellt eine KI-generierte Zusammenfassung mit eigenem Prompt.
         Ermöglicht vollständige Kontrolle über die Zusammenfassungslogik.
@@ -751,7 +751,7 @@ def render_analysis_help_text(analysis_type: str):
         - **Prompt Template**: Eigener Prompt (erforderlich)
         """,
         'sentiment_analysis': """
-        **😊 Sentiment-Analyse**
+        **:material/sentiment_satisfied: Sentiment-Analyse**
         
         Analysiert die Stimmung in Texten und erstellt Visualisierungen.
         Kategorisiert Texte nach Sentiment-Kategorien.
@@ -928,21 +928,21 @@ def render_network_parameters(analysis: AnalysisConfig, index: int):
                 
                 # Display estimation
                 st.info(f"""
-📊 **Geschätzte Netzwerkgröße** (basierend auf Filtern):
+:material/bar_chart: **Geschätzte Netzwerkgröße** (basierend auf Filtern):
 - **{num_records} Kodierungen** gefiltert
 - **~{estimated_nodes} Knoten** ({num_main_categories} Haupt-, {num_subcategories} Sub-, {num_keywords} Keywords)
 - **~{estimated_edges} Kanten** (geschätzt)
 
-💡 **Empfohlene Parameter für diese Größe:**
+:material/lightbulb: **Empfohlene Parameter für diese Größe:**
 """)
                 
                 # Provide recommendations based on size
                 if estimated_nodes < 20:
-                    st.success("✓ Kleines Netzwerk - Standardwerte sind optimal")
+                    st.success(":material/check: Kleines Netzwerk - Standardwerte sind optimal")
                 elif estimated_nodes < 50:
-                    st.warning("⚠️ Mittleres Netzwerk - Erwägen Sie: Node Size 0.5-1.0, Iterations 50-100")
+                    st.warning(":material/warning: Mittleres Netzwerk - Erwägen Sie: Node Size 0.5-1.0, Iterations 50-100")
                 else:
-                    st.error("⚠️ Großes Netzwerk - Empfohlen: Node Size 0.3-0.7, Iterations 100-200, Scaling 0.5-1.0")
+                    st.error(":material/warning: Großes Netzwerk - Empfohlen: Node Size 0.3-0.7, Iterations 100-200, Scaling 0.5-1.0")
                 
     except Exception as e:
         # Silently fail if estimation doesn't work
@@ -1066,7 +1066,7 @@ Höhere Werte = weniger Label-Überlappung, aber mehr Platz benötigt"""
     # Exclude "nicht kodiert" checkbox
     st.markdown("---")
     new_exclude = st.checkbox(
-        "❌ 'Nicht kodiert' ausschließen",
+        ":material/cancel: 'Nicht kodiert' ausschließen",
         value=params.get('exclude_not_coded', True),
         key=f"exclude_not_coded_{index}",
         help="Wenn aktiviert, werden Einträge mit 'Nicht kodiert' oder 'Kein Kodierkonsens' automatisch aus der Visualisierung ausgeschlossen."
@@ -1093,7 +1093,7 @@ def render_heatmap_parameters(analysis: AnalysisConfig, index: int):
     updated = False
     
     # Show recommendations for heatmap analyses
-    with st.expander("💡 Empfohlene Heatmap-Analysen", expanded=False):
+    with st.expander(":material/lightbulb: Empfohlene Heatmap-Analysen", expanded=False):
         st.markdown("""
         **Sinnvolle Kombinationen für Ihre QCA-Daten:**
         
@@ -1284,7 +1284,7 @@ def render_heatmap_parameters(analysis: AnalysisConfig, index: int):
     # Exclude "nicht kodiert" checkbox
     st.markdown("---")
     new_exclude = st.checkbox(
-        "❌ 'Nicht kodiert' ausschließen",
+        ":material/cancel: 'Nicht kodiert' ausschließen",
         value=params.get('exclude_not_coded', True),
         key=f"exclude_not_coded_heatmap_{index}",
         help="Wenn aktiviert, werden Einträge mit 'Nicht kodiert' oder 'Kein Kodierkonsens' automatisch aus der Visualisierung ausgeschlossen."
@@ -1309,13 +1309,13 @@ def render_sunburst_parameters(analysis: AnalysisConfig, index: int):
     updated = False
     
     st.markdown("""
-    **📊 Sunburst-Visualisierung**
+    **:material/bar_chart: Sunburst-Visualisierung**
     
     Erstellt eine kreisförmige hierarchische Darstellung mit konzentrischen Ringen.
     Ausgabe als hochauflösende PNG-Datei.
     """)
     
-    with st.expander("🎨 Erweiterte Parameter", expanded=False):
+    with st.expander(":material/palette: Erweiterte Parameter", expanded=False):
         col1, col2 = st.columns(2)
         
         with col1:
@@ -1492,7 +1492,7 @@ Niedrigere Werte zeigen mehr von den Farben darunter."""
     # Exclude "nicht kodiert" checkbox
     st.markdown("---")
     new_exclude = st.checkbox(
-        "❌ 'Nicht kodiert' ausschließen",
+        ":material/cancel: 'Nicht kodiert' ausschließen",
         value=params.get('exclude_not_coded', True),
         key=f"exclude_not_coded_sunburst_{index}",
         help="Wenn aktiviert, werden Einträge mit 'Nicht kodiert' oder 'Kein Kodierkonsens' automatisch aus der Visualisierung ausgeschlossen."
@@ -1517,13 +1517,13 @@ def render_treemap_parameters(analysis: AnalysisConfig, index: int):
     updated = False
     
     st.markdown("""
-    **📊 Treemap-Visualisierung**
+    **:material/bar_chart: Treemap-Visualisierung**
     
     Erstellt eine rechteckige hierarchische Darstellung mit optimiertem Layout.
     Ausgabe als hochauflösende PNG-Dateien (Übersicht + Detail pro Kategorie).
     """)
     
-    with st.expander("🎨 Erweiterte Parameter", expanded=False):
+    with st.expander(":material/palette: Erweiterte Parameter", expanded=False):
         col1, col2 = st.columns(2)
         
         with col1:
@@ -1648,7 +1648,7 @@ Gilt für Hauptansicht und Detail-Ansicht."""
     # Exclude "nicht kodiert" checkbox
     st.markdown("---")
     new_exclude = st.checkbox(
-        "❌ 'Nicht kodiert' ausschließen",
+        ":material/cancel: 'Nicht kodiert' ausschließen",
         value=params.get('exclude_not_coded', True),
         key=f"exclude_not_coded_treemap_{index}",
         help="Wenn aktiviert, werden Einträge mit 'Nicht kodiert' oder 'Kein Kodierkonsens' automatisch aus der Visualisierung ausgeschlossen."
@@ -1714,7 +1714,7 @@ def render_summary_parameters(analysis: AnalysisConfig, index: int):
     # Exclude "nicht kodiert" checkbox - default FALSE for LLM analyses
     st.markdown("---")
     new_exclude = st.checkbox(
-        "❌ 'Nicht kodiert' ausschließen",
+        ":material/cancel: 'Nicht kodiert' ausschließen",
         value=params.get('exclude_not_coded', False),
         key=f"exclude_not_coded_summary_{index}",
         help="Wenn aktiviert, werden Einträge mit 'Nicht kodiert' oder 'Kein Kodierkonsens' aus der Analyse ausgeschlossen. Für LLM-Analysen standardmäßig deaktiviert, da auch nicht-kodierte Texte relevant sein können."
@@ -1842,10 +1842,10 @@ def handle_remove_analysis(index: int):
         st.session_state.explorer_config_data = new_config
         # Mark as modified
         st.session_state.explorer_config_modified = True
-        st.success(f"✅ Analyse entfernt!")
+        st.success(f":material/check_circle: Analyse entfernt!")
         st.rerun()
     else:
-        st.error(f"❌ Fehler beim Entfernen: {', '.join(errors)}")
+        st.error(f":material/cancel: Fehler beim Entfernen: {', '.join(errors)}")
 
 
 def handle_update_analysis(index: int, updates: Dict[str, Any]):
@@ -1873,7 +1873,7 @@ def handle_update_analysis(index: int, updates: Dict[str, Any]):
         if 'active' in updates:
             st.rerun()
     else:
-        st.error(f"❌ Fehler beim Aktualisieren: {', '.join(errors)}")
+        st.error(f":material/cancel: Fehler beim Aktualisieren: {', '.join(errors)}")
 
 
 def handle_reorder_analysis(from_index: int, to_index: int):
@@ -1904,7 +1904,7 @@ def handle_reorder_analysis(from_index: int, to_index: int):
         st.session_state.explorer_config_modified = True
         st.rerun()
     else:
-        st.error(f"❌ Fehler beim Neuordnen: {', '.join(errors)}")
+        st.error(f":material/cancel: Fehler beim Neuordnen: {', '.join(errors)}")
 
 
 def render_explorer_view():
@@ -1916,10 +1916,10 @@ def render_explorer_view():
     col1, col2 = st.columns([4, 1])
     
     with col1:
-        st.subheader(f"📊 Analyse: {Path(file_path).name}")
+        st.subheader(f":material/bar_chart: Analyse: {Path(file_path).name}")
     
     with col2:
-        if st.button("◀ Zurück zur Konfiguration", key="back_to_config"):
+        if st.button(":material/chevron_left: Zurück zur Konfiguration", key="back_to_config"):
             st.session_state.explorer_active = False
             st.rerun()
     
@@ -1927,17 +1927,17 @@ def render_explorer_view():
     
     # Show success message with output directory and log
     if output_dir:
-        st.success("✅ Alle Analysen erfolgreich abgeschlossen!")
+        st.success(":material/check_circle: Alle Analysen erfolgreich abgeschlossen!")
         
         # Action buttons for output directory
         col_info, col_btn = st.columns([3, 1])
         
         with col_info:
-            st.info(f"📁 Ergebnisse gespeichert in: {output_dir}")
+            st.info(f":material/folder: Ergebnisse gespeichert in: {output_dir}")
         
         with col_btn:
             # Open folder button
-            if st.button("📂 Ordner öffnen", key="open_explorer_results_folder"):
+            if st.button(":material/folder_open: Ordner öffnen", key="open_explorer_results_folder"):
                 try:
                     if platform.system() == 'Windows':
                         os.startfile(output_dir)
@@ -1946,18 +1946,18 @@ def render_explorer_view():
                     else:  # Linux
                         subprocess.run(['xdg-open', output_dir])
                     
-                    st.success("✅ Ordner geöffnet")
+                    st.success(":material/check_circle: Ordner geöffnet")
                 except Exception as e:
-                    st.error(f"❌ Fehler: {str(e)}")
+                    st.error(f":material/cancel: Fehler: {str(e)}")
         
         # Show analysis log in expander
         if st.session_state.get('explorer_analysis_log'):
             log_data = st.session_state.explorer_analysis_log
-            with st.expander("📋 Analyse-Log anzeigen", expanded=False):
+            with st.expander(":material/receipt_long: Analyse-Log anzeigen", expanded=False):
                 st.text_area("Log", log_data['log_text'], height=300, key="explorer_log_display_success", label_visibility="collapsed")
         
         # R9.1: Shortcut fuer eine neue Analyse (zurueck zur Konfiguration)
-        if st.button("➕ Neue Analyse starten", key="new_analysis_shortcut", type="primary"):
+        if st.button(":material/add: Neue Analyse starten", key="new_analysis_shortcut", type="primary"):
             st.session_state.explorer_active = False
             st.rerun()
         
@@ -1972,7 +1972,7 @@ def render_explorer_view():
             # Read main results sheet
             df = pd.read_excel(file_path, sheet_name='Kodierungsergebnisse')
         
-        st.success(f"✅ {len(df)} Kodierungen geladen")
+        st.success(f":material/check_circle: {len(df)} Kodierungen geladen")
         
         # Apply filters
         filters = st.session_state.get('explorer_filters', {})
@@ -1981,10 +1981,10 @@ def render_explorer_view():
         if min_confidence > 0:
             if 'Konfidenz' in df.columns:
                 df = df[df['Konfidenz'] >= min_confidence]
-                st.info(f"🔍 Filter angewendet: Minimale Konfidenz {min_confidence:.2f} → {len(df)} Kodierungen")
+                st.info(f":material/search: Filter angewendet: Minimale Konfidenz {min_confidence:.2f} → {len(df)} Kodierungen")
         
         # Show statistics FIRST (before charts to prevent auto-scroll)
-        st.subheader("📊 Statistiken")
+        st.subheader(":material/bar_chart: Statistiken")
         
         col1, col2, col3 = st.columns(3)
         
@@ -2005,7 +2005,7 @@ def render_explorer_view():
         config = st.session_state.explorer_config_data
         
         if 'category_distribution' in config.enabled_charts:
-            with st.expander("📊 Kategorieverteilung", expanded=True):
+            with st.expander(":material/bar_chart: Kategorieverteilung", expanded=True):
                 if 'Hauptkategorie' in df.columns:
                     category_counts = df['Hauptkategorie'].value_counts()
                     st.bar_chart(category_counts)
@@ -2013,7 +2013,7 @@ def render_explorer_view():
                     st.warning("Spalte 'Hauptkategorie' nicht gefunden")
         
         if 'confidence_histogram' in config.enabled_charts:
-            with st.expander("📈 Konfidenz-Verteilung", expanded=True):
+            with st.expander(":material/trending_up: Konfidenz-Verteilung", expanded=True):
                 st.caption("Die Konfidenz gibt an, wie sicher das LLM-Modell bei der Zuordnung einer Kodierung war (0 = unsicher, 1 = sehr sicher).")
                 
                 if 'Konfidenz' in df.columns:
@@ -2047,7 +2047,7 @@ def render_explorer_view():
         st.markdown("---")
         
         # Data table - in expander to prevent auto-scroll
-        with st.expander("📋 Kodierungsdaten anzeigen", expanded=False):
+        with st.expander(":material/receipt_long: Kodierungsdaten anzeigen", expanded=False):
             st.markdown("**Datentabelle**")
             
             # Column selection
@@ -2067,7 +2067,7 @@ def render_explorer_view():
         
         # Export options
         st.markdown("---")
-        st.subheader("💾 Export")
+        st.subheader(":material/save: Export")
         
         col1, col2 = st.columns(2)
         
@@ -2075,7 +2075,7 @@ def render_explorer_view():
             # Download filtered data
             csv = df.to_csv(index=False).encode('utf-8')
             st.download_button(
-                label="📥 Gefilterte Daten als CSV",
+                label=":material/download: Gefilterte Daten als CSV",
                 data=csv,
                 file_name=f"filtered_{Path(file_path).stem}.csv",
                 mime="text/csv",
@@ -2086,7 +2086,7 @@ def render_explorer_view():
             # Download as JSON
             json_str = df.to_json(orient='records', force_ascii=False, indent=2)
             st.download_button(
-                label="📥 Gefilterte Daten als JSON",
+                label=":material/download: Gefilterte Daten als JSON",
                 data=json_str,
                 file_name=f"filtered_{Path(file_path).stem}.json",
                 mime="application/json",
@@ -2094,9 +2094,9 @@ def render_explorer_view():
             )
         
     except Exception as e:
-        st.error(f"❌ Fehler beim Laden der Daten: {str(e)}")
+        st.error(f":material/cancel: Fehler beim Laden der Daten: {str(e)}")
         import traceback
-        with st.expander("🔍 Fehlerdetails"):
+        with st.expander(":material/search: Fehlerdetails"):
             st.code(traceback.format_exc())
 
 
@@ -2170,10 +2170,10 @@ def render_visualization_config():
     config = st.session_state.explorer_config
     
     available_charts = [
-        ('category_distribution', '📊 Kategorieverteilung'),
-        ('confidence_histogram', '📈 Konfidenz-Histogramm'),
-        ('coder_agreement', '🤝 Coder-Übereinstimmung'),
-        ('temporal_analysis', '⏱️ Zeitliche Analyse'),
+        ('category_distribution', ':material/bar_chart: Kategorieverteilung'),
+        ('confidence_histogram', ':material/trending_up: Konfidenz-Histogramm'),
+        ('coder_agreement', ':material/handshake: Coder-Übereinstimmung'),
+        ('temporal_analysis', ':material/timer: Zeitliche Analyse'),
     ]
     
     for chart_id, chart_label in available_charts:
@@ -2271,7 +2271,7 @@ def render_advanced_config():
         config.export_format = new_format
     
     # Custom prompt
-    st.markdown("**🤖 KI-Analyse Prompt (Optional):**")
+    st.markdown("**:material/smart_toy: KI-Analyse Prompt (Optional):**")
     custom_prompt = st.text_area(
         "Eigener Prompt für KI-gestützte Analyse:",
         value="",
@@ -2304,11 +2304,11 @@ def render_explorer_controls(selected_file: str):
         # Only show log here if analysis failed
         if not log_data.get('success'):
             st.markdown("---")
-            st.error("❌ Analyse fehlgeschlagen")
-            st.text_area("📋 Analyse-Log", log_data['log_text'], height=300, key="explorer_log_display_error")
+            st.error(":material/cancel: Analyse fehlgeschlagen")
+            st.text_area(":material/receipt_long: Analyse-Log", log_data['log_text'], height=300, key="explorer_log_display_error")
 
 
-@st.dialog("➕ Neue Analyse hinzufügen")
+@st.dialog(":material/add: Neue Analyse hinzufügen")
 def render_add_analysis_dialog():
     """
     Rendert "Analyse hinzufügen" als echtes Modal (@st.dialog, R5).
@@ -2317,14 +2317,14 @@ def render_add_analysis_dialog():
     """
     # Analysis type selection
     analysis_types = {
-        'netzwerk': '📊 Netzwerkanalyse',
-        'heatmap': '🔥 Heatmap',
-        'sunburst': '☀️ Sunburst-Diagramm',
-        'treemap': '🗺️ Treemap-Diagramm',
-        'summary_paraphrase': '📝 Zusammenfassung (Paraphrase)',
-        'summary_reasoning': '🧠 Zusammenfassung (Reasoning)',
-        'custom_summary': '✏️ Benutzerdefinierte Zusammenfassung',
-        'sentiment_analysis': '😊 Sentiment-Analyse'
+        'netzwerk': ':material/bar_chart: Netzwerkanalyse',
+        'heatmap': ':material/local_fire_department: Heatmap',
+        'sunburst': ':material/light_mode: Sunburst-Diagramm',
+        'treemap': ':material/map: Treemap-Diagramm',
+        'summary_paraphrase': ':material/edit_note: Zusammenfassung (Paraphrase)',
+        'summary_reasoning': ':material/psychology: Zusammenfassung (Reasoning)',
+        'custom_summary': ':material/edit: Benutzerdefinierte Zusammenfassung',
+        'sentiment_analysis': ':material/sentiment_satisfied: Sentiment-Analyse'
     }
     
     selected_type = st.selectbox(
@@ -2345,7 +2345,7 @@ def render_add_analysis_dialog():
     col1, col2 = st.columns(2)
     
     with col1:
-        if st.button("✅ Hinzufügen", use_container_width=True, type="primary"):
+        if st.button(":material/check_circle: Hinzufügen", use_container_width=True, type="primary"):
             # Create new analysis
             manager = st.session_state.explorer_config_manager
             new_analysis = manager.add_analysis(selected_type, analysis_name)
@@ -2360,11 +2360,11 @@ def render_add_analysis_dialog():
             st.session_state.explorer_config_modified = True
             
             # @st.dialog: st.rerun() schliesst das Modal automatisch
-            st.success(f"✅ Analyse '{analysis_name}' hinzugefügt!")
+            st.success(f":material/check_circle: Analyse '{analysis_name}' hinzugefügt!")
             st.rerun()
     
     with col2:
-        if st.button("❌ Abbrechen", use_container_width=True):
+        if st.button(":material/cancel: Abbrechen", use_container_width=True):
             st.rerun()
     
     st.markdown("---")
@@ -2405,7 +2405,7 @@ def save_explorer_config_data(format: str = "both"):
     if success_json and success_xlsx:
         st.session_state.explorer_config_modified = False
         label = {"both": " (JSON & XLSX)", "json": " (JSON)", "xlsx": " (XLSX)"}.get(format, "")
-        st.success(f"✅ Konfiguration gespeichert{label}")
+        st.success(f":material/check_circle: Konfiguration gespeichert{label}")
     elif success_json or success_xlsx:
         # R3.4: Partial Success in EINER gebündelten Warning-Box
         saved_label = "JSON" if success_json else "XLSX"
@@ -2413,12 +2413,12 @@ def save_explorer_config_data(format: str = "both"):
         failed_errors = errors_xlsx if success_json else errors_json
         st.session_state.explorer_config_modified = False
         st.warning(
-            f"⚠️ {saved_label} gespeichert, aber {failed_label} fehlgeschlagen: "
+            f":material/warning: {saved_label} gespeichert, aber {failed_label} fehlgeschlagen: "
             f"{', '.join(failed_errors)}"
         )
     else:
         st.error(
-            f"❌ Fehler beim Speichern: JSON: {', '.join(errors_json)}, "
+            f":material/cancel: Fehler beim Speichern: JSON: {', '.join(errors_json)}, "
             f"XLSX: {', '.join(errors_xlsx)}"
         )
 
@@ -2440,11 +2440,11 @@ def start_explorer_analysis(file_path: str):
     active_analyses = [ac for ac in config_data.analysis_configs if ac.active]
     
     if not active_analyses:
-        st.warning("⚠️ Keine aktiven Analysen konfiguriert. Bitte aktivieren Sie mindestens eine Analyse.")
+        st.warning(":material/warning: Keine aktiven Analysen konfiguriert. Bitte aktivieren Sie mindestens eine Analyse.")
         return
     
     # Show progress
-    with st.spinner("🔄 Führe Analysen durch..."):
+    with st.spinner(":material/autorenew: Führe Analysen durch..."):
         progress_placeholder = st.empty()
         
         try:
@@ -2456,7 +2456,7 @@ def start_explorer_analysis(file_path: str):
             success, init_messages = asyncio.run(runner.initialize())
             
             if not success:
-                st.error("❌ Fehler bei Initialisierung:")
+                st.error(":material/cancel: Fehler bei Initialisierung:")
                 for msg in init_messages:
                     st.error(f"  - {msg}")
                 # Store error in session state
@@ -2492,7 +2492,7 @@ def start_explorer_analysis(file_path: str):
             st.rerun()
                 
         except Exception as e:
-            error_msg = f"❌ Fehler bei Analyse-Ausführung: {str(e)}"
+            error_msg = f":material/cancel: Fehler bei Analyse-Ausführung: {str(e)}"
             st.error(error_msg)
             import traceback
             error_trace = traceback.format_exc()
@@ -2504,7 +2504,7 @@ def start_explorer_analysis(file_path: str):
                 'output_dir': None
             }
             
-            with st.expander("🔍 Fehlerdetails"):
+            with st.expander(":material/search: Fehlerdetails"):
                 st.code(error_trace)
 
 
@@ -2537,7 +2537,7 @@ def render_output_files():
     try:
         file_manager.ensure_directory(output_dir)
     except Exception as e:
-        st.error(f"❌ Fehler beim Erstellen des Output-Verzeichnisses: {str(e)}")
+        st.error(f":material/cancel: Fehler beim Erstellen des Output-Verzeichnisses: {str(e)}")
         return
     
     # List XLSX files
@@ -2548,7 +2548,7 @@ def render_output_files():
         )
         
         if not files:
-            st.info("📭 Keine Analyseergebnisse gefunden")
+            st.info(":material/inbox: Keine Analyseergebnisse gefunden")
             st.markdown("""
             Führen Sie eine Analyse im **Analyse**-Tab durch, 
             um Ergebnisse zu generieren.
@@ -2564,7 +2564,7 @@ def render_output_files():
         
         with col_btn1:
             # Open file location button - opens the output directory
-            if st.button("📂 Ordner öffnen", key="open_explorer_folder_top"):
+            if st.button(":material/folder_open: Ordner öffnen", key="open_explorer_folder_top"):
                 import subprocess
                 import platform
                 
@@ -2576,13 +2576,13 @@ def render_output_files():
                     else:  # Linux
                         subprocess.run(['xdg-open', output_dir])
                     
-                    st.success("✅ Ordner geöffnet")
+                    st.success(":material/check_circle: Ordner geöffnet")
                 except Exception as e:
-                    st.error(f"❌ Fehler: {str(e)}")
+                    st.error(f":material/cancel: Fehler: {str(e)}")
         
         with col_btn2:
             # Show directory path button
-            if st.button("📋 Pfad kopieren", key="copy_explorer_path_top"):
+            if st.button(":material/receipt_long: Pfad kopieren", key="copy_explorer_path_top"):
                 st.code(output_dir, language=None)
         
         st.markdown("---")
@@ -2607,12 +2607,12 @@ def render_output_files():
                 with col1:
                     # File name and metadata
                     st.markdown(f"**{file_info.name}**")
-                    st.caption(f"📏 {file_info.format_size()} | 📅 {file_info.format_date()}")
+                    st.caption(f":material/straighten: {file_info.format_size()} | :material/calendar_month: {file_info.format_date()}")
                 
                 with col2:
                     # Select button
                     if st.button(
-                        "👁️ Vorschau", 
+                        ":material/visibility: Vorschau", 
                         key=f"select_{file_info.path}",
                         use_container_width=True
                     ):
@@ -2622,7 +2622,7 @@ def render_output_files():
                 st.markdown("---")
         
     except Exception as e:
-        st.error(f"❌ Fehler beim Auflisten der Dateien: {str(e)}")
+        st.error(f":material/cancel: Fehler beim Auflisten der Dateien: {str(e)}")
 
 
 def render_explorer_config():
@@ -2648,11 +2648,11 @@ def render_explorer_config():
     col1, col2 = st.columns(2)
     
     with col1:
-        if st.button("📂 Config laden", use_container_width=True):
+        if st.button(":material/folder_open: Config laden", use_container_width=True):
             load_explorer_config()
     
     with col2:
-        if st.button("💾 Config speichern", use_container_width=True):
+        if st.button(":material/save: Config speichern", use_container_width=True):
             save_explorer_config()
     
     st.markdown("---")
@@ -2661,12 +2661,12 @@ def render_explorer_config():
     st.markdown("**Aktivierte Diagrammtypen:**")
     
     available_charts = [
-        ('category_distribution', '📊 Kategorieverteilung'),
-        ('confidence_histogram', '📈 Konfidenz-Histogramm'),
-        ('coder_agreement', '🤝 Coder-Übereinstimmung'),
-        ('temporal_analysis', '⏱️ Zeitliche Analyse'),
-        ('network_graph', '🕸️ Netzwerk-Graph'),
-        ('heatmap', '🔥 Heatmap')
+        ('category_distribution', ':material/bar_chart: Kategorieverteilung'),
+        ('confidence_histogram', ':material/trending_up: Konfidenz-Histogramm'),
+        ('coder_agreement', ':material/handshake: Coder-Übereinstimmung'),
+        ('temporal_analysis', ':material/timer: Zeitliche Analyse'),
+        ('network_graph', ':material/hub: Netzwerk-Graph'),
+        ('heatmap', ':material/local_fire_department: Heatmap')
     ]
     
     for chart_id, chart_label in available_charts:
@@ -2745,7 +2745,7 @@ def render_file_preview(file_path: str):
     Requirement 11.4: WHEN ein Benutzer Explorer-Einstellungen ändert 
                      THEN das System SHALL eine Vorschau der Konfiguration anzeigen
     """
-    st.subheader("📄 Dateivorschau")
+    st.subheader(":material/description: Dateivorschau")
     
     try:
         # Get file info
@@ -2775,7 +2775,7 @@ def render_file_preview(file_path: str):
             
             # Display sheets in expandable sections
             for sheet_name in sheet_names:
-                with st.expander(f"📋 {sheet_name}"):
+                with st.expander(f":material/receipt_long: {sheet_name}"):
                     try:
                         # Read first few rows
                         df = pd.read_excel(file_path, sheet_name=sheet_name, nrows=5)
@@ -2790,15 +2790,15 @@ def render_file_preview(file_path: str):
                         st.error(f"Fehler beim Lesen des Sheets: {str(e)}")
             
             # Clear selection button
-            if st.button("❌ Vorschau schließen", use_container_width=True):
+            if st.button(":material/cancel: Vorschau schließen", use_container_width=True):
                 st.session_state.selected_output_file = None
                 st.rerun()
                 
         except Exception as e:
-            st.error(f"❌ Fehler beim Lesen der Excel-Datei: {str(e)}")
+            st.error(f":material/cancel: Fehler beim Lesen der Excel-Datei: {str(e)}")
             
     except Exception as e:
-        st.error(f"❌ Fehler beim Laden der Dateiinformationen: {str(e)}")
+        st.error(f":material/cancel: Fehler beim Laden der Dateiinformationen: {str(e)}")
 
 
 def render_config_preview():
@@ -2822,9 +2822,9 @@ def render_config_preview():
     is_valid, errors = config.validate()
     
     if is_valid:
-        st.success("✅ Konfiguration ist gültig")
+        st.success(":material/check_circle: Konfiguration ist gültig")
     else:
-        st.error("❌ Konfiguration enthält Fehler:")
+        st.error(":material/cancel: Konfiguration enthält Fehler:")
         for error in errors:
             st.error(f"  • {error}")
 
@@ -2840,7 +2840,7 @@ def load_explorer_config():
     
     try:
         if not config_path.exists():
-            st.warning("⚠️ Keine Explorer-Config gefunden. Verwende Standard-Konfiguration.")
+            st.warning(":material/warning: Keine Explorer-Config gefunden. Verwende Standard-Konfiguration.")
             st.session_state.explorer_config = ExplorerConfig.create_default()
             return
         
@@ -2851,13 +2851,13 @@ def load_explorer_config():
         # Create ExplorerConfig from dict
         st.session_state.explorer_config = ExplorerConfig.from_dict(config_data)
         
-        st.success("✅ Explorer-Konfiguration erfolgreich geladen!")
+        st.success(":material/check_circle: Explorer-Konfiguration erfolgreich geladen!")
         st.rerun()
         
     except json.JSONDecodeError as e:
-        st.error(f"❌ Fehler beim Parsen der JSON-Datei: {str(e)}")
+        st.error(f":material/cancel: Fehler beim Parsen der JSON-Datei: {str(e)}")
     except Exception as e:
-        st.error(f"❌ Fehler beim Laden der Konfiguration: {str(e)}")
+        st.error(f":material/cancel: Fehler beim Laden der Konfiguration: {str(e)}")
 
 
 def save_explorer_config():
@@ -2875,7 +2875,7 @@ def save_explorer_config():
         is_valid, errors = config.validate()
         
         if not is_valid:
-            st.error("❌ Konfiguration ist ungültig:")
+            st.error(":material/cancel: Konfiguration ist ungültig:")
             for error in errors:
                 st.error(f"  • {error}")
             return
@@ -2887,7 +2887,7 @@ def save_explorer_config():
         with open(config_path, 'w', encoding='utf-8') as f:
             json.dump(config_dict, f, indent=2, ensure_ascii=False)
         
-        st.success(f"✅ Explorer-Konfiguration gespeichert: {config_path}")
+        st.success(f":material/check_circle: Explorer-Konfiguration gespeichert: {config_path}")
         
     except Exception as e:
-        st.error(f"❌ Fehler beim Speichern der Konfiguration: {str(e)}")
+        st.error(f":material/cancel: Fehler beim Speichern der Konfiguration: {str(e)}")

@@ -55,9 +55,11 @@ class ConfigLoader:
     def _resolve_last_codebook_path(self) -> None:
         """
         Liest den Codebook-Pfad aus (Reihenfolge):
-        1. Env-Var QCA_AID_CODEBOOK_PATH (vom Webapp-Subprocess übergeben)
-        2. .qca-aid-project.json → last_codebook_file
-        3. Fallback: Standard-Pfad (QCA-AID-Codebook.json im script_dir)
+        1. Env-Var QCA_AID_CODEBOOK_PATH (vom Webapp-Subprocess übergeben,
+           explizite Benutzer-Auswahl in der aktuellen Session)
+        2. Standard-Datei im Projektverzeichnis (script_dir) –
+           hat immer Vorrang vor dem gespeicherten Zeiger
+        3. Fallback: .qca-aid-project.json → last_codebook_file
         """
         import json as _json
         from pathlib import Path
@@ -76,7 +78,18 @@ class ConfigLoader:
             else:
                 print(f"   ⚠️ Codebook aus Env-Var nicht gefunden: {candidate}")
 
-        # 2. .qca-aid-project.json → last_codebook_file
+        # 2. Standard-Datei im Projektverzeichnis hat immer Vorrang
+        project_json = Path(self.script_dir) / "QCA-AID-Codebook.json"
+        project_xlsx = Path(self.script_dir) / "QCA-AID-Codebook.xlsx"
+        if project_json.exists() or project_xlsx.exists():
+            print(f"   📂 Codebook aus Projektverzeichnis: {self.json_path}")
+            return
+
+        # 3. Fallback: .qca-aid-project.json → last_codebook_file
+        print(
+            "   ⚠️ Kein Codebook im Projektverzeichnis gefunden - "
+            "verwende last_codebook_file als Fallback"
+        )
         project_settings_candidates = [
             Path(self.script_dir) / ".qca-aid-project.json",
             Path(self.script_dir).parent / ".qca-aid-project.json",

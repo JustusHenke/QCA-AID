@@ -67,7 +67,7 @@ def render_path_input_with_browser(
     with col_browse:
         st.markdown("<br>", unsafe_allow_html=True)  # Align with input
         # Requirement 8.1, 8.2: Browser button with icon and tooltip
-        if st.button("📁", key=browser_key, help="Datei durchsuchen"):
+        if st.button(":material/folder:", key=browser_key, help="Datei durchsuchen"):
             result = on_browse_callback()
             if result:
                 return str(result)
@@ -201,7 +201,7 @@ def show_file_operation_success(
             file_info.append(f"**{key}:** {value}")
     
     # Show success message with info
-    success_msg = f"✅ Datei erfolgreich {operation}!\n\n" + "\n".join(file_info)
+    success_msg = f":material/check_circle: Datei erfolgreich {operation}!\n\n" + "\n".join(file_info)
     st.success(success_msg)
 
 
@@ -222,7 +222,7 @@ def show_file_operation_error(
     """
     file_path = Path(file_path)
     
-    error_msg = f"❌ Fehler beim {operation} der Datei:\n\n"
+    error_msg = f":material/cancel: Fehler beim {operation} der Datei:\n\n"
     error_msg += f"**Datei:** {file_path.name}\n"
     error_msg += f"**Fehler:** {error_message}"
     
@@ -301,10 +301,10 @@ def show_real_time_path_validation(
     result = path_resolver.validate_path_detailed(path_obj, check_writable=check_writable)
     
     if not result.is_valid:
-        st.error(f"❌ {result.error_message}")
+        st.error(f":material/cancel: {result.error_message}")
         
         if result.suggestions:
-            with st.expander("💡 Vorschläge anzeigen"):
+            with st.expander(":material/lightbulb: Vorschläge anzeigen"):
                 for suggestion in result.suggestions:
                     st.info(f"• {suggestion}")
         
@@ -316,14 +316,14 @@ def show_real_time_path_validation(
             if "existiert noch nicht" in warning or "Datei existiert noch nicht" in warning:
                 # For save operations, this is normal - show as info instead
                 if check_writable:
-                    st.info(f"ℹ️ Neue Datei wird erstellt")
+                    st.info(f":material/info: Neue Datei wird erstellt")
                 else:
-                    st.warning(f"⚠️ {warning}")
+                    st.warning(f":material/warning: {warning}")
             else:
-                st.warning(f"⚠️ {warning}")
+                st.warning(f":material/warning: {warning}")
     
     if result.has_suggestions():
-        with st.expander("💡 Hinweise anzeigen"):
+        with st.expander(":material/lightbulb: Hinweise anzeigen"):
             for suggestion in result.suggestions:
                 st.info(f"• {suggestion}")
     

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "qca-aid"
-version = "0.13.2"
+version = "0.13.3"
 description = "QCA-AID: Qualitative Content Analysis mit KI-Unterstützung"
 readme = "README.md"
 license = {file = "LICENSE"}
@@ -50,7 +50,7 @@ dependencies = [
     "seaborn>=0.13.0",
     "squarify>=0.4.3",
     "tqdm>=4.67.0",
-    "streamlit>=1.28.0",
+    "streamlit>=1.40.0",
     "packaging>=23.0",
     "requests>=2.31.0",
 ]

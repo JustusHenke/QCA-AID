@@ -69,7 +69,7 @@ def save_codebook_to_current_file():
             # No file exists yet - use default JSON in project root
             save_path = json_path
             save_format = "json"
-            st.info(f"ℹ️ Erstelle neue Datei: {save_path.name}")
+            st.info(f":material/info: Erstelle neue Datei: {save_path.name}")
 
     # Get the codebook data
     codebook = st.session_state.codebook_data
@@ -129,13 +129,13 @@ def render_codebook_tab():
     - 4.1-4.3: Inductive code detection and import
     - 5.1-5.5: Forschungsfrage und Kodierregeln
     """
-    st.header("📚 Codebook")
+    st.header(":material/menu_book: Codebook")
     st.markdown("Verwalten Sie Forschungsfrage, Kodierregeln und Kategorien")
 
     # Display project root prominently (Requirement 1.2)
     project_manager = st.session_state.project_manager
     project_root = project_manager.get_root_directory()
-    st.info(f"📁 **Projekt-Verzeichnis:** `{project_root}`")
+    st.info(f":material/folder: **Projekt-Verzeichnis:** `{project_root}`")
 
     # Workflow hint - check if codebook needs attention
     if "codebook_data" in st.session_state and st.session_state.codebook_data:
@@ -150,33 +150,33 @@ def render_codebook_tab():
             # Grounded Mode: Nur Forschungsfrage ist Pflicht
             if not codebook.forschungsfrage or not codebook.forschungsfrage.strip():
                 st.warning(
-                    "⚠️ **Aktion erforderlich:** Im Grounded Mode ist die "
+                    ":material/warning: **Aktion erforderlich:** Im Grounded Mode ist die "
                     "Forschungsfrage verpflichtend. Bitte unten definieren."
                 )
             elif len(codebook.deduktive_kategorien) == 0:
                 st.info(
-                    "ℹ️ **Grounded Mode aktiv:** Hauptkategorien werden "
+                    ":material/info: **Grounded Mode aktiv:** Hauptkategorien werden "
                     "während der Analyse emergent gebildet – im Codebook "
                     "reicht die Forschungsfrage."
                 )
             else:
                 st.success(
-                    f"✅ Codebook bereit (Grounded Mode): "
+                    f":material/check_circle: Codebook bereit (Grounded Mode): "
                     f"{len(codebook.deduktive_kategorien)} initiale "
                     "Kategorie(n) + emergent."
                 )
         else:
             if len(codebook.deduktive_kategorien) == 0:
                 st.warning(
-                    "⚠️ **Aktion erforderlich:** Ihr Codebook enthält keine Kategorien. Laden Sie eine Datei über **📂 Codebook laden** oben oder erstellen Sie neue Kategorien unten."
+                    ":material/warning: **Aktion erforderlich:** Ihr Codebook enthält keine Kategorien. Laden Sie eine Datei über **:material/folder_open: Codebook laden** oben oder erstellen Sie neue Kategorien unten."
                 )
             elif not codebook.forschungsfrage or not codebook.forschungsfrage.strip():
                 st.info(
-                    "💡 **Empfehlung:** Definieren Sie eine Forschungsfrage für bessere Analyseergebnisse."
+                    ":material/lightbulb: **Empfehlung:** Definieren Sie eine Forschungsfrage für bessere Analyseergebnisse."
                 )
             else:
                 st.success(
-                    f"✅ Codebook bereit: {len(codebook.deduktive_kategorien)} Kategorien definiert"
+                    f":material/check_circle: Codebook bereit: {len(codebook.deduktive_kategorien)} Kategorien definiert"
                 )
 
     # Get or initialize codebook from session state
@@ -213,24 +213,24 @@ def render_codebook_tab():
 
     with col1:
         # Research question
-        st.subheader("🔍 Forschungsfrage")
+        st.subheader(":material/search: Forschungsfrage")
         render_research_question()
 
         st.markdown("---")
 
         # Coding rules
-        st.subheader("📋 Kodierregeln")
+        st.subheader(":material/receipt_long: Kodierregeln")
         render_coding_rules()
 
         st.markdown("---")
 
         # Categories
-        st.subheader("🏷️ Kategorien")
+        st.subheader(":material/sell: Kategorien")
         render_categories()
 
     with col2:
         # JSON Preview
-        st.subheader("👁️ JSON-Vorschau")
+        st.subheader(":material/visibility: JSON-Vorschau")
         render_json_preview()
 
         st.markdown("---")
@@ -266,7 +266,7 @@ def _load_codebook_from_disk():
     else:
         expected = file_path or str(project_root / "QCA-AID-Codebook.json (.xlsx)")
         st.error(
-            "❌ Codebook konnte nicht geladen werden: "
+            ":material/cancel: Codebook konnte nicht geladen werden: "
             f"{'; '.join(errors)}\n\n"
             f"Erwarteter Pfad: `{expected}`"
         )
@@ -289,21 +289,21 @@ def render_file_operations():
         source_path = st.session_state.get("current_config_filepath")
         source_note = f" – Quelldatei: `{source_path}`" if source_path else ""
         if cat_count > 0:
-            st.success(f"✅ Codebook geladen ({cat_count} Kategorien){source_note}")
+            st.success(f":material/check_circle: Codebook geladen ({cat_count} Kategorien){source_note}")
         else:
-            st.info(f"ℹ️ Codebook geladen, aber noch keine Kategorien vorhanden.{source_note}")
+            st.info(f":material/info: Codebook geladen, aber noch keine Kategorien vorhanden.{source_note}")
     elif not codebook or len(codebook.deduktive_kategorien) == 0:
         # R10.1: Laden ist im Codebook-Tab moeglich (Button oben)
         st.info(
-            'ℹ️ Kein Codebook geladen – nutzen Sie **📂 Codebook laden** oben.'
+            ':material/info: Kein Codebook geladen – nutzen Sie **:material/folder_open: Codebook laden** oben.'
         )
 
     # Show modification warning
     if st.session_state.get("codebook_modified", False):
-        st.warning("⚠️ **Ungespeicherte Änderungen** am Codebook vorhanden.")
+        st.warning(":material/warning: **Ungespeicherte Änderungen** am Codebook vorhanden.")
 
     # R10.1/R10.2: Autarkes Laden im Codebook-Tab (ueber CodebookManager)
-    if st.button("📂 Codebook laden", use_container_width=True, key="codebook_load_btn"):
+    if st.button(":material/folder_open: Codebook laden", use_container_width=True, key="codebook_load_btn"):
         _load_codebook_from_disk()
 
     col1, col2, col3, col4 = st.columns([2, 1, 1, 1])
@@ -319,7 +319,7 @@ def render_file_operations():
             else "secondary"
         )
         if st.button(
-            "💾 Speichern",
+            ":material/save: Speichern",
             use_container_width=True,
             key="codebook_save_main_btn",
             type=button_type,
@@ -331,7 +331,7 @@ def render_file_operations():
         # Remove codebook button
         if codebook and len(codebook.deduktive_kategorien) > 0:
             if st.button(
-                "🗑️ Entfernen",
+                ":material/delete: Entfernen",
                 use_container_width=True,
                 key="codebook_remove_btn",
                 help="Aktuelles Codebook entfernen",
@@ -343,7 +343,7 @@ def render_file_operations():
         # Import inductive codes button (Requirement 4.3)
         if st.session_state.get("inductive_codes_available", False):
             if st.button(
-                "📥 Import",
+                ":material/download: Import",
                 use_container_width=True,
                 key="codebook_import_inductive_btn",
                 help="Induktive Codes importieren",
@@ -352,8 +352,8 @@ def render_file_operations():
 
     # Remove codebook confirmation dialog
     if st.session_state.get("show_codebook_remove_dialog", False):
-        with st.expander("🗑️ Codebook entfernen", expanded=True):
-            st.warning("⚠️ Möchten Sie das aktuelle Codebook wirklich entfernen?")
+        with st.expander(":material/delete: Codebook entfernen", expanded=True):
+            st.warning(":material/warning: Möchten Sie das aktuelle Codebook wirklich entfernen?")
             st.info(
                 "Das Codebook wird nur aus der Anwendung entfernt, nicht von der Festplatte gelöscht."
             )
@@ -378,7 +378,7 @@ def render_file_operations():
                     st.session_state.codebook_modified = False
                     st.session_state.codebook_loaded_from = "none"
                     st.session_state.show_codebook_remove_dialog = False
-                    st.success("✅ Codebook entfernt")
+                    st.success(":material/check_circle: Codebook entfernt")
                     st.rerun()
 
             with col_remove2:
@@ -421,7 +421,7 @@ def render_research_question():
 
     # Show warning if empty
     if not new_question.strip():
-        st.warning("⚠️ Bitte geben Sie eine Forschungsfrage ein")
+        st.warning(":material/warning: Bitte geben Sie eine Forschungsfrage ein")
 
 
 def render_coding_rules():
@@ -531,23 +531,23 @@ def render_categories():
 
     # Display deductive categories section
     if deductive_categories or not inductive_categories:
-        st.markdown("### 📚 Deduktive Kategorien")
+        st.markdown("### :material/menu_book: Deduktive Kategorien")
 
         if deductive_categories:
             for cat_name in list(deductive_categories.keys()):
                 category = deductive_categories[cat_name]
 
-                with st.expander(f"📁 {cat_name}", expanded=False):
+                with st.expander(f":material/folder: {cat_name}", expanded=False):
                     render_category_editor(cat_name, category)
         else:
             st.info(
-                "ℹ️ Noch keine deduktiven Kategorien vorhanden. Fügen Sie eine neue Kategorie hinzu."
+                ":material/info: Noch keine deduktiven Kategorien vorhanden. Fügen Sie eine neue Kategorie hinzu."
             )
 
     # Display inductive categories section (Requirement 5.1)
     if inductive_categories:
         st.markdown("---")
-        st.markdown("### 🔬 Induktive Kategorien")
+        st.markdown("### :material/biotech: Induktive Kategorien")
         st.caption("Diese Kategorien wurden aus vorherigen Analysen importiert")
 
         for cat_name in list(inductive_categories.keys()):
@@ -558,16 +558,16 @@ def render_categories():
             if hasattr(category, "source_file") and category.source_file:
                 source_info = f" (aus: {category.source_file})"
 
-            with st.expander(f"🔬 {cat_name}{source_info}", expanded=False):
+            with st.expander(f":material/biotech: {cat_name}{source_info}", expanded=False):
                 # Show import metadata at the top
                 if hasattr(category, "import_date") and category.import_date:
-                    st.caption(f"📅 Importiert: {category.import_date}")
+                    st.caption(f":material/calendar_month: Importiert: {category.import_date}")
                 if (
                     hasattr(category, "original_frequency")
                     and category.original_frequency
                 ):
                     st.caption(
-                        f"📊 Häufigkeit in Analyse: {category.original_frequency}"
+                        f":material/bar_chart: Häufigkeit in Analyse: {category.original_frequency}"
                     )
 
                 st.markdown("---")
@@ -589,7 +589,7 @@ def render_categories():
         else "Weitere Kategorie hinzufügen"
     )
     if st.button(
-        "➕ Neue Kategorie hinzufügen",
+        ":material/add: Neue Kategorie hinzufügen",
         use_container_width=True,
         key="add_category_main_btn",
         type=button_type,
@@ -599,7 +599,7 @@ def render_categories():
 
     # Add category dialog
     if st.session_state.get("show_add_category_dialog", False):
-        with st.expander("➕ Neue Kategorie hinzufügen", expanded=True):
+        with st.expander(":material/add: Neue Kategorie hinzufügen", expanded=True):
             render_add_category_form()
 
 
@@ -644,7 +644,7 @@ def render_category_editor(cat_name: str, category: CategoryData):
     # Show info about definition length (not a warning)
     word_count = len(new_definition.split())
     if word_count > 0 and word_count < 10:
-        st.info(f"ℹ️ Definition: {word_count} Wörter (empfohlen: 10+)")
+        st.info(f":material/info: Definition: {word_count} Wörter (empfohlen: 10+)")
 
     # Rules
     st.markdown("**Regeln**")
@@ -684,7 +684,7 @@ def render_category_editor(cat_name: str, category: CategoryData):
 
     # Show info about examples (not a warning)
     if len(new_examples) == 1:
-        st.info(f"ℹ️ {len(new_examples)} Beispiel vorhanden (empfohlen: 2+)")
+        st.info(f":material/info: {len(new_examples)} Beispiel vorhanden (empfohlen: 2+)")
 
     # Subcategories
     st.markdown("**Subkategorien** (optional, empfohlen: 2+)")
@@ -692,7 +692,7 @@ def render_category_editor(cat_name: str, category: CategoryData):
     # Show info about subcategories (not a warning)
     if len(category.subcategories) == 1:
         st.info(
-            f"ℹ️ {len(category.subcategories)} Subkategorie vorhanden (empfohlen: 2+)"
+            f":material/info: {len(category.subcategories)} Subkategorie vorhanden (empfohlen: 2+)"
         )
 
     # Display existing subcategories
@@ -725,7 +725,7 @@ def render_category_editor(cat_name: str, category: CategoryData):
 
         with col3:
             if st.button(
-                "🗑️",
+                ":material/delete:",
                 key=f"remove_subcat_{cat_name}_{subcat_name}",
                 help="Subkategorie entfernen",
             ):
@@ -744,7 +744,7 @@ def render_category_editor(cat_name: str, category: CategoryData):
             st.rerun()
 
     # Add new subcategory
-    with st.expander("➕ Subkategorie hinzufügen"):
+    with st.expander(":material/add: Subkategorie hinzufügen"):
         col1, col2 = st.columns(2)
 
         with col1:
@@ -772,12 +772,12 @@ def render_category_editor(cat_name: str, category: CategoryData):
                     )
                     category.modified_date = datetime.now().strftime("%Y-%m-%d")
                     st.session_state.codebook_modified = True
-                    st.success(f"✅ Subkategorie '{new_subcat_name}' hinzugefügt")
+                    st.success(f":material/check_circle: Subkategorie '{new_subcat_name}' hinzugefügt")
                     st.rerun()
                 else:
-                    st.error(f"❌ Subkategorie '{new_subcat_name}' existiert bereits")
+                    st.error(f":material/cancel: Subkategorie '{new_subcat_name}' existiert bereits")
             else:
-                st.error("❌ Bitte mindestens den Namen eingeben")
+                st.error(":material/cancel: Bitte mindestens den Namen eingeben")
 
     # Remove category button (R7.2: Entfernen nur nach Bestaetigung)
     st.markdown("---")
@@ -788,13 +788,13 @@ def render_category_editor(cat_name: str, category: CategoryData):
         if len(cats) > 1:
             del cats[cat_name]
             st.session_state.codebook_modified = True
-            st.success(f"✅ Kategorie '{cat_name}' entfernt")
+            st.success(f":material/check_circle: Kategorie '{cat_name}' entfernt")
             st.rerun()
         else:
-            st.error("❌ Mindestens eine Kategorie muss vorhanden sein")
+            st.error(":material/cancel: Mindestens eine Kategorie muss vorhanden sein")
 
     if st.button(
-        f"🗑️ Kategorie '{cat_name}' entfernen",
+        f":material/delete: Kategorie '{cat_name}' entfernen",
         key=f"remove_cat_{cat_name}",
         type="secondary",
     ):
@@ -891,7 +891,7 @@ def render_add_category_form():
 
             if errors:
                 for error in errors:
-                    st.error(f"❌ {error}")
+                    st.error(f":material/cancel: {error}")
             else:
                 # Create new category
                 new_category = CategoryData(
@@ -908,7 +908,7 @@ def render_add_category_form():
                 codebook.deduktive_kategorien[new_cat_name.strip()] = new_category
                 st.session_state.codebook_modified = True
                 st.session_state.show_add_category_dialog = False
-                st.success(f"✅ Kategorie '{new_cat_name}' hinzugefügt")
+                st.success(f":material/check_circle: Kategorie '{new_cat_name}' hinzugefügt")
                 st.rerun()
 
     with col2:
@@ -961,9 +961,9 @@ def render_validation_status():
     is_valid, errors = codebook.validate(analysis_mode=analysis_mode)
 
     if is_valid:
-        st.success("✅ Codebook ist gültig")
+        st.success(":material/check_circle: Codebook ist gültig")
     else:
-        st.error("❌ Codebook enthält Fehler:")
+        st.error(":material/cancel: Codebook enthält Fehler:")
         for error in errors:
             st.error(f"  • {error}")
 
@@ -971,14 +971,16 @@ def render_validation_status():
     if analysis_mode == "grounded" and not codebook.deduktive_kategorien:
         if codebook.forschungsfrage and codebook.forschungsfrage.strip():
             st.info(
-                "ℹ️ **Grounded Mode:** Hauptkategorien werden emergent aus dem "
+                ":material/info: **Grounded Mode:** Hauptkategorien werden emergent aus dem "
                 "Material gebildet – im Codebook ist nur die Forschungsfrage "
                 "verpflichtend."
             )
 
     # Show modification status
-    if st.session_state.codebook_modified:
-        st.warning("⚠️ Ungespeicherte Änderungen vorhanden")
+    # get() statt direktem Zugriff: das Flag kann fehlen, wenn das Codebook
+    # ausserhalb des Codebook-Tabs in den Session-State geladen wurde
+    if st.session_state.get("codebook_modified", False):
+        st.warning(":material/warning: Ungespeicherte Änderungen vorhanden")
 
     # Show statistics
     st.markdown("**Statistik:**")
@@ -1027,7 +1029,7 @@ def check_inductive_codes_available():
         # Display notification if codes found (Requirement 4.2)
         if has_codes:
             st.info(
-                "ℹ️ **Induktive Codes verfügbar!** Klicken Sie auf 'Import' um Codes aus vorherigen Analysen zu importieren."
+                ":material/info: **Induktive Codes verfügbar!** Klicken Sie auf 'Import' um Codes aus vorherigen Analysen zu importieren."
             )
 
 
@@ -1039,7 +1041,7 @@ def render_inductive_import_dialog():
     - 4.4: Display available analysis files
     - 4.5: Extract codes from selected file
     """
-    with st.expander("📥 Induktive Codes importieren", expanded=True):
+    with st.expander(":material/download: Induktive Codes importieren", expanded=True):
         st.markdown("**verfügbare Analyse-Dateien**")
 
         # Get output directory
@@ -1051,7 +1053,7 @@ def render_inductive_import_dialog():
 
         # Check for JSON codebook first (primary source)
         if extractor.has_inductive_codebook():
-            st.success("✅ Induktives Codebook gefunden: `codebook_inductive.json`")
+            st.success(":material/check_circle: Induktives Codebook gefunden: `codebook_inductive.json`")
 
             # Load and show preview of codes (Requirement 4.4)
             inductive_codes_preview = extractor.load_inductive_codebook()
@@ -1110,7 +1112,7 @@ def render_inductive_import_dialog():
                         st.session_state.show_inductive_merge_dialog = True
                         st.rerun()
                     else:
-                        st.error("❌ Keine induktiven Codes im Codebook gefunden")
+                        st.error(":material/cancel: Keine induktiven Codes im Codebook gefunden")
 
             with col2:
                 if st.button(
@@ -1124,7 +1126,7 @@ def render_inductive_import_dialog():
             analysis_files = extractor.find_analysis_files()
 
             if not analysis_files:
-                st.warning("⚠️ Keine Analyse-Dateien im Output-Verzeichnis gefunden")
+                st.warning(":material/warning: Keine Analyse-Dateien im Output-Verzeichnis gefunden")
 
                 if st.button(
                     "Schließen", use_container_width=True, key="import_close_btn"
@@ -1141,7 +1143,7 @@ def render_inductive_import_dialog():
                     files_with_codes.append((file_path, metadata))
 
             if not files_with_codes:
-                st.warning("⚠️ Keine induktiven Codes in den Analyse-Dateien gefunden")
+                st.warning(":material/warning: Keine induktiven Codes in den Analyse-Dateien gefunden")
 
                 if st.button(
                     "Schließen",
@@ -1205,7 +1207,7 @@ def render_inductive_import_dialog():
                     if len(preview_codes) > 3:
                         st.caption(f"... und {len(preview_codes) - 3} weitere")
                 else:
-                    st.warning("⚠️ Keine Codes in Vorschau verfügbar")
+                    st.warning(":material/warning: Keine Codes in Vorschau verfügbar")
 
                 # Import button
                 col_import1, col_import2 = st.columns(2)
@@ -1231,7 +1233,7 @@ def render_inductive_import_dialog():
                             st.session_state.show_inductive_merge_dialog = True
                             st.rerun()
                         else:
-                            st.error("❌ Keine induktiven Codes in der Datei gefunden")
+                            st.error(":material/cancel: Keine induktiven Codes in der Datei gefunden")
 
                 with col_import2:
                     if st.button(
@@ -1259,7 +1261,7 @@ def render_inductive_merge_dialog():
     if not st.session_state.get("show_inductive_merge_dialog", False):
         return
 
-    with st.expander("🔀 Induktive Codes zusammenführen", expanded=True):
+    with st.expander(":material/shuffle: Induktive Codes zusammenführen", expanded=True):
         inductive_codes = st.session_state.get("inductive_codes_to_import", {})
         source_file = st.session_state.get("inductive_import_source", "Unbekannt")
 
@@ -1283,7 +1285,7 @@ def render_inductive_merge_dialog():
 
         # Display conflicts with rename options (Requirement 5.2)
         if conflicts:
-            st.warning(f"⚠️ **{len(conflicts)} Namenskonflikte gefunden:**")
+            st.warning(f":material/warning: **{len(conflicts)} Namenskonflikte gefunden:**")
             st.markdown(
                 "**Konfliktlösung:** Benennen Sie die konfliktierenden Kategorien um oder überspringen Sie sie."
             )
@@ -1346,20 +1348,20 @@ def render_inductive_merge_dialog():
         ):
             # Check if this code will be renamed or skipped
             display_name = code_name
-            status_icon = "📥"
+            status_icon = ":material/download:"
             status_text = ""
 
             if code_name in [c[0] for c in conflicts]:
                 if st.session_state.get(f"skip_{code_name}", False):
-                    status_icon = "⏭️"
+                    status_icon = ":material/skip_next:"
                     status_text = " (wird übersprungen)"
                 elif code_name in st.session_state.inductive_rename_map:
                     new_name = st.session_state.inductive_rename_map[code_name]
-                    status_icon = "✏️"
+                    status_icon = ":material/edit:"
                     status_text = f" → '{new_name}'"
                     display_name = new_name
                 else:
-                    status_icon = "⚠️"
+                    status_icon = ":material/warning:"
                     status_text = " (Konflikt)"
 
             with st.expander(
@@ -1389,13 +1391,13 @@ def render_inductive_merge_dialog():
 
                 # Show source attribution (Requirement 5.3)
                 if hasattr(code_data, "source_file") and code_data.source_file:
-                    st.caption(f"📄 Quelle: {code_data.source_file}")
+                    st.caption(f":material/description: Quelle: {code_data.source_file}")
                 if (
                     hasattr(code_data, "original_frequency")
                     and code_data.original_frequency
                 ):
                     st.caption(
-                        f"📊 Häufigkeit in Analyse: {code_data.original_frequency}"
+                        f":material/bar_chart: Häufigkeit in Analyse: {code_data.original_frequency}"
                     )
 
         if len(inductive_codes) > preview_count:
@@ -1412,7 +1414,7 @@ def render_inductive_merge_dialog():
         codes_final = codes_to_import - codes_to_skip
 
         st.info(
-            f"📊 **Import-Zusammenfassung:** {codes_final} von {codes_to_import} Codes werden importiert "
+            f":material/bar_chart: **Import-Zusammenfassung:** {codes_final} von {codes_to_import} Codes werden importiert "
             f"({codes_to_rename} umbenannt, {codes_to_skip} übersprungen)"
         )
 
@@ -1421,7 +1423,7 @@ def render_inductive_merge_dialog():
 
         with col1:
             if st.button(
-                "✅ Importieren",
+                ":material/check_circle: Importieren",
                 use_container_width=True,
                 key="merge_confirm_btn",
                 type="primary",
@@ -1462,11 +1464,11 @@ def render_inductive_merge_dialog():
 
                 # Show success message
                 st.success(
-                    f"✅ {len(codes_to_merge)} induktive Codes erfolgreich importiert!"
+                    f":material/check_circle: {len(codes_to_merge)} induktive Codes erfolgreich importiert!"
                 )
 
                 if warnings:
-                    with st.expander("⚠️ Hinweise anzeigen", expanded=False):
+                    with st.expander(":material/warning: Hinweise anzeigen", expanded=False):
                         for warning in warnings:
                             st.warning(f"  • {warning}")
 
@@ -1474,7 +1476,7 @@ def render_inductive_merge_dialog():
 
         with col2:
             if st.button(
-                "❌ Abbrechen", use_container_width=True, key="merge_cancel_btn"
+                ":material/cancel: Abbrechen", use_container_width=True, key="merge_cancel_btn"
             ):
                 st.session_state.show_inductive_merge_dialog = False
                 st.session_state.inductive_codes_to_import = None

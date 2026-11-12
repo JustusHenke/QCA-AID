@@ -52,8 +52,8 @@ class PerformanceMonitor:
         """
         Rendert Performance-Debug-Informationen in der Sidebar.
         """
-        if st.sidebar.checkbox("🔍 Performance Debug", value=False):
-            st.sidebar.markdown("### ⏱️ Startup Performance")
+        if st.sidebar.checkbox(":material/search: Performance Debug", value=False):
+            st.sidebar.markdown("### :material/timer: Startup Performance")
             
             total_time = self.get_total_time()
             st.sidebar.metric("Gesamtzeit", f"{total_time:.2f}s")
@@ -65,15 +65,15 @@ class PerformanceMonitor:
             
             # Performance-Tipps
             st.sidebar.markdown("---")
-            st.sidebar.markdown("**💡 Performance-Tipps:**")
+            st.sidebar.markdown("**:material/lightbulb: Performance-Tipps:**")
             
             if total_time > 5:
-                st.sidebar.warning("⚠️ Langsamer Start (>5s)")
+                st.sidebar.warning(":material/warning: Langsamer Start (>5s)")
                 st.sidebar.caption("Prüfe Lazy Loading")
             elif total_time > 3:
-                st.sidebar.info("ℹ️ Moderater Start (>3s)")
+                st.sidebar.info(":material/info: Moderater Start (>3s)")
             else:
-                st.sidebar.success("✅ Schneller Start (<3s)")
+                st.sidebar.success(":material/check_circle: Schneller Start (<3s)")
     
     def enable_monitoring(self):
         """Aktiviert Performance-Monitoring."""

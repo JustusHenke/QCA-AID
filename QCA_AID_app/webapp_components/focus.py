@@ -78,7 +78,7 @@ def render_focus_banner(
         return False
     st.info(
         message
-        or f"👉 **{section_label}**: Hier können Sie das gemeldete Problem beheben."
+        or f":material/arrow_forward: **{section_label}**: Hier können Sie das gemeldete Problem beheben."
     )
     return True
 

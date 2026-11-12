@@ -18,12 +18,14 @@ from typing import Any, Mapping
 
 import streamlit as st
 
+from webapp_components.icons import ICON_STATUS_OK, ICON_STATUS_WARN
+
 # (tab_key, Label, Beschreibung) - Reihenfolge = Workflow-Reihenfolge
 WORKFLOW_STEPS: list[tuple[str, str, str]] = [
-    ("config", "⚙️ Konfiguration", "Konfiguration laden/erstellen"),
-    ("codebook", "📚 Codebook", "Forschungsfrage und Kategorien definieren"),
-    ("analysis", "🔬 Analyse", "Eingabedateien bereitstellen und Analyse starten"),
-    ("explorer", "📊 Explorer", "Ergebnisse explorieren"),
+    ("config", ":material/settings: Konfiguration", "Konfiguration laden/erstellen"),
+    ("codebook", ":material/menu_book: Codebook", "Forschungsfrage und Kategorien definieren"),
+    ("analysis", ":material/biotech: Analyse", "Eingabedateien bereitstellen und Analyse starten"),
+    ("explorer", ":material/bar_chart: Explorer", "Ergebnisse explorieren"),
 ]
 
 #: Naechster Schritt pro Tab (fuer die "Weiter"-CTAs am Tab-Ende, R1.3)
@@ -160,7 +162,8 @@ def render_workflow_status() -> dict[str, bool]:
 
     for tab_key, label, description in WORKFLOW_STEPS:
         is_complete = status.get(tab_key, False)
-        icon = "✅" if is_complete else "⏳"
+        # Statusabhaengige Faerbung: erledigt = gruen, offen = neutral (erbt Textfarbe)
+        icon = ICON_STATUS_OK if is_complete else ":material/hourglass_top:"
         button_label = f"{icon} {label}"
         help_text = description
 
@@ -208,7 +211,7 @@ def render_next_step_cta(current_tab: str) -> None:
             use_container_width=True,
             help=f"Erst beheben: {blockers[0].message}",
         )
-        st.caption(f"⚠️ {blockers[0].message}")
+        st.caption(f"{ICON_STATUS_WARN} {blockers[0].message}")
     else:
         if st.button(
             f"Weiter zu {next_label} →",

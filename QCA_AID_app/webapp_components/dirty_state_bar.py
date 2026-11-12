@@ -10,7 +10,8 @@ Zentrale Leiste fuer ungespeicherte Aenderungen (R4) + Tab-Badges (R4.5).
   gebuendelt; das "Speichern" sichert ALLE betroffenen Views, das
   "Verwerfen" laedt nach einmaligem Bestaetigungsdialog ALLE betroffenen
   Views von der Festplatte neu (Reload-Fehler -> Error-Box, Dirty bleibt).
-- Tab-Labels werden um ⚠️ (Dirty) und ❗ (Readiness-Blocker) erweitert.
+- Tab-Labels werden um :material/warning: (Dirty) und :material/error:
+  (Readiness-Blocker) erweitert.
 
 Die Label-/Badge-Bildner sind reine Funktionen (ohne Streamlit-Rerun-
 Effekte) und unit-testbar (siehe tests/test_webapp_labels.py).
@@ -24,6 +25,8 @@ from pathlib import Path
 from typing import Any, Callable, Mapping
 
 import streamlit as st
+
+from .icons import ICON_STATUS_ERROR, ICON_STATUS_WARN
 
 # ---------------------------------------------------------------------------
 # Konstanten (reine Daten, unit-testbar)
@@ -80,27 +83,28 @@ def apply_tab_badges(
 
     Args:
         base_labels: Mapping tab_key -> Basislabel (ohne Badges).
-        dirty_flags: Mapping tab_key -> bool (⚠️ wenn True).
-        blocker_tabs: Iterable von Tab-Keys mit Readiness-Blockern (❗).
+        dirty_flags: Mapping tab_key -> bool (:material/warning: wenn True).
+        blocker_tabs: Iterable von Tab-Keys mit Readiness-Blockern (:material/error:).
 
     Returns:
-        Mapping tab_key -> Label mit optionalen Badges (" ⚠️", " ❗").
-        Beide Badges koennen kombiniert auftreten (Reihenfolge: ⚠️ dann ❗).
+        Mapping tab_key -> Label mit optionalen Badges (" :material/warning:",
+        " :material/error:").
+        Beide Badges koennen kombiniert auftreten (Reihenfolge: warning dann error).
     """
     blockers = set(blocker_tabs or ())
     result: dict[str, str] = {}
     for tab, label in base_labels.items():
         badges = ""
         if dirty_flags and dirty_flags.get(tab):
-            badges += " ⚠️"
+            badges += f" {ICON_STATUS_WARN}"
         if tab in blockers:
-            badges += " ❗"
+            badges += f" {ICON_STATUS_ERROR}"
         result[tab] = f"{label}{badges}"
     return result
 
 
 def compute_blocker_tabs() -> set[str]:
-    """Tab-Keys mit Readiness-Blockern (severity=error) fuer das ❗-Badge (R4.5).
+    """Tab-Keys mit Readiness-Blockern (severity=error) fuer das :material/error:-Badge (R4.5).
 
     Nutzt den zentralen Readiness-Layer. Schlaegt der Kontextaufbau fehl
     (z. B. config_data noch nicht geladen), werden keine Blocker gemeldet.
@@ -159,7 +163,7 @@ def _save_config() -> bool:
         success, errors = config_manager.save_config(config=config)
 
     if not success:
-        st.error(f"❌ Fehler beim Speichern der Konfiguration: {', '.join(errors)}")
+        st.error(f":material/cancel: Fehler beim Speichern der Konfiguration: {', '.join(errors)}")
         return False
 
     # Reload wie im Save-Dialog (R4.2-Verhalten der bestehenden Speichern-UI)
@@ -172,7 +176,7 @@ def _save_config() -> bool:
         return True
 
     st.warning(
-        "💾 Konfiguration gespeichert, aber Rücklesen fehlgeschlagen – "
+        ":material/save: Konfiguration gespeichert, aber Rücklesen fehlgeschlagen – "
         "Dirty-Status bleibt erhalten."
     )
     return False
@@ -194,7 +198,7 @@ def _reload_config() -> bool:
         return True
 
     st.error(
-        "❌ Verwerfen fehlgeschlagen – Konfiguration konnte nicht von der "
+        ":material/cancel: Verwerfen fehlgeschlagen – Konfiguration konnte nicht von der "
         f"Festplatte geladen werden: {', '.join(errors)} "
         "Ungespeicherte Änderungen bleiben erhalten."
     )
@@ -228,7 +232,7 @@ def _save_codebook() -> bool:
 
     codebook = st.session_state.get("codebook_data")
     if codebook is None:
-        st.error("❌ Kein Codebook im Speicher – Speichern nicht möglich.")
+        st.error(":material/cancel: Kein Codebook im Speicher – Speichern nicht möglich.")
         return False
 
     save_path = _resolve_codebook_save_path()
@@ -247,7 +251,7 @@ def _save_codebook() -> bool:
         return True
 
     st.error(
-        f"❌ Fehler beim Speichern des Codebooks ({save_path.name}): "
+        f":material/cancel: Fehler beim Speichern des Codebooks ({save_path.name}): "
         f"{'; '.join(errors)}"
     )
     return False
@@ -273,7 +277,7 @@ def _reload_codebook() -> bool:
         return True
 
     st.error(
-        "❌ Verwerfen fehlgeschlagen – Codebook konnte nicht von der "
+        ":material/cancel: Verwerfen fehlgeschlagen – Codebook konnte nicht von der "
         f"Festplatte geladen werden: {'; '.join(errors)} "
         "Ungespeicherte Änderungen bleiben erhalten."
     )
@@ -290,7 +294,7 @@ def _save_explorer() -> bool:
     manager = st.session_state.get("explorer_config_manager")
     config = st.session_state.get("explorer_config_data")
     if manager is None or config is None:
-        st.error("❌ Explorer-Konfiguration nicht geladen – Speichern nicht möglich.")
+        st.error(":material/cancel: Explorer-Konfiguration nicht geladen – Speichern nicht möglich.")
         return False
 
     success_json, errors_json = manager.save_config(config, format="json")
@@ -304,13 +308,13 @@ def _save_explorer() -> bool:
         failed_errors = errors_xlsx if success_json else errors_json
         st.session_state.explorer_config_modified = False
         st.warning(
-            f"⚠️ Teilweise gespeichert ({failed_label} fehlgeschlagen): "
+            f":material/warning: Teilweise gespeichert ({failed_label} fehlgeschlagen): "
             f"{'; '.join(failed_errors)}"
         )
         return True
 
     st.error(
-        "❌ Fehler beim Speichern der Explorer-Konfiguration: "
+        ":material/cancel: Fehler beim Speichern der Explorer-Konfiguration: "
         f"JSON: {'; '.join(errors_json)}, XLSX: {'; '.join(errors_xlsx)}"
     )
     return False
@@ -320,7 +324,7 @@ def _reload_explorer() -> bool:
     """Laedt die Explorer-Konfiguration von der Festplatte neu (Verwerfen, R4.3)."""
     manager = st.session_state.get("explorer_config_manager")
     if manager is None or "explorer_config_data" not in st.session_state:
-        st.error("❌ Explorer-Konfiguration nicht geladen – Verwerfen nicht möglich.")
+        st.error(":material/cancel: Explorer-Konfiguration nicht geladen – Verwerfen nicht möglich.")
         return False
 
     success, config_data, errors = manager.load_config()
@@ -331,7 +335,7 @@ def _reload_explorer() -> bool:
         return True
 
     st.error(
-        "❌ Verwerfen fehlgeschlagen – Explorer-Konfiguration konnte nicht "
+        ":material/cancel: Verwerfen fehlgeschlagen – Explorer-Konfiguration konnte nicht "
         f"von der Festplatte geladen werden: {'; '.join(errors)} "
         "Ungespeicherte Änderungen bleiben erhalten."
     )
@@ -359,10 +363,10 @@ def _save_all(flags: Mapping[str, bool]) -> None:
             failed.append(VIEW_NAMES[tab_key])
 
     if failed:
-        st.error(f"❌ Speichern fehlgeschlagen für: {', '.join(failed)}")
+        st.error(f":material/cancel: Speichern fehlgeschlagen für: {', '.join(failed)}")
         return
 
-    st.toast("💾 Alle Änderungen gespeichert")
+    st.toast(":material/save: Alle Änderungen gespeichert")
     st.rerun()
 
 
@@ -377,7 +381,7 @@ def _discard_all() -> None:
 
     if failed:
         st.error(
-            f"❌ Verwerfen fehlgeschlagen für: {', '.join(failed)} – "
+            f":material/cancel: Verwerfen fehlgeschlagen für: {', '.join(failed)} – "
             "ungespeicherte Änderungen bleiben erhalten."
         )
         return
@@ -386,7 +390,7 @@ def _discard_all() -> None:
     from webapp_components.focus import clear_focus  # noqa: PLC0415
 
     clear_focus()
-    st.toast("↩️ Änderungen verworfen")
+    st.toast("↩ Änderungen verworfen")
     st.rerun()
 
 
@@ -403,16 +407,16 @@ def render_dirty_bar() -> None:
         return
 
     views = describe_dirty_state(flags)
-    st.warning(f"⚠️ **Ungespeicherte Änderungen** ({views})")
+    st.warning(f":material/warning: **Ungespeicherte Änderungen** ({views})")
 
     col_save, col_discard, _ = st.columns([1, 1, 3])
     with col_save:
         if st.button(
-            "💾 Speichern", type="primary", key="dirty_bar_save", use_container_width=True
+            ":material/save: Speichern", type="primary", key="dirty_bar_save", use_container_width=True
         ):
             _save_all(flags)
     with col_discard:
-        if st.button("↩️ Verwerfen", key="dirty_bar_discard", use_container_width=True):
+        if st.button("↩ Verwerfen", key="dirty_bar_discard", use_container_width=True):
             from webapp_components.dialog_helpers import confirm_discard  # noqa: PLC0415
 
             confirm_discard(views, on_confirm=_discard_all)

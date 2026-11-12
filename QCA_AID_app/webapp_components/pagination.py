@@ -7,13 +7,13 @@ ABWEICHUNG zum Designtext (dokumentiert, analog Task 4.1): R13.1 verlangt
 ``st.pagination`` als native Streamlit-Komponente. Diese existiert in
 Streamlit 1.51.0 NICHT (``hasattr(st, "pagination") is False``). Statt des
 nicht verfuegbaren nativen Elements ersetzt diese gemeinsame Komponente die
-bisher drei duplizierten ◀/▶-Implementierungen in analysis_ui (2x) und
+bisher drei duplizierten Chevron-Nav-Implementierungen (:material/chevron_left:/:material/chevron_right:) in analysis_ui (2x) und
 explorer_ui (1x).
 
 Verhalten:
 - Seitengroesse 10/25/50 als Select; Auswahl wird im Session-State
   ``files_per_page`` persistiert (R13.2, geteilt ueber alle Listen).
-- Seitennavigation ◀/▶ mit Clamping (Seite bleibt gueltig, wenn sich
+- Seitennavigation :material/chevron_left:/:material/chevron_right: mit Clamping (Seite bleibt gueltig, wenn sich
   Seitengroesse oder Listenlaenge aendern).
 - Die Pro-Datei-Aktionen (Vorschau, Ordner oeffnen) bleiben unveraendert
   (R13.3) - die Aufrufer paginieren weiter mit ``file_manager.paginate_files``.
@@ -49,7 +49,7 @@ def compute_window(total_items: int, current_page: int, page_size: int) -> Tuple
 
 
 def render_pagination_controls(total_items: int, key_prefix: str) -> Tuple[int, int, int]:
-    """Zeigt Seitengroesse-Select + ◀/▶ und liefert (page, page_size, total_pages).
+    """Zeigt Seitengroesse-Select + Chevron-Navigation (:material/chevron_left:/:material/chevron_right:) und liefert (page, page_size, total_pages).
 
     Args:
         total_items: Gesamtzahl der Eintraege in der Liste.
@@ -82,7 +82,7 @@ def render_pagination_controls(total_items: int, key_prefix: str) -> Tuple[int, 
     col1, col2, col3 = st.columns([1, 2, 1])
 
     with col1:
-        if st.button("◀ Zurück", disabled=(page <= 1), key=f"{key_prefix}_prev"):
+        if st.button(":material/chevron_left: Zurück", disabled=(page <= 1), key=f"{key_prefix}_prev"):
             st.session_state[f"{key_prefix}_page"] = max(1, page - 1)
             st.rerun()
 
@@ -93,7 +93,7 @@ def render_pagination_controls(total_items: int, key_prefix: str) -> Tuple[int, 
         )
 
     with col3:
-        if st.button("Weiter ▶", disabled=(page >= total_pages), key=f"{key_prefix}_next"):
+        if st.button("Weiter :material/play_arrow:", disabled=(page >= total_pages), key=f"{key_prefix}_next"):
             st.session_state[f"{key_prefix}_page"] = min(total_pages, page + 1)
             st.rerun()
 

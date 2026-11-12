@@ -102,6 +102,11 @@ class ProjectManager:
         Returns:
             Absolute path to config file
         """
+        project_file = self.root_dir / filename
+        if project_file.exists():
+            # Standard-Datei im Projektverzeichnis hat immer Vorrang
+            return project_file
+
         if self.settings.last_config_file and self.settings.last_config_file.exists():
             return self.settings.last_config_file
         
@@ -117,6 +122,11 @@ class ProjectManager:
         Returns:
             Absolute path to codebook file
         """
+        project_file = self.root_dir / filename
+        if project_file.exists():
+            # Standard-Datei im Projektverzeichnis hat immer Vorrang
+            return project_file
+
         if self.settings.last_codebook_file and self.settings.last_codebook_file.exists():
             return self.settings.last_codebook_file
         
