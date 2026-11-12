@@ -555,20 +555,18 @@ def render_analysis_tab(analysis: AnalysisConfig, index: int):
     # Visual styling based on active state
     # Requirement 2.4: WHEN displaying analysis tabs THEN the system SHALL visually indicate 
     # which analyses are active and which are inactive
+    # Fix: :material/-Shorthand wird in rohen HTML-Bloecken nicht geparst -
+    # daher native Alert-Elemente statt unsafe_allow_html-Boxen.
     if not analysis.active:
-        st.markdown("""
-        <div style="background-color: #f0f0f0; padding: 10px; border-radius: 5px; border-left: 4px solid #ff6b6b;">
-            <p style="color: #666; margin: 0;">:material/pause: <strong>Diese Analyse ist deaktiviert</strong> - Sie wird beim Ausführen übersprungen</p>
-        </div>
-        """, unsafe_allow_html=True)
-        st.markdown("")
+        st.info(
+            ":material/pause: **Diese Analyse ist deaktiviert** - "
+            "Sie wird beim Ausführen übersprungen"
+        )
     else:
-        st.markdown("""
-        <div style="background-color: #e8f5e9; padding: 10px; border-radius: 5px; border-left: 4px solid #4caf50;">
-            <p style="color: #2e7d32; margin: 0;">:material/check_circle: <strong>Diese Analyse ist aktiv</strong> - Sie wird beim Ausführen durchgeführt</p>
-        </div>
-        """, unsafe_allow_html=True)
-        st.markdown("")
+        st.success(
+            ":material/check_circle: **Diese Analyse ist aktiv** - "
+            "Sie wird beim Ausführen durchgeführt"
+        )
     
     # Header with controls
     col1, col2, col3 = st.columns([2, 1, 1])

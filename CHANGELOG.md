@@ -23,6 +23,7 @@ Umgesetzt an beiden Stellen: `QCA_AID_assets/utils/config/loader.py` (`_resolve_
 
 - LLM-Modellkataloge aktualisiert: OpenRouter, OpenAI und Anthropic (`QCA_AID_assets/utils/llm/configs/*.json`), u. a. mit Z.ai GLM-5.3-Modellfamilie.
 - Minimale Streamlit-Version auf >=1.40 angehoben (`pyproject.toml`, `requirements.txt`) — Voraussetzung fuer den `:material/...:`-Icon-Shorthand.
+- Fix: `:material/...:`-Shorthand wird in rohen HTML-Bloecken (`unsafe_allow_html`) nicht geparst und erschien als Rohtext. Betroffen waren die Status-Banner der Explorer-Analysen (jetzt natives `st.success`/`st.info`) und der App-Header-Fallback ohne PNG-Icon (jetzt natives Markdown). Alle anderen Kontexte (Alerts, Button-/Expander-/Tab-/Widget-Labels, Spinner, Toast, Dialog-Titel) rendern den Shorthand korrekt — empirisch verifiziert via Playwright-Screenshots unter Streamlit 1.51.
 
 ## Neu in 0.13.2 (2026-11-12)
 

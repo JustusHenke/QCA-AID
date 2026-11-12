@@ -561,20 +561,12 @@ def main():
         </div>
         """, unsafe_allow_html=True)
     else:
-        st.markdown("""
-        <div class="qca-header">
-            <div class="qca-icon-container qca-icon-emoji">
-                <span class="qca-emoji">:material/biotech:</span>
-            </div>
-            <div class="qca-header-text">
-                <h1 class="qca-title">
-                    <span class="qca-title-bold">QCA</span><span class="qca-title-italic">-AID</span>
-                    <span class="qca-title-sub">Webapp</span>
-                </h1>
-                <p class="qca-subtitle">Qualitative Content Analysis with AI-Discovery</p>
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
+        # Fix: :material/-Shorthand wird in rohen HTML-Bloecken nicht geparst -
+        # daher nativer Markdown-Header statt unsafe_allow_html-Variante.
+        st.markdown(
+            "## :material/biotech: **QCA***-AID* Webapp\n\n"
+            "*Qualitative Content Analysis with AI-Discovery*"
+        )
     
     # Apply Fluent UI Design System (bei jedem Rerun für konsistente Farben)
     st.markdown(get_fluent_css(), unsafe_allow_html=True)
