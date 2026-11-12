@@ -66,6 +66,22 @@ def render_config_tab():
 
     st.markdown("---")
 
+    # Nutzer-Feedback (0.13.2): Ueberschrift + Orientierungs-Kachel vor der
+    # Gruppe der erweiterten Einstellungen (Chunk/Coder/Attribut-Labels),
+    # damit klar ist, was in den eingeklappten Expandern steckt (R12.2-Ergaenzung)
+    st.subheader("\U0001f9e9 Erweiterte Einstellungen")
+    st.info(
+        "**Die folgenden drei Abschnitte steuern, wie die Analyse im Detail arbeitet:**\n\n"
+        "- **\U0001f4ca Chunk-Einstellungen** \u2014 wie Ihre Texte in Abschnitte zerlegt werden "
+        "(Chunk-Gr\u00f6\u00dfe, \u00dcberlappung, Batch-Gr\u00f6\u00dfe)\n"
+        "- **\U0001f465 Coder-Einstellungen** \u2014 welche KI-Coder mit welcher \u201eKreativit\u00e4t\u201c "
+        "(Temperature) kodieren, optional plus menschlicher Kodierer\n"
+        "- **\U0001f3f7 Attribut-Labels** \u2014 sprechende Anzeigenamen f\u00fcr Attribute im Codebook und Export\n\n"
+        "Die Voreinstellungen sind f\u00fcr den Start gut geeignet. Aufklappen lohnt sich vor allem, "
+        "wenn Sie feinere Kodierung, mehrere Coder oder eigene Attribut-Namen m\u00f6chten.",
+        icon="\u2139\ufe0f",
+    )
+
     # Erweiterte Einstellungen als standardmaessig eingeklappte Expander (R12.2)
     _valid, config_errors = config.validate() if config is not None else (False, [])
     validation_text = " ".join(config_errors).lower()
