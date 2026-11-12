@@ -4,6 +4,43 @@
 
 ---
 
+## Neu in 0.13.2 (2026-11-12)
+
+### 🧭 Workflow-Navigation — klickbare Schritte und Weiter-Buttons
+
+**Problem:** Die vier Arbeitsschritte (Konfiguration → Codebook → Analyse → Explorer) waren nur über gleichwertige Reiter erreichbar. Es gab keinen Hinweis darauf, welcher Schritt als nächstes dran ist, und Reiter ohne Eingaben sahen identisch zu fortgeschrittenen aus.
+
+**Lösung:** Die Sidebar zeigt den Workflow jetzt als klickbare Schritte mit Status (erledigt ✅ / aktuell / offen). Am Ende jedes Tabs gibt es einen „Weiter zu …“-Button zum nächsten Schritt. Nach jedem Tab-Wechsel beginnt die Seite oben — bisher sprang Streamlit auf die alte Scroll-Position zurück und neue Tabs starteten in der Mitte.
+
+### 📊 Analyse → Explorer in einem Klick
+
+Nach abgeschlossener Analyse öffnet der Button „📊 Ergebnisse im Explorer öffnen“ den Explorer-Tab mit der neuesten Ergebnisdatei bereits vorausgewählt — kein erneutes Suchen der Datei.
+
+### 💾 Ungespeicherte Änderungen sichtbar machen
+
+**Problem:** Änderungen an Konfiguration, Codebook und Explorer-Einstellungen gingen verloren, wenn man den Tab wechselte, ohne zu wissen, dass noch etwas ungespeichert war.
+
+**Lösung:** Bei ungespeicherten Änderungen erscheint eine Leiste mit „💾 Speichern“ und „🗑 Verwerfen“. Die betroffenen Tabs tragen ein ⚠️-Badge, bis gespeichert oder verworfen wurde. „Verwerfen“ fragt vorher per Dialog nach; Schlägt das Speichern fehl (z. B. Datei nicht mehr vorhanden), bleibt der Zustand erhalten und der Fehler wird angezeigt.
+
+### 🚀 Explorer-Kompaktmodus mit Start-Bestätigung
+
+Die Explorer-Analyse-Seite startet in einem kompakten Standardbereich: Datei-Auswahl, Zusammenfassung der wichtigsten Einstellungen und Start-Button. Vor dem (kostenpflichtigen) Start erscheint ein Bestätigungsdialog mit der vollständigen Zusammenfassung. Alle erweiterten Einstellungen (Modell, Kategorien, Optionen) sind weiterhin über Expander erreichbar.
+
+### 🔗 Probleme direkt beheben
+
+Die Readiness-Prüfung meldet Blocker pro Tab — jeder Blocker hat jetzt einen „→ Beheben“-Button, der genau zur betroffenen Einstellung springt und dort per Info-Banner markiert, was zu tun ist. Die Konfiguration ist außerdem einspaltig gruppiert und Abschnitte mit Validierungsfehlern öffnen sich automatisch.
+
+#### Behobene Probleme
+
+- **Navigation:** Klick auf Workflow-Schritte oder Weiter-Buttons landete fälschlich im Konfiguration-Tab statt im Ziel-Tab.
+- **Scroll-Position:** Nach einem Tab-Wechsel begann die Seite in der Mitte statt oben.
+- **Entfernen ohne Rückfrage:** Kategorien im Codebook und Analysen im Explorer wurden sofort gelöscht; jetzt bestätigt ein Dialog vorher.
+
+### 🧹 Sonstiges
+
+- Paginierung der Dateilisten als eigene Komponente (`st.pagination` existiert in Streamlit 1.51 noch nicht).
+- Neues Schutznetz gegen vergessene Releases: Ein Guardrail prüft bei jedem Testlauf, dass `pyproject.toml`, `__version__.py` und `CHANGELOG.md` konsistent sind. `python scripts/version_guardrail.py bump <version> --summary "..."` führt Versionsprünge synchron über alle Stellen aus.
+
 ## Neu in 0.13.1 (2026-07-24)
 
 ### 📊 Fortschrittsanzeige für Grounded Mode komplett überarbeitet
