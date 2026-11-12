@@ -13,6 +13,9 @@ from typing import List
 import streamlit as st
 from webapp_logic.analysis_runner import AnalysisRunner
 from webapp_logic.file_manager import FileManager
+from webapp_components.workflow_status import switch_to_tab
+from webapp_components.focus import render_focus_banner, set_focus
+from webapp_components.pagination import render_pagination_controls
 
 
 def rerun_preserving_tab():
@@ -21,6 +24,56 @@ def rerun_preserving_tab():
 
     # Tab-State wird automatisch in Session State beibehalten
     st.rerun()
+
+
+def _open_folder(path) -> None:
+    """Oeffnet einen Ordner im Datei-Explorer (R11.4)."""
+    import platform
+    import subprocess
+
+    try:
+        if platform.system() == "Windows":
+            os.startfile(path)
+        elif platform.system() == "Darwin":
+            subprocess.run(["open", str(path)])
+        else:
+            subprocess.run(["xdg-open", str(path)])
+    except Exception as e:
+        st.error(f"❌ Ordner konnte nicht geöffnet werden: {e}")
+
+
+def _render_issue_row(issue, key_suffix: str) -> None:
+    """Rendert EIN Readiness-Issue mit zielgerichtetem Jump-Button (R11).
+
+    - Mit fix_tab: Button "→ Beheben" (set_focus + switch_to_tab, R11.2)
+    - Ohne fix_tab, aber mit open_folder: Button "📂 Ordner öffnen" (R11.4)
+    - Ohne beides: nur die Meldung.
+    """
+    col_msg, col_action = st.columns([4, 1])
+
+    with col_msg:
+        if issue.severity == "error":
+            st.error(f"❌ {issue.message}")
+        else:
+            st.warning(f"⚠️ {issue.message}")
+
+    with col_action:
+        if issue.open_folder is not None:
+            if st.button(
+                "📂 Ordner öffnen",
+                key=f"fix_open_folder_{key_suffix}",
+                use_container_width=True,
+            ):
+                _open_folder(issue.open_folder)
+        elif issue.fix_tab:
+            if st.button(
+                "→ Beheben",
+                key=f"fix_jump_{key_suffix}",
+                type="primary",
+                use_container_width=True,
+            ):
+                set_focus(issue.fix_tab, issue.fix_section or "")
+                switch_to_tab(issue.fix_tab)
 
 
 def render_analysis_tab():
@@ -34,33 +87,18 @@ def render_analysis_tab():
     st.header("🔬 Analyse")
     st.markdown("Starten und überwachen Sie QCA-AID Analysen")
 
-    # Comprehensive workflow readiness check
+    # Workflow readiness über zentralen Readiness-Layer
+    # (Spec ux-usability-refactoring, Tasks 1.1/1.2 – eine Quelle für
+    # Sidebar-Steps, Tab-Badges und Jump-Links; Issues tragen fix_tab/fix_section)
+    from webapp_logic.readiness import Issue, build_context_from_session, get_readiness_issues
+
     config = st.session_state.config_data
     project_root = st.session_state.project_manager.get_root_directory()
 
-    readiness_issues = []
-    readiness_warnings = []
-
-    # 1. Check config validity
-    is_config_valid, config_errors = config.validate()
-    if not is_config_valid:
-        readiness_issues.append(
-            f"Konfiguration ungültig: {', '.join(config_errors[:2])}"
-        )
-
-    # 2. Check if config is saved
-    config_manager = st.session_state.config_manager
-    config_saved = (
-        config_manager.json_path.exists() or config_manager.xlsx_path.exists()
-    )
-    if not config_saved:
-        readiness_warnings.append("Konfiguration noch nicht gespeichert")
-
-    # 3. Check codebook - use session state first, only fall back to file
+    # Codebook-Fallback: Session State zuerst, sonst von Datei laden
     codebook_data = st.session_state.get("codebook_data", None)
-
+    loader_warnings: list[str] = []
     if codebook_data is None:
-        # No codebook in session state - try loading from file
         from webapp_logic.codebook_manager import CodebookManager
 
         codebook_manager = CodebookManager(project_root)
@@ -71,92 +109,38 @@ def render_analysis_tab():
         elif codebook_data:
             # Loaded with validation warnings - still usable, show warnings
             st.session_state.codebook_data = codebook_data
-            for err in errors:
-                readiness_warnings.append(f"Codebook-Warnung: {err}")
-        else:
-            readiness_issues.append("Codebook konnte nicht geladen werden")
-            if errors:
-                for err in errors:
-                    readiness_issues.append(f"  → {err}")
+            loader_warnings = [f"Codebook-Warnung: {err}" for err in (errors or [])]
 
-    if codebook_data is None:
-        pass  # Already added to readiness_issues above
-    elif (
-        not isinstance(codebook_data.deduktive_kategorien, dict)
-        or len(codebook_data.deduktive_kategorien) == 0
-    ):
-        # Im Grounded Mode sind keine deduktiven Kategorien erforderlich –
-        # sie entstehen emergent aus dem Material.
-        if config.analysis_mode != "grounded":
-            readiness_issues.append("Codebook enthält keine Kategorien")
-        else:
-            readiness_warnings.append(
-                "Codebook enthält keine Kategorien (im Grounded Mode OK – "
-                "Hauptkategorien werden emergent gebildet)"
-            )
-    # Forschungsfrage ist in ALLEN Modi Pflicht
-    if codebook_data is not None and (
-        not codebook_data.forschungsfrage or not codebook_data.forschungsfrage.strip()
-    ):
-        readiness_issues.append("Forschungsfrage fehlt im Codebook")
-    else:
-        # Check if categories have subcategories (nur relevant wenn Kategorien vorhanden)
-        categories_without_subcats = [
-            name
-            for name, cat in codebook_data.deduktive_kategorien.items()
-            if hasattr(cat, "subcategories")
-            and (not cat.subcategories or len(cat.subcategories) == 0)
-        ]
-        if categories_without_subcats:
-            readiness_warnings.append(
-                f"{len(categories_without_subcats)} Kategorie(n) ohne Subkategorien"
-            )
+    readiness_issue_objs = get_readiness_issues(build_context_from_session(), "analysis")
+    readiness_issues = [i.message for i in readiness_issue_objs if i.severity == "error"]
+    readiness_warnings = [i.message for i in readiness_issue_objs if i.severity == "warning"]
+    readiness_warnings.extend(loader_warnings)
 
-    # 4. Check input files
+    # Eingabedateien für die Erfolgsmeldung (Check-Logik liegt im Readiness-Layer)
     input_dir = Path(project_root) / config.data_dir
-    if not input_dir.exists():
-        readiness_issues.append(
-            f"Eingabeverzeichnis existiert nicht: {config.data_dir}"
-        )
-    else:
-        input_files = (
-            list(input_dir.glob("*.txt"))
-            + list(input_dir.glob("*.pdf"))
-            + list(input_dir.glob("*.docx"))
-        )
-        if len(input_files) == 0:
-            readiness_issues.append("Keine Eingabedateien (.txt, .pdf, .docx) gefunden")
-        else:
-            # Check file sizes
-            empty_files = [f.name for f in input_files if f.stat().st_size == 0]
-            if empty_files:
-                readiness_warnings.append(
-                    f"{len(empty_files)} leere Datei(en) gefunden"
-                )
+    input_files = (
+        list(input_dir.glob("*.txt"))
+        + list(input_dir.glob("*.pdf"))
+        + list(input_dir.glob("*.docx"))
+        if input_dir.exists()
+        else []
+    )
 
-    # 5. Check output directory
-    output_dir = Path(project_root) / config.output_dir
-    if not output_dir.exists():
-        readiness_warnings.append(
-            f"Ausgabeverzeichnis wird erstellt: {config.output_dir}"
-        )
+    # Display readiness status (R11: Issues mit zielgerichteten Jump-Buttons)
+    if readiness_issue_objs:
+        error_objs = [i for i in readiness_issue_objs if i.severity == "error"]
+        if error_objs:
+            st.error(f"❌ **Nicht bereit zur Analyse:** {len(error_objs)} Problem(e) gefunden")
+            for n, issue in enumerate(error_objs):
+                _render_issue_row(issue, key_suffix=f"err_{n}")
 
-    # Display readiness status
-    if readiness_issues:
-        st.error(
-            f"❌ **Nicht bereit zur Analyse:** {len(readiness_issues)} Problem(e) gefunden"
-        )
-        for issue in readiness_issues:
-            st.error(f"   • {issue}")
-    elif readiness_warnings:
-        st.warning(
-            f"⚠️ **Bereit mit Einschränkungen:** {len(readiness_warnings)} Warnung(en)"
-        )
-        for warning in readiness_warnings:
-            st.warning(f"   • {warning}")
-        st.info(
-            "💡 Sie können die Analyse starten, aber die Warnungen sollten überprüft werden."
-        )
+        warning_objs = [i for i in readiness_issue_objs if i.severity == "warning"] + [
+            Issue(message=w, severity="warning") for w in loader_warnings
+        ]
+        if warning_objs:
+            st.warning(f"⚠️ **Bereit mit Einschränkungen:** {len(warning_objs)} Warnung(en)")
+            for n, issue in enumerate(warning_objs):
+                _render_issue_row(issue, key_suffix=f"warn_{n}")
     else:
         st.success("✅ **Bereit zur Analyse:** Alle Voraussetzungen erfüllt")
         if codebook_data:
@@ -228,6 +212,9 @@ def render_input_files():
     Requirement 12.5: WHEN der INPUT_DIR nicht existiert
                      THEN das System SHALL den Ordner automatisch erstellen
     """
+
+    # R11.3: Fokus-Banner (Jump-Ziel aus dem Readiness-Check)
+    render_focus_banner("Eingabedateien", section_key="input_files")
     config = st.session_state.config_data
     input_dir = config.data_dir
 
@@ -272,36 +259,14 @@ def render_input_files():
     total_files = len(files)
     st.markdown(f"**{total_files} Datei(en) gefunden**")
 
-    # Pagination controls
+    # R13: Gemeinsame Paginierung (native st.pagination existiert in
+    # Streamlit 1.51.0 nicht - dokumentierte Abweichung, siehe pagination.py)
     if total_files > st.session_state.files_per_page:
-        # Get current page
-        current_page = st.session_state.get("input_files_page", 1)
+        page, page_size, total_pages = render_pagination_controls(total_files, "input_files")
 
-        # Paginate files
         paginated_files, total_pages, _ = file_manager.paginate_files(
-            files, page=current_page, page_size=st.session_state.files_per_page
+            files, page=page, page_size=page_size
         )
-
-        # Pagination UI
-        col1, col2, col3 = st.columns([1, 2, 1])
-
-        with col1:
-            if st.button("◀ Zurück", disabled=(current_page <= 1), key="input_prev"):
-                st.session_state.input_files_page = max(1, current_page - 1)
-                st.rerun()
-
-        with col2:
-            st.markdown(
-                f"<div style='text-align: center'>Seite {current_page} von {total_pages}</div>",
-                unsafe_allow_html=True,
-            )
-
-        with col3:
-            if st.button(
-                "Weiter ▶", disabled=(current_page >= total_pages), key="input_next"
-            ):
-                st.session_state.input_files_page = min(total_pages, current_page + 1)
-                st.rerun()
 
         st.markdown("---")
 
@@ -705,6 +670,18 @@ def render_results():
     total_files = len(files)
     st.markdown(f"**{total_files} Ergebnisdatei(en) gefunden**")
 
+    # R2.1: Primaere CTA nach erfolgreicher Analyse - direkter Uebergang
+    # zum Explorer mit Vorauswahl der Ergebnisdatei (handoff_analysis_file)
+    newest = max(files, key=lambda f: f.modified)
+    if st.button(
+        "📊 Ergebnisse im Explorer öffnen",
+        key="handoff_to_explorer",
+        type="primary",
+        use_container_width=True,
+    ):
+        st.session_state["handoff_analysis_file"] = str(newest.path)
+        switch_to_tab("explorer")
+
     # Action buttons at the top (appear once for all files)
     col_btn1, col_btn2 = st.columns(2)
 
@@ -733,36 +710,13 @@ def render_results():
 
     st.markdown("---")
 
-    # Pagination controls
+    # R13: Gemeinsame Paginierung (siehe pagination.py)
     if total_files > st.session_state.files_per_page:
-        # Get current page
-        current_page = st.session_state.get("results_files_page", 1)
+        page, page_size, total_pages = render_pagination_controls(total_files, "results_files")
 
-        # Paginate files
         paginated_files, total_pages, _ = file_manager.paginate_files(
-            files, page=current_page, page_size=st.session_state.files_per_page
+            files, page=page, page_size=page_size
         )
-
-        # Pagination UI
-        col1, col2, col3 = st.columns([1, 2, 1])
-
-        with col1:
-            if st.button("◀ Zurück", disabled=(current_page <= 1), key="results_prev"):
-                st.session_state.results_files_page = max(1, current_page - 1)
-                st.rerun()
-
-        with col2:
-            st.markdown(
-                f"<div style='text-align: center'>Seite {current_page} von {total_pages}</div>",
-                unsafe_allow_html=True,
-            )
-
-        with col3:
-            if st.button(
-                "Weiter ▶", disabled=(current_page >= total_pages), key="results_next"
-            ):
-                st.session_state.results_files_page = min(total_pages, current_page + 1)
-                st.rerun()
 
         st.markdown("---")
 

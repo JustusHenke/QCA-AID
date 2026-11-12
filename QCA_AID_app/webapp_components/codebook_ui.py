@@ -12,6 +12,8 @@ from typing import Dict, List
 
 import streamlit as st
 from webapp_logic.inductive_code_extractor import InductiveCodeExtractor
+from webapp_components.dialog_helpers import confirm_removal
+from webapp_components.focus import render_focus_banner
 from webapp_logic.ui_helpers import (
     show_file_operation_error,
     show_file_operation_success,
@@ -166,7 +168,7 @@ def render_codebook_tab():
         else:
             if len(codebook.deduktive_kategorien) == 0:
                 st.warning(
-                    "⚠️ **Aktion erforderlich:** Ihr Codebook enthält keine Kategorien. Laden Sie eine Datei im **Konfiguration**-Tab oder erstellen Sie neue Kategorien unten."
+                    "⚠️ **Aktion erforderlich:** Ihr Codebook enthält keine Kategorien. Laden Sie eine Datei über **📂 Codebook laden** oben oder erstellen Sie neue Kategorien unten."
                 )
             elif not codebook.forschungsfrage or not codebook.forschungsfrage.strip():
                 st.info(
@@ -237,6 +239,39 @@ def render_codebook_tab():
         render_validation_status()
 
 
+def _load_codebook_from_disk():
+    """Laedt das Codebook ueber CodebookManager (R10.2).
+
+    Nutzt den zuletzt geladenen Dateipfad (current_config_filepath) oder die
+    Standard-Pfade des Managers. Bei Erfolg: Session-State uebernehmen und
+    Rerun. Bei Fehler: Meldung mit Details und erwartetem Pfad (R10.4).
+    """
+    from webapp_logic.codebook_manager import CodebookManager
+
+    project_root = Path(st.session_state.project_manager.get_root_directory())
+    manager = CodebookManager(project_root)
+
+    file_path = st.session_state.get("current_config_filepath")
+    fmt = None
+    if file_path:
+        fmt = "json" if str(file_path).lower().endswith(".json") else "xlsx"
+
+    success, codebook_data, errors = manager.load_codebook(file_path=file_path, format=fmt)
+
+    if success and codebook_data:
+        st.session_state.codebook_data = codebook_data
+        st.session_state.codebook_modified = False
+        st.session_state.codebook_loaded_from = "file"
+        st.rerun()
+    else:
+        expected = file_path or str(project_root / "QCA-AID-Codebook.json (.xlsx)")
+        st.error(
+            "❌ Codebook konnte nicht geladen werden: "
+            f"{'; '.join(errors)}\n\n"
+            f"Erwarteter Pfad: `{expected}`"
+        )
+
+
 def render_file_operations():
     """
     Rendert Speichern-Button und Status für Codebook.
@@ -250,18 +285,26 @@ def render_file_operations():
 
     if codebook and st.session_state.get("codebook_loaded_from") in ("file", "auto"):
         cat_count = len(codebook.deduktive_kategorien)
+        # R10.3: Statuszeile mit Quelldatei (Pfad) + Kategorieanzahl
+        source_path = st.session_state.get("current_config_filepath")
+        source_note = f" – Quelldatei: `{source_path}`" if source_path else ""
         if cat_count > 0:
-            st.success(f"✅ Codebook geladen ({cat_count} Kategorien)")
+            st.success(f"✅ Codebook geladen ({cat_count} Kategorien){source_note}")
         else:
-            st.info("ℹ️ Codebook geladen, aber noch keine Kategorien vorhanden.")
+            st.info(f"ℹ️ Codebook geladen, aber noch keine Kategorien vorhanden.{source_note}")
     elif not codebook or len(codebook.deduktive_kategorien) == 0:
+        # R10.1: Laden ist im Codebook-Tab moeglich (Button oben)
         st.info(
-            'ℹ️ Kein Codebook geladen – laden Sie eine Datei im **Konfiguration**-Tab über "Konfiguration laden".'
+            'ℹ️ Kein Codebook geladen – nutzen Sie **📂 Codebook laden** oben.'
         )
 
     # Show modification warning
     if st.session_state.get("codebook_modified", False):
         st.warning("⚠️ **Ungespeicherte Änderungen** am Codebook vorhanden.")
+
+    # R10.1/R10.2: Autarkes Laden im Codebook-Tab (ueber CodebookManager)
+    if st.button("📂 Codebook laden", use_container_width=True, key="codebook_load_btn"):
+        _load_codebook_from_disk()
 
     col1, col2, col3, col4 = st.columns([2, 1, 1, 1])
 
@@ -359,6 +402,9 @@ def render_research_question():
     Requirement 5.5: WHEN die Forschungsfrage leer ist
                     THEN das System SHALL eine Warnung anzeigen
     """
+
+    # R11.3: Fokus-Banner (Jump-Ziel aus dem Readiness-Check)
+    render_focus_banner("Forschungsfrage")
     codebook = st.session_state.codebook_data
 
     new_question = st.text_area(
@@ -390,6 +436,9 @@ def render_coding_rules():
     Requirement 5.4: WHEN Regeln gespeichert werden
                     THEN das System SHALL leere Zeilen automatisch entfernen
     """
+
+    # R11.3: Fokus-Banner (Jump-Ziel aus dem Readiness-Check)
+    render_focus_banner("Kodierregeln")
     codebook = st.session_state.codebook_data
 
     # Ensure kodierregeln structure exists
@@ -460,9 +509,12 @@ def render_categories():
     Requirement 4.1: WHEN der Codebook-Reiter angezeigt wird
                     THEN das System SHALL eine Liste aller Hauptkategorien mit Expand/Collapse-Funktionalität anzeigen
     Requirement 4.3: WHEN der Codebook-Reiter angezeigt wird
-                    THEN das System SHALL eine Schaltfläche zum HinzuFügen neuer Hauptkategorien anzeigen
+                    THEN das System SHALL eine Schaltfläche zum Hinzufügen neuer Hauptkategorien anzeigen
     Requirement 5.1: Display imported codes in separate section
     """
+
+    # R11.3: Fokus-Banner (Jump-Ziel aus dem Readiness-Check)
+    render_focus_banner("Kategorien")
     codebook = st.session_state.codebook_data
 
     # Separate deductive and inductive categories (Requirement 5.1)
@@ -534,10 +586,10 @@ def render_categories():
     button_help = (
         "Erstellen Sie Ihre erste Kategorie"
         if not codebook or len(codebook.deduktive_kategorien) == 0
-        else "Weitere Kategorie hinzuFügen"
+        else "Weitere Kategorie hinzufügen"
     )
     if st.button(
-        "➕ Neue Kategorie hinzuFügen",
+        "➕ Neue Kategorie hinzufügen",
         use_container_width=True,
         key="add_category_main_btn",
         type=button_type,
@@ -547,8 +599,17 @@ def render_categories():
 
     # Add category dialog
     if st.session_state.get("show_add_category_dialog", False):
-        with st.expander("➕ Neue Kategorie hinzuFügen", expanded=True):
+        with st.expander("➕ Neue Kategorie hinzufügen", expanded=True):
             render_add_category_form()
+
+
+def _remove_subcategory_confirmed(category: CategoryData, subcat_name: str) -> None:
+    """Loescht eine Subkategorie nach bestaetigtem Confirm-Dialog (R7.2)."""
+    if subcat_name in category.subcategories:
+        del category.subcategories[subcat_name]
+        category.modified_date = datetime.now().strftime("%Y-%m-%d")
+        st.session_state.codebook_modified = True
+        st.rerun()
 
 
 def render_category_editor(cat_name: str, category: CategoryData):
@@ -558,7 +619,7 @@ def render_category_editor(cat_name: str, category: CategoryData):
     Requirement 4.2: WHEN eine Kategorie erweitert wird
                     THEN das System SHALL Eingabefelder für Definition, Regeln und Beispiele anzeigen
     Requirement 4.4: WHEN eine Kategorie ausgewählt ist
-                    THEN das System SHALL die Verwaltung von Subkategorien mit HinzuFügen/Entfernen-Funktionen ermöglichen
+                    THEN das System SHALL die Verwaltung von Subkategorien mit Hinzufügen/Entfernen-Funktionen ermöglichen
     """
     codebook = st.session_state.codebook_data
 
@@ -635,7 +696,6 @@ def render_category_editor(cat_name: str, category: CategoryData):
         )
 
     # Display existing subcategories
-    subcats_to_remove = []
     for subcat_name, subcat_definition in list(category.subcategories.items()):
         col1, col2, col3 = st.columns([2, 3, 1])
 
@@ -669,7 +729,12 @@ def render_category_editor(cat_name: str, category: CategoryData):
                 key=f"remove_subcat_{cat_name}_{subcat_name}",
                 help="Subkategorie entfernen",
             ):
-                subcats_to_remove.append(subcat_name)
+                confirm_removal(
+                    f"Subkategorie '{subcat_name}'",
+                    on_confirm=lambda n=subcat_name, cat=category: (
+                        _remove_subcategory_confirmed(cat, n)
+                    ),
+                )
 
         # Handle name change
         if new_name != subcat_name and new_name not in category.subcategories:
@@ -678,16 +743,8 @@ def render_category_editor(cat_name: str, category: CategoryData):
             st.session_state.codebook_modified = True
             st.rerun()
 
-    # Process removals
-    for name in subcats_to_remove:
-        if name in category.subcategories:
-            del category.subcategories[name]
-            category.modified_date = datetime.now().strftime("%Y-%m-%d")
-            st.session_state.codebook_modified = True
-            st.rerun()
-
     # Add new subcategory
-    with st.expander("➕ Subkategorie hinzuFügen"):
+    with st.expander("➕ Subkategorie hinzufügen"):
         col1, col2 = st.columns(2)
 
         with col1:
@@ -706,7 +763,7 @@ def render_category_editor(cat_name: str, category: CategoryData):
                 help="Optionale Definition der Subkategorie",
             )
 
-        if st.button("Subkategorie hinzuFügen", key=f"add_subcat_btn_{cat_name}"):
+        if st.button("Subkategorie hinzufügen", key=f"add_subcat_btn_{cat_name}"):
             if new_subcat_name:
                 if new_subcat_name not in category.subcategories:
                     # Definition is optional - use empty string if not provided
@@ -722,25 +779,33 @@ def render_category_editor(cat_name: str, category: CategoryData):
             else:
                 st.error("❌ Bitte mindestens den Namen eingeben")
 
-    # Remove category button
+    # Remove category button (R7.2: Entfernen nur nach Bestaetigung)
     st.markdown("---")
-    if st.button(
-        f"🗑️ Kategorie '{cat_name}' entfernen",
-        key=f"remove_cat_{cat_name}",
-        type="secondary",
-    ):
-        if len(codebook.deduktive_kategorien) > 1:
-            del codebook.deduktive_kategorien[cat_name]
+
+    def _remove_category_confirmed():
+        # Frisches Codebook aus dem Session State (Dialog-Kontext)
+        cats = st.session_state.codebook_data.deduktive_kategorien
+        if len(cats) > 1:
+            del cats[cat_name]
             st.session_state.codebook_modified = True
             st.success(f"✅ Kategorie '{cat_name}' entfernt")
             st.rerun()
         else:
             st.error("❌ Mindestens eine Kategorie muss vorhanden sein")
 
+    if st.button(
+        f"🗑️ Kategorie '{cat_name}' entfernen",
+        key=f"remove_cat_{cat_name}",
+        type="secondary",
+    ):
+        confirm_removal(
+            f"Kategorie '{cat_name}'", on_confirm=_remove_category_confirmed
+        )
+
 
 def render_add_category_form():
     """
-    Rendert Formular zum HinzuFügen einer neuen Kategorie.
+    Rendert Formular zum Hinzufügen einer neuen Kategorie.
     """
     codebook = st.session_state.codebook_data
 
@@ -787,7 +852,7 @@ def render_add_category_form():
 
     with col1:
         if st.button(
-            "Kategorie hinzuFügen", use_container_width=True, key="add_cat_btn"
+            "Kategorie hinzufügen", use_container_width=True, key="add_cat_btn"
         ):
             # Validate inputs
             errors = []

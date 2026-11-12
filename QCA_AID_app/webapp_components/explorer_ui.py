@@ -21,6 +21,12 @@ from webapp_models.explorer_config_data import ExplorerConfigData, AnalysisConfi
 from webapp_logic.explorer_config_manager import ExplorerConfigManager
 from webapp_logic.explorer_analysis_runner import ExplorerAnalysisRunner
 from webapp_components.config_ui import check_api_key_for_provider
+from webapp_components.pagination import render_pagination_controls
+from webapp_components.dialog_helpers import (
+    build_start_summary,
+    confirm_explorer_start,
+    confirm_removal,
+)
 
 
 def render_explorer_model_settings():
@@ -176,6 +182,39 @@ def render_explorer_model_settings():
     # API-Key-Prüfung
     check_api_key_for_provider(new_provider, provider_display_map)
     
+    # R14.1: Trennung transparent machen - der Explorer nutzt bewusst ein eigenes
+    # Modell für Post-hoc-Analysen (Zusammenfassungen, Sentiment), nicht das Modell
+    # der Hauptanalyse. Ohne Hinweis wirkt das wie ein Synchronisationsfehler.
+    st.caption(
+        "ℹ️ Der Explorer verwendet ein **eigenes Modell** für Post-hoc-Analysen "
+        "(Zusammenfassungen, Sentiment) - unabhängig vom Modell der Hauptanalyse."
+    )
+    
+    # R14.2: Abweichung sichtbar machen + bequeme Übernahme
+    main_provider = getattr(config, "model_provider", None)
+    main_model = getattr(config, "model_name", None)
+    if (
+        main_provider
+        and main_model
+        and (new_provider_id != main_provider or new_model != main_model)
+    ):
+        col_main1, col_main2 = st.columns([2, 1])
+        with col_main1:
+            st.info(f"🤖 Hauptanalyse nutzt: `{main_provider} / {main_model}`")
+        with col_main2:
+            st.markdown("<br>", unsafe_allow_html=True)
+            if st.button(
+                "📋 Von Hauptanalyse übernehmen",
+                use_container_width=True,
+                key="explorer_model_from_main",
+            ):
+                # R14.3: Kopiert in explorer_config_data.base_config; setzt beide
+                # Modified-Flags (Bidirektional-Sync-Semantik bleibt unverändert)
+                explorer_config.base_config["provider"] = main_provider
+                explorer_config.base_config["model"] = main_model
+                st.session_state.explorer_config_modified = True
+                st.rerun()
+    
     st.markdown("---")
     
     # Keyword-Harmonisierung Option
@@ -295,7 +334,7 @@ def render_config_file_controls():
                     
                 except Exception as e:
                     # Error handling for missing or invalid values
-                    st.warning(f"⚠️ Fehler beim Validate der Explorer-Einstellungen: {e}")
+                    st.warning(f"⚠️ Fehler beim Validieren der Explorer-Einstellungen: {e}")
                 
                 st.success("✅ Konfiguration erfolgreich geladen")
                 st.rerun()
@@ -303,152 +342,162 @@ def render_config_file_controls():
                 st.error(f"❌ Fehler beim Laden: {', '.join(errors)}")
     
     with col3:
-        if st.button("💾 Speichern (JSON)", use_container_width=True):
-            manager = st.session_state.explorer_config_manager
-            explorer_config_data = st.session_state.explorer_config_data
-            
-            # FIX: Explorer speichert sein eigenes LLM-Modell (nicht from config_data)
-            # Das Modell wurde bereits über die UI-Controls in explorer_config_data.base_config gespeichert
-            
-            success, errors = manager.save_config(explorer_config_data, format='json')
-            
-            if success:
-                st.session_state.explorer_config_modified = False
-                st.success("✅ Als JSON gespeichert")
-                st.rerun()
-            else:
-                st.error(f"❌ Fehler beim Speichern: {', '.join(errors)}")
+        # R3.1: Genau EIN dominierender Speichern-Button; Format via Dropdown (R3.3)
+        if st.button("💾 Speichern", type="primary", use_container_width=True, key="explorer_save_btn"):
+            save_explorer_config_data(format=st.session_state.get("explorer_save_format", "both"))
     
     with col4:
-        if st.button("💾 Speichern (XLSX)", use_container_width=True):
-            manager = st.session_state.explorer_config_manager
-            explorer_config_data = st.session_state.explorer_config_data
-            
-            # FIX: Explorer speichert sein eigenes LLM-Modell (nicht from config_data)
-            # Das Modell wurde bereits über die UI-Controls in explorer_config_data.base_config gespeichert
-            
-            success, errors = manager.save_config(explorer_config_data, format='xlsx')
-            
-            if success:
-                st.session_state.explorer_config_modified = False
-                st.success("✅ Als XLSX gespeichert")
-                st.rerun()
-            else:
-                st.error(f"❌ Fehler beim Speichern: {', '.join(errors)}")
+        # R3.3: Format-Auswahl - Standard speichert beide Formate (R3.2)
+        st.selectbox(
+            "Format",
+            options=["both", "json", "xlsx"],
+            format_func={"both": "Beide (Standard)", "json": "Nur JSON", "xlsx": "Nur XLSX"}.get,
+            key="explorer_save_format",
+        )
     
     st.markdown("---")
 
 
+def _load_categories_for_file(explorer_config_manager, selected_file: str):
+    """Laedt Kategorien aus der gewaehlten Analysedatei (bei Dateiwechsel).
+
+    Extrahiert aus dem bisherigen Flow von render_explorer_config_view;
+    Verhalten und Meldungen bleiben unveraendert.
+    """
+    current_file = st.session_state.get('explorer_current_file')
+    if current_file == selected_file:
+        return explorer_config_manager.get_category_loader()
+
+    try:
+        from webapp_logic.category_loader import CategoryLoader
+        explorer_config_manager.category_loader = CategoryLoader(selected_file)
+        st.session_state.explorer_current_file = selected_file
+
+        if explorer_config_manager.category_loader.is_loaded:
+            stats = explorer_config_manager.category_loader.get_statistics()
+            if stats['total_main_categories'] == 0:
+                st.warning("⚠️ Kategorien-Sheet gefunden, aber keine Kategorien darin. Verwende Freitext-Eingabe.")
+        else:
+            st.warning("⚠️ Kein Kategorien-Sheet in der Analysedatei gefunden. Verwende Freitext-Eingabe.")
+    except Exception as e:
+        # Failed to load categories - that's OK, we'll use text input
+        explorer_config_manager.category_loader = None
+        st.session_state.explorer_current_file = selected_file
+        st.warning(f"⚠️ Fehler beim Laden der Kategorien: {str(e)}. Verwende Freitext-Eingabe.")
+
+    return explorer_config_manager.get_category_loader()
+
+
 def render_explorer_config_view():
     """
-    Rendert die Konfigurations-Ansicht mit Tabbed Interface.
-    
-    Requirements: 1.2, 7.1, 7.2, 7.3, 7.4, 2.1, 2.5
+    Rendert die Konfigurations-Ansicht im Kompaktmodus (R9).
+
+    Kompaktbereich oben (Datei-Auswahl, Summary-Zeile, Start-Button),
+    danach Modell-/Analysen-/Optionen-Bereiche als eingeklappte Expander.
+    Bestehende Render-Funktionen und Widget-Keys bleiben unveraendert.
+
+    Requirements: 9.1, 9.2, 9.3, 9.4, 9.5, 6.1-6.5, 1.2, 7.1-7.4, 2.1, 2.5
     """
     # Session state is initialized in webapp.py initialize_session_state()
     # Display any load errors from initialization
     if st.session_state.get('explorer_config_load_errors'):
         st.error(f"⚠️ Fehler beim Laden der Konfiguration: {', '.join(st.session_state.explorer_config_load_errors)}")
-        st.info("💡 Die Konfigurationsdatei hat möglicherweise ein altes Format. Erstellen Sie eine neue Konfiguration oder laden Sie eine gültige Datei.")
+        st.info("📁 Die Konfigurationsdatei hat möglicherweise ein altes Format. Erstellen Sie eine neue Konfiguration oder laden Sie eine gültige Datei.")
         # Clear errors after displaying
         del st.session_state.explorer_config_load_errors
-    
+
     # FIX: Explorer hat sein eigenes LLM-Modell
     # Fallback zu config_data wurde entfernt - Explorer nutzt sein eigenes Default-Modell
-    config_data = st.session_state.config_data
     explorer_config_data = st.session_state.explorer_config_data
-    
-    # Add load/save buttons at the top
-    render_config_file_controls()
-    
-    # Workflow hint
-    config = st.session_state.config_data
-    project_root = st.session_state.project_manager.get_root_directory()
-    output_dir = Path(project_root) / config.output_dir
-    has_results = output_dir.exists() and any(output_dir.glob('QCA-AID_Analysis_*.xlsx'))
-    
-    if not has_results:
-        st.warning("⚠️ **Keine Analyseergebnisse gefunden.** Führen Sie zuerst eine Analyse im **Analyse**-Tab durch.")
-    
-    # Step 0: Model Settings for Post-hoc Analysis
-    st.subheader("🤖 Modell-Einstellungen")
-    st.markdown("Wählen Sie das LLM-Modell für die Post-hoc-Analyse (Zusammenfassungen, Sentiment-Analyse, etc.)")
-    render_explorer_model_settings()
-    
-    st.markdown("---")
-    
-    # Step 1: Select Analysis File
-    st.subheader("1️⃣ Analysedatei auswählen")
+
+    # =============================================================
+    # Kompaktbereich (R9.1): Datei-Auswahl, Summary-Zeile, Start
+    # =============================================================
+    st.subheader("🚀 Explorer starten")
     selected_file = render_file_selector()
-    
-    if not selected_file:
-        st.info("💡 Wählen Sie eine Analysedatei aus, um fortzufahren.")
-        return
-    
-    # Load categories from selected file
-    explorer_config_manager = st.session_state.get('explorer_config_manager')
-    if explorer_config_manager:
-        # Check if we need to reload categories (file changed)
-        current_file = st.session_state.get('explorer_current_file')
-        if current_file != selected_file:
-            # File changed - reload categories
-            try:
-                from webapp_logic.category_loader import CategoryLoader
-                explorer_config_manager.category_loader = CategoryLoader(selected_file)
-                st.session_state.explorer_current_file = selected_file
-                
-                # Debug: Check if categories were loaded
-                if explorer_config_manager.category_loader.is_loaded:
-                    stats = explorer_config_manager.category_loader.get_statistics()
-                    if stats['total_main_categories'] == 0:
-                        st.warning("⚠️ Kategorien-Sheet gefunden, aber keine Kategorien darin. Verwende Freitext-Eingabe.")
-                else:
-                    st.warning("⚠️ Kein Kategorien-Sheet in der Analysedatei gefunden. Verwende Freitext-Eingabe.")
-            except Exception as e:
-                # Failed to load categories - that's OK, we'll use text input
-                explorer_config_manager.category_loader = None
-                st.session_state.explorer_current_file = selected_file
-                st.warning(f"⚠️ Fehler beim Laden der Kategorien: {str(e)}. Verwende Freitext-Eingabe.")
-    
-    # Zeige Kategorie-Informationen falls verfügbar
-    category_loader = explorer_config_manager.get_category_loader() if explorer_config_manager else None
-    
-    if category_loader and category_loader.is_loaded:
-        stats = category_loader.get_statistics()
-        if stats['total_main_categories'] > 0:
-            with st.expander("📊 Verfügbare Kategorien", expanded=False):
-                from webapp_components.smart_filter_controls import render_category_statistics
-                render_category_statistics(category_loader)
-        else:
-            st.info("ℹ️ **Keine Kategorien verfügbar** - Filter verwenden Freitext-Eingabe. Das Kategorien-Sheet ist leer.")
-    else:
-        st.info("ℹ️ **Keine Kategorien verfügbar** - Filter verwenden Freitext-Eingabe. Stellen Sie sicher, dass Ihre Analysedatei ein 'Kategorien'-Sheet enthält.")
-    
+
+    summary = build_start_summary(explorer_config_data, selected_file)
+
+    col_file, col_analyses, col_model = st.columns(3)
+    with col_file:
+        st.caption(f"📄 Datei: {summary['file_name'] or '– keine gewählt –'}")
+    with col_analyses:
+        analyses_text = f"🔬 Analysen: {summary['active_count']} aktiv"
+        if summary['inactive_count']:
+            analyses_text += f", {summary['inactive_count']} inaktiv"
+        st.caption(analyses_text)
+    with col_model:
+        st.caption(f"🤖 Modell: {summary['provider'] or '–'} / {summary['model'] or '–'}")
+
+    # R9.5: Jump-Link zum Analyse-Tab, wenn keine Ergebnisse vorliegen
+    if selected_file is None:
+        st.warning("⚠️ **Keine Analyseergebnisse gefunden.** Führen Sie zuerst eine Analyse im Analyse-Tab durch.")
+        if st.button("→ Zum Analyse-Tab", key="explorer_jump_to_analysis", type="primary"):
+            st.session_state.active_tab_key = "analysis"
+            st.session_state.active_tab = "Analyse"
+            st.rerun()
+
+    # R9.3: Start-Button - disabled mit Tooltip, wenn keine Datei gewaehlt
+    start_disabled = selected_file is None
+    if st.button(
+        "▶️ Explorer starten",
+        type="primary",
+        key="start_explorer_btn",
+        use_container_width=True,
+        disabled=start_disabled,
+        help="Bitte zuerst eine Analysedatei auswählen." if start_disabled else None,
+    ):
+        # R6: Start nur nach Bestaetigung (Zusammenfassung + Kosten-Hinweis)
+        confirm_explorer_start(
+            summary,
+            on_confirm=lambda f=selected_file: start_explorer_analysis(f),
+        )
+
     st.markdown("---")
-    
-    # Step 2: Configure Analyses with Tabbed Interface
-    col1, col2 = st.columns([3, 1])
-    
-    with col1:
-        st.subheader("2️⃣ Analysen konfigurieren")
-    
-    with col2:
-        # Show unsaved changes indicator
+
+    # =============================================================
+    # Details als eingeklappte Expander (R9.1)
+    # =============================================================
+    with st.expander("🤖 Modell-Einstellungen", expanded=False):
+        st.markdown("Wählen Sie das LLM-Modell für die Post-hoc-Analyse (Zusammenfassungen, Sentiment-Analyse, etc.)")
+        render_explorer_model_settings()
+
+    with st.expander("🔬 Analysen konfigurieren", expanded=False):
+        # Kategorie-Informationen (bisher nach der Dateiauswahl)
+        explorer_config_manager = st.session_state.get('explorer_config_manager')
+        category_loader = None
+        if selected_file and explorer_config_manager:
+            category_loader = _load_categories_for_file(explorer_config_manager, selected_file)
+        else:
+            st.info("📁 Wählen Sie oben eine Analysedatei aus, um Filter und Analysen zu konfigurieren.")
+
+        if category_loader and category_loader.is_loaded:
+            stats = category_loader.get_statistics()
+            if stats['total_main_categories'] > 0:
+                with st.expander("📊 Verfügbare Kategorien", expanded=False):
+                    from webapp_components.smart_filter_controls import render_category_statistics
+                    render_category_statistics(category_loader)
+            else:
+                st.info("ℹ️ **Keine Kategorien verfügbar** - Filter verwenden Freitext-Eingabe. Das Kategorien-Sheet ist leer.")
+        elif selected_file:
+            st.info("ℹ️ **Keine Kategorien verfügbar** - Filter verwenden Freitext-Eingabe. Stellen Sie sicher, dass Ihre Analysedatei ein 'Kategorien'-Sheet enthält.")
+
+        # Unsaved changes indicator
         if st.session_state.get('explorer_config_modified', False):
             st.warning("⚠️ Ungespeicherte Änderungen")
-    
-    render_explorer_config_tabs()
-    
-    # Zeige Filter-Validierung falls Kategorien verfügbar
-    if category_loader and category_loader.is_loaded:
-        st.markdown("---")
-        from webapp_components.smart_filter_controls import render_filter_validation_summary
-        render_filter_validation_summary(explorer_config_data.analysis_configs, category_loader)
-    
-    st.markdown("---")
-    
-    # Step 3: Start Explorer
-    st.subheader("3️⃣ Explorer starten")
+
+        render_explorer_config_tabs()
+
+        # Zeige Filter-Validierung falls Kategorien verfǬgbar
+        if category_loader and category_loader.is_loaded:
+            st.markdown("---")
+            from webapp_components.smart_filter_controls import render_filter_validation_summary
+            render_filter_validation_summary(explorer_config_data.analysis_configs, category_loader)
+
+    with st.expander("🔧 Optionen & Speichern", expanded=False):
+        render_config_file_controls()
+
+    # Fehler-Log einer fehlgeschlagenen Analyse (falls vorhanden)
     render_explorer_controls(selected_file)
 
 
@@ -469,12 +518,13 @@ def render_explorer_config_tabs():
         st.markdown(f"**{len(explorer_config.analysis_configs)} Analyse(n) konfiguriert**")
     
     with col2:
-        if st.button("➕ Analyse hinzuFügen", use_container_width=True, key="add_analysis_btn"):
-            handle_add_analysis()
+        if st.button("➕ Analyse hinzufügen", use_container_width=True, key="add_analysis_btn"):
+            # R5.1: Analysen hinzufuegen als echtes Modal (@st.dialog)
+            render_add_analysis_dialog()
     
     # If no analyses, show message
     if not explorer_config.analysis_configs:
-        st.info("💡 Keine Analysen konfiguriert. Klicken Sie auf 'Analyse hinzuFügen', um zu beginnen.")
+        st.info("💡 Keine Analysen konfiguriert. Klicken Sie auf 'Analyse hinzufügen', um zu beginnen.")
         return
     
     # Create tabs for each analysis
@@ -544,7 +594,11 @@ def render_analysis_tab(analysis: AnalysisConfig, index: int):
     with col3:
         # Remove button
         if st.button("🗑️ Entfernen", key=f"remove_{index}", use_container_width=True, type="secondary"):
-            handle_remove_analysis(index)
+            # R7.2: Entfernen nur nach Bestaetigung (Confirm-Dialog)
+            confirm_removal(
+                f"Analyse '{analysis.name}'",
+                on_confirm=lambda idx=index: handle_remove_analysis(idx),
+            )
     
     st.markdown("---")
     
@@ -1767,17 +1821,6 @@ def render_sentiment_parameters(analysis: AnalysisConfig, index: int):
         handle_update_analysis(index, {'params': params})
 
 
-def handle_add_analysis():
-    """
-    Handles adding new analysis.
-    
-    Requirement 7.1: WHEN the user clicks an "Add Analysis" button 
-                    THEN the system SHALL create a new analysis configuration with default values
-    """
-    # Show dialog to select analysis type
-    st.session_state.show_add_analysis_dialog = True
-
-
 def handle_remove_analysis(index: int):
     """
     Handles removing analysis.
@@ -1912,6 +1955,11 @@ def render_explorer_view():
             log_data = st.session_state.explorer_analysis_log
             with st.expander("📋 Analyse-Log anzeigen", expanded=False):
                 st.text_area("Log", log_data['log_text'], height=300, key="explorer_log_display_success", label_visibility="collapsed")
+        
+        # R9.1: Shortcut fuer eine neue Analyse (zurueck zur Konfiguration)
+        if st.button("➕ Neue Analyse starten", key="new_analysis_shortcut", type="primary"):
+            st.session_state.explorer_active = False
+            st.rerun()
         
         st.markdown("---")
     
@@ -2081,13 +2129,27 @@ def render_file_selector():
         
         # Sort by modification time (newest first)
         analysis_files.sort(key=lambda x: x.modified, reverse=True)
-        
+
         # Create selection
         file_options = {f"{f.name} ({f.format_size()}, {f.format_date()})": f.path for f in analysis_files}
-        
+
+        # R2.3: Handoff - soeben erzeugte Analysedatei vorbelegen.
+        # Stiller Fallback (R2.4): ohne Handoff (oder wenn die Datei nicht mehr
+        # in der Liste ist) gilt Index 0 = aktuellste Datei.
+        default_index = 0
+        handoff_file = st.session_state.pop("handoff_analysis_file", None)
+        if handoff_file:
+            for i, (label, path) in enumerate(file_options.items()):
+                if str(path) == str(handoff_file):
+                    default_index = i
+                    # Widget-State (falls vorhanden) auf die Handoff-Datei setzen
+                    st.session_state["selected_analysis_file"] = label
+                    break
+
         selected = st.selectbox(
             "Wählen Sie eine Analysedatei:",
             options=list(file_options.keys()),
+            index=default_index,
             key="selected_analysis_file"
         )
         
@@ -2226,29 +2288,15 @@ def render_advanced_config():
 
 def render_explorer_controls(selected_file: str):
     """
-    Rendert Explorer-Steuerung mit Start-Button.
+    Zeigt das Fehler-Log einer fehlgeschlagenen Explorer-Analyse
+    (Start-Button und Datei-Info sind in den Kompaktbereich gerueckt, R9).
     
     Requirements: 1.5, 7.5
     """
-    # Handle add analysis dialog
-    if st.session_state.get('show_add_analysis_dialog', False):
-        render_add_analysis_dialog()
-    
-    col1, col2, col3 = st.columns([2, 1, 1])
-    
-    with col1:
-        st.info(f"📄 Ausgewählte Datei: {Path(selected_file).name}")
-    
-    with col2:
-        # Save config button
-        if st.button("💾 Config speichern", use_container_width=True, key="save_explorer_config_btn"):
-            save_explorer_config_new()
-    
-    with col3:
-        # Start explorer button
-        if st.button("▶️ Explorer starten", use_container_width=True, type="primary", key="start_explorer_btn"):
-            start_explorer_analysis(selected_file)
-    
+    # R9: Der Start-Button ist in den Kompaktbereich gerueckt (R9.1) und
+    # oeffnet dort den Bestaetigungsdialog (R6); die ausgewaehlte Datei
+    # zeigt die Summary-Zeile im Kompaktbereich an.
+    # Hier bleibt nur die Anzeige des Fehler-Logs.
     # Display log ONLY if analysis failed (not on success - success goes to explorer view)
     if st.session_state.get('explorer_analysis_log'):
         log_data = st.session_state.explorer_analysis_log
@@ -2260,15 +2308,13 @@ def render_explorer_controls(selected_file: str):
             st.text_area("📋 Analyse-Log", log_data['log_text'], height=300, key="explorer_log_display_error")
 
 
+@st.dialog("➕ Neue Analyse hinzufügen")
 def render_add_analysis_dialog():
     """
-    Renders dialog for adding new analysis.
-    
-    Requirement 7.1, 7.2: Add analysis with type selection
+    Rendert "Analyse hinzufügen" als echtes Modal (@st.dialog, R5).
+
+    Requirement 5.1, 5.2, 5.3: Analyse im Modal konfigurieren und hinzufuegen
     """
-    st.markdown("---")
-    st.subheader("➕ Neue Analyse hinzuFügen")
-    
     # Analysis type selection
     analysis_types = {
         'netzwerk': '📊 Netzwerkanalyse',
@@ -2299,7 +2345,7 @@ def render_add_analysis_dialog():
     col1, col2 = st.columns(2)
     
     with col1:
-        if st.button("✅ HinzuFügen", use_container_width=True, type="primary"):
+        if st.button("✅ Hinzufügen", use_container_width=True, type="primary"):
             # Create new analysis
             manager = st.session_state.explorer_config_manager
             new_analysis = manager.add_analysis(selected_type, analysis_name)
@@ -2313,57 +2359,68 @@ def render_add_analysis_dialog():
             # Mark as modified
             st.session_state.explorer_config_modified = True
             
-            # Close dialog
-            st.session_state.show_add_analysis_dialog = False
+            # @st.dialog: st.rerun() schliesst das Modal automatisch
             st.success(f"✅ Analyse '{analysis_name}' hinzugefügt!")
             st.rerun()
     
     with col2:
         if st.button("❌ Abbrechen", use_container_width=True):
-            st.session_state.show_add_analysis_dialog = False
             st.rerun()
     
     st.markdown("---")
 
 
-def save_explorer_config_new():
+def save_explorer_config_data(format: str = "both"):
     """
-    Saves explorer configuration using ExplorerConfigManager.
+    Speichert die Explorer-Konfiguration über ExplorerConfigManager (R3.2-R3.4).
+    
+    Args:
+        format: 'both' (Standard: JSON + XLSX), 'json' oder 'xlsx'
+    
+    Verhalten:
+    - Success: EINE Success-Meldung, `explorer_config_modified` wird gelöscht
+    - Partial Success (R3.4): EINE gebündelte Warning-Box mit dem fehlgeschlagenen
+      Format und dessen Fehlern; Modified-Flag wird gelöscht ( mind. ein Format persistiert)
+    - Beide fehlgeschlagen: Error-Box mit beiden Fehlern, Modified-Flag bleibt
     
     Requirement 1.5: WHEN the user saves the configuration 
                     THEN the system SHALL persist all analysis configurations to the config file
-    Requirement 2.3: Update session state when configuration changes
     Requirement 3.4: WHEN the Explorer-Config is saved 
                     THEN the system SHALL persist provider and model in base_config
     
     FIX: Explorer speichert sein eigenes, unabhängiges LLM-Modell
-         (nicht vom Config UI-Modell überschrieben)
+         (nicht vom Config UI-Modell überschrieben) - die Werte wurden bereits
+         über die UI-Controls in explorer_config_data.base_config gesetzt.
     """
     manager = st.session_state.explorer_config_manager
     config = st.session_state.explorer_config_data
     
-    # FIX: Explorer nutzt sein eigenes LLM-Modell aus base_config
-    # provider und model wurden bereits über UI-Controls gespeichert
-    
-    # Save to both JSON and XLSX
-    # Requirement 3.4: Ensure values are persisted in both formats
-    success_json, errors_json = manager.save_config(config, format='json')
-    success_xlsx, errors_xlsx = manager.save_config(config, format='xlsx')
+    success_json, errors_json = (True, [])
+    success_xlsx, errors_xlsx = (True, [])
+    if format in ("both", "json"):
+        success_json, errors_json = manager.save_config(config, format='json')
+    if format in ("both", "xlsx"):
+        success_xlsx, errors_xlsx = manager.save_config(config, format='xlsx')
     
     if success_json and success_xlsx:
-        st.success("✅ Konfiguration erfolgreich gespeichert (JSON & XLSX)!")
-        # Clear modified flag
         st.session_state.explorer_config_modified = False
-    elif success_json:
-        st.warning(f"⚠️ JSON gespeichert, aber XLSX-Fehler: {', '.join(errors_xlsx)}")
-        # Partial success - clear modified flag
+        label = {"both": " (JSON & XLSX)", "json": " (JSON)", "xlsx": " (XLSX)"}.get(format, "")
+        st.success(f"✅ Konfiguration gespeichert{label}")
+    elif success_json or success_xlsx:
+        # R3.4: Partial Success in EINER gebündelten Warning-Box
+        saved_label = "JSON" if success_json else "XLSX"
+        failed_label = "XLSX" if success_json else "JSON"
+        failed_errors = errors_xlsx if success_json else errors_json
         st.session_state.explorer_config_modified = False
-    elif success_xlsx:
-        st.warning(f"⚠️ XLSX gespeichert, aber JSON-Fehler: {', '.join(errors_json)}")
-        # Partial success - clear modified flag
-        st.session_state.explorer_config_modified = False
+        st.warning(
+            f"⚠️ {saved_label} gespeichert, aber {failed_label} fehlgeschlagen: "
+            f"{', '.join(failed_errors)}"
+        )
     else:
-        st.error(f"❌ Fehler beim Speichern: JSON: {', '.join(errors_json)}, XLSX: {', '.join(errors_xlsx)}")
+        st.error(
+            f"❌ Fehler beim Speichern: JSON: {', '.join(errors_json)}, "
+            f"XLSX: {', '.join(errors_xlsx)}"
+        )
 
 
 def start_explorer_analysis(file_path: str):
@@ -2530,37 +2587,16 @@ def render_output_files():
         
         st.markdown("---")
         
-        # Pagination controls
+        # R13: Gemeinsame Paginierung (siehe pagination.py)
         if total_files > st.session_state.files_per_page:
-            # Get current page
-            current_page = st.session_state.get('output_files_page', 1)
-            
-            # Paginate files
+            page, page_size, total_pages = render_pagination_controls(total_files, "output_files")
+
             paginated_files, total_pages, _ = file_manager.paginate_files(
-                files,
-                page=current_page,
-                page_size=st.session_state.files_per_page
+                files, page=page, page_size=page_size
             )
-            
-            # Pagination UI
-            col1, col2, col3 = st.columns([1, 2, 1])
-            
-            with col1:
-                if st.button("◀ Zurück", disabled=(current_page <= 1), key="output_prev"):
-                    st.session_state.output_files_page = max(1, current_page - 1)
-                    st.rerun()
-            
-            with col2:
-                st.markdown(f"<div style='text-align: center'>Seite {current_page} von {total_pages}</div>", 
-                           unsafe_allow_html=True)
-            
-            with col3:
-                if st.button("Weiter ▶", disabled=(current_page >= total_pages), key="output_next"):
-                    st.session_state.output_files_page = min(total_pages, current_page + 1)
-                    st.rerun()
-            
+
             st.markdown("---")
-            
+
             # Use paginated files
             files = paginated_files
         

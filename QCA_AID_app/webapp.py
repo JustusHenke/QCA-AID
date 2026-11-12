@@ -55,6 +55,13 @@ from webapp_components.codebook_ui import render_codebook_tab
 from webapp_components.analysis_ui import render_analysis_tab
 from webapp_components.explorer_ui import render_explorer_tab
 from webapp_components.fluent_styles import get_fluent_css
+from webapp_components.dirty_state_bar import (
+    apply_tab_badges,
+    compute_blocker_tabs,
+    get_dirty_flags,
+    render_dirty_bar,
+)
+from webapp_components.workflow_status import render_next_step_cta, render_workflow_status, scroll_to_top
 
 # Import webapp logic
 from webapp_logic.config_manager import ConfigManager
@@ -153,7 +160,6 @@ def lazy_load_tab_data(tab_name: str):
         st.session_state.setdefault('selected_output_file', None)
         st.session_state.setdefault('explorer_active', False)
         st.session_state.setdefault('explorer_file_path', None)
-        st.session_state.setdefault('show_add_analysis_dialog', False)
         st.session_state.setdefault('explorer_config_modified', False)
 
 
@@ -215,11 +221,13 @@ def switch_to_tab(tab_key: str):
         tab_key: Tab-Schlüssel ("config", "codebook", "analysis", "explorer")
     """
     st.session_state.active_tab_key = tab_key
-    # Setze auch den Tab-Namen für Kompatibilität
-    tab_names = ["Konfiguration", "Codebook", "Analyse", "Explorer"]
-    tab_keys = ["config", "codebook", "analysis", "explorer"]
-    if tab_key in tab_keys:
-        st.session_state.active_tab = tab_names[tab_keys.index(tab_key)]
+    # active_tab wird durchgaengig als lowercase-Key gefuehrt (Dispatch in
+    # main() und focus._current_tab() vergleichen Keys, keine Anzeigenamen)
+    st.session_state.active_tab = tab_key
+    # Programmatische Navigation markieren. Der Radio-Widget-State wird erst
+    # im NAECHSTEN Run vor der Widget-Instanziierung gesetzt (hier waere das
+    # Widget bereits instanziiert -> StreamlitAPIException).
+    st.session_state["nav_programmatic"] = tab_key
     st.rerun()
 
 
@@ -306,28 +314,72 @@ def render_navigation():
     </style>
     """, unsafe_allow_html=True)
 
-    labels = [t["label"] for t in TABS]
+    # R4.5: Tab-Labels um Badges erweitern
+    # - ⚠️ wenn ein *_modified-Flag gesetzt ist (Dirty)
+    # - ❗ wenn get_readiness_issues(tab) Fehler (severity=error) enthaelt
+    base_labels = {t["id"]: t["label"] for t in TABS}
+    labels_map = apply_tab_badges(
+        base_labels,
+        dirty_flags=get_dirty_flags(st.session_state),
+        blocker_tabs=compute_blocker_tabs(),
+    )
+
+    labels = [labels_map[t["id"]] for t in TABS]
     ids    = [t["id"]    for t in TABS]
+
+    # Normalisiere programmatisch gesetzte Tab-Namen ("Explorer" -> "explorer")
+    name_to_key = {
+        "Konfiguration": "config",
+        "Codebook": "codebook",
+        "Analyse": "analysis",
+        "Explorer": "explorer",
+    }
+    current_tab = st.session_state.get("active_tab")
+    if current_tab in name_to_key:
+        st.session_state.active_tab = name_to_key[current_tab]
+        st.session_state.active_tab_key = name_to_key[current_tab]
 
     if "active_tab" not in st.session_state or st.session_state.active_tab not in ids:
         st.session_state.active_tab = ids[0]
         st.session_state.active_tab_key = ids[0]
 
+    # Programmatischer Tab-Wechsel (switch_to_tab): Ziel vor der Radio-
+    # Instanziierung anwenden und den Widget-State dorthin setzen.
+    pending = st.session_state.pop("nav_programmatic", None)
+    if pending in ids:
+        st.session_state.active_tab = pending
+        st.session_state.active_tab_key = pending
+    if pending is not None:
+        st.session_state["nav_tab_radio"] = st.session_state.active_tab
+
+    # Nach Tab-Wechsel nach oben scrollen (Streamlit behaelt die Scroll-
+    # Position bei Reruns; Nutzer-Feedback: neuer Tab begann in der Mitte).
+    # Erkennt BEIDE Wege: programmatische Wechsel (switch_to_tab) und Radio-Klicks.
+    if (
+        "nav_last_rendered_tab" in st.session_state
+        and st.session_state.nav_last_rendered_tab != st.session_state.active_tab
+    ):
+        scroll_to_top()
+    st.session_state.nav_last_rendered_tab = st.session_state.active_tab
+
     active_index = ids.index(st.session_state.active_tab)
 
-    selected_label = st.radio(
+    # Radio ueber STABILE Tab-Keys als Optionen; Anzeige (inkl. Badges) via
+    # format_func. Dadurch bleibt der Widget-State gueltig, wenn Badges
+    # zwischen Reruns erscheinen/verschwinden.
+    selected_key = st.radio(
         "Navigation Tabs",
-        labels,
+        options=ids,
+        format_func=lambda k: labels_map.get(k, k),
         index=active_index,
         horizontal=True,
         label_visibility="collapsed",
+        key="nav_tab_radio",
     )
 
-    new_active_id = ids[labels.index(selected_label)]
-
-    if new_active_id != st.session_state.active_tab:
-        st.session_state.active_tab = new_active_id
-        st.session_state.active_tab_key = new_active_id
+    if selected_key != st.session_state.active_tab:
+        st.session_state.active_tab = selected_key
+        st.session_state.active_tab_key = selected_key
         st.rerun()
 
     return labels, ids
@@ -373,52 +425,18 @@ def render_config_info():
     st.sidebar.text(f"Root: {root_display}")
     
     st.sidebar.markdown("---")
-    st.sidebar.subheader("📋 Workflow-Status")
-    
+    st.sidebar.subheader("📋 Workflow")
+
     # CRITICAL: Ensure config_data is loaded before accessing it
     if 'config_data' not in st.session_state:
         lazy_load_tab_data("Konfiguration")
-    
-    # Determine workflow status
-    config = st.session_state.config_data
-    config_manager = st.session_state.config_manager
-    
-    # Check if config exists
-    config_exists = config_manager.json_path.exists() or config_manager.xlsx_path.exists()
-    
-    # Check if codebook exists and has categories
-    codebook_data = st.session_state.get('codebook_data', None)
-    if codebook_data is None:
-        from webapp_logic.codebook_manager import CodebookManager
-        codebook_manager = CodebookManager(st.session_state.project_manager.get_root_directory())
-        success, codebook_data, errors = codebook_manager.load_codebook()
-    has_categories = codebook_data is not None and isinstance(codebook_data.deduktive_kategorien, dict) and len(codebook_data.deduktive_kategorien) > 0
-    
-    # Check if input files exist
-    input_dir = Path(st.session_state.project_manager.get_root_directory()) / config.data_dir
-    has_input_files = input_dir.exists() and any(input_dir.glob('*.txt')) or any(input_dir.glob('*.pdf')) or any(input_dir.glob('*.docx'))
-    
-    # Check if analysis has been run
-    output_dir = Path(st.session_state.project_manager.get_root_directory()) / config.output_dir
-    has_results = output_dir.exists() and any(output_dir.glob('QCA-AID_Analysis_*.xlsx'))
-    
-    # Display workflow steps with status
-    steps = [
-        ("1️⃣ Konfiguration", config_exists, "Konfiguration laden/erstellen"),
-        ("2️⃣ Codebook", has_categories, "Kategorien definieren"),
-        ("3️⃣ Eingabedateien", has_input_files, "Dokumente bereitstellen"),
-        ("4️⃣ Analyse", has_results, "Analyse durchführen")
-    ]
-    
-    for step_name, is_complete, description in steps:
-        if is_complete:
-            st.sidebar.success(f"✅ {step_name}")
-        else:
-            st.sidebar.warning(f"⏳ {step_name}")
-            st.sidebar.caption(f"   → {description}")
-    
+
+    # R1: Klickbare Workflow-Steps (ersetzt die reine Textliste)
+    render_workflow_status()
     st.sidebar.markdown("---")
     
+    config = st.session_state.config_data
+
     # Show config status
     if st.session_state.config_loaded_from == "auto":
         st.sidebar.info("📄 Konfiguration automatisch geladen")
@@ -600,6 +618,10 @@ def main():
     # Render navigation tabs
     tab_names, tab_keys = render_navigation()
     checkpoint("Tab Navigation")
+
+    # R4: Dirty-Leiste direkt unter der Navigation (design.md-Kernentscheidung
+    # statt position:fixed). Blendet sich selbst aus, wenn nichts dirty ist (R4.4).
+    render_dirty_bar()
     
     # Render active tab content based on session state
     active_tab = st.session_state.active_tab
@@ -629,6 +651,9 @@ def main():
         st.error(f"Unbekannter Tab: {active_tab}")
         st.info("Verfügbare Tabs: config, codebook, analysis, explorer")
     
+    # R1.3/R1.4: "Weiter"-CTA am Tab-Ende (disabled bei Blockern)
+    render_next_step_cta(active_tab)
+
     checkpoint("Tab Rendering Complete")
     
     # Footer

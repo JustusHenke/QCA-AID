@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Optional
 
 import streamlit as st
+from webapp_components.focus import auto_expand, render_focus_banner
 from webapp_logic.file_browser_service import FileBrowserService
 from webapp_logic.ui_helpers import (
     show_file_operation_error,
@@ -52,30 +53,42 @@ def render_config_tab():
 
     st.markdown("---")
 
-    # Create two columns for better layout
-    col1, col2 = st.columns(2)
+    # R12: Einspaltiger Pflicht/Erweitert-Flow (Reihenfolge geaendert,
+    # Widget-Keys und Validierungen unveraendert - R12.4)
+    # Pflicht / workflowrelevant direkt sichtbar (R12.1)
+    st.subheader("🤖 Modell-Einstellungen")
+    render_model_settings()
 
-    with col1:
-        st.subheader("🤖 Modell-Einstellungen")
-        render_model_settings()
+    st.markdown("---")
 
-        st.markdown("---")
+    st.subheader("⚙️ Analyse-Einstellungen")
+    render_analysis_settings()
 
-        st.subheader("📊 Chunk-Einstellungen")
+    st.markdown("---")
+
+    # Erweiterte Einstellungen als standardmaessig eingeklappte Expander (R12.2)
+    _valid, config_errors = config.validate() if config is not None else (False, [])
+    validation_text = " ".join(config_errors).lower()
+
+    # R12.3: Expander oeffnet automatisch bei Fokus-Flag (auto_expand) oder
+    # eigener Validierungsregel (Fehlermeldung betrifft die Section)
+    chunks_expanded = auto_expand("config", "chunks") or ("chunk" in validation_text)
+    coder_expanded = auto_expand("config", "coder") or (
+        "coder" in validation_text or "threshold" in validation_text
+    )
+    labels_expanded = auto_expand("config", "attribute_labels")
+
+    with st.expander("📊 Chunk-Einstellungen", expanded=chunks_expanded):
+        if "chunk" in validation_text:
+            st.warning("⚠️ Validierung: Bitte Chunk-Einstellungen prüfen.")
         render_chunk_settings()
 
-        st.markdown("---")
-
-        st.subheader("🔧 Analyse-Einstellungen")
-        render_analysis_settings()
-
-    with col2:
-        st.subheader("👥 Coder-Einstellungen")
+    with st.expander("👥 Coder-Einstellungen", expanded=coder_expanded):
+        if "coder" in validation_text or "threshold" in validation_text:
+            st.warning("⚠️ Validierung: Bitte Coder-Einstellungen prüfen.")
         render_coder_settings()
 
-        st.markdown("---")
-
-        st.subheader("🏷️ Attribut-Labels")
+    with st.expander("🏷️ Attribut-Labels", expanded=labels_expanded):
         render_attribute_labels()
 
     # Show validation status
@@ -219,7 +232,10 @@ def render_file_operations():
 
                 # Requirement 8.3: Truncate long paths with ellipsis
                 display_value = current_path
-                help_text = "Leer lassen um Standard-Datei zu laden"
+                help_text = (
+                    "Leer lassen für Standard-Datei. JSON und XLSX werden "
+                    "automatisch erkannt (R15)."
+                )
 
                 if current_path and len(current_path) > 50:
                     display_value = truncate_path_for_display(current_path, 50)
@@ -268,48 +284,10 @@ def render_file_operations():
                         # Force rerun to update the text input with new value
                         st.rerun()
 
-            # Auto-detect format from file extension
-            detected_format = None
-            if file_path and file_path.strip():
-                file_path_lower = file_path.strip().lower()
-                if file_path_lower.endswith(".json"):
-                    detected_format = "json"
-                elif file_path_lower.endswith(".xlsx"):
-                    detected_format = "xlsx"
-
-            # Track previous format to detect changes
-            if "previous_load_format" not in st.session_state:
-                st.session_state.previous_load_format = detected_format or "json"
-
-            # Format selection with auto-detection
-            if detected_format:
-                st.info(f"📋 Format automatisch erkannt: **{detected_format.upper()}**")
-                load_format = detected_format
-                st.session_state.previous_load_format = detected_format
-            else:
-                # Only show radio buttons if format cannot be auto-detected
-                load_format = st.radio(
-                    "Format wählen:",
-                    options=["json", "xlsx"],
-                    format_func=lambda x: "JSON" if x == "json" else "Excel (XLSX)",
-                    horizontal=True,
-                    key="load_format_radio",
-                )
-
-                # Update file extension if format changed manually
-                from pathlib import Path
-
-                if file_path and load_format != st.session_state.previous_load_format:
-                    path_obj = Path(file_path.strip())
-                    old_ext = f".{st.session_state.previous_load_format}"
-                    if path_obj.suffix.lower() == old_ext:
-                        # Update extension to match new format
-                        new_path = str(path_obj.with_suffix(f".{load_format}"))
-                        st.session_state.selected_config_load_path = new_path
-                        st.rerun()
-
-                st.session_state.previous_load_format = load_format
-
+            # R15.4: Formatagnostisch - JSON und XLSX in EINEM Prozess. Kein
+            # Format-Radio, keine Extension-Umschreibung, kein Zustands-Tracking:
+            # Das Format wird beim Laden automatisch erkannt (Manager/Endung,
+            # Fallback-Kette JSON -> XLSX bei unbekannter/fehlender Endung).
             col_load1, col_load2 = st.columns(2)
 
             with col_load1:
@@ -332,22 +310,38 @@ def render_file_operations():
                             )
                         actual_path = str(path_obj)
 
-                        # Load configuration with resolved file path
-                        success, config_data, errors = config_manager.load_config(
-                            file_path=actual_path, format=load_format
-                        )
+                        # R15.1/R15.2: Formatautomatik - bekannte Endung erkennt der
+                        # Manager selbst (format=None); unbekannte/fehlende Endung
+                        # wird als JSON- und XLSX-Versuch probiert.
+                        suffix = path_obj.suffix.lower()
+                        if suffix in (".json", ".xlsx", ".xls"):
+                            load_format = "json" if suffix == ".json" else "xlsx"
+                            success, config_data, errors = config_manager.load_config(
+                                file_path=actual_path
+                            )
+                        else:
+                            success, config_data, errors = (False, None, [])
+                            for load_format in ("json", "xlsx"):
+                                success, config_data, errors = (
+                                    config_manager.load_config(
+                                        file_path=actual_path, format=load_format
+                                    )
+                                )
+                                if success:
+                                    break
                     else:
-                        # Use default filename (resolved by config_manager against project_dir)
+                        # R15.3: Standard-Pfade - Manager waehlt automatisch
+                        # (JSON bevorzugt, sonst XLSX)
                         actual_path = None
-                        success, config_data, errors = config_manager.load_config(
-                            format=load_format
-                        )
+                        success, config_data, errors = config_manager.load_config()
                         # Determine which file was actually loaded for session state
                         if success:
                             if config_manager.json_path.exists():
                                 actual_path = str(config_manager.json_path)
+                                load_format = "json"
                             elif config_manager.xlsx_path.exists():
                                 actual_path = str(config_manager.xlsx_path)
+                                load_format = "xlsx"
 
                     if success:
                         st.session_state.config_data = config_data
@@ -415,7 +409,7 @@ def render_file_operations():
                             else Path(selected_path or "(Standard)"),
                             "\n".join(errors),
                             [
-                                "Überprüfen Sie das Dateiformat",
+                                "Unterstützte Formate: .json und .xlsx",
                                 "Stellen Sie sicher, dass die Datei existiert",
                             ],
                         )
@@ -443,16 +437,17 @@ def render_file_operations():
             if "previous_save_format" not in st.session_state:
                 st.session_state.previous_save_format = "json"
 
-            # Format selection first (to determine default filename)
-            save_format = st.radio(
-                "Format wählen:",
+            # Format-Auswahl als Dropdown (R3.5: Laden/Speichern gleichwertiges
+            # Schaltflächenpaar mit Format-Dropdown; Funktionsverhalten unverändert
+            # gegenüber Req 2 der Basis-Spec)
+            save_format = st.selectbox(
+                "Format:",
                 options=["json", "xlsx"],
                 format_func=lambda x: (
                     "JSON (empfohlen)" if x == "json" else "Excel (XLSX)"
                 ),
-                horizontal=True,
                 help="JSON ist das empfohlene Format für neue Konfigurationen",
-                key="save_format_radio",
+                key="save_format_select",
             )
 
             # File path input with browser button
@@ -921,6 +916,13 @@ def render_model_settings():
 
     Uses LLMProviderManager to dynamically load available models from all providers.
     """
+
+    # R11.3: Fokus-Banner (Jump-Ziel "Beheben" aus dem Readiness-Check)
+    render_focus_banner(
+        "Modell-Einstellungen",
+        section_key="model",
+        message="👉 **Modell-Einstellungen**: Hier beheben Sie das gemeldete Problem.",
+    )
     config = st.session_state.config_data
 
     # Map provider IDs to display names (define at function scope)
@@ -1704,7 +1706,7 @@ def render_coder_settings():
 
     Requirement 6.1: WHEN der Konfigurationsreiter angezeigt wird
                     THEN das System SHALL eine Liste der konfigurierten Coder anzeigen
-    Requirement 6.2: WHEN ein Benutzer auf "Coder hinzuFügen" klickt
+    Requirement 6.2: WHEN ein Benutzer auf "Coder hinzufügen" klickt
                     THEN das System SHALL ein neues Coder-Konfigurationsformular anzeigen
     Requirement 6.3: WHEN ein Coder konfiguriert wird
                     THEN das System SHALL Eingabefelder für temperature und coder_id anzeigen
@@ -1793,7 +1795,7 @@ def render_coder_settings():
             st.markdown("---")
 
     # Add new coder button
-    if st.button("➕ Coder hinzuFügen", use_container_width=True):
+    if st.button("➕ Coder hinzufügen", use_container_width=True):
         # Generate new coder ID
         existing_ids = [c.coder_id for c in config.coder_settings]
         new_id = f"auto_{len(config.coder_settings) + 1}"
@@ -1815,7 +1817,7 @@ def render_attribute_labels():
 
     Requirement 9.1: WHEN der Konfigurationsreiter angezeigt wird
                     THEN das System SHALL eine Liste der ATTRIBUTE_LABELS anzeigen
-    Requirement 9.2: WHEN ein Benutzer auf "Attribut hinzuFügen" klickt
+    Requirement 9.2: WHEN ein Benutzer auf "Attribut hinzufügen" klickt
                     THEN das System SHALL Eingabefelder für Schlüssel und Bezeichnung anzeigen
     Requirement 9.3: WHEN ein Benutzer ein Attribut bearbeitet
                     THEN das System SHALL die Änderungen sofort in der Vorschau anzeigen
@@ -1875,7 +1877,7 @@ def render_attribute_labels():
             st.rerun()
 
     # Add new attribute section
-    with st.expander("➕ Neues Attribut hinzuFügen"):
+    with st.expander("➕ Neues Attribut hinzufügen"):
         col1, col2 = st.columns(2)
 
         with col1:
@@ -1894,7 +1896,7 @@ def render_attribute_labels():
                 help="z.B. 'Quelle', 'Jahr', 'Kategorie'",
             )
 
-        if st.button("Attribut hinzuFügen", use_container_width=True):
+        if st.button("Attribut hinzufügen", use_container_width=True):
             if new_attr_key and new_attr_label:
                 if new_attr_key not in config.attribute_labels:
                     config.attribute_labels[new_attr_key] = new_attr_label
