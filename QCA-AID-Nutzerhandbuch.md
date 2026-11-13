@@ -211,11 +211,12 @@ Die KI in QCA-AID fungiert als:
 | **Arbeitsspeicher** | 4 GB RAM | 8 GB RAM (bei lokalen KI-Modellen 16 GB) |
 | **Festplatte** | 2 GB frei | 10 GB frei (für lokale KI-Modelle) |
 | **Betriebssystem** | Windows 10 · macOS 11+ · Linux | jeweils aktuell |
-| **Python** | **3.10 oder 3.11** – nicht 3.12/3.13! | Python 3.11.11 |
+| **Python** | **3.10–3.12** – nicht 3.13! | Python 3.12.10 |
 | **Browser** | Firefox, Chrome, Edge | aktuellste Version |
 | **Internet** | Für Cloud-KI-Modelle nötig | – |
 
-> ⚠️ **Python 3.12 und 3.13 werden nicht unterstützt.** Bitte Python 3.11 installieren.
+> ✅ **Python 3.12 wird voll unterstützt:** Die verwendete spaCy-Version (`spacy>=3.7.0`, installiert wird ≥3.8) liefert offizielle Wheels für Python 3.10–3.12 – keine Build-Tools nötig.  
+> ⚠️ **Python 3.13 wird (noch) nicht unterstützt.** Bitte Python 3.12 oder 3.11 installieren.
 
 ### 5.2 Schritt-für-Schritt Installation
 
@@ -223,15 +224,15 @@ Die KI in QCA-AID fungiert als:
 
 | Plattform | Vorgehen |
 |-----------|----------|
-| **Windows** | [python.org](https://www.python.org/downloads/release/python-3110/) → `python-3.11.0-amd64.exe` herunterladen → **☑ "Add Python to PATH"** aktivieren → Installieren → **Neu starten!** |
-| **macOS** | Mit [Homebrew](https://brew.sh): `brew install python@3.11` – **oder** Installer von [python.org](https://www.python.org/downloads/release/python-3110/) |
-| **Linux** (Debian/Ubuntu) | `sudo apt update && sudo apt install python3.11 python3.11-venv` |
-| **Linux** (Fedora) | `sudo dnf install python3.11` |
+| **Windows** | [python.org](https://www.python.org/downloads/release/python-31210/) → `python-3.12.10-amd64.exe` herunterladen → **☑ "Add Python to PATH"** aktivieren → Installieren → **Neu starten!** |
+| **macOS** | Mit [Homebrew](https://brew.sh): `brew install python@3.12` – **oder** Installer von [python.org](https://www.python.org/downloads/release/python-31210/) |
+| **Linux** (Debian/Ubuntu) | `sudo apt update && sudo apt install python3.12 python3.12-venv` (bei älteren Ubuntu-Versionen: [deadsnakes-PPA](https://launchpad.net/~deadsnakes/+archive/ubuntu/ppa) nutzen) |
+| **Linux** (Fedora) | `sudo dnf install python3.12` |
 
 **Nach der Installation prüfen:**
 ```bash
 python --version
-# Ausgabe: Python 3.11.x
+# Ausgabe: Python 3.12.x (3.10–3.12 werden unterstützt)
 ```
 > ❓ Falls `python` nicht gefunden wird: Prüfen Sie, ob Sie "Add Python to PATH" aktiviert haben (Windows) bzw. ob Python über den Paketmanager installiert ist (Linux). Ggf. `python3 --version` versuchen.
 
@@ -276,7 +277,7 @@ python -m spacy download de_core_news_sm
 | Bei Fehlern… | Lösung |
 |-------------|--------|
 | **Windows: "Microsoft Visual C++ 14.0 is required"** | [Visual Studio Build Tools](https://visualstudio.microsoft.com/de/visual-cpp-build-tools/) installieren – dort "C++ Build Tools" + MSVC + Windows SDK aktivieren |
-| **macOS/Linux: "externally-managed-environment"** | Virtuelle Umgebung erstellen: `python3.11 -m venv venv && source venv/bin/activate` (Mac) oder `source venv/bin/activate` (Linux) – danach `pip install -r requirements.txt` wiederholen |
+| **macOS/Linux: "externally-managed-environment"** | Virtuelle Umgebung erstellen: `python3.12 -m venv venv && source venv/bin/activate` (Mac) oder `source venv/bin/activate` (Linux) – danach `pip install -r requirements.txt` wiederholen |
 | **"pip not found"** | Python-Paketmanager nachinstallieren: `python -m ensurepip --upgrade` |
 
 #### Schritt 4: API-Schlüssel einrichten (nur für Cloud-KI nötig)
@@ -1752,11 +1753,11 @@ git tag -a v1.0 -m "Final codebook for main analysis"
 # Python-Version prüfen
 python --version
 
-# Falls Python 3.13: Python 3.11 installieren
-# Download von python.org/downloads/release/python-3110/
+# Falls Python 3.13: Python 3.12 (oder 3.11) installieren
+# Download: python.org/downloads/release/python-31210/
 
 # Virtuelle Umgebung mit korrekter Version
-python3.11 -m venv qca_aid_env
+python3.12 -m venv qca_aid_env
 source qca_aid_env/bin/activate  # Linux/Mac
 qca_aid_env\Scripts\activate     # Windows
 
@@ -2493,7 +2494,7 @@ GWDG_API_KEY=xxxxxxxxxxxxxxxxxxxxx
 #### Projekt-Setup Checkliste
 
 **Vor der ersten Analyse:**
-- [ ] Python 3.10/3.11 installiert und getestet
+- [ ] Python 3.10–3.12 installiert und getestet
 - [ ] QCA-AID heruntergeladen und Abhängigkeiten installiert
 - [ ] API-Schlüssel konfiguriert (oder lokales Modell eingerichtet)
 - [ ] Projektverzeichnis erstellt und strukturiert
@@ -2524,7 +2525,7 @@ GWDG_API_KEY=xxxxxxxxxxxxxxxxxxxxx
 #### Fehlerbehebung Checkliste
 
 **Bei Problemen systematisch prüfen:**
-- [ ] Python-Version korrekt (3.10 oder 3.11)
+- [ ] Python-Version korrekt (3.10 bis 3.12)
 - [ ] Alle Abhängigkeiten installiert
 - [ ] API-Schlüssel gültig und verfügbar
 - [ ] Eingabedateien im korrekten Format

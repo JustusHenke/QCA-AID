@@ -29,15 +29,17 @@ Für Sozialwissenschaftler:innen, die größere Textmengen systematisch auswerte
 
 ### 1. Python installieren
 
-**Wichtig:** Nur **Python 3.10 oder 3.11** – Python 3.12/3.13 werden nicht unterstützt!
+**Wichtig:** **Python 3.10–3.12** werden unterstützt – Python 3.13 (noch) nicht!
+
+> ✅ **Python 3.12 voll kompatibel:** Die verwendete spaCy-Version (`spacy>=3.7.0`, installiert wird ≥3.8) liefert offizielle Wheels für Python 3.10–3.12 – die Installation funktioniert unter 3.12 ohne Compiler/Build-Tools. Getestet mit spaCy 3.8.x inkl. Modell `de_core_news_sm`.
 
 | Plattform | Vorgehen |
 |-----------|----------|
-| **Windows** | [python.org](https://www.python.org/downloads/release/python-3110/) → `python-3.11.0-amd64.exe` herunterladen → **☑ "Add Python to PATH"** aktivieren → Installieren |
-| **macOS** | `brew install python@3.11` (mit [Homebrew](https://brew.sh)) oder Installer von [python.org](https://www.python.org/downloads/release/python-3110/) |
-| **Linux** | `sudo apt install python3.11 python3.11-venv` (Debian/Ubuntu) oder `sudo dnf install python3.11` (Fedora) |
+| **Windows** | [python.org](https://www.python.org/downloads/release/python-31210/) → `python-3.12.10-amd64.exe` herunterladen → **☑ "Add Python to PATH"** aktivieren → Installieren (alternativ: Python 3.11 – [Installer](https://www.python.org/downloads/release/python-3110/)) |
+| **macOS** | `brew install python@3.12` (mit [Homebrew](https://brew.sh)) oder Installer von [python.org](https://www.python.org/downloads/release/python-31210/) |
+| **Linux** | `sudo apt install python3.12 python3.12-venv` (Debian/Ubuntu) oder `sudo dnf install python3.12` (Fedora) |
 
-Prüfen: `python --version` → `Python 3.11.x`
+Prüfen: `python --version` → `Python 3.12.x` (3.10–3.12 werden unterstützt)
 
 ### 2. QCA-AID herunterladen
 
@@ -338,7 +340,7 @@ Außerdem: `category_revisions.json` (Kategorienentwicklung) und `codebook_induc
 
 | Problem | Lösung |
 |---------|--------|
-| **Python 3.13?** | Python 3.11 installieren (s.o.) – 3.13 wird nicht unterstützt |
+| **Python 3.13?** | Python 3.11 oder 3.12 installieren (s.o.) – 3.10–3.12 werden unterstützt, 3.13 nicht |
 | **setup.bat schließt sofort** | `setup_debug.bat` nutzen oder manuell installieren |
 | **API-Key nicht gefunden** | `.env`-Datei im QCA-AID-Ordner prüfen – wird seit v0.12.7.4 automatisch geladen |
 | **Port 8501 belegt** | Andere Streamlit-Instanz schließen: `taskkill /f /im python.exe` (Windows) / `pkill -f streamlit` (Mac/Linux) |
