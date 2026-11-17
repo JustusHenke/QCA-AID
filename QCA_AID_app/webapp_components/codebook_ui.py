@@ -208,35 +208,33 @@ def render_codebook_tab():
 
     st.markdown("---")
 
-    # Create two columns for layout
-    col1, col2 = st.columns([3, 2])
+    # Einspaltiges Layout: Optionen untereinander, JSON-Vorschau als
+    # eingeklappter Spoiler (Expander) darunter.
 
-    with col1:
-        # Research question
-        st.subheader(":material/search: Forschungsfrage")
-        render_research_question()
+    # Research question
+    st.subheader(":material/search: Forschungsfrage")
+    render_research_question()
 
-        st.markdown("---")
+    st.markdown("---")
 
-        # Coding rules
-        st.subheader(":material/receipt_long: Kodierregeln")
-        render_coding_rules()
+    # Coding rules
+    st.subheader(":material/receipt_long: Kodierregeln")
+    render_coding_rules()
 
-        st.markdown("---")
+    st.markdown("---")
 
-        # Categories
-        st.subheader(":material/sell: Kategorien")
-        render_categories()
+    # Categories
+    st.subheader(":material/sell: Kategorien")
+    render_categories()
 
-    with col2:
-        # JSON Preview
-        st.subheader(":material/visibility: JSON-Vorschau")
+    st.markdown("---")
+
+    # JSON Preview (Spoiler, standardmaessig eingeklappt)
+    with st.expander(":material/visibility: JSON-Vorschau", expanded=False):
         render_json_preview()
 
-        st.markdown("---")
-
-        # Validation status
-        render_validation_status()
+    # Validation status
+    render_validation_status()
 
 
 def _load_codebook_from_disk():

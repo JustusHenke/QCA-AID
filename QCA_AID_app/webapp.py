@@ -362,16 +362,23 @@ def render_navigation():
         scroll_to_top()
     st.session_state.nav_last_rendered_tab = st.session_state.active_tab
 
-    active_index = ids.index(st.session_state.active_tab)
-
     # Radio ueber STABILE Tab-Keys als Optionen; Anzeige (inkl. Badges) via
     # format_func. Dadurch bleibt der Widget-State gueltig, wenn Badges
     # zwischen Reruns erscheinen/verschwinden.
+    #
+    # WICHTIG: Der Radio wird bewusst OHNE index= erzeugt. Streamlit wirft
+    # sonst beim programmatischen Tab-Wechsel die StreamlitAPIException
+    # "The widget with key 'nav_tab_radio' was created with a default value
+    # but also had its value set via the Session State API" (index= +
+    # manuell gesetzter Widget-State ist unzulaessig). Die Steuerung läuft
+    # ausschliesslich ueber st.session_state["nav_tab_radio"].
+    if "nav_tab_radio" not in st.session_state:
+        st.session_state["nav_tab_radio"] = st.session_state.active_tab
+
     selected_key = st.radio(
         "Navigation Tabs",
         options=ids,
         format_func=lambda k: labels_map.get(k, k),
-        index=active_index,
         horizontal=True,
         label_visibility="collapsed",
         key="nav_tab_radio",
