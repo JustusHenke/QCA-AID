@@ -145,9 +145,10 @@ class CodebookData:
         Validiert Codebook.
 
         Args:
-            analysis_mode: Optional Analyse-Modus ("grounded" / "deductive" / ...).
-                Im "grounded" Mode sind keine deduktiven Kategorien erforderlich –
-                es zählt nur die Forschungsfrage.
+            analysis_mode: Optional Analyse-Modus ("grounded" / "inductive" / ...).
+                In den emergenten Modi "grounded" und "inductive" sind keine
+                deduktiven Kategorien erforderlich – es zählt nur die
+                Forschungsfrage.
 
         Returns:
             Tuple[bool, List[str]]: (is_valid, error_messages)
@@ -173,10 +174,10 @@ class CodebookData:
                 if not isinstance(rules, list):
                     errors.append(f"Coding rules '{key}' must be a list")
 
-        # GROUNDED MODE: Only the research question is mandatory.
-        # Categories are generated inductively during analysis – no prior
-        # definition required.
-        if analysis_mode == "grounded":
+        # EMERGENTE MODI (grounded, inductive): Only the research question is
+        # mandatory. Categories are generated from the material during analysis
+        # – no prior definition required.
+        if analysis_mode in ("grounded", "inductive"):
             return len(errors) == 0, errors
 
         # Validate categories (alle anderen Modi)

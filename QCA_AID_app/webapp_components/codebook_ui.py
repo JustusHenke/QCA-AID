@@ -78,8 +78,8 @@ def save_codebook_to_current_file():
     ensure_categories_are_instances(codebook)
 
     # Aktuellen Analyse-Modus aus der Config ziehen, damit die Validierung
-    # mode-aware erfolgen kann. Im Grounded Mode ist die Forschungsfrage das
-    # einzige Pflichtfeld – Kategorien sind dort optional.
+    # mode-aware erfolgen kann. In den emergenten Modi (Grounded, Induktiv) ist
+    # die Forschungsfrage das einzige Pflichtfeld – Kategorien sind dort optional.
     analysis_mode = getattr(st.session_state.get("config_data"), "analysis_mode", None)
 
     # Save using codebook_manager (use project_root for the manager, but explicit save_path)
@@ -145,25 +145,40 @@ def render_codebook_tab():
             st.session_state.get("config_data"), "analysis_mode", None
         )
         is_grounded = analysis_mode == "grounded"
+        is_inductive = analysis_mode == "inductive"
+        mode_label = "Grounded Mode" if is_grounded else "Induktiven Modus"
+        mode_status = "Grounded Mode" if is_grounded else "Induktiver Modus"
 
-        if is_grounded:
-            # Grounded Mode: Nur Forschungsfrage ist Pflicht
+        if is_grounded or is_inductive:
+            # Emergente Modi: Nur Forschungsfrage ist Pflicht
             if not codebook.forschungsfrage or not codebook.forschungsfrage.strip():
                 st.warning(
-                    ":material/warning: **Aktion erforderlich:** Im Grounded Mode ist die "
+                    f":material/warning: **Aktion erforderlich:** Im {mode_label} ist die "
                     "Forschungsfrage verpflichtend. Bitte unten definieren."
                 )
             elif len(codebook.deduktive_kategorien) == 0:
                 st.info(
-                    ":material/info: **Grounded Mode aktiv:** Hauptkategorien werden "
-                    "während der Analyse emergent gebildet – im Codebook "
-                    "reicht die Forschungsfrage."
+                    f":material/info: **{mode_status} aktiv:** "
+                    + (
+                        "Hauptkategorien werden während der Analyse emergent gebildet – "
+                        "im Codebook reicht die Forschungsfrage."
+                        if is_grounded
+                        else "Das Kategoriensystem wird während der Analyse aus dem "
+                        "Material entwickelt – im Codebook reicht die Forschungsfrage."
+                    )
                 )
-            else:
+            elif is_grounded:
                 st.success(
                     f":material/check_circle: Codebook bereit (Grounded Mode): "
                     f"{len(codebook.deduktive_kategorien)} initiale "
                     "Kategorie(n) + emergent."
+                )
+            else:
+                st.success(
+                    f":material/check_circle: Codebook bereit (Induktiver Modus): "
+                    f"Forschungsfrage gesetzt, {len(codebook.deduktive_kategorien)} "
+                    "Kategorie(n) im Codebook (werden im induktiven Modus nicht als "
+                    "Startpunkt verwendet)."
                 )
         else:
             if len(codebook.deduktive_kategorien) == 0:
@@ -944,8 +959,8 @@ def render_validation_status():
     """
     Zeigt Validierungsstatus des Codebooks an.
 
-    Die Validierung ist mode-aware: Im Grounded Mode ist nur die
-    Forschungsfrage Pflicht, Kategorien sind optional.
+    Die Validierung ist mode-aware: In den emergenten Modi (Grounded,
+    Induktiv) ist nur die Forschungsfrage Pflicht, Kategorien sind optional.
     """
     codebook = st.session_state.codebook_data
 
@@ -965,14 +980,22 @@ def render_validation_status():
         for error in errors:
             st.error(f"  • {error}")
 
-    # Grounded Mode: Hinweis statt Fehler, falls keine Kategorien definiert sind
-    if analysis_mode == "grounded" and not codebook.deduktive_kategorien:
+    # Emergente Modi: Hinweis statt Fehler, falls keine Kategorien definiert sind
+    if analysis_mode in ("grounded", "inductive") and not codebook.deduktive_kategorien:
         if codebook.forschungsfrage and codebook.forschungsfrage.strip():
-            st.info(
-                ":material/info: **Grounded Mode:** Hauptkategorien werden emergent aus dem "
-                "Material gebildet – im Codebook ist nur die Forschungsfrage "
-                "verpflichtend."
-            )
+            if analysis_mode == "grounded":
+                st.info(
+                    ":material/info: **Grounded Mode:** Hauptkategorien werden emergent aus dem "
+                    "Material gebildet – im Codebook ist nur die Forschungsfrage "
+                    "verpflichtend."
+                )
+            else:
+                st.info(
+                    ":material/info: **Induktiver Modus:** Das Kategoriensystem wird aus dem "
+                    "Material entwickelt – im Codebook ist nur die Forschungsfrage "
+                    "verpflichtend. Kategorien sind optional und werden im induktiven "
+                    "Modus nicht als Startpunkt verwendet."
+                )
 
     # Show modification status
     # get() statt direktem Zugriff: das Flag kann fehlen, wenn das Codebook

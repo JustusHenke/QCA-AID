@@ -121,6 +121,18 @@ class TestBasicChecks:
         cb2 = make_codebook(with_categories=False, with_forschungsfrage=False)
         assert not codebook_ready(cb2, "grounded")
 
+    def test_codebook_ready_inductive_needs_only_forschungsfrage(self):
+        """Induktiv ist emergent wie Grounded: Kategorien entstehen aus dem Material."""
+        cb = make_codebook(with_categories=False, with_forschungsfrage=True)
+        assert codebook_ready(cb, "inductive")
+        cb2 = make_codebook(with_categories=False, with_forschungsfrage=False)
+        assert not codebook_ready(cb2, "inductive")
+
+    def test_codebook_ready_abductive_still_needs_categories(self):
+        """Abduktiv erweitert bestehende Kategorien - die muessen vorliegen."""
+        assert not codebook_ready(make_codebook(with_categories=False), "abductive")
+        assert not codebook_ready(make_codebook(with_categories=False), "deductive")
+
 
 class TestInputFiles:
     def test_no_input_dir_is_error_with_folder_fix(self, tmp_path):
@@ -202,7 +214,7 @@ class TestAnalysisTabIssues:
             for i in blockers
         )
 
-    def test_missing_categories_blocker_unless_grounded(self, tmp_path):
+    def test_missing_categories_blocker_unless_emergent_mode(self, tmp_path):
         (tmp_path / "input").mkdir()
         (tmp_path / "input" / "a.txt").write_text("x")
         ctx = make_context(tmp_path, codebook_data=make_codebook(with_categories=False))
@@ -225,6 +237,46 @@ class TestAnalysisTabIssues:
             i.message == "Codebook enthält keine Kategorien"
             and i.severity == "error"
             for i in get_readiness_issues(ctx_grounded, TAB_ANALYSIS)
+        )
+
+    def test_missing_categories_warning_only_in_inductive(self, tmp_path):
+        """Induktiver Modus: Kategorien entstehen aus dem Material -> kein Blocker."""
+        (tmp_path / "input").mkdir()
+        (tmp_path / "input" / "a.txt").write_text("x")
+        ctx = make_context(
+            tmp_path,
+            codebook_data=make_codebook(with_categories=False),
+            analysis_mode="inductive",
+            config_data=make_config(analysis_mode="inductive"),
+        )
+        issues = get_readiness_issues(ctx, TAB_ANALYSIS)
+        assert any(
+            "induktiven Modus OK" in i.message and i.severity == "warning"
+            for i in issues
+        )
+        assert not any(
+            i.message == "Codebook enthält keine Kategorien" and i.severity == "error"
+            for i in issues
+        )
+        assert not any(
+            i.severity == "error" and "Kategorie" in i.message for i in issues
+        )
+
+    def test_inductive_without_forschungsfrage_is_blocker(self, tmp_path):
+        """Auch emergent: ohne Forschungsfrage kein Start."""
+        (tmp_path / "input").mkdir()
+        (tmp_path / "input" / "a.txt").write_text("x")
+        ctx = make_context(
+            tmp_path,
+            codebook_data=make_codebook(
+                with_categories=False, with_forschungsfrage=False
+            ),
+            analysis_mode="inductive",
+            config_data=make_config(analysis_mode="inductive"),
+        )
+        assert any(
+            i.fix_section == "forschungsfrage" and i.severity == "error"
+            for i in get_blockers(ctx, TAB_ANALYSIS)
         )
 
     def test_categories_without_subcats_warn(self, tmp_path):
@@ -297,6 +349,28 @@ class TestWorkflowStatus:
             config_data=make_config(analysis_mode="grounded"),
         )
         assert get_workflow_status(ctx)[TAB_CODEBOOK] is True
+
+    def test_inductive_project_ready_with_forschungsfrage_only(self, tmp_path):
+        (tmp_path / "input").mkdir()
+        (tmp_path / "input" / "a.txt").write_text("x")
+        ctx = make_context(
+            tmp_path,
+            codebook_data=make_codebook(with_categories=False),
+            analysis_mode="inductive",
+            config_data=make_config(analysis_mode="inductive"),
+        )
+        assert get_workflow_status(ctx)[TAB_CODEBOOK] is True
+
+    def test_abductive_project_not_ready_without_categories(self, tmp_path):
+        (tmp_path / "input").mkdir()
+        (tmp_path / "input" / "a.txt").write_text("x")
+        ctx = make_context(
+            tmp_path,
+            codebook_data=make_codebook(with_categories=False),
+            analysis_mode="abductive",
+            config_data=make_config(analysis_mode="abductive"),
+        )
+        assert get_workflow_status(ctx)[TAB_CODEBOOK] is False
 
 
 # ---------------------------------------------------------------------------

@@ -239,12 +239,14 @@ Jede Kategorie braucht:
 
 ## 🎯 Analyse-Modi im Überblick
 
-| Modus | Neue Kategorien? | Wofür? |
-|-------|-----------------|--------|
-| **`deductive`** | ❌ Keine | Theorieprüfung, Replikationsstudien ⭐ Standard |
-| **`abductive`** | 🔹 Nur Subkategorien | Theorie verfeinern, Nuancen entdecken |
-| **`inductive`** | ✅ Haupt- & Subkategorien | Exploration neuer Phänomene |
-| **`grounded`** | 🧱 Schrittweise | Datengetriebene Theorieentwicklung |
+| Modus | Neue Kategorien? | Codebook | Wofür? |
+|-------|-----------------|----------|--------|
+| **`deductive`** | ❌ Keine | Deduktive Kategorien **nötig** | Theorieprüfung, Replikationsstudien ⭐ Standard |
+| **`abductive`** | 🔹 Nur Subkategorien | Deduktive Kategorien **nötig** (werden erweitert) | Theorie verfeinern, Nuancen entdecken |
+| **`inductive`** | ✅ Haupt- & Subkategorien | Nur **Forschungsfrage nötig** – Kategorien entstehen aus dem Material | Exploration neuer Phänomene |
+| **`grounded`** | 🧱 Schrittweise | Nur **Forschungsfrage nötig** – Kategorien entstehen emergent | Datengetriebene Theorieentwicklung |
+
+> 💡 In den **induktiven Modi** (`inductive`, `grounded`) ist das Kategoriensystem im Codebook optional: Die Analyse-Engine setzt es zu Beginn leer und entwickelt die Kategorien während der Analyse aus dem Material. Vorab definierte Kategorien werden dort **nicht** als Startpunkt verwendet.
 
 ---
 

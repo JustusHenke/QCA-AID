@@ -146,6 +146,13 @@ QCA-AID bietet vier verschiedene Analysemodi, die sich in ihrer Offenheit für n
 - Gefahr der Überstrukturierung
 - Aufwendige Nachbearbeitung
 
+> 🆕 **Neu in 0.13.4:** Im induktiven Modus ist im Codebook **nur die Forschungsfrage verpflichtend**. Vorab definierte Kategorien sind optional – die Analyse-Engine setzt das deduktive Kategoriensystem im induktiven Modus explizit leer (`current_categories = {}`) und entwickelt die Kategorien während der Analyse aus dem Material. Der Analyse-Tab blockiert bei leerem Kategoriensystem daher nicht mehr.
+
+**Codebook im induktiven Modus:**
+- ✅ **Forschungsfrage** — verpflichtend (einzige inhaltliche Vorgabe)
+- 🔓 **Deduktive Kategorien** — optional; falls vorhanden, werden sie **nicht** als Startpunkt verwendet
+- 🔓 **Kodierregeln** — empfohlen (geben dem LLM Orientierung bei der Kategorienentwicklung)
+
 ### 3.4 Grounded Theory Modus (`grounded`)
 
 **Prinzip:** Schrittweise Sammlung von Subcodes mit späterer Hauptkategoriengenerierung

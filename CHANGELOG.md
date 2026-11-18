@@ -4,6 +4,26 @@
 
 ---
 
+## Neu in 0.13.5 (2026-11-18)
+
+### Induktiver Modus: nur Forschungsfrage verpflichtend (mode-aware Readiness/Validierung)
+
+### 🐛 Workflow verlangte im induktiven Modus Kategorien, die die Engine ignoriert
+
+**Problem:** Die Analyse-Engine behandelt den induktiven Modus seit jeher wie einen emergenten Modus: `_analyze_normal_modes()` setzt `current_categories = {}` und `deductive_categories = {}`, das Kategoriensystem entsteht batchweise aus dem Material – Orientierung ist ausschließlich die Forschungsfrage (`InductiveCoder._create_inductive_mode_prompt`). Der Workflow (Readiness-Layer, Codebook-Validierung, Codebook-Tab) kannte diese Ausnahme aber nur für `grounded`. Ergebnis: Ein methodisch korrekt aufgesetztes induktives Projekt (nur Forschungsfrage) zeigte im Analyse-Tab den Blocker „Codebook enthält keine Kategorien“, der Codebook-Schritt blieb unvollständig und `CodebookData.validate()` meldete „At least one category is required“.
+
+**Lösung:** `grounded` und `inductive` werden jetzt einheitlich als *emergente Modi* behandelt:
+
+- `webapp_logic/readiness.py`: neue Konstante `EMERGENT_MODES` + `requires_predefined_categories()`; `codebook_ready()` und `_codebook_issues()` verlangen in beiden Modi nur die Forschungsfrage. Die Meldung ist modusabhängig („im induktiven Modus OK – das Kategoriensystem entsteht aus dem Material“) und bleibt eine Warnung, kein Blocker.
+- `webapp_models/codebook_data.py` (`CodebookData.validate`): Early-Return für `{"grounded", "inductive"}`; Forschungsfrage bleibt in **allen** Modi Pflicht.
+- `webapp_components/codebook_ui.py`: Status-Banner und Validierungs-Hinweis unterscheiden jetzt Grounded Mode und induktiven Modus (inkl. Hinweis, dass vorhandene Kategorien im induktiven Modus nicht als Startpunkt verwendet werden).
+
+**Nicht geändert:** `deductive`, `abductive` und `full` verlangen weiterhin vorab definierte Kategorien – abduktiv erweitert bestehende Hauptkategorien, deduktiv kodiert ausschließlich dagegen.
+
+**Tests:** `tests/test_webapp_readiness.py` (induktiv = Warning statt Blocker, Workflow-Step vollständig, fehlende Forschungsfrage bleibt Blocker, abduktiv weiterhin Kategorie-Pflicht) und neu `tests/test_webapp_codebook_validation.py` (mode-aware `CodebookData.validate`). Gesamtsuite: 103 passed.
+
+### 🧹 Sonstiges
+
 ## Neu in 0.13.3 (2026-11-12)
 
 ### Bugfix-Release: Projekt-Codebook hat Vorrang, Material-Icons, LLM-Katalog-Update

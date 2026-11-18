@@ -89,9 +89,20 @@ def has_research_question(codebook_data: Any) -> bool:
     return bool(ff and str(ff).strip())
 
 
+# Modi, in denen das Kategoriensystem erst waehrend der Analyse aus dem
+# Material entsteht: vorab definierte (deduktive) Kategorien sind dort
+# methodisch nicht erforderlich - es zaehlt nur die Forschungsfrage.
+EMERGENT_MODES = ("grounded", "inductive")
+
+
+def requires_predefined_categories(analysis_mode: Optional[str]) -> bool:
+    """True, wenn der Modus vorab definierte Kategorien im Codebook braucht."""
+    return analysis_mode not in EMERGENT_MODES
+
+
 def codebook_ready(codebook_data: Any, analysis_mode: Optional[str]) -> bool:
-    """Grounded Mode: Forschungsfrage reicht; sonst Kategorien erforderlich."""
-    if analysis_mode == "grounded":
+    """Emergente Modi (grounded/inductive): Forschungsfrage reicht; sonst Kategorien."""
+    if not requires_predefined_categories(analysis_mode):
         return has_research_question(codebook_data)
     return has_categories(codebook_data)
 
@@ -182,6 +193,17 @@ def _codebook_issues(ctx: ReadinessContext, forschung_frage_as_error: bool) -> l
                     message=(
                         "Codebook enthält keine Kategorien (im Grounded Mode OK – "
                         "Hauptkategorien werden emergent gebildet)"
+                    ),
+                    severity="warning",
+                )
+            )
+        elif mode == "inductive":
+            issues.append(
+                Issue(
+                    message=(
+                        "Codebook enthält keine Kategorien (im induktiven Modus OK – "
+                        "das Kategoriensystem entsteht aus dem Material, "
+                        "Orientierung ist die Forschungsfrage)"
                     ),
                     severity="warning",
                 )
