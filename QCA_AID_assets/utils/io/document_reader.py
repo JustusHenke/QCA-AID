@@ -257,7 +257,7 @@ class DocumentReader:
                                 print("  Alternative Methode fehlgeschlagen")
                                 continue
                     
-                except PyPDF2.errors.PdfReadError as pdf_error:
+                except pypdf.errors.PdfReadError as pdf_error:
                     print(f"  PDF Lesefehler: {str(pdf_error)}")
                     print("  Versuche Fallback-Methode...")
                     

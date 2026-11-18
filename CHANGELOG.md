@@ -4,6 +4,27 @@
 
 ---
 
+## Neu in 0.13.6 (2026-11-18)
+
+### Bugfix: NameError batch_callback im induktiven Modus
+
+**Problem:** `OptimizationController._analyze_inductive()` nutzte `batch_callback` (Phasen-Label „Phase 1: Relevanzprüfung"), ohne den Namen als Parameter zu deklarieren. Er kam per `**kwargs` aus `analyze_segments()` herein, wurde aber nie an einen lokalen Namen gebunden – jeder induktive Lauf (`_analyze_normal_modes()` → `analyze_segments()`) brach daher sofort mit `NameError: name 'batch_callback' is not defined` ab und fiel still auf die Standard-Analyse zurück (inkl. Verlust des Fortschritts: „1062 Segmente aus processed_segments entfernt"). `_analyze_grounded()` hatte den Parameter bereits korrekt deklariert.
+
+**Lösung:** `batch_callback: Optional[callable] = None` in der Signatur von `_analyze_inductive()` ergänzt (`QCA_AID_assets/optimization/controller.py`), analog zu `_analyze_grounded()`.
+
+### Gleichartige latente NameErrors (per pyflakes gefunden und mitbehoben)
+
+- `analysis/analysis_manager.py`: `import statistics` fehlte – `get_progress_report()` wäre beim ersten Batch-Zeitmittel abgestürzt.
+- `analysis/inductive_coding.py`: `import traceback` fehlte – im `except`-Zweig der Grounded-Analyse hätte der fehlende Import den Originalfehler maskiert.
+- `export/results_exporter.py`: `import re` und `from ..core.validators import CategoryValidator` fehlten – die Subkategorie-Validierung beim Export und die Segment-ID-Helfer (`_extract_segment_number`, `_extract_first_letters`) wären mit NameError abgebrochen.
+- `utils/io/document_reader.py`: `except PyPDF2.errors.PdfReadError` → `except pypdf.errors.PdfReadError` (die Abhängigkeit ist `pypdf`; bei PDF-Lesefehlern drohte NameError statt des vorgesehenen OCR-Fallbacks).
+
+**Tests:** neu `QCA_AID_app/tests/test_optimization_controller_callbacks.py` (Signatur-Check für `_analyze_inductive`/`_analyze_grounded` plus Smoke-Test der Relevanzphase mit und ohne Callback). Gesamtsuite: `python -m pytest QCA_AID_app/tests` → 106 passed. `pyflakes QCA_AID_assets` meldet keine echten undefined names mehr (verbleibende Treffer sind reine String-Annotationen bzw. eine Test-Datei).
+
+### 🧹 Sonstiges
+
+- Version auf 0.13.6 gehoben (`scripts/version_guardrail.py bump`).
+
 ## Neu in 0.13.5 (2026-11-18)
 
 ### Induktiver Modus: nur Forschungsfrage verpflichtend (mode-aware Readiness/Validierung)

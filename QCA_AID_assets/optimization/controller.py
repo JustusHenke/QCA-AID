@@ -2880,6 +2880,7 @@ class OptimizationController:
         document_paraphrases: Optional[Dict[str, List[str]]] = None,
         context_paraphrase_count: int = 3,
         paraphrase_callback: Optional[callable] = None,
+        batch_callback: Optional[callable] = None,
         **kwargs,
     ) -> List[Dict[str, Any]]:
         """

@@ -7,6 +7,7 @@ Exportiert Analyseergebnisse in verschiedene Formate (Excel, PDF, etc.).
 import os
 import sys
 import json
+import re
 import pandas as pd
 from datetime import datetime
 from typing import Dict, List, Optional, Any, Tuple
@@ -35,6 +36,7 @@ from openpyxl.worksheet.table import Table, TableStyleInfo
 
 from ..core.config import CONFIG
 from ..core.data_models import CategoryDefinition, CodingResult, CategoryChange
+from ..core.validators import CategoryValidator
 from ..analysis.inductive_coding import InductiveCoder
 from ..quality.reliability import ReliabilityCalculator
 from ..utils.export.helpers import (

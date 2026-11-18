@@ -6,6 +6,7 @@ Ergänzung deduktiver Kategorien durch induktive Kategorien mittels LLM.
 
 import asyncio
 import json
+import traceback
 from collections import Counter, defaultdict
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Set, Tuple
