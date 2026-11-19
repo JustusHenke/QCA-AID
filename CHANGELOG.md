@@ -4,6 +4,65 @@
 
 ---
 
+## Neu in 0.14.0 (2026-11-19)
+
+### Fix: TypeError in calculate_multiple_coding_stats bei None-Kategorien
+
+**Problem:** Ein induktiver Lauf (v0.13.6) beendete sich *nach* erfolgreichem Export mit
+
+```
+Fehler in der Hauptausführung: '<' not supported between instances of 'NoneType' and 'str'
+  File "...utils/analysis.py", line 63, in calculate_multiple_coding_stats
+    category_combinations.append(' + '.join(sorted(unique_categories)))
+TypeError: '<' not supported between instances of 'NoneType' and 'str'
+```
+
+Ursache: `ReviewManager._create_category_specific_segments()` setzt für Segmente ohne gültige Kategorie (alle Kodierungen `None` oder `"Nicht kodiert"`) `target_category = None`; der Consensus-Pfad schrieb dieses `None` in `_get_consensus_for_category_segment()` ungeprüft als `category` in die finalen Kodierungen. Die Statistik-Funktion sortierte anschließend eine Menge aus `str` und `None`. Da der Fehler im Block „finale Statistiken" auftrat, liefen Export und Review bereits durch – nur Token-/Relevanzstatistiken und der Abschluss gingen verloren, und der Lauf meldete fälschlich einen Fehler.
+
+**Lösung (drei Ebenen):**
+
+1. *Ursache:* `ReviewManager._get_consensus_for_category_segment()` fällt bei fehlendem `target_category` auf die Kategorie der besten Kodierung bzw. `"Nicht kodiert"` zurück. `_log_review_decision()` verträgt jetzt zusätzlich `justification = None` (vorher `TypeError: object of type 'NoneType' has no len()`).
+2. *Speicherung:* `ExtendedCodingResult.__post_init__()` normalisiert `category` (`None`/leer → `"Nicht kodiert"`, sonst `strip()`), damit auch die Reliability-Database-Werte für spätere Läufe sauber sind.
+3. *Statistik:* `calculate_multiple_coding_stats()` normalisiert `segment_id`, `coder_id` und `category` über einen Helper (`None` → `""`), sortiert nur noch Strings, zeigt kategorielose Kodierungen als `(ohne Kategorie)` und liest `total_coding_instances` robust als Integer. `main.py` prüft `coder_id` vor `.startswith("auto")` gegen `None`.
+4. *Anzeige-Block:* Die Statistikausgabe in `main()` läuft jetzt in der neuen Funktion `_report_multiple_coding_stats()` mit eigenem `try/except`. Ein Fehler dort wird als `WARNING` inkl. Traceback geloggt (landet über den Tee-Writer im Console-Log) und auf der Konsole als `[WARNUNG]`/`[HINWEIS]` gemeldet – der Lauf endet nicht mehr mit „Fehler in der Hauptausführung“, da Export und Review zu diesem Zeitpunkt abgeschlossen und gültig sind.
+
+**Tests:** neu `QCA_AID_assets/utils/tests/test_analysis_multiple_coding_stats.py` (None-Kategorie, ausschließlich None-Kategorien, None-Coder-ID, String-Instanzzähler, None-Segment-ID, Fokus-Adhärenz, Leerfälle), `QCA_AID_assets/quality/tests/test_review_manager_category_fallback.py` (Fallback bei `target_category = None`, Erhalt gültiger Kategorien) und `QCA_AID_app/tests/test_multiple_coding_stats_reporting.py` (Fehler wird geloggt, aber nicht geworfen; Erfolgsfall warnt nicht; echte None-Kategorien lösen keine Warnung mehr aus). `python -m pytest QCA_AID_app/tests QCA_AID_assets/utils/tests QCA_AID_assets/quality/tests` → alle grün.
+
+### Neu: temperature-Unterstützung wird genau einmal geprüft (vor der Relevanzprüfung)
+
+**Problem:** Ob das Modell den Parameter `temperature` akzeptiert, wurde bisher *pro API-Call* neu „ausprobiert“: Solange `token_counter.model_capabilities` keinen Eintrag hatte, schickte jeder Request `temperature` mit, scheiterte bei Reasoning-Modellen (o1/o3, GPT-5-Familie o. ä.) mit `400 Unsupported parameter: 'temperature'` und wurde ohne `temperature` wiederholt – doppelte Latenz, doppelte Fehler-Logs, und die Entscheidung fiel zufällig beim ersten echten Fach-Call (Relevanzprüfung).
+
+**Lösung:** Neues Modul `QCA_AID_assets/utils/llm/capabilities.py` mit `ensure_temperature_capability()`:
+
+- `IntegratedAnalysisManager.analyze_material()` ruft die Prüfung **einmalig vor der Relevanzprüfung** auf (also vor dem ersten fachlichen LLM-Call, für alle Modi inkl. `grounded`) – `_ensure_temperature_capability()`.
+- Der Test ist ein einzelner, minimaler Completion-Aufruf (`"ping"`, `temperature=0.0`); das Ergebnis (True/False) landet im globalen Capability-Cache `token_counter.model_capabilities`.
+- Ab dann laufen **alle** Requests deterministisch mit oder ohne `temperature` – die Provider (OpenAI, Anthropic, Mistral, OpenRouter, Local) lesen nur noch den Cache und probieren nicht erneut.
+- Ein `_PROBED_MODELS`-Marker verhindert eine zweite Prüfung im selben Prozess, auch wenn die Prüfung ohne eindeutiges Ergebnis endet (dann Fallback „mit temperature“, geloggt als WARNING).
+- Konsolen-/Log-Ausgabe: `🌡️ Prüfe EINMALIG, ob '<model>' den Parameter 'temperature' akzeptiert (vor der Relevanzprüfung)...` plus `✅ Modell akzeptiert 'temperature' …` bzw. `⚠️ Modell akzeptiert 'temperature' NICHT - alle weiteren Calls laufen ohne temperature.` Bei bereits geprüftem Modell (z. B. zweiter Lauf in derselben Session) nur eine kurze Zeile ohne API-Call.
+
+**Tests:** neu `QCA_AID_app/tests/test_temperature_capability_probe.py` – Prüfung läuft genau einmal (zweiter Aufruf ohne API-Call), Ablehnung wird erkannt und gecacht, Cache verhindert Prüfung komplett, unklarer Fehler → Fallback „mit temperature“ (einmalig), fehlender Provider → `None` mit Warnung, `force=True` erlaubt erneute Prüfung; zusätzlich ein Test gegen den **echten** `OpenAIProvider`-Codepfad (Probe-Call mit `temperature`, Retry ohne, danach gehen alle Calls ohne `temperature` raus).
+
+### Neu: Custom API Base URL nur mit Häkchen (OpenAI / Custom API Provider)
+
+**Problem:** In der Konfigurations-UI war die Sektion „Custom API Base URL“ für alle Provider sichtbar und jede Eingabe wurde sofort in die Konfiguration geschrieben (`API_BASE_URL`/`API_KEY_ENV`). Ein einmal eingetragener Custom-Endpoint blieb damit auch dann aktiv, wenn der Nutzer den Standard-Cloud-Provider von OpenAI verwenden wollte – inklusive Freitext-Modellfeld und Vorrangprüfung gegen den Custom-Env-Var.
+
+**Lösung:** Die Custom-API-Sektion ist jetzt an Provider und Häkchen gebunden (`webapp_components/config_ui.py`):
+
+- Bei **„OpenAI / Custom API Provider“** gibt es das Häkchen **„Custom API Base URL verwenden“** (Default: angehakt, wenn bereits eine URL gespeichert ist).
+  - **Häkchen gesetzt:** Base URL + Env-Var-Name werden übernommen, Modell-Name bleibt Freitext.
+  - **Häkchen nicht gesetzt:** Es gilt der Standard-Cloud-Provider von OpenAI; `api_base_url` und `custom_api_key_env` werden aus der Konfiguration **entfernt** (Meldung + Log `[config] Custom API-Einstellungen zurückgesetzt …`), das Modell-Feld fällt auf das Standard-Dropdown zurück.
+- Bei **„Local (LM Studio/Ollama)“** bleibt die URL ein normales Eingabefeld (der Endpoint ist dort funktional erforderlich, kein Häkchen).
+- Bei **Anthropic/Mistral/OpenRouter** wird die Sektion ausgeblendet – die Provider-Factory reicht `base_url` ohnehin nur an OpenAI- und Local-Provider weiter – mit Hinweis-Caption.
+- Die API-Key-Prüfung läuft jetzt **nach** der Custom-API-Sektion, damit ein gerade zurückgesetzter Endpoint sofort korrekt geprüft wird.
+
+Neue, Streamlit-freie Helfer in `config_ui.py`: `provider_supports_custom_endpoint()`, `normalize_api_base_url()`, `is_valid_api_base_url()`, `reset_custom_api_settings()`.
+
+**Tests:** neu `QCA_AID_app/tests/test_config_custom_api_toggle.py` – Provider-Gating (nur `openai`/`gpt`/`local`), URL-Normalisierung/Validierung, Reset entfernt URL und Env-Var und persistiert `None` (Standard-Cloud), Idempotenz des Resets, Kompatibilität mit alten `SimpleNamespace`-Session-Objekten. Zusätzlich `QCA_AID_app/tests/test_config_ui_custom_api_streamlit.py` (headless über `streamlit.testing.v1.AppTest`): Häkchen ist bei gespeicherter Custom-URL angehakt, Entfernen setzt URL + Env-Var zurück und markiert die Config als geändert, ohne Custom-URL ist es nicht angehakt, und bei Anthropic/Mistral/OpenRouter erscheint die Sektion gar nicht (gespeicherte Werte bleiben unangetastet). Wird das URL-Feld geleert, verschwindet auch die Custom-Env-Variable.
+
+### 🧹 Sonstiges
+
+- Version auf 0.14.0 gehoben (Minor: zwei neue Funktionen – temperature-Capability-Prüfung und Custom-API-Häkchen – plus Bugfixes bei den Mehrfachkodierungs-Statistiken).
+
 ## Neu in 0.13.6 (2026-11-18)
 
 ### Bugfix: NameError batch_callback im induktiven Modus

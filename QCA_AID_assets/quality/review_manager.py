@@ -434,6 +434,13 @@ class ReviewManager:
         # WÄhle beste Kodierung als Basis
         best_coding = max(codings, key=lambda x: self._extract_confidence_value(x))
         consensus_coding = best_coding.copy()
+
+        # FIX: target_category kann None sein (Segment ohne gueltige Kategorien,
+        # z. B. wenn alle Kodierungen "Nicht kodiert" waren). Ohne Fallback landet
+        # None als Kategorie in den Ergebnissen und laesst spaeter
+        # sorted()/String-Operationen mit TypeError abstuerzen.
+        if not target_category:
+            target_category = best_coding.get('category') or 'Nicht kodiert'
         
         # Aktualisiere mit Consensus-Informationen
         # FIX: Preserve original internal segment_id format
@@ -625,12 +632,14 @@ class ReviewManager:
         # Document all alternative codings
         for coding in all_codings:
             if coding.get('coder_id') != chosen_coding.get('coder_id'):
+                # FIX: justification kann None sein (LLM-Antwort ohne Begruendung)
+                justification = coding.get('justification') or ''
                 alternative = {
                     "coder_id": coding.get('coder_id'),
                     "category": coding.get('category'),
                     "subcategories": coding.get('subcategories', []),
                     "confidence": self._extract_confidence_value(coding),
-                    "justification": coding.get('justification', '')[:200] + '...' if len(coding.get('justification', '')) > 200 else coding.get('justification', '')
+                    "justification": justification[:200] + '...' if len(justification) > 200 else justification
                 }
                 decision["alternatives"].append(alternative)
         

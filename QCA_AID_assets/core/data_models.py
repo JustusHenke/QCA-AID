@@ -129,6 +129,15 @@ class ExtendedCodingResult:
         # Ensure timestamp is datetime object
         if isinstance(self.timestamp, str):
             self.timestamp = datetime.fromisoformat(self.timestamp)
+        # Kategorie/Subkategorien koennen aus LLM-Antworten als None kommen.
+        # Normalisieren, damit nachgelagerte String-Operationen (sort, join,
+        # Export, Reliabilitaets-Statistiken) nicht mit TypeError abbrechen.
+        if self.category is None or not str(self.category).strip():
+            self.category = "Nicht kodiert"
+        else:
+            self.category = str(self.category).strip()
+        if not self.subcategories:
+            self.subcategories = []
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary for serialization."""

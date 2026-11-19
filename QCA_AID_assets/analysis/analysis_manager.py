@@ -25,6 +25,11 @@ from ..optimization.controller import AnalysisMode, OptimizationController
 from ..QCA_Prompts import QCAPrompts
 from ..utils.impact_analysis import analyze_multiple_coding_impact
 from ..utils.io.escape_handler import EscapeHandler, add_escape_handler_to_manager
+from ..utils.llm.capabilities import (
+    describe_temperature_support,
+    ensure_temperature_capability,
+    get_temperature_support,
+)
 from ..utils.llm.response import LLMResponse
 from ..utils.tracking.token_tracker import TokenTracker, get_global_token_counter
 from ..utils.validators import validate_category_specific_segments
@@ -49,6 +54,10 @@ class IntegratedAnalysisManager:
 
         # FIX: model_name Attribut hinzuFügen fuer RelevanceChecker
         self.model_name = config["MODEL_NAME"]
+
+        # Ergebnis der einmaligen temperature-Prüfung (None = noch unbekannt).
+        # Wird in _ensure_temperature_capability() vor der Relevanzprüfung gesetzt.
+        self.temperature_supported = None
 
         # Batch Size aus Config
         self.batch_size = config.get("BATCH_SIZE", 5)
@@ -1433,6 +1442,61 @@ class IntegratedAnalysisManager:
 
         return False
 
+    async def _ensure_temperature_capability(self) -> Optional[bool]:
+        """
+        Prüft genau einmal, ob das konfigurierte Modell 'temperature' akzeptiert.
+
+        Wird vor der ersten Relevanzprüfung aufgerufen. Das Ergebnis landet im
+        globalen Capability-Cache (``token_counter.model_capabilities``) und
+        wird von allen Providern ausgewertet: ab dann laufen alle Requests
+        entweder konsequent mit oder konsequent ohne temperature - ohne
+        erneutes Ausprobieren pro Call.
+
+        Returns:
+            True/False wenn ermittelbar, sonst None.
+        """
+        provider = getattr(self.relevance_checker, "llm_provider", None)
+        model_name = self.model_name
+
+        cached = get_temperature_support(model_name)
+        if cached is not None:
+            self.temperature_supported = cached
+            print(
+                f"\n🌡️ temperature-Unterstützung für '{model_name}' bereits geprüft: "
+                f"{describe_temperature_support(model_name)}"
+            )
+            return cached
+
+        print(
+            f"\n🌡️ Prüfe EINMALIG, ob '{model_name}' den Parameter 'temperature' "
+            f"akzeptiert (vor der Relevanzprüfung)..."
+        )
+
+        supported = await ensure_temperature_capability(
+            provider=provider,
+            model_name=model_name,
+            probe_temperature=0.0,
+        )
+        self.temperature_supported = supported
+
+        if supported is None:
+            print(
+                "   ⚠️ Prüfung nicht möglich (kein Provider) - "
+                "Calls laufen wie bisher mit temperature."
+            )
+        elif supported:
+            print(
+                "   ✅ Modell akzeptiert 'temperature' - alle weiteren Calls "
+                "(Relevanzprüfung, Kodierung, induktive Entwicklung) nutzen temperature."
+            )
+        else:
+            print(
+                "   ⚠️ Modell akzeptiert 'temperature' NICHT - alle weiteren Calls "
+                "laufen ohne temperature."
+            )
+
+        return supported
+
     async def analyze_material(
         self,
         chunks: Dict[str, List[str]],
@@ -1458,6 +1522,11 @@ class IntegratedAnalysisManager:
             self.chunks = chunks
 
             analysis_mode = CONFIG.get("ANALYSIS_MODE", "inductive")
+
+            # EINMALIGE CAPABILITY-PRÜFUNG (VOR der Relevanzprüfung):
+            # Ob das Modell 'temperature' akzeptiert, wird genau einmal geprüft.
+            # Danach laufen alle Calls deterministisch mit oder ohne temperature.
+            await self._ensure_temperature_capability()
 
             # Reset Tracking-Variablen
             self.coding_results = []

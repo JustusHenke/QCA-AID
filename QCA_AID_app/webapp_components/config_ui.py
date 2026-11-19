@@ -778,6 +778,57 @@ def _load_model_pricing(provider_display_name: str, model_id: str) -> Optional[t
         return None
 
 
+# Provider, bei denen eine Custom API Base URL überhaupt ausgewertet wird.
+# (Die Provider-Factory reicht `base_url` nur an OpenAI- und Local-Provider weiter.)
+CUSTOM_ENDPOINT_PROVIDERS = ("openai", "gpt", "local")
+
+
+def provider_supports_custom_endpoint(provider_id: str) -> bool:
+    """True, wenn für diesen Provider eine Custom Base URL verwendet werden kann."""
+    return str(provider_id or "").lower() in CUSTOM_ENDPOINT_PROVIDERS
+
+
+def normalize_api_base_url(value) -> Optional[str]:
+    """
+    Normalisiert eine Base-URL-Eingabe für die Konfiguration.
+
+    Leerzeichen/leere Strings werden zu ``None`` (= Standard-Endpoint des
+    Providers), ansonsten wird der Wert getrimmt zurückgegeben.
+    """
+    if value is None:
+        return None
+    value = str(value).strip()
+    return value or None
+
+
+def is_valid_api_base_url(value: str) -> bool:
+    """True, wenn die URL mit http:// oder https:// beginnt."""
+    return str(value or "").strip().startswith(("http://", "https://"))
+
+
+def reset_custom_api_settings(config) -> bool:
+    """
+    Entfernt Custom-API-Einstellungen aus der Konfiguration.
+
+    Wird verwendet, wenn beim Provider 'OpenAI / Custom API Provider' das
+    Häkchen 'Custom API Base URL verwenden' nicht gesetzt ist: Dann gilt der
+    Standard-Cloud-Provider, und eine ggf. gespeicherte Custom-URL samt
+    Custom-Env-Variable wird zurückgesetzt.
+
+    Returns:
+        bool: True, wenn tatsächlich etwas geändert wurde.
+    """
+    base_url = getattr(config, "api_base_url", None)
+    key_env = getattr(config, "custom_api_key_env", None)
+
+    if not base_url and not key_env:
+        return False
+
+    config.api_base_url = None
+    config.custom_api_key_env = None
+    return True
+
+
 def check_api_key_for_provider(provider_display_name: str, provider_display_map: dict):
     """
     Prüft ob ein API-Key für den ausgewählten Provider vorhanden ist.
@@ -1055,106 +1106,176 @@ def render_model_settings():
         config.model_provider = new_provider_id
         st.session_state.config_modified = True
 
-    # API-Key-Prüfung für den ausgewählten Provider
-    check_api_key_for_provider(new_provider, provider_display_map)
-
     # Defensive getattr-Zugriffe für Kompatibilität mit alten Session-State-Objekten
     api_base_url_val = getattr(config, "api_base_url", None)
     custom_api_key_env_val = getattr(config, "custom_api_key_env", None)
-    using_custom_api = bool(api_base_url_val and api_base_url_val.strip())
+    using_custom_api = normalize_api_base_url(api_base_url_val) is not None
+
+    is_openai_provider = new_provider_id in ("openai", "gpt")
 
     # ─────────────────────────────────────────────────────────────
-    # CUSTOM API BASE URL — für ALLEN Provider sichtbar
+    # CUSTOM API BASE URL
+    #   - OpenAI / Custom API Provider: nur mit Häkchen übernehmen, sonst
+    #     Standard-Cloud-Provider (api.openai.com) und Custom-Einstellung löschen
+    #   - Local: Server-URL ist der Endpoint, daher ohne Häkchen
+    #   - Übrige Provider: Custom Base URL wird nicht unterstützt
     # ─────────────────────────────────────────────────────────────
-    with st.expander(":material/build: Custom API Base URL (OpenAI-kompatibel)", expanded=False):
-        st.markdown("""
-        **Wofür?** Ermöglicht die Verwendung von OpenAI-kompatiblen Endpoints, z.B.:
-        - GWDG Academic Cloud: `https://chat-ai.academiccloud.de/v1`
-        - Azure OpenAI: `https://your-resource.openai.azure.com/`
-        - Andere OpenAI-kompatible Services
+    has_custom_url = False
+    use_custom_endpoint = False
 
-        **Wenn ausgefüllt:** Der Modell-Name wird zu einem Freitext-Feld,
-        in das Sie jedes beliebige Modell eingeben können.
-
-        Lassen Sie das Feld leer, um die Standard-URL des Providers zu verwenden.
-        """)
-
-        current_base_url = api_base_url_val or ""
-        new_base_url = st.text_input(
-            "API Base URL",
-            value=current_base_url,
-            placeholder="z.B. https://chat-ai.academiccloud.de/v1",
-            help="Optional: Custom Base URL für OpenAI-kompatible Endpoints",
+    if provider_supports_custom_endpoint(new_provider_id):
+        expander_title = (
+            ":material/build: Custom API Base URL (OpenAI-kompatibel)"
+            if is_openai_provider
+            else ":material/build: Server-URL (LM Studio / Ollama)"
         )
 
-        # Validate URL format if provided
-        has_custom_url = bool(new_base_url and new_base_url.strip())
-        if has_custom_url:
-            if not (
-                new_base_url.startswith("http://")
-                or new_base_url.startswith("https://")
-            ):
-                st.error(":material/cancel: Base URL muss mit http:// oder https:// beginnen")
-                has_custom_url = False
-            else:
-                st.success(f":material/check_circle: Custom Base URL: `{new_base_url}`")
+        with st.expander(expander_title, expanded=using_custom_api):
+            if is_openai_provider:
+                st.markdown("""
+                **Wofür?** Verwendet statt `api.openai.com` einen OpenAI-kompatiblen Endpoint, z.B.:
+                - GWDG Academic Cloud: `https://chat-ai.academiccloud.de/v1`
+                - Azure OpenAI: `https://your-resource.openai.azure.com/`
+                - Andere OpenAI-kompatible Services
 
-        # Update config
-        new_base_url_val = (
-            new_base_url if (new_base_url and new_base_url.strip()) else None
+                **Nur mit Häkchen:** Ohne Häkchen wird der Standard-Cloud-Provider
+                (OpenAI) verwendet und eine ggf. gespeicherte Custom-Einstellung
+                zurückgesetzt. Mit Häkchen wird die Base URL übernommen und der
+                Modell-Name zu einem Freitext-Feld.
+                """)
+
+                use_custom_endpoint = st.checkbox(
+                    "Custom API Base URL verwenden",
+                    value=using_custom_api,
+                    help=(
+                        "Ohne Häkchen gilt der Standard-Endpoint von OpenAI; "
+                        "eine gespeicherte Custom-URL und die Custom-Env-Variable "
+                        "werden dabei aus der Konfiguration entfernt."
+                    ),
+                )
+
+                if not use_custom_endpoint:
+                    # Custom-Provider-Einstellung zurücksetzen -> Standard-Cloud
+                    if reset_custom_api_settings(config):
+                        api_base_url_val = None
+                        custom_api_key_env_val = None
+                        st.session_state.config_modified = True
+                        print(
+                            "[config] Custom API-Einstellungen zurückgesetzt "
+                            "(Häkchen 'Custom API Base URL verwenden' nicht gesetzt)"
+                        )
+
+                    st.info(
+                        ":material/info: Standard-Cloud-Provider wird verwendet - "
+                        "eine Custom Base URL wird nicht in die Konfiguration übernommen."
+                    )
+            else:
+                # Lokale Server: URL ist der Endpoint, keine Zusatz-Bestätigung nötig
+                use_custom_endpoint = True
+                st.markdown("""
+                **Wofür?** Adresse Ihres lokalen Modell-Servers, z.B.:
+                - LM Studio: `http://localhost:1234/v1`
+                - Ollama: `http://localhost:11434/v1`
+
+                Lassen Sie das Feld leer, um den Standard-Endpoint des lokalen
+                Providers zu verwenden.
+                """)
+
+            # ── URL-Eingabe (nur wenn Custom-Endpoint aktiv) ──
+            if use_custom_endpoint:
+                current_base_url = api_base_url_val or ""
+                new_base_url = st.text_input(
+                    "API Base URL",
+                    value=current_base_url,
+                    placeholder=(
+                        "z.B. https://chat-ai.academiccloud.de/v1"
+                        if is_openai_provider
+                        else "z.B. http://localhost:1234/v1"
+                    ),
+                    help="Optional: Custom Base URL für OpenAI-kompatible Endpoints",
+                )
+
+                # Validate URL format if provided
+                new_base_url_val = normalize_api_base_url(new_base_url)
+                has_custom_url = new_base_url_val is not None
+                if has_custom_url:
+                    if not is_valid_api_base_url(new_base_url_val):
+                        st.error(":material/cancel: Base URL muss mit http:// oder https:// beginnen")
+                        has_custom_url = False
+                    else:
+                        st.success(f":material/check_circle: Custom Base URL: `{new_base_url_val}`")
+
+                # Update config: nur gültige URLs übernehmen, sonst Standard-Endpoint
+                if has_custom_url:
+                    if new_base_url_val != api_base_url_val:
+                        config.api_base_url = new_base_url_val
+                        api_base_url_val = new_base_url_val
+                        st.session_state.config_modified = True
+                elif reset_custom_api_settings(config):
+                    # Feld geleert oder ungültige URL -> Custom-Einstellung entfernen
+                    # (inkl. Custom-Env-Variable, damit kein Rest zurückbleibt)
+                    api_base_url_val = None
+                    custom_api_key_env_val = None
+                    st.session_state.config_modified = True
+
+                # ── Custom API Key Env Var Name (nur wenn Custom Base URL gesetzt) ──
+                if has_custom_url:
+                    st.markdown("---")
+                    st.markdown("**:material/key: Custom API-Key-Umgebungsvariable**")
+                    st.info("""
+                    Geben Sie den Namen der Umgebungsvariable an, in der Ihr API-Key für
+                    diesen Custom-Endpoint gespeichert ist.
+
+                    **Beispiele:** `GWDG_API_KEY`, `AZURE_OPENAI_KEY`, `CUSTOM_API_KEY`
+
+                    Lassen Sie das Feld leer, um `OPENAI_API_KEY` zu verwenden.
+                    """)
+
+                    current_env_name = custom_api_key_env_val or ""
+                    new_env_name = st.text_input(
+                        "Env-Var-Name für API-Key",
+                        value=current_env_name,
+                        placeholder="OPENAI_API_KEY (Standard)",
+                        help="Name der Umgebungsvariable, die Ihren API-Key für diesen Endpoint enthält",
+                    )
+
+                    new_env_name_val = (
+                        new_env_name if (new_env_name and new_env_name.strip()) else None
+                    )
+                    if new_env_name_val != custom_api_key_env_val:
+                        config.custom_api_key_env = new_env_name_val
+                        custom_api_key_env_val = (
+                            new_env_name_val  # lokale Variable aktualisieren
+                        )
+                        st.session_state.config_modified = True
+
+                    # Prüfe ob der benannte API-Key vorhanden ist
+                    import os
+
+                    env_to_check = new_env_name_val or "OPENAI_API_KEY"
+                    api_key_value = os.getenv(env_to_check)
+
+                    if api_key_value:
+                        masked = (
+                            f"{api_key_value[:4]}...{api_key_value[-4:]}"
+                            if len(api_key_value) > 8
+                            else "****"
+                        )
+                        st.success(f":material/check_circle: API-Key `{env_to_check}` gefunden: `{masked}`")
+                    else:
+                        st.warning(
+                            f":material/warning: API-Key `{env_to_check}` nicht in Umgebungsvariablen gefunden. Bitte in `.env` oder als Systemvariable setzen."
+                        )
+    else:
+        st.caption(
+            ":material/info: Eine Custom API Base URL wird nur für "
+            "'OpenAI / Custom API Provider' und lokale Provider unterstützt."
         )
-        if new_base_url_val != api_base_url_val:
-            config.api_base_url = new_base_url_val
-            st.session_state.config_modified = True
 
-        # ── Custom API Key Env Var Name (nur wenn Custom Base URL gesetzt) ──
-        if has_custom_url:
-            st.markdown("---")
-            st.markdown("**:material/key: Custom API-Key-Umgebungsvariable**")
-            st.info("""
-            Geben Sie den Namen der Umgebungsvariable an, in der Ihr API-Key für
-            diesen Custom-Endpoint gespeichert ist.
-
-            **Beispiele:** `GWDG_API_KEY`, `AZURE_OPENAI_KEY`, `CUSTOM_API_KEY`
-
-            Lassen Sie das Feld leer, um `OPENAI_API_KEY` zu verwenden.
-            """)
-
-            current_env_name = custom_api_key_env_val or ""
-            new_env_name = st.text_input(
-                "Env-Var-Name für API-Key",
-                value=current_env_name,
-                placeholder="OPENAI_API_KEY (Standard)",
-                help="Name der Umgebungsvariable, die Ihren API-Key für diesen Endpoint enthält",
-            )
-
-            new_env_name_val = (
-                new_env_name if (new_env_name and new_env_name.strip()) else None
-            )
-            if new_env_name_val != custom_api_key_env_val:
-                config.custom_api_key_env = new_env_name_val
-                custom_api_key_env_val = (
-                    new_env_name_val  # lokale Variable aktualisieren
-                )
-                st.session_state.config_modified = True
-
-            # Prüfe ob der benannte API-Key vorhanden ist
-            import os
-
-            env_to_check = new_env_name_val or "OPENAI_API_KEY"
-            api_key_value = os.getenv(env_to_check)
-
-            if api_key_value:
-                masked = (
-                    f"{api_key_value[:4]}...{api_key_value[-4:]}"
-                    if len(api_key_value) > 8
-                    else "****"
-                )
-                st.success(f":material/check_circle: API-Key `{env_to_check}` gefunden: `{masked}`")
-            else:
-                st.warning(
-                    f":material/warning: API-Key `{env_to_check}` nicht in Umgebungsvariablen gefunden. Bitte in `.env` oder als Systemvariable setzen."
-                )
+    # API-Key-Prüfung für den ausgewählten Provider.
+    # Bewusst NACH der Custom-API-Sektion: Ein gerade zurückgesetzter
+    # Custom-Endpoint wird so sofort korrekt geprüft.
+    check_api_key_for_provider(new_provider, provider_display_map)
 
     # ─────────────────────────────────────────────────────────────
     # MODEL NAME — Dropdown oder Freitext je nach API-Konfiguration

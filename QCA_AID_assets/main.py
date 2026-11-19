@@ -6,6 +6,7 @@ Koordiniert den gesamten Analyse-Workflow.
 
 import asyncio
 import json
+import logging
 import os
 import sys
 from datetime import datetime
@@ -47,6 +48,8 @@ from .utils.config.loader import ConfigLoader
 from .utils.io.document_reader import DocumentReader
 from .utils.logging import ConsoleLogger, TeeWriter
 from .utils.system import get_input_with_timeout, patch_tkinter_for_threaded_exit
+
+logger = logging.getLogger(__name__)
 
 # Check if PDF annotation is available
 try:
@@ -96,6 +99,47 @@ def _resolve_project_root() -> Path:
             print(f"⚠️ Konnte .qca-aid-project.json nicht lesen: {e}")
 
     return repo_root
+
+
+def _report_multiple_coding_stats(codings_for_stats: List[Dict]) -> None:
+    """
+    Berechnet und protokolliert die Mehrfachkodierungs-Statistiken.
+
+    Reine Diagnose-Ausgabe, die nach Export und Review laeuft. Fehler werden
+    geloggt (WARNING inkl. Traceback) und auf der Konsole kurz gemeldet, aber
+    nicht weitergereicht - ein bereits erfolgreicher Analyse-Lauf darf dadurch
+    nicht als "Fehler in der Hauptausfuehrung" enden.
+    """
+    try:
+        multiple_coding_stats = calculate_multiple_coding_stats(codings_for_stats)
+
+        # ZeroDivisionError bei Division durch Null verhindern
+        auto_coder_ids = set(
+            c.get("coder_id", "")
+            for c in codings_for_stats
+            if str(c.get("coder_id") or "").startswith("auto")
+        )
+
+        logger.debug(
+            "Mehrfachkodierungs-Statistiken: %s (Auto-Kodierer: %s)",
+            multiple_coding_stats,
+            sorted(str(c) for c in auto_coder_ids),
+        )
+    except Exception as stats_error:
+        logger.warning(
+            "Mehrfachkodierungs-Statistiken konnten nicht berechnet werden "
+            "(%s Kodierungen). Analyse/Export sind davon nicht betroffen.",
+            len(codings_for_stats),
+            exc_info=True,
+        )
+        print(
+            "   [WARNUNG] Mehrfachkodierungs-Statistiken konnten nicht "
+            f"berechnet werden: {stats_error}"
+        )
+        print(
+            "   [HINWEIS] Analyse und Export sind abgeschlossen und "
+            "gueltig; Details stehen im Log (WARNING mit Traceback)."
+        )
 
 
 async def perform_manual_coding(chunks, categories, manual_coders):
@@ -1187,16 +1231,11 @@ async def main(cli_args: dict = None) -> None:
                 )
 
                 if codings_for_stats:
-                    multiple_coding_stats = calculate_multiple_coding_stats(
-                        codings_for_stats
-                    )
-
-                    # FIX: ZeroDivisionError bei Division durch Null verhindern
-                    auto_coder_ids = set(
-                        c.get("coder_id", "")
-                        for c in codings_for_stats
-                        if c.get("coder_id", "").startswith("auto")
-                    )
+                    # FIX: Dieser Block ist reine Anzeige/Diagnose und laeuft NACH
+                    # Export und Review. Ein Fehler hier darf einen bereits
+                    # erfolgreichen Lauf nicht als "Fehler in der Hauptausfuehrung"
+                    # erscheinen lassen - daher nur Warnung + Log-Hinweis.
+                    _report_multiple_coding_stats(codings_for_stats)
                 # Mehrfachkodierungs-Statistiken entfernt (Unicode-Probleme)
                 else:
                     print(
