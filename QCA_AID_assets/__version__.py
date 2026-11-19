@@ -3,7 +3,7 @@ QCA-AID Version Information
 ===========================
 """
 
-__version__ = "0.14.0"
+__version__ = "0.14.1"
 __version_date__ = "2026-11-19"
 __author__ = "Justus Henke"
 __contact__ = "justus.henke@hof.uni-halle.de"

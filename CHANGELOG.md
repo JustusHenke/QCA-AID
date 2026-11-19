@@ -4,6 +4,44 @@
 
 ---
 
+## Neu in 0.14.1 (2026-11-19)
+
+### Fix: Intercoder-Reliabilität rechnet jetzt echtes Krippendorff's Alpha
+
+**Problem:** `ReliabilityCalculator` lieferte Werte, die nur *wie* Alpha aussahen:
+
+- `expected_agreement` war hartkodiert (`0.25` für Subkategorien/Overall, `0.20` für Hauptkategorien). Krippendorff's Alpha verlangt die erwartete Übereinstimmung aus den Randverteilungen der Koinzidenzmatrix. Die ausgegebenen Zahlen waren damit mit veröffentlichten Alpha-Koeffizienten nicht vergleichbar.
+- `max(0.0, alpha)` kappte negative Werte. Negative Alpha sind aber ein valider Befund (systematische Nicht-Übereinstimmung) und wurden bisher als "0" verdeckt.
+- Die Konsistenzprüfung verlangte, dass Overall-Alpha zwischen Haupt- und Sub-Alpha liegt, und meldete sonst "❌ Mathematische Inkonsistenz". Das ist keine mathematische Notwendigkeit – bei unterschiedlichen De-Werten der Ebenen ist eine Abweichung normal.
+- Die beobachtete "Übereinstimmung" war ein ungewichteter Mittelwert paarweiser Jaccard-Koeffizienten, nicht die Koinzidenz von Alpha.
+
+**Lösung:** `QCA_AID_assets/quality/reliability.py` neu implementiert (Koinzidenzmatrix-Verfahren nach Krippendorff 2004/2011; Hayes & Krippendorff 2007):
+
+- **Kern:** `alpha = 1 - Do/De` aus einer Koinzidenzmatrix über alle Einheiten und Kodierungen. Fehlende Werte (nicht jedes Segment von jedem Kodierer kodiert), beliebig viele Kodierer, ungleiche Kodiererzahlen pro Einheit und Mehrfachkodierungen (`MULTIPLE_CODINGS`) sind damit ohne Sonderbehandlung zulässig. Nur Segmente mit Kodierungen von mindestens zwei *verschiedenen* Kodierern gehen ein.
+- **Distanzmetriken:** Hauptkategorien nominal; Subkategorien Jaccard-Distanz auf den Kategorienmengen `d = (1 - |S1∩S2| / |S1∪S2|)^2`; Overall als Mittel beider Ebenen `d = (d_main + d_sub)/2` – Alpha über die vollständige Kodierentscheidung, ohne dass eine Ebene die andere dominiert.
+- **Keine Kappung mehr:** Alpha bleibt im Wertebereich [-1, 1]; negative Werte werden berichtet und in der Bewertung als "systematische Nicht-Übereinstimmung" ausgewiesen.
+- **Diagnose:** `alpha_details` enthält je Ebene Do, De, Anzahl Einheiten/Werte/Kategorien und ein `degenerate`-Flag (keine Varianz in den Randverteilungen → Alpha nicht interpretierbar). Neu außerdem `category_alphas`: binäres Alpha je Hauptkategorie, um Problemkategorien zu identifizieren.
+- **Konsistenzprüfung korrigiert:** Statt des falschen "Overall muss zwischen den Ebenen liegen" gibt es jetzt Hinweise auf zu wenige vergleichbare Segmente (< 10), nicht interpretierbare Ebenen und – falls zutreffend – eine Erläuterung, warum Overall außerhalb der Ebenen liegen kann.
+- **API stabil:** `calculate_comprehensive_reliability()` (Dict mit `overall_alpha`, `main_categories_alpha`, `subcategories_alpha`, `agreement_analysis`, `statistics`), `calculate_reliability()` und die bisherigen privaten Einzelmethoden bleiben verfügbar; `_calculate_detailed_agreement_analysis()` und `_group_by_original_segments()` bleiben unverändert nutzbar (Export).
+
+**Robustheitsvariante (binäre Hamming-Distanz):** Für mengenwertige Kodierungen (mehrere Subkategorien pro Segment) gibt es keine kanonische Alpha-Variante – die Wahl der Mengenmetrik ist eine Modellentscheidung (vgl. MASI, Passonneau 2006, ebenfalls Jaccard-basiert). Damit sie nicht bloß behauptet werden muss, berechnet der Report zusätzlich eine Variante auf **binären Indikatorvektoren**:
+
+- Distanz `d^2 = |S1 Δ S2| / K` über das Kategorienuniversum K – der Intervall-Fall aus Krippendorff (2004), angewandt auf Indikatorvektoren.
+- Die Normierung auf K ist kosmetisch: Do und De skalieren gemeinsam, Alpha ist invariant gegen K (im Test abgesichert); sie hält Do/De nur in [0, 1].
+- Neue Reportfelder `overall_alpha_binary` und `subcategories_alpha_binary` sowie `alpha_details['overall_binary']` / `['subcategories_binary']`.
+- Konsole und Excel weisen die Differenz aus: `<= 0.05` gilt als „Metrikwahl unkritisch", darüber als Begründungsbedarf im Methodenteil.
+
+**Methodische Hinweise im Excel-Export:** Das Blatt `IntercoderBericht` enthält jetzt einen Abschnitt „2. Methodik, Formeln und Interpretation" mit Formel, Do/De je Ebene (inkl. binärer Variante), Wertebereich, Schwellen, Distanzmetriken, Behandlung fehlender Werte und Mehrfachkodierungen, Stichprobenumfang, Kategoriendiagnostik, der Grenze der Set-Kodierung (mit Verweis auf `irr::kripp.alpha` / `irrCAC` / `krippendorff`) und den Referenzen. Das Blatt `Intercoder_Übersicht` enthält eine kompakte Fassung (Formel, Do/De, Schwellen, Metrik-Robustheit, Referenz). Damit ist der Bericht ohne Rückgriff auf die Dokumentation lesbar und zitierfähig.
+
+**Validierung:** Die Berechnung stimmt auf 1e-9 mit der Referenzimplementierung des Pakets `krippendorff` (0.9.0) überein (Beispieldatensatz aus Krippendorff 2011: α = 0.765957…, 4 Kodierer, 12 Einheiten, fehlende Werte). Neue Tests: `QCA_AID_assets/quality/tests/test_reliability_alpha.py` (23 Tests: Referenzwerte, Handrechnung, negative Alpha, Randverteilungs-Abhängigkeit, fehlende Werte, Mehrfachkodierung, Set-Distanzen, Hamming-Variante inkl. K-Invarianz, Berichtsstruktur, Kategorie-Diagnostik).
+
+**Dokumentation:** `README.md` und `QCA-AID-Nutzerhandbuch.md` sprachen von "Cohens Kappa" und κ-Schwellen, berechnet wurde aber Alpha – jetzt einheitlich Krippendorff's Alpha mit den Schwellen .800/.667 (Krippendorff 2004, S. 241f.). Im Excel-Export (`IntercoderBericht`) sind die Zeilen entsprechend umbenannt; die deskriptive Set-Tabelle ist als solche gekennzeichnet. Ein toter Kommentarblock ("KORRIGIERTE KRIPPENDORFF'S ALPHA BERECHNUNG") am Ende von `review_manager.py` wurde entfernt.
+
+### 🧹 Sonstiges
+
+- **Zirkulärer Import behoben:** `analysis_manager` importierte `ResultsExporter` auf Modulebene, `results_exporter` importierte `InductiveCoder` aus `analysis`. Folge: `import QCA_AID_assets.export.results_exporter` schlug mit `ImportError: partially initialized module` fehl, solange nicht vorher ein analysis-Modul geladen war (im App-Flow unsichtbar, für Skripte und Einzeltests fatal). Der Export-Import in `analysis_manager` ist jetzt lokal an der einzigen Verwendungsstelle, die `InductiveCoder`-Annotation in `results_exporter` läuft über `TYPE_CHECKING`. Regressionsschutz: `QCA_AID_app/tests/test_module_import_order.py` (frischer Interpreter je Modul).
+- Version auf 0.14.1 gehoben (Patch: Reliabilitätsberechnung, Doku-Korrektur).
+
 ## Neu in 0.14.0 (2026-11-19)
 
 ### Fix: TypeError in calculate_multiple_coding_stats bei None-Kategorien

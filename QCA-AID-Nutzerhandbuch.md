@@ -1203,16 +1203,28 @@ QCA-AID erstellt eine umfassende Excel-Datei (`QCA-AID_Analysis_[DATUM].xlsx`) m
 #### Intercoder-Reliabilität (Sheet: "Reliability")
 
 **Metriken:**
-- **Cohens Kappa:** Übereinstimmung zwischen Kodierern
-- **Prozentuale Übereinstimmung:** Einfache Übereinstimmungsrate
-- **Konfusionsmatrix:** Detaillierte Übereinstimmungsanalyse
-- **Kategoriespezifische Reliabilität:** Reliabilität pro Kategorie
+- **Krippendorff's Alpha:** Übereinstimmung zwischen Kodierern, berechnet aus der
+  Koinzidenzmatrix (beliebig viele Kodierer, fehlende Werte und Mehrfachkodierungen
+  sind zulässig)
+- **Alpha je Ebene:** getrennt für Hauptkategorien (nominale Distanz) und
+  Subkategorien (Jaccard-Distanz auf den Kategorienmengen)
+- **Alpha je Ebene, binäre Variante:** Subkategorien zusätzlich mit
+  Hamming-Distanz auf Indikatorvektoren. Das ist die Robustheitsprüfung der
+  Mengenmetrik: Für mehrfach vergebene Subkategorien gibt es keine kanonische
+  Alpha-Variante, deshalb werden beide Metriken ausgewiesen. Liegen sie nah
+  beieinander (Differenz <= 0.05), ist die Metrikwahl empirisch unkritisch.
+- **Alpha je Kategorie:** binäres Alpha pro Hauptkategorie - zeigt, welche
+  Kategorien die Gesamtreliabilität drücken
+- **Übereinstimmungsmuster:** deskriptiv - vollständige Übereinstimmung, gleiche
+  Hauptkategorie bei abweichenden Subkategorien, unterschiedliche Hauptkategorie
 
-**Interpretation:**
-- **κ > 0.8:** Sehr gute Übereinstimmung
-- **κ 0.6-0.8:** Gute Übereinstimmung
-- **κ 0.4-0.6:** Moderate Übereinstimmung
-- **κ < 0.4:** Schlechte Übereinstimmung (Überarbeitung nötig)
+**Interpretation (Schwellen nach Krippendorff 2004, S. 241f.):**
+- **α ≥ 0.800:** reliabel
+- **α 0.667-0.800:** nur für explorative Schlussfolgerungen ausreichend
+- **α < 0.667:** unzureichend (Kategoriensystem überarbeiten)
+- **α ≤ 0:** systematische Nicht-Übereinstimmung (Kodieranweisung prüfen)
+
+> Alpha wird nicht auf 0 gekappt: Ein negativer Wert ist ein Befund, kein Rechenfehler.
 
 ### 10.2 Induktive Kategorien (Sheet: "Inductive_Categories")
 

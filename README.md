@@ -284,7 +284,7 @@ Die Analyse erzeugt eine Excel-Datei `QCA-AID_Analysis_[DATUM].xlsx` mit diesen 
 |-------|--------|
 | **Codings** | Alle kodierten Textstellen mit Kategorie, Konfidenz, Begründung |
 | **Frequencies** | Häufigkeitsverteilungen pro Kategorie (auch nach Attributen) |
-| **Reliability** | Intercoder-Übereinstimmung (Cohens Kappa) |
+| **Reliability** | Intercoder-Reliabilität (Krippendorff's Alpha) |
 | **Inductive_Categories** | Neu entdeckte Kategorien (bei induktiven Modi) |
 | **Category_Development** | Änderungshistorie des Kategoriensystems |
 
@@ -298,15 +298,20 @@ Außerdem: `category_revisions.json` (Kategorienentwicklung) und `codebook_induc
 1. **Pilotphase (10–20% der Daten):** Testanalyse → manuelle Prüfung → Kategorien anpassen
 2. **Hauptanalyse:** Mit optimiertem Codebook alle Dokumente analysieren
 3. **Stichprobenkontrolle:** 10% der Kodierungen manuell prüfen
-4. **Intercoder-Vergleich:** Mehrere KI-Coder (versch. Temperaturen) laufen lassen → Kappa-Wert prüfen
+4. **Intercoder-Vergleich:** Mehrere KI-Coder (versch. Temperaturen) laufen lassen → Krippendorff's Alpha prüfen
 
-### 📊 Qualitäts-Benchmarks (Cohens Kappa)
+### 📊 Qualitäts-Benchmarks (Krippendorff's Alpha)
 | Wert | Bedeutung |
 |------|-----------|
-| κ > 0,8 | 🟢 Exzellent – Analyse fortsetzen |
-| κ 0,6–0,8 | 🟡 Gut – Stichprobenkontrolle |
-| κ 0,4–0,6 | 🟠 Moderat – Kategorien überarbeiten |
-| κ < 0,4 | 🔴 Schlecht – Grundlegende Überarbeitung |
+| α ≥ 0,800 | 🟢 Reliabel – Analyse fortsetzen |
+| α 0,667–0,800 | 🟡 Nur explorativ belastbar – Stichprobenkontrolle |
+| α 0,000–0,667 | 🟠 Unzureichend – Kategorien überarbeiten |
+| α < 0,000 | 🔴 Systematische Nicht-Übereinstimmung – Neukodierung |
+
+Schwellen nach Krippendorff (2004, S. 241f.). Alpha wird aus der Koinzidenzmatrix
+berechnet: beliebig viele Kodierer, fehlende Werte und mehrere Kodierungen pro
+Segment sind zulässig. Negative Werte zeigen systematische Abweichung an und
+werden nicht auf 0 gekappt.
 
 ### 🎯 3 Erfolgsregeln
 1. **Präzise Kategorien** → klare Definitionen + Beispiele + Abgrenzung

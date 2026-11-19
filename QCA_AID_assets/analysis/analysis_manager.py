@@ -19,7 +19,6 @@ from ..core.config import CONFIG, FORSCHUNGSFRAGE, KODIERREGELN
 from ..core.data_models import CategoryDefinition, CodingResult
 from ..core.segment_id_manager import SegmentIDManager
 from ..core.validators import CategoryValidator
-from ..export.results_exporter import ResultsExporter
 from ..management import CategoryManager, CategoryRevisionManager
 from ..optimization.controller import AnalysisMode, OptimizationController
 from ..QCA_Prompts import QCAPrompts
@@ -3204,6 +3203,10 @@ class IntegratedAnalysisManager:
 
             # Erstelle einen speziellen Exporter fuer Zwischenergebnisse
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+
+            # Lokaler Import: verhindert den zirkulaeren Import
+            # analysis_manager -> export.results_exporter -> analysis.inductive_coding
+            from ..export.results_exporter import ResultsExporter
 
             exporter = ResultsExporter(
                 output_dir=CONFIG["OUTPUT_DIR"],

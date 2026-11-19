@@ -1,901 +1,848 @@
 """
 Reliabilitäts-Berechnungen für QCA-AID
 =======================================
-Berechnet Inter-Coder-Reliabilität und Konsens-Metriken.
+Berechnet Inter-Coder-Reliabilität als **Krippendorff's Alpha** über das
+Koinzidenzmatrix-Verfahren (Krippendorff 2004, 2011; Hayes & Krippendorff 2007).
+
+Warum Koinzidenzmatrix und nicht paarweise Mittelwerte?
+------------------------------------------------------
+Alpha ist definiert als
+
+    alpha = 1 - Do / De
+
+mit der beobachteten Unähnlichkeit Do und der aus den Randverteilungen
+erwarteten Unähnlichkeit De. Beide Größen werden aus *einer* Koinzidenzmatrix
+über alle Einheiten und alle Kodierungen gewonnen. Nur so gilt:
+
+* fehlende Werte sind zulässig (nicht jedes Segment von jedem Kodierer kodiert),
+* beliebig viele Kodierer, auch ungleich viele Kodierungen pro Einheit,
+* mehrere Kodierungen desselben Kodierers pro Einheit (MULTIPLE_CODINGS),
+* eine einzige, konsistente Fehlerrechnung - keine hartkodierte
+  Zufallserwartung,
+* Alpha darf negativ werden (systematische Nicht-Übereinstimmung) und wird
+  nicht auf 0 abgeschnitten.
+
+Distanzmetriken
+---------------
+* Hauptkategorien: nominal (0 = gleich, 1 = ungleich)
+* Subkategorien: Jaccard-Distanz auf den Kategorienmengen,
+  d^2 = (1 - |S1 & S2| / |S1 | S2|)^2
+* Overall: Mittel der Distanzen beider Ebenen,
+  d^2 = (d^2_haupt + d^2_sub) / 2 - also Alpha über die vollständige
+  Kodierentscheidung, ohne dass eine Ebene die andere dominiert.
+
+Robustheitsvariante
+-------------------
+Für mengenwertige Kodierungen gibt es keine kanonische Alpha-Variante; die
+Wahl der Mengenmetrik ist eine Modellentscheidung (vgl. MASI, Passonneau 2006,
+das ebenfalls Jaccard-basiert ist). Um sie prüfbar zu machen, wird zusätzlich
+eine Variante mit **binären Indikatorvektoren** berechnet:
+
+    d = |S1 symmetrische Differenz S2| / K
+
+Das ist die Distanz einer multivariaten binären Variable (Intervall-Fall) über
+das Kategorienuniversum K. Die Normierung auf K ist kosmetisch - Do und De
+skalieren gemeinsam, Alpha bleibt unverändert; sie hält Do/De nur im Bereich
+[0, 1]. Liegen Jaccard- und Hamming-Variante nah beieinander, ist die
+Metrikwahl empirisch unkritisch und muss nicht verteidigt werden.
+
+Referenzen
+----------
+Krippendorff, K. (2004). Content Analysis: An Introduction to Its Methodology.
+Krippendorff, K. (2011). Computing Krippendorff's Alpha-Reliability.
+Hayes, A. F., & Krippendorff, K. (2007). Answering the call for a standard
+    reliability measure for coding data. Communication Methods and Measures, 1(1), 77-89.
 """
 
-from typing import Dict, List, Tuple, Optional
-from collections import Counter
-import statistics
+from typing import Any, Callable, Dict, List, Optional, Tuple
+from collections import Counter, defaultdict
 
-from ..core.data_models import CodingResult
+# Werte, die "keine Kodierung" bedeuten und als fehlender Wert behandelt werden
+MISSING_CODES = {"", "nicht kodiert", "kein kodierkonsens", "none", "nan"}
+
+# Schwellen nach Krippendorff (2004, S. 241f.)
+THRESHOLD_RELIABLE = 0.800
+THRESHOLD_EXPLORATORY = 0.667
+
+# Ab dieser Differenz zwischen Jaccard- und Hamming-Variante ist die Wahl der
+# Mengenmetrik inhaltlich relevant und sollte im Methodenteil diskutiert werden.
+THRESHOLD_METRIC_ROBUSTNESS = 0.05
+
+
+class AlphaResult:
+    """Ergebnis einer Alpha-Berechnung inkl. Diagnosegrößen."""
+
+    __slots__ = (
+        "alpha",
+        "observed_disagreement",
+        "expected_disagreement",
+        "n_units",
+        "n_values",
+        "n_categories",
+        "degenerate",
+    )
+
+    def __init__(
+        self,
+        alpha: Optional[float],
+        observed_disagreement: float = 0.0,
+        expected_disagreement: float = 0.0,
+        n_units: int = 0,
+        n_values: int = 0,
+        n_categories: int = 0,
+        degenerate: bool = False,
+    ):
+        self.alpha = alpha
+        self.observed_disagreement = observed_disagreement
+        self.expected_disagreement = expected_disagreement
+        self.n_units = n_units
+        self.n_values = n_values
+        self.n_categories = n_categories
+        self.degenerate = degenerate
+
+    @property
+    def alpha_or_zero(self) -> float:
+        """Alpha als Float; nicht berechenbare Fälle werden als 0.0 gemeldet."""
+        return 0.0 if self.alpha is None else self.alpha
+
+    def as_dict(self) -> Dict[str, Any]:
+        return {
+            "alpha": self.alpha,
+            "observed_disagreement": self.observed_disagreement,
+            "expected_disagreement": self.expected_disagreement,
+            "n_units": self.n_units,
+            "n_values": self.n_values,
+            "n_categories": self.n_categories,
+            "degenerate": self.degenerate,
+        }
 
 
 class ReliabilityCalculator:
     """
-    FIX: Einheitliche Krippendorff's Alpha Berechnung nach Krippendorff (2011)
-    Alle Reliabilitäts-Berechnungen laufen Über diese Klasse
+    Berechnet Inter-Coder-Reliabilität für QCA-AID.
+
+    Öffentliche API (stabil gehalten):
+        calculate_comprehensive_reliability(codings) -> dict
+        calculate_reliability(codings) -> float
     """
-    
-    def __init__(self):
-        self.debug = True
-    
-    def _extract_base_segment_id(self, coding: Dict) -> str:
-        """
-        FIX: Extrahiert Basis-Segment-ID ohne Mehrfachkodierungs-Suffixe
-        FÜr ReliabilityCalculator Klasse
-        """
-        segment_id = coding.get('segment_id', '')
-        
-        # Entferne Mehrfachkodierungs-Suffixe
-        # Format kann sein: "doc_chunk_5" oder "doc_chunk_5-1" fuer Mehrfachkodierung
-        if '-' in segment_id:
-            # Prüfe ob es ein Mehrfachkodierungs-Suffix ist (endet mit -Zahl)
-            parts = segment_id.rsplit('-', 1)
-            if len(parts) == 2 and parts[1].isdigit():
-                base_id = parts[0]
-            else:
-                base_id = segment_id
-        else:
-            base_id = segment_id
-        
-        return base_id
-    
+
+    def __init__(self, verbose: bool = True, decimals: int = 3):
+        self.verbose = verbose
+        self.decimals = decimals
+        self._last_results: Dict[str, AlphaResult] = {}
+
+    # ------------------------------------------------------------------
+    # Öffentliche API
+    # ------------------------------------------------------------------
     def calculate_comprehensive_reliability(self, codings: List[Dict]) -> dict:
-        """
-        FIX: Aktualisierte Hauptmethode mit robusteren Berechnungen
-        FÜr ReliabilityCalculator Klasse
-        """
-        print("\n🧾 Umfassende Krippendorff's Alpha Analyse...")
-        
-        # FIX: Robusterer Filter
+        """Berechnet alle Reliabilitätskennwerte für einen Kodierlauf."""
         original_codings = self._filter_original_codings(codings)
-        
+
         if len(original_codings) < 2:
-            print("❌ Zu wenige ursprüngliche Kodierungen fuer Reliabilitätsanalyse")
+            self._log("Zu wenige ursprüngliche Kodierungen für Reliabilitätsanalyse")
             return self._create_empty_reliability_report()
-        
-        # Basis-Statistiken (mit Fallback)
+
         statistics = self._calculate_basic_statistics(original_codings)
-        
-        # 1. Overall Alpha (kombinierte Sets) - FIX: Mit korrekter Mehrfachkodierungs-Behandlung
-        overall_alpha = self._calculate_multiple_coding_alpha(original_codings)
 
-        # 2. Hauptkategorien Alpha - extrahiere Float-Wert
-        main_categories_alpha = self._calculate_main_categories_alpha(original_codings)
+        overall = self._alpha_overall(original_codings)
+        main = self._alpha_main_categories(original_codings)
+        subs = self._alpha_subcategories(original_codings)
+        # Robustheitsvariante: Indikatorvektoren über das Kategorienuniversum
+        # (Hamming-Distanz) statt Jaccard-Distanz auf den Mengen
+        overall_binary = self._alpha_overall_binary(original_codings)
+        subs_binary = self._alpha_subcategories_binary(original_codings)
 
-        # 3. FIX: Subkategorien Alpha mit partieller Übereinstimmung - bereits Float
-        subcategories_alpha = self._calculate_subcategories_alpha(original_codings)
-        
-        # 4. Detaillierte Übereinstimmungsanalyse
-        agreement_analysis = self._calculate_detailed_agreement_analysis(original_codings)
-        
-        reliability_report = {
-            'overall_alpha': overall_alpha,
-            'main_categories_alpha': main_categories_alpha,
-            'subcategories_alpha': subcategories_alpha,
-            'agreement_analysis': agreement_analysis,
-            'statistics': statistics
+        self._last_results = {
+            "overall": overall,
+            "main": main,
+            "sub": subs,
+            "overall_binary": overall_binary,
+            "sub_binary": subs_binary,
         }
-        
-        self._print_reliability_summary(reliability_report)
-        
-        return reliability_report
-    
+
+        report = {
+            "overall_alpha": overall.alpha_or_zero,
+            "main_categories_alpha": main.alpha_or_zero,
+            "subcategories_alpha": subs.alpha_or_zero,
+            "overall_alpha_binary": overall_binary.alpha_or_zero,
+            "subcategories_alpha_binary": subs_binary.alpha_or_zero,
+            "agreement_analysis": self._calculate_detailed_agreement_analysis(
+                original_codings
+            ),
+            "statistics": statistics,
+            # Neue, diagnostische Felder (abwärtskompatibel ergänzt)
+            "alpha_details": {
+                "overall": overall.as_dict(),
+                "main_categories": main.as_dict(),
+                "subcategories": subs.as_dict(),
+                "overall_binary": overall_binary.as_dict(),
+                "subcategories_binary": subs_binary.as_dict(),
+            },
+            "category_alphas": self._category_level_alphas(original_codings),
+        }
+
+        self._print_reliability_summary(report)
+        return report
+
     def calculate_reliability(self, all_codings: List[Dict]) -> float:
-        """
-        FIX: Hauptmethode - gibt Overall Alpha als Float zurÜck (fuer RÜckwÄrtskompatibilitÄt)
-        """
+        """Gibt Overall-Alpha als Float zurück (Rückwärtskompatibilität)."""
         report = self.calculate_comprehensive_reliability(all_codings)
-        overall_alpha = report['overall_alpha']
-        # FIX: Stelle sicher, dass es ein Float ist
-        if isinstance(overall_alpha, dict):
-            return overall_alpha.get('alpha', 0.0)
+        overall_alpha = report["overall_alpha"]
+        if isinstance(overall_alpha, dict):  # Altformat-Schutz
+            return float(overall_alpha.get("alpha", 0.0) or 0.0)
         return float(overall_alpha)
-    
-    def _filter_original_codings(self, codings: List[Dict]) -> List[Dict]:
+
+    # ------------------------------------------------------------------
+    # Alpha-Kern: Koinzidenzmatrix
+    # ------------------------------------------------------------------
+    def _alpha(
+        self, units: List[List[Any]], distance: Callable[[Any, Any], float]
+    ) -> AlphaResult:
         """
-        FIX: Robusterer Filter fuer ursprüngliche Kodierungen
-        FÜr ReliabilityCalculator Klasse
+        Krippendorff's Alpha aus einer Liste von Einheiten (je Einheit eine
+        Liste von Werten, ein Wert pro Kodierung).
+
+        units: [[v1, v2, ...], ...] - fehlende Werte sind bereits entfernt.
+        distance: liefert die *quadrierte* Distanz zweier Werte.
         """
-        original_codings = []
-        
-        # print(f"🕵️ Debug Filter - Input: {len(codings)} Kodierungen")
-        
-        for i, coding in enumerate(codings):
-            coder_id = coding.get('coder_id', '')
-            consensus_info = coding.get('consensus_info', {})
-            manual_review = coding.get('manual_review', False)
-            selection_type = consensus_info.get('selection_type', '')
-            
-            # FIX: Debug-Ausgabe fuer erste 3 Kodierungen
-            # if i < 3:
-            #     print(f"  Kodierung {i}: coder_id='{coder_id}', manual_review={manual_review}, selection_type='{selection_type}'")
-            
-            # FIX: Weniger strenger Filter - akzeptiere mehr Kodierungen
-            is_excluded = (
-                coder_id in ['consensus', 'majority', 'review'] or
-                manual_review == True or
-                selection_type in ['consensus', 'majority', 'manual_consensus']
+        coincidence: Dict[Tuple[Any, Any], float] = defaultdict(float)
+        usable_units = 0
+
+        for unit_values in units:
+            m = len(unit_values)
+            if m < 2:
+                continue
+            usable_units += 1
+            weight = 1.0 / (m - 1)
+            for i, value_i in enumerate(unit_values):
+                for j, value_j in enumerate(unit_values):
+                    if i == j:
+                        continue
+                    coincidence[(value_i, value_j)] += weight
+
+        if not coincidence:
+            return AlphaResult(alpha=None, n_units=usable_units)
+
+        marginals: Counter = Counter()
+        for (value_i, _), count in coincidence.items():
+            marginals[value_i] += count
+        n = sum(marginals.values())
+
+        if n < 2:
+            return AlphaResult(alpha=None, n_units=usable_units, n_values=n)
+
+        do_sum = 0.0
+        for (value_i, value_j), count in coincidence.items():
+            do_sum += count * distance(value_i, value_j)
+
+        de_sum = 0.0
+        values = list(marginals.keys())
+        for value_i in values:
+            for value_j in values:
+                de_sum += (
+                    marginals[value_i]
+                    * marginals[value_j]
+                    * distance(value_i, value_j)
+                )
+
+        observed = do_sum / n
+        expected = de_sum / (n * (n - 1))
+
+        # De = 0 bedeutet: alle Werte identisch -> perfekte Übereinstimmung
+        if expected <= 0.0:
+            alpha = 1.0 if observed <= 0.0 else 0.0
+            return AlphaResult(
+                alpha=alpha,
+                observed_disagreement=observed,
+                expected_disagreement=0.0,
+                n_units=usable_units,
+                n_values=n,
+                n_categories=len(marginals),
+                degenerate=True,
             )
-            
-            if not is_excluded:
-                original_codings.append(coding)
-            elif i < 3:
-                print(f"    -> Ausgeschlossen")
-        
-        print(f"🕵️ Gefilterte ursprüngliche Kodierungen: {len(original_codings)}")
-        
-        # FIX: Falls zu wenige gefunden, weniger streng filtern
-        if len(original_codings) < 2:
-            print("❌ Zu wenige gefunden - verwende weniger strengen Filter...")
-            original_codings = []
-            
-            for coding in codings:
-                coder_id = coding.get('coder_id', '')
-                # FIX: Nur explizite Review-Resultate ausschlieẞen
-                if coder_id not in ['consensus', 'majority', 'review']:
-                    original_codings.append(coding)
-            
-            print(f"🕵️ Mit weniger strengem Filter: {len(original_codings)} Kodierungen")
-        
-        return original_codings
+
+        alpha = 1.0 - (observed / expected)
+        # numerische Sicherung, keine inhaltliche Kappung (negative Alpha bleibt negativ)
+        alpha = max(-1.0, min(1.0, alpha))
+
+        return AlphaResult(
+            alpha=alpha,
+            observed_disagreement=observed,
+            expected_disagreement=expected,
+            n_units=usable_units,
+            n_values=n,
+            n_categories=len(marginals),
+        )
+
+    @staticmethod
+    def _nominal_distance(value_i: Any, value_j: Any) -> float:
+        return 0.0 if value_i == value_j else 1.0
+
+    @staticmethod
+    def _jaccard_distance(set_i: frozenset, set_j: frozenset) -> float:
+        if not set_i and not set_j:
+            return 0.0  # zwei leere Mengen sind identisch
+        union = len(set_i | set_j)
+        if union == 0:
+            return 0.0
+        similarity = len(set_i & set_j) / union
+        return (1.0 - similarity) ** 2
+
+    @staticmethod
+    def _composite_distance(
+        value_i: Tuple[str, frozenset], value_j: Tuple[str, frozenset]
+    ) -> float:
+        main_i, subs_i = value_i
+        main_j, subs_j = value_j
+        d_main = ReliabilityCalculator._nominal_distance(main_i, main_j)
+        d_subs = ReliabilityCalculator._jaccard_distance(subs_i, subs_j)
+        return 0.5 * (d_main + d_subs)
+
+    # ------------------------------------------------------------------
+    # Werteextraktion aus Kodierungen
+    # ------------------------------------------------------------------
+    @staticmethod
+    def _normalize_codes(raw: Any) -> frozenset:
+        """Bringt subcategories in eine hashbare, vergleichbare Menge."""
+        if raw is None:
+            return frozenset()
+        if isinstance(raw, dict):
+            candidates = list(raw.keys())
+        elif isinstance(raw, str):
+            candidates = raw.split(",")
+        elif isinstance(raw, (list, tuple, set, frozenset)):
+            candidates = list(raw)
+        else:
+            candidates = [raw]
+
+        cleaned = {
+            str(item).strip()
+            for item in candidates
+            if item is not None and str(item).strip().lower() not in MISSING_CODES
+        }
+        return frozenset(cleaned)
+
+    @classmethod
+    def _main_value(cls, coding: Dict) -> Optional[str]:
+        category = coding.get("category")
+        if category is None:
+            return None
+        category = str(category).strip()
+        if category.lower() in MISSING_CODES:
+            return None
+        return category
+
+    @classmethod
+    def _sub_value(cls, coding: Dict) -> frozenset:
+        return cls._normalize_codes(coding.get("subcategories"))
+
+    @classmethod
+    def _combined_value(cls, coding: Dict) -> Optional[Tuple[str, frozenset]]:
+        main = cls._main_value(coding)
+        subs = cls._sub_value(coding)
+        if main is None and not subs:
+            return None  # gar keine Kodierung -> fehlender Wert
+        return (main or "", subs)
+
+    def _collect_units(
+        self, codings: List[Dict], value_fn: Callable[[Dict], Any]
+    ) -> List[List[Any]]:
+        """
+        Baut die Einheiten-Tabelle: je Segment eine Liste von Werten.
+
+        Nur Segmente mit Kodierungen von mindestens zwei *verschiedenen*
+        Kodierern gehen ein - Intra-Kodierer-Stabilität ist keine
+        Inter-Coder-Reliabilität.
+        """
+        segment_data = self._group_by_original_segments(codings)
+        units: List[List[Any]] = []
+
+        for _, coders_data in segment_data.items():
+            if len(coders_data) < 2:
+                continue
+            values: List[Any] = []
+            for _, coder_codings in coders_data.items():
+                for coding in coder_codings:
+                    value = value_fn(coding)
+                    if value is not None:
+                        values.append(value)
+            if len(values) >= 2:
+                units.append(values)
+
+        return units
+
+    # ------------------------------------------------------------------
+    # Alpha je Ebene
+    # ------------------------------------------------------------------
+    def _alpha_overall(self, codings: List[Dict]) -> AlphaResult:
+        units = self._collect_units(codings, self._combined_value)
+        return self._alpha(units, self._composite_distance)
+
+    def _alpha_main_categories(self, codings: List[Dict]) -> AlphaResult:
+        units = self._collect_units(codings, self._main_value)
+        return self._alpha(units, self._nominal_distance)
+
+    def _alpha_subcategories(self, codings: List[Dict]) -> AlphaResult:
+        # Kodierungen ohne jede Kodierung ausschließen, leere Subkategorie-
+        # Mengen aber als gültige Beobachtung behandeln.
+        units = self._subcategory_units(codings)
+        return self._alpha(units, self._jaccard_distance)
+
+    # ------------------------------------------------------------------
+    # Robustheitsvariante: binäre Indikatorvektoren (Hamming)
+    # ------------------------------------------------------------------
+    def _subcategory_units(self, codings: List[Dict]) -> List[List[frozenset]]:
+        """Einheiten-Tabelle für die Subkategorie-Ebene."""
+
+        def value_fn(coding: Dict):
+            if self._main_value(coding) is None and not self._sub_value(coding):
+                return None
+            return self._sub_value(coding)
+
+        return self._collect_units(codings, value_fn)
+
+    @staticmethod
+    def _hamming_distance(universe_size: int) -> Callable[[frozenset, frozenset], float]:
+        """
+        Quadrierte Hamming-Distanz auf binären Indikatorvektoren, normiert auf
+        das Kategorienuniversum: d = |S1 Δ S2| / K.
+
+        Das ist die Distanz einer multivariaten binären Variable (Krippendorff
+        2004, Intervall-Fall). Die Normierung auf K ist kosmetisch: Da Do und De
+        mit demselben Faktor skaliert werden, ist Alpha invariant gegen die Wahl
+        von K - sie macht Do/De nur im Bereich [0, 1] interpretierbar.
+        """
+        size = max(1, universe_size)
+
+        def distance(set_i: frozenset, set_j: frozenset) -> float:
+            return len(set_i ^ set_j) / size
+
+        return distance
+
+    def _alpha_subcategories_binary(self, codings: List[Dict]) -> AlphaResult:
+        """Alpha der Subkategorien mit Hamming-Distanz (binäre Indikatorvektoren)."""
+        units = self._subcategory_units(codings)
+        universe = set()
+        for unit in units:
+            for value in unit:
+                universe.update(value)
+        return self._alpha(units, self._hamming_distance(len(universe)))
+
+    def _alpha_overall_binary(self, codings: List[Dict]) -> AlphaResult:
+        """Alpha der vollständigen Kodierentscheidung mit Hamming-Distanz."""
+        units = self._collect_units(codings, self._combined_value)
+        universe = set()
+        for unit in units:
+            for _, subs in unit:
+                universe.update(subs)
+        sub_distance = self._hamming_distance(len(universe))
+
+        def distance(value_i, value_j) -> float:
+            return 0.5 * (
+                self._nominal_distance(value_i[0], value_j[0])
+                + sub_distance(value_i[1], value_j[1])
+            )
+
+        return self._alpha(units, distance)
+
+    def _category_level_alphas(self, codings: List[Dict]) -> Dict[str, float]:
+        """
+        Alpha je Hauptkategorie als binäre Variable (vorhanden / nicht vorhanden).
+
+        Nützlich, um einzelne Problemkategorien zu identifizieren, die den
+        Gesamt-Alpha drücken.
+        """
+        segment_data = self._group_by_original_segments(codings)
+        all_categories = set()
+        for coders_data in segment_data.values():
+            if len(coders_data) < 2:
+                continue
+            for coder_codings in coders_data.values():
+                for coding in coder_codings:
+                    main = self._main_value(coding)
+                    if main is not None:
+                        all_categories.add(main)
+
+        results: Dict[str, float] = {}
+        for category in sorted(all_categories):
+            units: List[List[Any]] = []
+            for _, coders_data in segment_data.items():
+                if len(coders_data) < 2:
+                    continue
+                values = []
+                for _, coder_codings in coders_data.items():
+                    coder_values = []
+                    for coding in coder_codings:
+                        main = self._main_value(coding)
+                        if main is None:
+                            continue
+                        coder_values.append(1 if main == category else 0)
+                    # ein Kodierer trägt höchstens einen Wert bei: Mehrfach-
+                    # kodierungen werden gemittelt (Mehrheitsentscheid)
+                    if coder_values:
+                        values.append(round(sum(coder_values) / len(coder_values)))
+                if len(values) >= 2:
+                    units.append(values)
+
+            result = self._alpha(units, self._nominal_distance)
+            if result.alpha is not None and not result.degenerate:
+                results[category] = result.alpha
+
+        return results
+
+    # ------------------------------------------------------------------
+    # Abwärtskompatible Einzelmethoden
+    # ------------------------------------------------------------------
+    def _calculate_multiple_coding_alpha(self, codings: List[Dict]) -> float:
+        """Deprecated: Overall-Alpha (Alias auf _alpha_overall)."""
+        return self._alpha_overall(codings).alpha_or_zero
+
+    def _calculate_main_categories_alpha(self, codings: List[Dict]) -> float:
+        """Deprecated: Alpha der Hauptkategorien."""
+        return self._alpha_main_categories(codings).alpha_or_zero
+
+    def _calculate_subcategories_alpha(self, codings: List[Dict]) -> float:
+        """Deprecated: Alpha der Subkategorien."""
+        return self._alpha_subcategories(codings).alpha_or_zero
 
     def _calculate_combined_sets_alpha(self, codings: List[Dict]) -> float:
-        """
-        FIX: Overall Alpha mit Jaccard-Ähnlichkeit (konsistent mit Subkategorien-Behandlung)
-        FÜr ReliabilityCalculator Klasse
-        """
-        segment_data = self._group_by_original_segments(codings)
-        
-        all_overlap_scores = []
-        all_comparisons = 0
-        
-        for segment_id, coders_data in segment_data.items():
-            if len(coders_data) < 2:
-                continue
-            
-            coders = list(coders_data.keys())
-            
-            for i in range(len(coders)):
-                for j in range(i + 1, len(coders)):
-                    coder1, coder2 = coders[i], coders[j]
-                    
-                    # FIX: Kombiniere Haupt- und Subkategorien zu Sets
-                    set1 = set()
-                    set2 = set()
-                    
-                    for coding in coders_data[coder1]:
-                        main_cat = coding.get('category', '')
-                        if main_cat and main_cat not in ['Nicht kodiert', 'Kein Kodierkonsens']:
-                            set1.add(main_cat)
-                        
-                        subcats = coding.get('subcategories', [])
-                        if isinstance(subcats, (list, tuple)):
-                            set1.update(subcats)
-                    
-                    for coding in coders_data[coder2]:
-                        main_cat = coding.get('category', '')
-                        if main_cat and main_cat not in ['Nicht kodiert', 'Kein Kodierkonsens']:
-                            set2.add(main_cat)
-                        
-                        subcats = coding.get('subcategories', [])
-                        if isinstance(subcats, (list, tuple)):
-                            set2.update(subcats)
-                    
-                    all_comparisons += 1
-                    
-                    # FIX: Jaccard-Ähnlichkeit statt exakter Gleichheit
-                    if len(set1) == 0 and len(set2) == 0:
-                        # Beide haben keine Kategorien - perfekte Übereinstimmung
-                        overlap_score = 1.0
-                    elif len(set1) == 0 or len(set2) == 0:
-                        # Einer hat keine, der andere schon - keine Übereinstimmung
-                        overlap_score = 0.0
-                    else:
-                        # Jaccard-Koeffizient: |Schnittmenge| / |Vereinigungsmenge|
-                        intersection = len(set1.intersection(set2))
-                        union = len(set1.union(set2))
-                        overlap_score = intersection / union if union > 0 else 0.0
-                    
-                    all_overlap_scores.append(overlap_score)
-        
-        if all_comparisons == 0:
-            return 0.0
-        
-        # Durchschnittliche Übereinstimmung
-        observed_agreement = sum(all_overlap_scores) / len(all_overlap_scores)
-        
-        # Erwartete Übereinstimmung fuer kombinierte Sets
-        expected_agreement = 0.25  # Konservative SchÄtzung
-        
-        # Krippendorff's Alpha
-        if expected_agreement >= 1.0:
-            alpha = 1.0 if observed_agreement >= 1.0 else 0.0
-        else:
-            alpha = (observed_agreement - expected_agreement) / (1 - expected_agreement)
-        
-        print(f"🧾 Overall Alpha Details:")
-        print(f"   - Durchschnittliche Jaccard-Übereinstimmung: {observed_agreement:.3f}")
-        print(f"   - Erwartete ZufallsÜbereinstimmung: {expected_agreement:.3f}")
-        print(f"   - Overall Alpha (Jaccard-basiert): {alpha:.3f}")
-        
-        return max(0.0, alpha)
-    
-    def _calculate_main_categories_alpha(self, codings: List[Dict]) -> float:
-        """
-        FIX: Hauptkategorien Alpha mit Jaccard-Ähnlichkeit und korrekter Mehrfachkodierungs-Behandlung
-        FÜr ReliabilityCalculator Klasse
-        """
-        segment_data = self._group_by_original_segments(codings)
-        
-        all_overlap_scores = []
-        all_comparisons = 0
-        
-        for segment_id, coders_data in segment_data.items():
-            if len(coders_data) < 2:
-                continue
-            
-            coders = list(coders_data.keys())
-            
-            for i in range(len(coders)):
-                for j in range(i + 1, len(coders)):
-                    coder1, coder2 = coders[i], coders[j]
-                    
-                    # Sammle ALLE Hauptkategorien von allen Kodierungen eines Kodierers für dieses Segment
-                    set1 = set()
-                    set2 = set()
-                    
-                    for coding in coders_data[coder1]:
-                        main_cat = coding.get('category', '')
-                        if main_cat and main_cat not in ['Nicht kodiert', 'Kein Kodierkonsens']:
-                            set1.add(main_cat)
-                    
-                    for coding in coders_data[coder2]:
-                        main_cat = coding.get('category', '')
-                        if main_cat and main_cat not in ['Nicht kodiert', 'Kein Kodierkonsens']:
-                            set2.add(main_cat)
-                    
-                    all_comparisons += 1
-                    
-                    # Jaccard-Ähnlichkeit
-                    if len(set1) == 0 and len(set2) == 0:
-                        overlap_score = 1.0
-                    elif len(set1) == 0 or len(set2) == 0:
-                        overlap_score = 0.0
-                    else:
-                        intersection = len(set1.intersection(set2))
-                        union = len(set1.union(set2))
-                        overlap_score = intersection / union if union > 0 else 0.0
-                    
-                    all_overlap_scores.append(overlap_score)
-        
-        if all_comparisons == 0:
-            return 0.0
-        
-        # Durchschnittliche Übereinstimmung
-        observed_agreement = sum(all_overlap_scores) / len(all_overlap_scores)
-        
-        # Erwartete Übereinstimmung
-        expected_agreement = 0.20  # FÜr Hauptkategorien
-        
-        # Krippendorff's Alpha
-        if expected_agreement >= 1.0:
-            alpha = 1.0 if observed_agreement >= 1.0 else 0.0
-        else:
-            alpha = (observed_agreement - expected_agreement) / (1 - expected_agreement)
-        
-        print(f"🧾 Hauptkategorien Alpha Details:")
-        print(f"   - Durchschnittliche Übereinstimmung: {observed_agreement:.3f}")
-        print(f"   - Hauptkategorien Alpha (Jaccard): {alpha:.3f}")
-        
-        return max(0.0, alpha)
+        """Deprecated: Overall-Alpha (Alias)."""
+        return self._alpha_overall(codings).alpha_or_zero
 
-    
-    def _calculate_subcategories_alpha_old(self, codings: List[Dict]) -> dict:
-        """
-        FIX: Korrigierte Subkategorien Alpha Berechnung - behandelt Dictionary-Struktur korrekt
-        FÜr ReliabilityCalculator Klasse
-        """
-        # FIX: Korrekte Gruppierung nach Segment-ID und Kodierer
-        segment_data = self._group_by_original_segments(codings)
-        
-        all_overlap_scores = []
-        total_comparisons = 0
-        total_agreements = 0
-        
-        # FIX: Iteriere Über die Dictionary-Struktur korrekt
-        for original_id, coder_data in segment_data.items():
-            # Extrahiere alle Kodierungen fuer dieses Segment von verschiedenen Kodierern
-            all_segment_codings = []
-            for coder_id, coder_codings in coder_data.items():
-                all_segment_codings.extend(coder_codings)
-            
-            # Mindestens 2 Kodierungen pro Segment nÖtig fuer Vergleich
-            if len(all_segment_codings) < 2:
-                continue
-                
-            # FIX: Paarweise Vergleiche zwischen allen Kodierungen dieses Segments
-            for i in range(len(all_segment_codings)):
-                for j in range(i + 1, len(all_segment_codings)):
-                    subcats1 = all_segment_codings[i].get('subcategories', [])
-                    subcats2 = all_segment_codings[j].get('subcategories', [])
-                    
-                    # Normalisiere zu Sets
-                    if isinstance(subcats1, (list, tuple)):
-                        set1 = set(subcats1)
-                    else:
-                        set1 = set()
-                    
-                    if isinstance(subcats2, (list, tuple)):
-                        set2 = set(subcats2)
-                    else:
-                        set2 = set()
-                    
-                    total_comparisons += 1
-                    
-                    # Jaccard-Ähnlichkeit fuer Sets
-                    if len(set1) == 0 and len(set2) == 0:
-                        overlap = 1.0  # Beide leer = perfekte Übereinstimmung
-                        total_agreements += 1
-                    elif len(set1.union(set2)) == 0:
-                        overlap = 0.0
-                    else:
-                        overlap = len(set1.intersection(set2)) / len(set1.union(set2))
-                        if overlap == 1.0:
-                            total_agreements += 1
-                    
-                    # FIX: Nur numerische Overlap-Werte hinzuFügen, KEINE String-Werte
-                    all_overlap_scores.append(overlap)
-                    
-                    # FIX: Entfernt - keine String-Subkategorien zu all_overlap_scores hinzuFügen
-                    # all_overlap_scores.extend(list(set1))  # ENTFERNT
-                    # all_overlap_scores.extend(list(set2))  # ENTFERNT
-        
-        if total_comparisons == 0:
-            return {'alpha': 0.0, 'observed_agreement': 0.0, 'expected_agreement': 0.25, 'comparisons': 0}
-        
-        # FIX: Durchschnittliche Jaccard-Ähnlichkeit als beobachtete Übereinstimmung
-        # Jetzt sind alle Werte in all_overlap_scores garantiert Float-Werte
-        observed_agreement = sum(all_overlap_scores) / len(all_overlap_scores) if len(all_overlap_scores) > 0 else 0.0
-        expected_agreement = 0.25  # Vereinfacht
-        
-        # Krippendorff's Alpha
-        if expected_agreement >= 1.0:
-            alpha = 1.0 if observed_agreement >= 1.0 else 0.0
-        else:
-            alpha = (observed_agreement - expected_agreement) / (1 - expected_agreement)
-        
-        return {
-            'alpha': max(0.0, alpha),
-            'observed_agreement': observed_agreement,
-            'expected_agreement': expected_agreement,
-            'comparisons': total_comparisons
-        }
-    
-    def _calculate_subcategories_alpha(self, codings: List[Dict]) -> float:
-        """
-        FIX: Subkategorien Alpha mit partieller Übereinstimmung und korrekter Mehrfachkodierungs-Behandlung
-        FÜr ReliabilityCalculator Klasse
-        
-        Behandelt: "subcat1, subcat2" vs. "subcat1, subcat3" als partielle Übereinstimmung
-        statt als komplette Nicht-Übereinstimmung
-        """
-        segment_data = self._group_by_original_segments(codings)
-        
-        all_overlap_scores = []
-        all_comparisons = 0
-        
-        print(f"🕵️ Debug Subkategorien: Analysiere {len(segment_data)} Segmente")
-        
-        for segment_id, coders_data in segment_data.items():
-            if len(coders_data) < 2:
-                continue
-            
-            coders = list(coders_data.keys())
-            
-            for i in range(len(coders)):
-                for j in range(i + 1, len(coders)):
-                    coder1, coder2 = coders[i], coders[j]
-                    
-                    # Sammle ALLE Subkategorien von allen Kodierungen eines Kodierers für dieses Segment
-                    set1 = set()
-                    set2 = set()
-                    
-                    for coding in coders_data[coder1]:
-                        subcats = coding.get('subcategories', [])
-                        if isinstance(subcats, (list, tuple)):
-                            set1.update(subcats)
-                    
-                    for coding in coders_data[coder2]:
-                        subcats = coding.get('subcategories', [])
-                        if isinstance(subcats, (list, tuple)):
-                            set2.update(subcats)
-                    
-                    all_comparisons += 1
-                    
-                    # FIX: Jaccard-Ähnlichkeit statt exakter Gleichheit
-                    if len(set1) == 0 and len(set2) == 0:
-                        # Beide haben keine Subkategorien - perfekte Übereinstimmung
-                        overlap_score = 1.0
-                    elif len(set1) == 0 or len(set2) == 0:
-                        # Einer hat keine, der andere schon - keine Übereinstimmung
-                        overlap_score = 0.0
-                    else:
-                        # Jaccard-Koeffizient: |Schnittmenge| / |Vereinigungsmenge|
-                        intersection = len(set1.intersection(set2))
-                        union = len(set1.union(set2))
-                        overlap_score = intersection / union if union > 0 else 0.0
-                    
-                    all_overlap_scores.append(overlap_score)
-                    
-                    # Debug fuer erste 3 Vergleiche
-                    if all_comparisons <= 3:
-                        print(f"  Vergleich {all_comparisons}: {list(set1)} vs {list(set2)} -> {overlap_score:.3f}")
-        
-        if all_comparisons == 0:
-            print("❌ Keine Subkategorien-Vergleiche mÖglich")
-            return 0.0
-        
-        # Durchschnittliche Übereinstimmung
-        observed_agreement = sum(all_overlap_scores) / len(all_overlap_scores)
-        
-        # FIX: Erwartete ZufallsÜbereinstimmung fuer partielle Übereinstimmung
-        # Vereinfachte Berechnung: Bei zufÄlliger Verteilung wÜrde man etwa 0.2-0.3 erwarten
-        expected_agreement = 0.25  # Konservative SchÄtzung
-        
-        # Krippendorff's Alpha
-        if expected_agreement >= 1.0:
-            alpha = 1.0 if observed_agreement >= 1.0 else 0.0
-        else:
-            alpha = (observed_agreement - expected_agreement) / (1 - expected_agreement)
-        
-        print(f"🧾 Subkategorien-Alpha Details:")
-        print(f"   - Vergleiche durchgefÜhrt: {all_comparisons}")
-        print(f"   - Durchschnittliche Übereinstimmung: {observed_agreement:.3f}")
-        print(f"   - Erwartete ZufallsÜbereinstimmung: {expected_agreement:.3f}")
-        print(f"   - Partielle Übereinstimmungs-Alpha: {alpha:.3f}")
-        
-        return max(0.0, alpha)
-    
+    # ------------------------------------------------------------------
+    # Deskriptive Übereinstimmungsanalyse
+    # ------------------------------------------------------------------
     def _calculate_detailed_agreement_analysis(self, codings: List[Dict]) -> dict:
-        """
-        FIX: Korrigierte detaillierte Übereinstimmungsanalyse nach Kategorien
-        FÜr ReliabilityCalculator Klasse
-        """
-        # FIX: Korrekte Gruppierung nach Segment-ID und Kodierer
+        """Zählt paarweise Übereinstimmungsmuster (deskriptiv, nicht Alpha)."""
         segment_data = self._group_by_original_segments(codings)
-        
+
         agreement_stats = {
-            'Vollständige Übereinstimmung': 0,
-            'Hauptkategorie gleich, Subkat. unterschiedlich': 0,
-            'Hauptkategorie unterschiedlich': 0
+            "Vollständige Übereinstimmung": 0,
+            "Hauptkategorie gleich, Subkat. unterschiedlich": 0,
+            "Hauptkategorie unterschiedlich": 0,
         }
-        
-        # FIX: Iteriere Über die Dictionary-Struktur korrekt
-        for original_id, coder_data in segment_data.items():
-            # Extrahiere alle Kodierungen fuer dieses Segment von verschiedenen Kodierern
+
+        for _, coder_data in segment_data.items():
             all_segment_codings = []
-            for coder_id, coder_codings in coder_data.items():
+            for _, coder_codings in coder_data.items():
                 all_segment_codings.extend(coder_codings)
-            
-            # Mindestens 2 Kodierungen pro Segment nÖtig fuer Vergleich
+
             if len(all_segment_codings) < 2:
                 continue
-                
-            # FIX: Paarweise Vergleiche zwischen allen Kodierungen dieses Segments
+
             for i in range(len(all_segment_codings)):
                 for j in range(i + 1, len(all_segment_codings)):
                     coding1 = all_segment_codings[i]
                     coding2 = all_segment_codings[j]
-                    
-                    main_cat1 = coding1.get('category', '')
-                    main_cat2 = coding2.get('category', '')
-                    subcats1 = set(coding1.get('subcategories', []))
-                    subcats2 = set(coding2.get('subcategories', []))
-                    
+
+                    main_cat1 = coding1.get("category", "")
+                    main_cat2 = coding2.get("category", "")
+                    subcats1 = self._sub_value(coding1)
+                    subcats2 = self._sub_value(coding2)
+
                     if main_cat1 == main_cat2 and subcats1 == subcats2:
-                        agreement_stats['Vollständige Übereinstimmung'] += 1
+                        agreement_stats["Vollständige Übereinstimmung"] += 1
                     elif main_cat1 == main_cat2:
-                        agreement_stats['Hauptkategorie gleich, Subkat. unterschiedlich'] += 1
+                        agreement_stats["Hauptkategorie gleich, Subkat. unterschiedlich"] += 1
                     else:
-                        agreement_stats['Hauptkategorie unterschiedlich'] += 1
-        
+                        agreement_stats["Hauptkategorie unterschiedlich"] += 1
+
+        agreement_stats["Gesamt"] = sum(
+            agreement_stats[key]
+            for key in (
+                "Vollständige Übereinstimmung",
+                "Hauptkategorie gleich, Subkat. unterschiedlich",
+                "Hauptkategorie unterschiedlich",
+            )
+        )
         return agreement_stats
-    
-    def _group_by_original_segments_with_multiple_codings(self, codings: List[Dict]) -> dict:
-        """
-        FIX: Gruppiert Kodierungen nach ursprünglicher Segment-ID MIT korrekter Mehrfachkodierungs-Behandlung
-        
-        Methodisch korrekte Behandlung:
-        - Jede Mehrfachkodierung wird als separate Kodierung behandelt
-        - Alle Kombinationen zwischen Kodierern werden verglichen
-        - Basis-Segment wird nur für Gruppierung verwendet
-        
-        Rückgabe: {base_segment_id: {coder_id: [actual_codings_with_full_segment_ids]}}
-        """
-        segment_data = {}
-        
+
+    # ------------------------------------------------------------------
+    # Gruppierung / Filter / Statistik
+    # ------------------------------------------------------------------
+    def _filter_original_codings(self, codings: List[Dict]) -> List[Dict]:
+        """Entfernt Konsens-/Review-Artefakte, behält die ursprünglichen Kodierungen."""
+        original_codings = []
         for coding in codings:
-            # Extrahiere Basis-Segment-ID für Gruppierung
-            base_id = self._extract_base_segment_id(coding)
-            
-            if base_id not in segment_data:
-                segment_data[base_id] = {}
-            
-            coder_id = coding.get('coder_id', 'unknown')
-            if coder_id not in segment_data[base_id]:
-                segment_data[base_id][coder_id] = []
-            
-            # WICHTIG: Speichere die vollständige Kodierung mit tatsächlicher segment_id
-            segment_data[base_id][coder_id].append(coding)
-        
-        return segment_data
-    
-    def _calculate_multiple_coding_alpha(self, codings: List[Dict]) -> float:
-        """
-        FIX: Berechnet Alpha mit korrekter Mehrfachkodierungs-Behandlung
-        
-        Methodisch korrekte Behandlung nach Krippendorff (2011):
-        - Für Intercoder-Reliabilität werden nur Kodierungen zwischen verschiedenen Kodierern verglichen
-        - Mehrfachkodierungen desselben Kodierers werden als Set behandelt (alle Kategorien zusammengefasst)
-        - Jaccard-Ähnlichkeit für Set-basierte Vergleiche
-        """
-        segment_data = self._group_by_original_segments_with_multiple_codings(codings)
-        
-        all_overlap_scores = []
-        all_comparisons = 0
-        
-        print(f"🔍 DEBUG: Mehrfachkodierungs-Alpha für {len(segment_data)} Basis-Segmente")
-        
-        for base_segment_id, coders_data in segment_data.items():
-            if len(coders_data) < 2:
-                continue
-            
-            coders = list(coders_data.keys())
-            
-            # Paarweise Vergleiche zwischen verschiedenen Kodierern (NICHT innerhalb desselben Kodierers)
-            for i in range(len(coders)):
-                for j in range(i + 1, len(coders)):
-                    coder1, coder2 = coders[i], coders[j]
-                    
-                    # Sammle ALLE Kategorien von allen Kodierungen eines Kodierers für dieses Segment
-                    set1 = set()
-                    set2 = set()
-                    
-                    # Set 1: Alle Kategorien von Kodierer 1 für dieses Basis-Segment
-                    for coding in coders_data[coder1]:
-                        main_cat = coding.get('category', '')
-                        if main_cat and main_cat not in ['Nicht kodiert', 'Kein Kodierkonsens']:
-                            set1.add(main_cat)
-                        
-                        subcats = coding.get('subcategories', [])
-                        if isinstance(subcats, (list, tuple)):
-                            set1.update(subcats)
-                    
-                    # Set 2: Alle Kategorien von Kodierer 2 für dieses Basis-Segment
-                    for coding in coders_data[coder2]:
-                        main_cat = coding.get('category', '')
-                        if main_cat and main_cat not in ['Nicht kodiert', 'Kein Kodierkonsens']:
-                            set2.add(main_cat)
-                        
-                        subcats = coding.get('subcategories', [])
-                        if isinstance(subcats, (list, tuple)):
-                            set2.update(subcats)
-                    
-                    all_comparisons += 1
-                    
-                    # Jaccard-Ähnlichkeit zwischen den kombinierten Sets
-                    if len(set1) == 0 and len(set2) == 0:
-                        overlap_score = 1.0
-                    elif len(set1) == 0 or len(set2) == 0:
-                        overlap_score = 0.0
-                    else:
-                        intersection = len(set1.intersection(set2))
-                        union = len(set1.union(set2))
-                        overlap_score = intersection / union if union > 0 else 0.0
-                    
-                    all_overlap_scores.append(overlap_score)
-                    
-                    # Debug für erste 3 Vergleiche
-                    if all_comparisons <= 3:
-                        print(f"  Vergleich {all_comparisons}: {base_segment_id} vs {base_segment_id}")
-                        print(f"    Set1: {list(set1)}, Set2: {list(set2)} -> {overlap_score:.3f}")
-        
-        if all_comparisons == 0:
-            return 0.0
-        
-        # Durchschnittliche Übereinstimmung
-        observed_agreement = sum(all_overlap_scores) / len(all_overlap_scores)
-        
-        # Erwartete Übereinstimmung
-        expected_agreement = 0.25  # Konservative Schätzung
-        
-        # Krippendorff's Alpha
-        if expected_agreement >= 1.0:
-            alpha = 1.0 if observed_agreement >= 1.0 else 0.0
-        else:
-            alpha = (observed_agreement - expected_agreement) / (1 - expected_agreement)
-        
-        print(f"🧾 Mehrfachkodierungs-Alpha Details:")
-        print(f"   - Vergleiche durchgeführt: {all_comparisons}")
-        print(f"   - Durchschnittliche Übereinstimmung: {observed_agreement:.3f}")
-        print(f"   - Mehrfachkodierungs-Alpha: {alpha:.3f}")
-        
-        return max(0.0, alpha)
+            coder_id = coding.get("coder_id", "")
+            consensus_info = coding.get("consensus_info", {}) or {}
+            manual_review = coding.get("manual_review", False)
+            selection_type = consensus_info.get("selection_type", "")
+
+            is_excluded = (
+                coder_id in ["consensus", "majority", "review"]
+                or manual_review is True
+                or selection_type in ["consensus", "majority", "manual_consensus"]
+            )
+            if not is_excluded:
+                original_codings.append(coding)
+
+        if len(original_codings) < 2:
+            self._log("Zu wenige Kodierungen nach strengem Filter - verwende gelockerten Filter")
+            original_codings = [
+                coding
+                for coding in codings
+                if coding.get("coder_id", "") not in ["consensus", "majority", "review"]
+            ]
+
+        self._log(f"Gefilterte ursprüngliche Kodierungen: {len(original_codings)}")
+        return original_codings
+
+    def _extract_base_segment_id(self, coding: Dict) -> str:
+        """Entfernt Mehrfachkodierungs-Suffixe (z.B. 'seg_5-1' -> 'seg_5')."""
+        segment_id = coding.get("segment_id", "")
+
+        if "-" in segment_id:
+            parts = segment_id.rsplit("-", 1)
+            if len(parts) == 2 and parts[1].isdigit():
+                return parts[0]
+
+        return segment_id
+
+    def _extract_original_segment_id(self, coding: Dict) -> str:
+        """Bevorzugt die im consensus_info hinterlegte Original-ID."""
+        consensus_info = coding.get("consensus_info", {}) or {}
+        if consensus_info.get("original_segment_id"):
+            return consensus_info["original_segment_id"]
+        return self._extract_base_segment_id(coding)
 
     def _group_by_original_segments(self, codings: List[Dict]) -> dict:
         """
-        FIX: Gruppiert Kodierungen nach ursprünglicher Segment-ID fuer ReliabilityCalculator
-        RÜckgabe: {segment_id: {coder_id: [codings]}}
-        FÜr ReliabilityCalculator Klasse
+        Gruppiert Kodierungen nach Basis-Segment und Kodierer.
+
+        Rückgabe: {base_segment_id: {coder_id: [codings]}}
         """
-        segment_data = {}
-        
+        segment_data: Dict[str, Dict[str, List[Dict]]] = {}
+
         for coding in codings:
-            # Extrahiere ursprüngliche Segment-ID
-            original_id = self._extract_base_segment_id(coding)
-            
-            if original_id not in segment_data:
-                segment_data[original_id] = {}
-            
-            coder_id = coding.get('coder_id', 'unknown')
-            if coder_id not in segment_data[original_id]:
-                segment_data[original_id][coder_id] = []
-            
-            segment_data[original_id][coder_id].append(coding)
-        
+            original_id = self._extract_original_segment_id(coding)
+            coder_id = coding.get("coder_id", "unknown")
+
+            segment_data.setdefault(original_id, {}).setdefault(coder_id, []).append(
+                coding
+            )
+
         return segment_data
-    
-    def _calculate_alpha_from_sets(self, agreements: int, comparisons: int, category_sets: List[set]) -> float:
-        """
-        FIX: Berechnet Krippendorff's Alpha aus Set-Daten
-        """
-        if comparisons == 0:
-            return 0.0
-        
-        observed_agreement = agreements / comparisons
-        expected_agreement = self._calculate_expected_set_agreement(category_sets)
-        
-        if expected_agreement >= 1.0:
-            alpha = 1.0 if observed_agreement >= 1.0 else 0.0
-        else:
-            alpha = (observed_agreement - expected_agreement) / (1 - expected_agreement)
-        
-        return max(0.0, alpha)
-    
-    def _calculate_expected_set_agreement(self, all_category_sets: List[set]) -> float:
-        """
-        FIX: Berechnet erwartete Set-Übereinstimmung nach Krippendorff (2011)
-        """
-        if not all_category_sets:
-            return 0.0
-        
-        # Sammle alle individuellen Kategorien
-        all_individual_categories = []
-        for category_set in all_category_sets:
-            all_individual_categories.extend(list(category_set))
-        
-        if not all_individual_categories:
-            return 0.0
-        
-        # HÄufigkeitsverteilung
-        from collections import Counter
-        category_frequencies = Counter(all_individual_categories)
-        total_instances = len(all_individual_categories)
-        
-        # Vereinfachte erwartete Übereinstimmung fuer Set-Variable
-        # (Krippendorff 2011 empfiehlt komplexere Berechnung, aber das ist eine praktikable NÄherung)
-        expected_agreement = 0.0
-        unique_sets = list(set(frozenset(s) for s in all_category_sets))
-        
-        for unique_set in unique_sets:
-            # Wahrscheinlichkeit dieses Set-Typs
-            set_probability = 1.0
-            for category in unique_set:
-                cat_prob = category_frequencies[category] / total_instances
-                set_probability *= cat_prob
-            
-            expected_agreement += set_probability ** 2
-        
-        return min(expected_agreement, 0.99)  # Verhindere Division durch 0
-    
-    def _extract_original_segment_id(self, coding: Dict) -> str:
-        """
-        FIX: Extrahiert ursprüngliche Segment-ID
-        """
-        # Erst consensus_info prÜfen
-        consensus_info = coding.get('consensus_info', {})
-        if consensus_info.get('original_segment_id'):
-            return consensus_info['original_segment_id']
-        
-        # Fallback: Aus segment_id ableiten
-        segment_id = coding.get('segment_id', '')
-        if '-' in segment_id:
-            parts = segment_id.rsplit('-', 1)
-            if len(parts) == 2 and parts[1].isdigit() and len(parts[1]) <= 2:
-                return parts[0]
-        
-        return segment_id
-    
+
     def _calculate_basic_statistics(self, codings: List[Dict]) -> dict:
-        """
-        FIX: Robuste Basis-Statistiken mit Fallback
-        FÜr ReliabilityCalculator Klasse
-        """
+        """Basis-Statistiken für den Bericht."""
         if not codings:
             return {
-                'total_codings': 0,
-                'vergleichbare_segmente': 0,
-                'total_segmente': 0,
-                'anzahl_kodierer': 0,
-                'mittelwert_kodierungen': 0.0
+                "total_codings": 0,
+                "vergleichbare_segmente": 0,
+                "total_segmente": 0,
+                "anzahl_kodierer": 0,
+                "mittelwert_kodierungen": 0.0,
             }
-        
+
         segment_data = self._group_by_original_segments(codings)
-        vergleichbare_segmente = sum(1 for data in segment_data.values() if len(data) >= 2)
-        
-        coders = set()
-        for coding in codings:
-            coder_id = coding.get('coder_id', 'unknown')
-            if coder_id:  # FIX: Leere coder_ids ignorieren
-                coders.add(coder_id)
-        
-        anzahl_kodierer = len(coders) if coders else 1  # FIX: Mindestens 1 um Division durch 0 zu vermeiden
-        
-        return {
-            'total_codings': len(codings),
-            'vergleichbare_segmente': vergleichbare_segmente,
-            'total_segmente': len(segment_data),
-            'anzahl_kodierer': anzahl_kodierer,
-            'mittelwert_kodierungen': len(codings) / anzahl_kodierer
+        vergleichbare_segmente = sum(
+            1 for data in segment_data.values() if len(data) >= 2
+        )
+
+        coders = {
+            coding.get("coder_id", "unknown")
+            for coding in codings
+            if coding.get("coder_id")
         }
-    
+        anzahl_kodierer = len(coders) if coders else 1
+
+        return {
+            "total_codings": len(codings),
+            "vergleichbare_segmente": vergleichbare_segmente,
+            "total_segmente": len(segment_data),
+            "anzahl_kodierer": anzahl_kodierer,
+            "mittelwert_kodierungen": len(codings) / anzahl_kodierer,
+        }
+
     def _create_empty_reliability_report(self) -> dict:
-        """
-        FIX: Erstellt vollständigen leeren Bericht
-        FÜr ReliabilityCalculator Klasse
-        """
-        return {
-            'overall_alpha': 0.0,
-            'main_categories_alpha': 0.0,
-            'subcategories_alpha': 0.0,
-            'agreement_analysis': {
-                'Vollständige Übereinstimmung': 0,
-                'Hauptkategorie gleich, Subkat. unterschiedlich': 0,
-                'Hauptkategorie unterschiedlich': 0,
-                'Gesamt': 0
-            },
-            'statistics': {
-                'total_codings': 0,
-                'vergleichbare_segmente': 0,
-                'total_segmente': 0,
-                'anzahl_kodierer': 0,
-                'mittelwert_kodierungen': 0.0
-            }
+        """Vollständiger Leerbericht (gleiche Struktur wie der normale Bericht)."""
+        empty_stats = {
+            "total_codings": 0,
+            "vergleichbare_segmente": 0,
+            "total_segmente": 0,
+            "anzahl_kodierer": 0,
+            "mittelwert_kodierungen": 0.0,
         }
-    
-    def _calculate_combined_sets_alpha(self, codings: List[Dict]) -> float:
-        """
-        FIX: Overall Alpha mit Jaccard-Ähnlichkeit (konsistent mit Subkategorien-Behandlung)
-        FÜr ReliabilityCalculator Klasse
-        """
-        segment_data = self._group_by_original_segments(codings)
-        
-        all_overlap_scores = []
-        all_comparisons = 0
-        
-        for segment_id, coders_data in segment_data.items():
-            if len(coders_data) < 2:
-                continue
-            
-            coders = list(coders_data.keys())
-            
-            for i in range(len(coders)):
-                for j in range(i + 1, len(coders)):
-                    coder1, coder2 = coders[i], coders[j]
-                    
-                    # FIX: Kombiniere Haupt- und Subkategorien zu Sets
-                    set1 = set()
-                    set2 = set()
-                    
-                    for coding in coders_data[coder1]:
-                        main_cat = coding.get('category', '')
-                        if main_cat and main_cat not in ['Nicht kodiert', 'Kein Kodierkonsens']:
-                            set1.add(main_cat)
-                        
-                        subcats = coding.get('subcategories', [])
-                        if isinstance(subcats, (list, tuple)):
-                            set1.update(subcats)
-                    
-                    for coding in coders_data[coder2]:
-                        main_cat = coding.get('category', '')
-                        if main_cat and main_cat not in ['Nicht kodiert', 'Kein Kodierkonsens']:
-                            set2.add(main_cat)
-                        
-                        subcats = coding.get('subcategories', [])
-                        if isinstance(subcats, (list, tuple)):
-                            set2.update(subcats)
-                    
-                    all_comparisons += 1
-                    
-                    # FIX: Jaccard-Ähnlichkeit statt exakter Gleichheit
-                    if len(set1) == 0 and len(set2) == 0:
-                        # Beide haben keine Kategorien - perfekte Übereinstimmung
-                        overlap_score = 1.0
-                    elif len(set1) == 0 or len(set2) == 0:
-                        # Einer hat keine, der andere schon - keine Übereinstimmung
-                        overlap_score = 0.0
-                    else:
-                        # Jaccard-Koeffizient: |Schnittmenge| / |Vereinigungsmenge|
-                        intersection = len(set1.intersection(set2))
-                        union = len(set1.union(set2))
-                        overlap_score = intersection / union if union > 0 else 0.0
-                    
-                    all_overlap_scores.append(overlap_score)
-        
-        if all_comparisons == 0:
-            return 0.0
-        
-        # Durchschnittliche Übereinstimmung
-        observed_agreement = sum(all_overlap_scores) / len(all_overlap_scores)
-        
-        # Erwartete Übereinstimmung fuer kombinierte Sets
-        expected_agreement = 0.25  # Konservative SchÄtzung
-        
-        # Krippendorff's Alpha
-        if expected_agreement >= 1.0:
-            alpha = 1.0 if observed_agreement >= 1.0 else 0.0
-        else:
-            alpha = (observed_agreement - expected_agreement) / (1 - expected_agreement)
-        
-        print(f"🧾 Overall Alpha Details:")
-        print(f"   - Durchschnittliche Jaccard-Übereinstimmung: {observed_agreement:.3f}")
-        print(f"   - Erwartete ZufallsÜbereinstimmung: {expected_agreement:.3f}")
-        print(f"   - Overall Alpha (Jaccard-basiert): {alpha:.3f}")
-        
-        return max(0.0, alpha)
+        return {
+            "overall_alpha": 0.0,
+            "main_categories_alpha": 0.0,
+            "subcategories_alpha": 0.0,
+            "overall_alpha_binary": 0.0,
+            "subcategories_alpha_binary": 0.0,
+            "agreement_analysis": {
+                "Vollständige Übereinstimmung": 0,
+                "Hauptkategorie gleich, Subkat. unterschiedlich": 0,
+                "Hauptkategorie unterschiedlich": 0,
+                "Gesamt": 0,
+            },
+            "statistics": empty_stats,
+            "alpha_details": {
+                "overall": AlphaResult(None).as_dict(),
+                "main_categories": AlphaResult(None).as_dict(),
+                "subcategories": AlphaResult(None).as_dict(),
+                "overall_binary": AlphaResult(None).as_dict(),
+                "subcategories_binary": AlphaResult(None).as_dict(),
+            },
+            "category_alphas": {},
+        }
+
+    # ------------------------------------------------------------------
+    # Ausgabe
+    # ------------------------------------------------------------------
+    def _log(self, message: str) -> None:
+        if self.verbose:
+            print(message)
+
+    def _fmt(self, value: Optional[float]) -> str:
+        if value is None:
+            return "n. b."
+        return f"{value:.{self.decimals}f}"
 
     def _print_reliability_summary(self, report: dict):
+        """Kompakte Zusammenfassung inkl. der Größen, die Alpha ausmachen."""
+        overall = report["alpha_details"]["overall"]
+        main = report["alpha_details"]["main_categories"]
+        sub = report["alpha_details"]["subcategories"]
+        overall_binary = report["alpha_details"].get("overall_binary") or {}
+        sub_binary = report["alpha_details"].get("subcategories_binary") or {}
+        stats = report["statistics"]
+
+        self._log("\nKrippendorff's Alpha - Reliabilitäts-Analyse")
+        self._log("=" * 60)
+        self._log(f"Overall (Haupt + Sub):     {self._fmt(overall['alpha'])}   [Jaccard]")
+        self._log(f"Overall (binär):           {self._fmt(overall_binary.get('alpha'))}   [Hamming]")
+        self._log(f"Hauptkategorien:           {self._fmt(main['alpha'])}")
+        self._log(f"Subkategorien:             {self._fmt(sub['alpha'])}   [Jaccard]")
+        self._log(f"Subkategorien (binär):     {self._fmt(sub_binary.get('alpha'))}   [Hamming]")
+        self._log(f"Vergleichbare Segmente:    {stats['vergleichbare_segmente']}")
+        self._log(f"Kodierer:                  {stats['anzahl_kodierer']}")
+        self._log(f"Parierbare Werte:          {int(round(overall['n_values']))}")
+        self._log(
+            f"Do / De (Overall):         "
+            f"{self._fmt(overall['observed_disagreement'])} / "
+            f"{self._fmt(overall['expected_disagreement'])}"
+        )
+
+        self._log("\nMethodik:")
+        self._log("   - Koinzidenzmatrix nach Krippendorff (2011), fehlende Werte zulässig")
+        self._log("   - Hauptkategorien: nominale Distanz")
+        self._log("   - Subkategorien: Jaccard-Distanz auf Kategorienmengen")
+        self._log("   - Subkategorien (binär): Hamming-Distanz auf Indikatorvektoren")
+        self._log("   - Overall: Mittel der Distanzen beider Ebenen")
+
+        # Metrik-Robustheit: Jaccard vs. Hamming auf derselben Ebene
+        self._log_metric_robustness(
+            ("Subkategorien", sub, sub_binary),
+            ("Overall", overall, overall_binary),
+        )
+
+        # Diagnose: degenerierte oder nicht berechenbare Fälle
+        for label, detail in (
+            ("Overall", overall),
+            ("Hauptkategorien", main),
+            ("Subkategorien", sub),
+        ):
+            if detail["alpha"] is None:
+                self._log(
+                    f"   ! {label}: Alpha nicht berechenbar "
+                    f"(zu wenige Einheiten oder Werte)"
+                )
+            elif detail["degenerate"]:
+                self._log(
+                    f"   ! {label}: keine Varianz in den Randverteilungen "
+                    f"- Alpha ist hier nicht interpretierbar"
+                )
+
+        # Hinweis: Overall muss nicht zwischen den Ebenen liegen
+        if all(
+            detail["alpha"] is not None and not detail["degenerate"]
+            for detail in (overall, main, sub)
+        ):
+            low, high = sorted([main["alpha"], sub["alpha"]])
+            if not (low <= overall["alpha"] <= high):
+                self._log(
+                    "   i Overall liegt außerhalb des Bereichs der Einzelebenen - "
+                    "das ist bei unterschiedlichen De-Werten normal, kein Rechenfehler."
+                )
+
+        if stats["vergleichbare_segmente"] < 10:
+            self._log(
+                f"   ! Nur {stats['vergleichbare_segmente']} vergleichbare Segmente: "
+                f"Alpha ist auf so wenigen Einheiten statistisch nicht belastbar."
+            )
+
+        self._log("\nBewertung Overall Alpha:   " + self._rating(overall["alpha"]))
+
+        category_alphas = report.get("category_alphas") or {}
+        if category_alphas:
+            weak = sorted(
+                (
+                    (name, value)
+                    for name, value in category_alphas.items()
+                    if value < THRESHOLD_EXPLORATORY
+                ),
+                key=lambda item: item[1],
+            )
+            if weak:
+                self._log(
+                    f"\nKategorien unter der Explorationsschwelle "
+                    f"({len(weak)} von {len(category_alphas)}, binäres Alpha):"
+                )
+                for name, value in weak[:5]:
+                    self._log(f"   - {name}: {self._fmt(value)}")
+                if len(weak) > 5:
+                    self._log(f"   ... und {len(weak) - 5} weitere")
+            else:
+                self._log(
+                    f"\nAlle {len(category_alphas)} Hauptkategorien liegen "
+                    f"im binären Alpha über {THRESHOLD_EXPLORATORY:.3f}."
+                )
+
+    def _log_metric_robustness(self, *pairs) -> None:
         """
-        FIX: Erweiterte Zusammenfassung mit Konsistenz-PrÜfung
-        FÜr ReliabilityCalculator Klasse
+        Vergleicht Jaccard- und Hamming-Variante je Ebene.
+
+        Kleine Abweichung = die Wahl der Mengenmetrik ändert das Ergebnis nicht;
+        große Abweichung = die Übereinstimmung hängt an der Metrik und muss
+        begründet werden.
         """
-        print(f"\nℹ️ Krippendorff's Alpha Reliabilitäts-Analyse:")
-        print(f"=" * 60)
-        print(f"Overall Alpha (Jaccard-basiert):       {report['overall_alpha']:.3f}")
-        print(f"Hauptkategorien Alpha (Jaccard):       {report['main_categories_alpha']:.3f}")
-        print(f"Subkategorien Alpha (Jaccard):         {report['subcategories_alpha']:.3f}")
-        print(f"Vergleichbare Segmente:                {report['statistics']['vergleichbare_segmente']}")
-        print(f"Anzahl Kodierer:                       {report['statistics']['anzahl_kodierer']}")
-        
-        # FIX: Konsistenz-PrÜfung
-        overall = report['overall_alpha']
-        main_alpha = report['main_categories_alpha']
-        sub_alpha = report['subcategories_alpha']
-        
-        print(f"\nℹ️ Methodik:")
-        print(f"   - Alle Alpha-Werte verwenden Jaccard-Ähnlichkeit")
-        print(f"   - Konsistente Set-basierte Berechnung")
-        print(f"   - Overall sollte zwischen Haupt- und Sub-Alpha liegen")
-        
-        # Konsistenz-Check
-        min_component = min(main_alpha, sub_alpha)
-        max_component = max(main_alpha, sub_alpha)
-        
-        if min_component <= overall <= max_component:
-            print(f"   ✅ Mathematische Konsistenz: {min_component:.3f} â‰¤ {overall:.3f} â‰¤ {max_component:.3f}")
+        deltas = []
+        for label, jaccard_detail, hamming_detail in pairs:
+            if not jaccard_detail or not hamming_detail:
+                continue
+            alpha_jaccard = jaccard_detail.get("alpha")
+            alpha_hamming = hamming_detail.get("alpha")
+            if alpha_jaccard is None or alpha_hamming is None:
+                continue
+            if jaccard_detail.get("degenerate") or hamming_detail.get("degenerate"):
+                continue
+            deltas.append((label, abs(alpha_jaccard - alpha_hamming)))
+
+        if not deltas:
+            return
+
+        worst_label, worst_delta = max(deltas, key=lambda item: item[1])
+        if worst_delta <= THRESHOLD_METRIC_ROBUSTNESS:
+            self._log(
+                f"\nMetrik-Robustheit: max. Abweichung {worst_delta:.3f} "
+                f"({worst_label}) - Jaccard und Hamming stimmen praktisch überein."
+            )
         else:
-            print(f"   ❌ Mathematische Inkonsistenz: Overall liegt auẞerhalb der Komponenten!")
-            print(f"      Bereich: {min_component:.3f} - {max_component:.3f}, Overall: {overall:.3f}")
-        
-        # Bewertung
-        rating = "Exzellent" if overall > 0.8 else "Akzeptabel" if overall > 0.667 else "Unzureichend"
-        print(f"\nBewertung Overall Alpha:               {rating}")
-        
-        if overall < 0.667:
-            print(f"❌  Reliabilität unter Schwellenwert - Kategoriensystem Überarbeiten")
+            self._log(
+                f"\n! Metrik-Robustheit: Abweichung {worst_delta:.3f} ({worst_label}) - "
+                f"Jaccard und Hamming fallen auseinander; die Übereinstimmung hängt "
+                f"an der Metrik und sollte im Methodenteil begründet werden."
+            )
 
-
-# --- Klasse: ResultsExporter ---
-# Aufgabe: Export der kodierten Daten und des finalen Kategoriensystems
+    @staticmethod
+    def _rating(alpha: Optional[float]) -> str:
+        if alpha is None:
+            return "nicht berechenbar"
+        if alpha >= THRESHOLD_RELIABLE:
+            return "reliabel (>= .800)"
+        if alpha >= THRESHOLD_EXPLORATORY:
+            return "nur explorativ belastbar (.667 - .800)"
+        if alpha > 0.0:
+            return "unzureichend (< .667)"
+        return "systematische Nicht-Übereinstimmung (<= 0)"

@@ -646,7 +646,4 @@ class ReviewManager:
         self.review_decisions.append(decision)
 
 
-# ============================
-# KORRIGIERTE KRIPPENDORFF'S ALPHA BERECHNUNG
-# ============================
 

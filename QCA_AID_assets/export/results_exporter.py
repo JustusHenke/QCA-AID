@@ -10,7 +10,7 @@ import json
 import re
 import pandas as pd
 from datetime import datetime
-from typing import Dict, List, Optional, Any, Tuple
+from typing import Dict, List, Optional, Any, Tuple, TYPE_CHECKING
 from collections import defaultdict, Counter
 
 # Fix für Unicode-Encoding auf Windows-Konsolen
@@ -37,7 +37,6 @@ from openpyxl.worksheet.table import Table, TableStyleInfo
 from ..core.config import CONFIG
 from ..core.data_models import CategoryDefinition, CodingResult, CategoryChange
 from ..core.validators import CategoryValidator
-from ..analysis.inductive_coding import InductiveCoder
 from ..quality.reliability import ReliabilityCalculator
 from ..utils.export.helpers import (
     sanitize_text_for_excel, generate_pastel_colors, format_confidence
@@ -51,6 +50,9 @@ try:
 except ImportError:
     pdf_annotation_available = False
 
+if TYPE_CHECKING:  # nur für Typannotationen - vermeidet zirkulären Import
+    from ..analysis.inductive_coding import InductiveCoder
+
 
 class ResultsExporter:
     """
@@ -58,7 +60,7 @@ class ResultsExporter:
     Supports the documentation of coded chunks and the category system.
     """
     
-    def __init__(self, output_dir: str, attribute_labels: Dict[str, str], inductive_coder: InductiveCoder = None,
+    def __init__(self, output_dir: str, attribute_labels: Dict[str, str], inductive_coder: 'InductiveCoder' = None,
                  analysis_manager: 'IntegratedAnalysisManager' = None):
         self.output_dir = output_dir
         self.attribute_labels = attribute_labels
@@ -2438,6 +2440,16 @@ class ResultsExporter:
         else:
             alpha_cell.fill = PatternFill(start_color='FFB6C1', end_color='FFB6C1', fill_type='solid')
     
+    @staticmethod
+    def _format_do_de(alpha_details: Dict, key: str) -> str:
+        """Formatiert Do / De einer Alpha-Ebene für die Berichtsausgabe."""
+        detail = (alpha_details or {}).get(key) or {}
+        do = detail.get('observed_disagreement')
+        de = detail.get('expected_disagreement')
+        if do is None or de is None:
+            return "nicht berechenbar"
+        return f"{do:.3f} / {de:.3f}"
+
     def _get_reliability_rating(self, reliability: float) -> str:
         """Bestimmt Reliabilitäts-Bewertung"""
         if reliability > 0.8:
@@ -3394,6 +3406,155 @@ class ResultsExporter:
         for col, width in column_widths.items():
             worksheet.column_dimensions[col].width = width
     
+    def _add_reliability_methodology(self, worksheet, report: Dict, start_row: int) -> int:
+        """
+        Schreibt den Methodik-, Formel- und Interpretationsblock in ein Arbeitsblatt.
+
+        Die Hinweise sind bewusst an einer Stelle gebündelt, damit der Bericht
+        ohne Rückgriff auf die Dokumentation lesbar und zitierfähig ist.
+        Rückgabe: nächste freie Zeile.
+        """
+        details = report.get('alpha_details') or {}
+        overall_detail = details.get('overall') or {}
+        main_detail = details.get('main_categories') or {}
+        sub_detail = details.get('subcategories') or {}
+        overall_binary_detail = details.get('overall_binary') or {}
+        sub_binary_detail = details.get('subcategories_binary') or {}
+        stats = report.get('statistics') or {}
+        category_alphas = report.get('category_alphas') or {}
+
+        section_font = Font(bold=True)
+        label_font = Font(bold=True, color='366092')
+        wrap_top = Alignment(wrap_text=True, vertical='top')
+
+        def fmt(value):
+            return "nicht berechenbar" if value is None else f"{value:.3f}"
+
+        comparable = stats.get('vergleichbare_segmente', 0)
+        if comparable and comparable < 10:
+            sample_note = (
+                f"{comparable} vergleichbare Segmente - Alpha ist auf weniger als "
+                f"10 Einheiten statistisch nicht belastbar, die Werte dienen der Orientierung."
+            )
+        else:
+            sample_note = (
+                f"{comparable} vergleichbare Segmente (Einheiten, die von mindestens "
+                f"zwei verschiedenen Kodierern kodiert wurden)."
+            )
+
+        weak_categories = sorted(
+            ((name, value) for name, value in category_alphas.items() if value < 0.667),
+            key=lambda item: item[1],
+        )
+        if weak_categories:
+            weak_text = ", ".join(f"{name} ({value:.3f})" for name, value in weak_categories[:8])
+            if len(weak_categories) > 8:
+                weak_text += f" ... und {len(weak_categories) - 8} weitere"
+        else:
+            weak_text = "keine Hauptkategorie unter .667"
+
+        # Robustheit der Mengenmetrik: Jaccard vs. binäre Hamming-Distanz
+        def delta_text(a, b):
+            if a is None or b is None:
+                return "nicht berechenbar"
+            return f"{abs(a - b):.3f}"
+
+        sub_alpha = sub_detail.get('alpha')
+        sub_binary_alpha = sub_binary_detail.get('alpha')
+        overall_alpha_value = overall_detail.get('alpha')
+        overall_binary_value = overall_binary_detail.get('alpha')
+        robustness_text = (
+            f"Jaccard vs. binär/Hamming - Subkategorien {fmt(sub_alpha)} vs "
+            f"{fmt(sub_binary_alpha)} (Differenz {delta_text(sub_alpha, sub_binary_alpha)}), "
+            f"Overall {fmt(overall_alpha_value)} vs {fmt(overall_binary_value)} "
+            f"(Differenz {delta_text(overall_alpha_value, overall_binary_value)}). "
+            f"Differenz <= 0.05: Metrikwahl unkritisch; > 0.05: im Methodenteil begründen."
+        )
+
+        rows = [
+            ("section", "2. Methodik, Formeln und Interpretation"),
+            ("row", "Formel",
+             "Alpha = 1 - Do / De. Alpha ist der Anteil der Zufalls-Unähnlichkeit, "
+             "den die Kodierer durch tatsächliche Übereinstimmung aufheben."),
+            ("row", "Do (beobachtet)",
+             "Mittlere Distanz zwischen den Kodierungen desselben Segments, gemittelt "
+             "über alle vergleichbaren Segmente."),
+            ("row", "De (erwartet)",
+             "Distanz, die zu erwarten wäre, wenn die Kodierer ihre Kategorien nach "
+             "ihrer beobachteten Häufigkeitsverteilung zufällig vergeben würden "
+             "(Randverteilungen der Koinzidenzmatrix)."),
+            ("row", "Do / De (Overall)",
+             f"{fmt(overall_detail.get('observed_disagreement'))} / "
+             f"{fmt(overall_detail.get('expected_disagreement'))}"),
+            ("row", "Do / De (Hauptkategorien)",
+             f"{fmt(main_detail.get('observed_disagreement'))} / "
+             f"{fmt(main_detail.get('expected_disagreement'))}"),
+            ("row", "Do / De (Subkategorien)",
+             f"{fmt(sub_detail.get('observed_disagreement'))} / "
+             f"{fmt(sub_detail.get('expected_disagreement'))}"),
+            ("row", "Do / De (Subkat., binär)",
+             f"{fmt(sub_binary_detail.get('observed_disagreement'))} / "
+             f"{fmt(sub_binary_detail.get('expected_disagreement'))}"),
+            ("row", "Wertebereich",
+             "-1 bis 1. Alpha = 1: perfekte Übereinstimmung. Alpha = 0: Zufallsniveau. "
+             "Alpha < 0: systematische Nicht-Übereinstimmung (wird nicht auf 0 gekappt)."),
+            ("row", "Schwellen",
+             "Alpha >= .800: reliabel. .667 <= Alpha < .800: nur für explorative "
+             "Schlussfolgerungen ausreichend. Alpha < .667: unzureichend "
+             "(Krippendorff 2004, S. 241f.)."),
+            ("row", "Distanzmetriken",
+             "Hauptkategorien: nominal (0/1). Subkategorien: Jaccard-Distanz "
+             "d = (1 - |S1 & S2| / |S1 | S2|)^2. Overall: Mittel beider Ebenen "
+             "d = (d_Haupt + d_Sub) / 2."),
+            ("row", "Metrik-Robustheit", robustness_text),
+            ("row", "Fehlende Werte",
+             "Zulässig. Nur Segmente mit Kodierungen von mindestens zwei verschiedenen "
+             "Kodierern gehen ein; 'Nicht kodiert' zählt als fehlender Wert, nicht als Kategorie."),
+            ("row", "Mehrfachkodierungen",
+             "Mehrere Kodierungen desselben Kodierers pro Segment werden als eigene "
+             "Beobachtungen gepoolt (Gewicht 1/(m-1) je Einheit)."),
+            ("row", "Sonstige Hinweise",
+             "Overall-Alpha muss nicht zwischen Haupt- und Sub-Alpha liegen: die Ebenen "
+             "haben unterschiedliche De-Werte. Bei De = 0 (keine Varianz in den "
+             "Randverteilungen) ist Alpha nicht interpretierbar."),
+            ("row", "Stichprobe", sample_note),
+            ("row", "Kategoriendiagnostik",
+             "Binäres Alpha je Hauptkategorie, Kategorien unter .667: " + weak_text),
+            ("row", "Grenze der Set-Kodierung",
+             "Für mehrfach vergebene Subkategorien existiert keine kanonische "
+             "Alpha-Variante; die Jaccard-Distanz ist eine dokumentierte Konvention. "
+             "Für berichtbare Kennwerte die Kodierungen als Einheiten-x-Kodierer-Matrix "
+             "exportieren und mit irr::kripp.alpha, irrCAC oder dem Paket krippendorff "
+             "gegenrechnen."),
+            ("row", "Referenzen",
+             "Krippendorff, K. (2004): Content Analysis. An Introduction to Its "
+             "Methodology (S. 221-256). Krippendorff, K. (2011): Computing "
+             "Krippendorff's Alpha-Reliability. Hayes, A. F. & Krippendorff, K. (2007): "
+             "Answering the Call for a Standard Reliability Measure for Coding Data. "
+             "Communication Methods and Measures 1(1), 77-109."),
+        ]
+
+        row = start_row
+        for entry in rows:
+            if entry[0] == "section":
+                worksheet.cell(row=row, column=1, value=entry[1]).font = section_font
+                row += 1
+                continue
+
+            _, label, text = entry
+            worksheet.cell(row=row, column=1, value=label).font = label_font
+            worksheet.cell(row=row, column=1).alignment = wrap_top
+            value_cell = worksheet.cell(row=row, column=2, value=text)
+            value_cell.alignment = wrap_top
+            worksheet.merge_cells(start_row=row, start_column=2, end_row=row, end_column=6)
+            # Zeilenhöhe grob am Textumfang ausrichten (Breite B:F ca. 110 Zeichen)
+            label_lines = max(1, -(-len(label) // 24))
+            value_lines = max(1, -(-len(text) // 110))
+            worksheet.row_dimensions[row].height = max(15, 14 * max(label_lines, value_lines))
+            row += 1
+
+        return row
+
     def _export_intercoder_bericht(self, writer, original_codings: List[Dict], reliability: float):
         """
         FIX: Intercoder-Bericht mit bereits berechneter Reliabilität
@@ -3433,7 +3594,7 @@ class ResultsExporter:
             current_row += 1
             
             # FIX: Overall Alpha fett gedruckt und prominent
-            worksheet.cell(row=current_row, column=1, value="Overall Alpha (Jaccard-basiert):")
+            worksheet.cell(row=current_row, column=1, value="Overall Alpha (Krippendorff):")
             alpha_cell = worksheet.cell(row=current_row, column=2, value=f"{comprehensive_report['overall_alpha']:.3f}")
             alpha_cell.font = Font(bold=True, size=12)
             current_row += 1
@@ -3455,12 +3616,20 @@ class ResultsExporter:
             current_row += 2
             
             # FIX: Zusätzliche Alpha-Werte aus dem comprehensive report
-            worksheet.cell(row=current_row, column=1, value="Hauptkategorien Alpha (Jaccard):")
+            worksheet.cell(row=current_row, column=1, value="Hauptkategorien Alpha:")
             worksheet.cell(row=current_row, column=2, value=f"{comprehensive_report['main_categories_alpha']:.3f}")
             current_row += 1
             
-            worksheet.cell(row=current_row, column=1, value="Subkategorien Alpha (Jaccard):")
+            worksheet.cell(row=current_row, column=1, value="Subkategorien Alpha:")
             worksheet.cell(row=current_row, column=2, value=f"{comprehensive_report['subcategories_alpha']:.3f}")
+            current_row += 1
+
+            worksheet.cell(row=current_row, column=1, value="Subkategorien (binär/Hamming):")
+            worksheet.cell(row=current_row, column=2, value=f"{comprehensive_report.get('subcategories_alpha_binary', 0.0):.3f}")
+            current_row += 1
+
+            worksheet.cell(row=current_row, column=1, value="Overall (binär/Hamming):")
+            worksheet.cell(row=current_row, column=2, value=f"{comprehensive_report.get('overall_alpha_binary', 0.0):.3f}")
             current_row += 1
             
             worksheet.cell(row=current_row, column=1, value="Vergleichbare Segmente:")
@@ -3471,36 +3640,26 @@ class ResultsExporter:
             worksheet.cell(row=current_row, column=2, value=comprehensive_report['statistics']['anzahl_kodierer'])
             current_row += 2
             
-            # FIX: Methodik-Informationen hinzuFügen
-            worksheet.cell(row=current_row, column=1, value="2. Methodik")
-            worksheet.cell(row=current_row, column=1).font = Font(bold=True)
+            # FIX: Methodik, Formeln und Interpretation (gebündelt, damit der Bericht
+            # ohne Rückgriff auf die Dokumentation lesbar ist)
+            current_row = self._add_reliability_methodology(
+                worksheet, comprehensive_report, current_row
+            )
             current_row += 1
-            
-            worksheet.cell(row=current_row, column=1, value="Alle Alpha-Werte verwenden:")
-            worksheet.cell(row=current_row, column=2, value="Jaccard-Ähnlichkeit")
-            current_row += 1
-            
-            worksheet.cell(row=current_row, column=1, value="Berechnung:")
-            worksheet.cell(row=current_row, column=2, value="Set-basierte Berechnung")
-            current_row += 1
-            
-            worksheet.cell(row=current_row, column=1, value="Konsistenz:")
-            worksheet.cell(row=current_row, column=2, value="Overall zwischen Haupt- und Sub-Alpha")
-            current_row += 2
             
             # 3. Detaillierte Set-Analyse für Nachprüfung
             worksheet.cell(row=current_row, column=1, value="3. Detaillierte Set-Analyse (Nachprüfung)")
             worksheet.cell(row=current_row, column=1).font = Font(bold=True)
             current_row += 1
             
-            worksheet.cell(row=current_row, column=1, value="Diese Tabelle zeigt die Sets je Kodierer und Segment für die manuelle Nachprüfung der Jaccard-Berechnung.")
+            worksheet.cell(row=current_row, column=1, value="Deskriptive Set-Übereinstimmung je Kodierer und Segment (Grundlage der Jaccard-Distanz, nicht Alpha selbst).")
             current_row += 2
             
             # Erstelle detaillierte Set-Analyse
             current_row = self._add_detailed_set_analysis(worksheet, original_codings, current_row)
             
             # Spaltenbreiten anpassen
-            worksheet.column_dimensions['A'].width = 25  # Segment ID
+            worksheet.column_dimensions['A'].width = 34  # Methodik-Labels / Segment ID
             worksheet.column_dimensions['B'].width = 15  # Kodierer 1
             worksheet.column_dimensions['C'].width = 15  # Kodierer 2
             worksheet.column_dimensions['D'].width = 40  # Set 1
@@ -3785,6 +3944,7 @@ class ResultsExporter:
                 subcategories_alpha = comprehensive_report['subcategories_alpha']
                 agreement_analysis = comprehensive_report['agreement_analysis']
                 statistics = comprehensive_report['statistics']
+                alpha_details = comprehensive_report.get('alpha_details') or {}
             else:
                 print("🧾 Fallback: Berechne reliability report (comprehensive report nicht verfügbar)")
                 # Extrahiere ursprüngliche Kodierungen aus den Segment-Daten
@@ -3801,6 +3961,7 @@ class ResultsExporter:
                     subcategories_alpha = comprehensive_report['subcategories_alpha']
                     agreement_analysis = comprehensive_report['agreement_analysis']
                     statistics = comprehensive_report['statistics']
+                    alpha_details = comprehensive_report.get('alpha_details') or {}
                 else:
                     # Fallback wenn keine Daten
                     overall_alpha = reliability
@@ -3808,6 +3969,15 @@ class ResultsExporter:
                     subcategories_alpha = 0.0
                     agreement_analysis = {'Vollständige Übereinstimmung': 0, 'Hauptkategorie gleich, Subkat. unterschiedlich': 0, 'Hauptkategorie unterschiedlich': 0, 'Gesamt': 0}
                     statistics = {'vergleichbare_segmente': 0, 'anzahl_kodierer': 0}
+                    alpha_details = {}
+
+            overall_binary_alpha = (alpha_details.get('overall_binary') or {}).get('alpha') or 0.0
+            sub_binary_alpha = (alpha_details.get('subcategories_binary') or {}).get('alpha') or 0.0
+            metric_delta_text = (
+                f"Subkategorien Jaccard {subcategories_alpha:.3f} vs. binär {sub_binary_alpha:.3f} "
+                f"(Differenz {abs(subcategories_alpha - sub_binary_alpha):.3f}); "
+                f"<= 0.05 = Metrikwahl unkritisch"
+            )
             
             # Berechne Übersichtsstatistiken
             total_segments = len(original_segments)
@@ -3832,9 +4002,11 @@ class ResultsExporter:
                 ['Kodierer', ', '.join(sorted(all_coders))],
                 ['', ''],  # Leerzeile als Trenner
                 ['--- KRIPPENDORFF\'S ALPHA DETAILS ---', ''],
-                ['Overall Alpha (Jaccard-basiert)', f"{overall_alpha:.3f}"],
-                ['Hauptkategorien Alpha (Jaccard)', f"{main_categories_alpha:.3f}"],
-                ['Subkategorien Alpha (Jaccard)', f"{subcategories_alpha:.3f}"],
+                ['Overall Alpha (Krippendorff)', f"{overall_alpha:.3f}"],
+                ['Hauptkategorien Alpha', f"{main_categories_alpha:.3f}"],
+                ['Subkategorien Alpha', f"{subcategories_alpha:.3f}"],
+                ['Overall Alpha (binär/Hamming)', f"{overall_binary_alpha:.3f}"],
+                ['Subkategorien Alpha (binär/Hamming)', f"{sub_binary_alpha:.3f}"],
                 ['Vergleichbare Segmente', statistics.get('vergleichbare_segmente', 0)],
                 ['', ''],  # Leerzeile als Trenner
                 ['--- ÜBEREINSTIMMUNGSANALYSE ---', ''],
@@ -3846,7 +4018,17 @@ class ResultsExporter:
                 ['--- BEWERTUNG ---', ''],
                 ['Overall Alpha Bewertung', self._get_reliability_rating(overall_alpha)],
                 ['Hauptkategorien Bewertung', self._get_reliability_rating(main_categories_alpha)],
-                ['Subkategorien Bewertung', self._get_reliability_rating(subcategories_alpha)]
+                ['Subkategorien Bewertung', self._get_reliability_rating(subcategories_alpha)],
+                ['', ''],
+                ['--- METHODIK ---', ''],
+                ['Formel', 'Alpha = 1 - Do / De (Koinzidenzmatrix, Krippendorff 2011)'],
+                ['Do / De (Overall)', self._format_do_de(alpha_details, 'overall')],
+                ['Schwellen', '>= .800 reliabel | .667 - .800 nur explorativ | < .667 unzureichend (Krippendorff 2004, S. 241f.)'],
+                ['Metrik-Robustheit', metric_delta_text],
+                ['Fehlende Werte', 'zulaessig; nur Segmente mit Kodierungen von mindestens zwei Kodierern gehen ein'],
+                ['Mehrfachkodierung', 'Kodierungen desselben Kodierers werden als eigene Beobachtungen gepoolt'],
+                ['Interpretation', 'Alpha = 1 perfekte Uebereinstimmung, 0 Zufallsniveau, < 0 systematische Nicht-Uebereinstimmung'],
+                ['Referenz', 'Krippendorff (2004); Krippendorff (2011); Hayes & Krippendorff (2007)'],
             ]
             
             df_summary = pd.DataFrame(summary_data[1:], columns=summary_data[0])
@@ -3869,6 +4051,21 @@ class ResultsExporter:
             # Spaltenbreiten
             worksheet.column_dimensions['A'].width = 40
             worksheet.column_dimensions['B'].width = 25
+
+            # Methodik-Hinweise: umbrechen, damit die Erläuterungen lesbar bleiben
+            methodik_start = None
+            for row_idx in range(1, len(summary_data)):
+                if summary_data[row_idx][0] == '--- METHODIK ---':
+                    methodik_start = row_idx + 1
+                    continue
+                if methodik_start is None:
+                    continue
+                for col in (1, 2):
+                    cell = worksheet.cell(row=row_idx + 1, column=col)
+                    cell.alignment = Alignment(horizontal='left', vertical='top', wrap_text=True)
+                explain_text = str(summary_data[row_idx][1])
+                lines = max(1, -(-len(explain_text) // 70))
+                worksheet.row_dimensions[row_idx + 1].height = max(15, 14 * lines)
             
             print("✅ Erweiterte Intercoder-Übersicht mit Alpha-Details erstellt")
             
