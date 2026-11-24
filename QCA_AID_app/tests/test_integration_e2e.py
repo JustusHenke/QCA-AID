@@ -19,7 +19,13 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
+APP_DIR = Path(__file__).resolve().parent.parent
+if str(APP_DIR) not in sys.path:
+    sys.path.insert(0, str(APP_DIR))
+
 fitz = pytest.importorskip("fitz")
+
+import pandas as pd  # noqa: E402
 
 from QCA_AID_assets.annotation.anchor import AnchorResolver  # noqa: E402
 from QCA_AID_assets.annotation.export_data import build_rows  # noqa: E402
@@ -33,9 +39,15 @@ from QCA_AID_assets.preprocessing.document_converter import (  # noqa: E402
 from QCA_AID_assets.preprocessing.document_index import DocumentIndexer  # noqa: E402
 from QCA_AID_assets.preprocessing.document_store import DocumentStore  # noqa: E402
 from QCA_AID_assets.preprocessing.page_aware_chunker import PageAwareChunker  # noqa: E402
+from QCA_AID_assets.export.results_exporter import format_text_anchors  # noqa: E402
 from QCA_AID_app.viewer.pdf_viewer_component import (  # noqa: E402
     ViewerConfig,
     build_viewer_html,
+)
+from webapp_logic.review_service import (  # noqa: E402
+    anchor_codings,
+    build_overlay_map,
+    load_codings_from_xlsx,
 )
 
 SOURCE_LINES = [
@@ -239,6 +251,82 @@ def test_validators_flag_corrupted_anchor(tmp_path):
     ok, errors = broken.validate()
     assert not ok
     assert any("Quad" in e for e in errors)
+
+
+# --------------------------------------------------------------------------
+# Textanker End-to-End (Spec text-anker-export, T17)
+# --------------------------------------------------------------------------
+
+def test_textanker_end_to_end_marks_at_anchor_not_chunk_head(tmp_path):
+    """Fake-LLM -> Analyse-XLSX -> Pruefen-Tab -> Markierung am Wortlautanker.
+
+    text_references des LLM landen via ``format_text_anchors`` in der Spalte
+    ``Textanker``, der Pruefen-Tab loest sie zu Anker-Regionen auf. Die
+    Markierung liegt auf der zitierten Stelle - nicht mehr auf dem Chunkkopf
+    der alten Chunk-Stufen-Methode.
+    """
+    _, ingest, index, chunks, _ = _run_pipeline(tmp_path, ".txt")
+
+    anchor_quote = "Zweiter Abschnitt beschreibt die Folgen der Belastung."
+    chunk = next(c for c in chunks if anchor_quote in " ".join(c.text.split()))
+
+    # Fake-LLM: wortwoertliche Referenz (Prompt-Regel, max. 1-3 Saetze)
+    llm_coding = {
+        "segment_id": chunk.segment_id,
+        "category": "Problemdruck",
+        "subcategories": [],
+        "justification": "Benennt die Folgen der Belastung.",
+        "confidence": 0.9,
+        "text_references": [anchor_quote],
+    }
+    cell = format_text_anchors(llm_coding, chunk.text)
+    assert cell == anchor_quote  # Wortlaut unveraendert uebernommen (R3)
+
+    frame = pd.DataFrame(
+        [
+            {
+                "Dokument": "studie.txt",
+                "Text": chunk.text,
+                "Kodiert": True,
+                "Hauptkategorie": "Problemdruck",
+                "Subkategorien": "",
+                "Begründung": llm_coding["justification"],
+                "Textanker": cell,
+                "Konfidenz": "0.90",
+                "Original_Chunk_ID": chunk.segment_id,
+            }
+        ]
+    )
+    xlsx = tmp_path / "QCA-AID_Analysis_e2e_20261124_120000.xlsx"
+    with pd.ExcelWriter(xlsx, engine="openpyxl") as writer:
+        frame.to_excel(writer, sheet_name="Kodierungsergebnisse", index=False)
+
+    # Pruefen-Tab: laden + Anker-Kette
+    codings = load_codings_from_xlsx(xlsx, doc_id="studie", doc_name="studie.txt")
+    assert len(codings) == 1
+    assert codings[0].text_anchors == [anchor_quote]
+
+    anchored = anchor_codings(ingest.pdf_path, codings, index=index)
+    out = anchored[0]
+    assert out.anchor.anchored and out.anchor.quads
+    # Anker = Wortlautstelle, nicht der Chunkkopf ("Die Befragten ...")
+    assert "Zweiter Abschnitt" in out.anchor.quote
+    assert "Belastung" in out.anchor.quote
+    assert not out.anchor.quote.startswith("Die Befragten")
+
+    # Die Markierung ueberdeckt die Ankerwoerter, nicht den Chunkkopf
+    with fitz.open(ingest.pdf_path) as doc:
+        words = doc[0].get_text("words")
+        page_size = (doc[0].rect.width, doc[0].rect.height)
+    rect = fitz.Rect(out.anchor.quads[0])
+    covered = " ".join(w[4] for w in words if fitz.Rect(w[:4]).intersects(rect))
+    assert "Zweiter" in covered and "Belastung." in covered
+    assert "Befragten" not in covered
+
+    # Overlay-Sicht des Pruefen-Tabs: die Anker-Region wird gezeichnet
+    overlays = build_overlay_map([page_size], [out])
+    assert 1 in overlays
+    assert f'data-coding-id="{out.segment_id}"' in overlays[1]
 
 
 if __name__ == "__main__":

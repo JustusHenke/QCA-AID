@@ -40,7 +40,9 @@ def make_pdf(tmp_path):
     return path
 
 
-def make_coding(pdf, category="Zeitdruck", subcategories=(), status="proposed"):
+def make_coding(
+    pdf, category="Zeitdruck", subcategories=(), status="proposed", text_anchors=()
+):
     anchor = AnchorResolver().resolve(
         pdf, doc_id="d", page=1, quote="berichten von Zeitdruck"
     )
@@ -52,6 +54,7 @@ def make_coding(pdf, category="Zeitdruck", subcategories=(), status="proposed"):
         status=status,
         created_by="ai",
         anchor=anchor,
+        text_anchors=list(text_anchors),
     )
 
 
@@ -231,6 +234,74 @@ def test_decisions_detect_recode_and_status(tmp_path):
     assert changes["kategorie"] == {"vorher": "Zeitdruck", "nachher": "Neu"}
     assert changes["subkategorien"]["nachher"] == "X"
     assert changes["status"] == {"vorher": "proposed", "nachher": "accepted"}
+
+
+# --------------------------------------------------------------------------
+# Textanker-Spalte (Spec text-anker-export, R6)
+# --------------------------------------------------------------------------
+
+def test_review_xlsx_fuehrt_textanker_spalte_neben_begruendung(tmp_path):
+    pdf = make_pdf(tmp_path)
+    coding = make_coding(pdf, text_anchors=["Die Befragten berichten von Zeitdruck."])
+    package = export_review_package(
+        pdf_path=pdf,
+        codings=[coding],
+        output_dir=tmp_path / "output",
+        doc_stem="doc",
+        stamp=STAMP,
+    )
+
+    workbook = openpyxl.load_workbook(package.xlsx)
+    header = [cell.value for cell in workbook["Kodierungen"][1]]
+    assert "textanker" in header
+    assert header.index("begruendung") < header.index("textanker")
+    row = [cell.value for cell in workbook["Kodierungen"][2]]
+    assert row[header.index("textanker")] == "Die Befragten berichten von Zeitdruck."
+
+
+def test_review_xlsx_textanker_mehrere_stellen_pipe_getrennt(tmp_path):
+    pdf = make_pdf(tmp_path)
+    coding = make_coding(
+        pdf,
+        text_anchors=[
+            "Erste wortwoertliche Stelle im Dokument",
+            "Zweite wortwoertliche Stelle im Dokument",
+        ],
+    )
+    package = export_review_package(
+        pdf_path=pdf,
+        codings=[coding],
+        output_dir=tmp_path / "output",
+        doc_stem="doc",
+        stamp=STAMP,
+    )
+
+    workbook = openpyxl.load_workbook(package.xlsx)
+    sheet = workbook["Kodierungen"]
+    header = [cell.value for cell in sheet[1]]
+    row = [cell.value for cell in sheet[2]]
+    assert row[header.index("textanker")] == (
+        "Erste wortwoertliche Stelle im Dokument | "
+        "Zweite wortwoertliche Stelle im Dokument"
+    )
+
+
+def test_review_xlsx_ohne_textanker_bleibt_zelle_leer(tmp_path):
+    pdf = make_pdf(tmp_path)
+    coding = make_coding(pdf)  # keine text_anchors
+    package = export_review_package(
+        pdf_path=pdf,
+        codings=[coding],
+        output_dir=tmp_path / "output",
+        doc_stem="doc",
+        stamp=STAMP,
+    )
+
+    workbook = openpyxl.load_workbook(package.xlsx)
+    sheet = workbook["Kodierungen"]
+    header = [cell.value for cell in sheet[1]]
+    row = [cell.value for cell in sheet[2]]
+    assert row[header.index("textanker")] in (None, "")
 
 
 if __name__ == "__main__":

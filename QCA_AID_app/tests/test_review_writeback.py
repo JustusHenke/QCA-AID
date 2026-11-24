@@ -67,6 +67,7 @@ def make_workbook(path: Path) -> Path:
                 "Hauptkategorie": "Legitimationsstrategien",
                 "Subkategorien": "Diskurs_Bildung, Gruendungsmotive",
                 "Begründung": "explizit",
+                "Textanker": "Die Befragten unter Druck geraten.",
                 "Konfidenz": "0.90",
                 "Original_Chunk_ID": "TEXT_DEMO_WISS-0-1",
             },
@@ -78,6 +79,7 @@ def make_workbook(path: Path) -> Path:
                 "Hauptkategorie": "Strukturelle_Rahmenbedingungen",
                 "Subkategorien": "Verfahren",
                 "Begründung": "explizit",
+                "Textanker": "Staatliche Verfahren binden Ressourcen.",
                 "Konfidenz": "0.70",
                 "Original_Chunk_ID": "TEXT_DEMO_WISS-0-2",
             },
@@ -89,6 +91,7 @@ def make_workbook(path: Path) -> Path:
                 "Hauptkategorie": "Lehrpraxis_und_kultur",
                 "Subkategorien": "Lehrqualitaet",
                 "Begründung": "explizit",
+                "Textanker": "Lehre und Forschung gleichzeitig.",
                 "Konfidenz": "0.80",
                 "Original_Chunk_ID": "TEXT_INTERV_-0-1",
             },
@@ -331,6 +334,48 @@ def test_change_summary_counts_status_and_edits():
 def test_change_summary_without_original_counts_only_status():
     counts = change_summary([coding("s1", "A", ["A"], "accepted")])
     assert counts["confirmed"] == 1 and counts["changed"] == 0
+
+
+# --------------------------------------------------------------------------
+# Textanker bleibt erhalten (Spec text-anker-export, R7)
+# --------------------------------------------------------------------------
+
+def test_writeback_behaelt_textanker_spalte_unveraendert(tmp_path):
+    """R7: Additives Schreiben beruehrt die Textanker-Wortlautspalte nicht."""
+    path = make_workbook(tmp_path / "QCA-AID_Analysis_deductive_20261124_120000.xlsx")
+    before = read_sheet(path, "Kodierungsergebnisse")["Textanker"].tolist()
+
+    write_review_into_xlsx(
+        path,
+        [
+            coding("TEXT_DEMO_WISS-0-1", "Legitimationsstrategien", ["Diskurs_Bildung"], "accepted"),
+            coding("TEXT_DEMO_WISS-0-2", "Steuerung_und_Governance", ["Verfahren"], "rejected"),
+        ],
+        stamp=STAMP,
+    )
+
+    sheet = read_sheet(path, "Kodierungsergebnisse")
+    assert "Textanker" in sheet.columns
+    assert sheet["Textanker"].tolist() == before  # Wortlaut unveraendert
+    assert sheet.loc[0, "Textanker"] == "Die Befragten unter Druck geraten."
+    # Die neuen Review-Spalten liegen rechts daneben, ohne zu verschieben
+    assert sheet.columns.get_loc("Textanker") < sheet.columns.get_loc(STATUS_COLUMN)
+
+
+def test_round_trip_nach_writeback_liefert_textanker_erneut_ein(tmp_path):
+    """Nach dem Schreiben liest der Pruefen-Tab dieselben Anker wieder ein."""
+    path = make_workbook(tmp_path / "analyse.xlsx")
+    write_review_into_xlsx(
+        path,
+        [coding("TEXT_DEMO_WISS-0-1", "Legitimationsstrategien", ["Diskurs_Bildung"], "accepted")],
+        stamp=STAMP,
+    )
+
+    codings = load_codings_from_xlsx(path, doc_id="text_demo_wiss", doc_name=DOC)
+    by_id = {item.segment_id: item for item in codings}
+    assert by_id["TEXT_DEMO_WISS-0-1"].text_anchors == [
+        "Die Befragten unter Druck geraten."
+    ]
 
 
 if __name__ == "__main__":

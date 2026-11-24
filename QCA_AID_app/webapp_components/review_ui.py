@@ -694,6 +694,12 @@ def render_review_tab() -> None:
                 )
             code_options = _available_code_options(codings)
             st.caption(_code_options_caption(code_options))
+            st.caption(
+                "Markierungen beruhen auf Textankern: KI-generierte, "
+                "wortwoertliche Stellen aus der Spalte `Textanker` der "
+                "Analyse-XLSX - im PDF nachpruefbar und im Zweifel manuell "
+                "zu korrigieren."
+            )
             render_coding_panel(
                 codings,
                 active_id=active_id,
@@ -805,7 +811,8 @@ def _render_writeback_section(codings: List[Coding], source: Optional[Path]) -> 
         "`Hauptkategorie_Review`, `Subkategorien_Review`, "
         f"`{CHANGE_COLUMN}` und `Review_Stand` in `{MAIN_SHEET}`, dazu das Blatt "
         f"`{DECISION_SHEET}` mit vorher/nachher. Häufigkeiten, Intercoder-Bericht "
-        f"und Kategorien bleiben unverändert; vorher entsteht eine Sicherung in "
+        f"Kategorien und die Spalte `Textanker` bleiben unverändert; vorher "
+        f"entsteht eine Sicherung in "
         f"`{source.parent.name}/{BACKUP_SUBDIR}/`."
     )
 

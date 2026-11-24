@@ -132,6 +132,7 @@ REVIEW_COLUMNS = [
     "verankert",
     "quote",
     "begruendung",
+    "textanker",
 ]
 
 _CHANGE_FIELDS = ("kategorie", "subkategorien", "status", "erstellt_von")
@@ -158,6 +159,9 @@ def build_review_rows(codings: Sequence[Coding]) -> List[Dict[str, object]]:
                 "verankert": "ja" if anchored else "nein",
                 "quote": (anchor.quote if anchor else "") or "",
                 "begruendung": coding.justification or "",
+                # Textanker (Spec text-anker-export, R6): dieselbe ' | '-
+                # Liste wie in der Analyse-XLSX - ohne Anker leer.
+                "textanker": " | ".join(coding.text_anchors),
             }
         )
     return rows

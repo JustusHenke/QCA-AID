@@ -4,6 +4,19 @@
 
 ---
 
+## Neu in 0.16.0 (2026-11-24)
+
+### Textanker: Wortlautanker fuer den Pruefen-Tab
+
+#### Details
+- **Neue Spalte `Textanker` in `Kodierungsergebnisse`:** Jede kodierte Zeile führt die maßgeblichen, zusammenhängenden, wortwörtlichen Textausschnitte des Chunks - per LLM erfragt (Feld `Konkrete Textstellen` in allen Kodierpfaden), gegen den Chunktext verifiziert, ohne Zeilenumbrüche `" | "`-getrennt (max. 6 je max. 1000 Zeichen). Nicht kodierte Zeilen lassen die Zelle leer; Paraphrasen und erfundene Stellen werden verworfen.
+- **Präzisere Markierungen im Prüfen-Tab:** Der Viewer löst die Textanker einzeln im PDF auf - mehrere Stellen je Kodierung, auch seitenübergreifend. Scheitert ein einzelner Anker, bleiben die übrigen unberührt; scheitern **alle**, greift wie bisher die gestaffelte Chunk-Markierung (1200/800/500/240), danach "ohne Anker". Die Garantie "nie falsch platzieren" gilt unverändert.
+- **Panel mit Anker-Regionen:** Mehrfach verankerte Kodierungen zeigen je Region eine klickbare Zeile "S. N · ‹Zitatvorschau›" (aktive Region mit ▶, übrige Regionen derselben Kodierung auf 35 % abgeschwächt). Geteilte Stellen mehrerer Kodierungen weiter mit Schraffur und Randstreifen; Hinweistext erklärt die Anker als KI-generierte, menschlich prüfbare Wortlautstellen.
+- **Rezensionspaket + Writeback konsistent:** Das Blatt `Kodierungen` unter `output/review/` führt die Spalte `Textanker` mit; beim Zurückschreiben in die Analyse-XLSX bleibt sie unangetastet (additiv wie alle Bestandsspalten). Alte XLSX ohne die Spalte laden weiter wie bisher.
+- **Tests:** Export-Formatierung (24), Anker-Kette mit Voll-Fallback (22), Mehrfach-Regionen im Overlay und Panel (15) sowie neue Roundtrip- und End-to-End-Tests; Suite vollständig grün.
+
+### 🧹 Sonstiges
+
 ## Neu in 0.15.4 (2026-11-24)
 
 ### Prüfen-Tab: Entscheidungen in die Analyse-XLSX übernehmen
