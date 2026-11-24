@@ -26,6 +26,7 @@ from typing import Any, Literal, Optional
 TAB_CONFIG = "config"
 TAB_CODEBOOK = "codebook"
 TAB_ANALYSIS = "analysis"
+TAB_REVIEW = "review"
 TAB_EXPLORER = "explorer"
 
 # Section-Keys fuer Fokus-Flags (ux_focus), siehe design.md
@@ -319,12 +320,36 @@ def _explorer_issues(ctx: ReadinessContext) -> list[Issue]:
     ]
 
 
+def _review_issues(ctx: ReadinessContext) -> list[Issue]:
+    """Pruefen-Tab: braucht Eingabedateien und mindestens eine Analyse."""
+    issues: list[Issue] = []
+    if not has_input_files(ctx):
+        issues.append(
+            Issue(
+                message="Keine Eingabedateien — es gibt nichts zu pr\u00fcfen",
+                severity="warning",
+                fix_tab=TAB_ANALYSIS,
+                fix_section=SECTION_INPUT_FILES,
+            )
+        )
+    if not has_results(ctx):
+        issues.append(
+            Issue(
+                message="Noch keine Kodierungen — f\u00fchren Sie zuerst eine Analyse durch",
+                severity="warning",
+                fix_tab=TAB_ANALYSIS,
+            )
+        )
+    return issues
+
+
 def get_readiness_issues(ctx: ReadinessContext, tab_key: str) -> list[Issue]:
     """Alle Issues fuer einen Tab. Eine Quelle fuer Sidebar-Badges und Jump-Links.
 
     - config:    Config-Validitaet + gespeichert
     - codebook:  Kategorien (Forschungsfrage als Empfehlung, wie codebook_ui)
     - analysis:  Config + Codebook (Forschungsfrage = Blocker) + Eingabedateien + Output
+    - review:    Eingabedateien + Ergebnisse (nur Warnungen)
     - explorer:  Ergebnisse vorhanden
     """
     if tab_key == TAB_CONFIG:
@@ -337,6 +362,8 @@ def get_readiness_issues(ctx: ReadinessContext, tab_key: str) -> list[Issue]:
         issues.extend(_input_issues(ctx))
         issues.extend(_output_issues(ctx))
         return issues
+    if tab_key == TAB_REVIEW:
+        return _review_issues(ctx)
     if tab_key == TAB_EXPLORER:
         return _explorer_issues(ctx)
     return []
@@ -350,6 +377,7 @@ def get_workflow_status(ctx: ReadinessContext) -> dict[str, bool]:
         TAB_CONFIG: bool(saved) if saved is not None else False,
         TAB_CODEBOOK: codebook_ready(ctx.codebook_data, mode),
         "input_files": has_input_files(ctx),
+        TAB_REVIEW: has_results(ctx),
         TAB_EXPLORER: has_results(ctx),
     }
 

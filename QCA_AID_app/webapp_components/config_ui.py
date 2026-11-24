@@ -1769,7 +1769,7 @@ def render_analysis_settings():
     new_export_pdfs = st.checkbox(
         "Annotierte PDFs exportieren",
         value=config.export_annotated_pdfs,
-        help="Erstelle annotierte PDF-Versionen der Eingabedateien",
+        help="Erstellt annotierte PDF-Versionen der Eingabedateien in output/Annotated/ (mit Namensstempel, ohne unannotierte Zwischen-PDFs)",
     )
 
     if new_export_pdfs != config.export_annotated_pdfs:

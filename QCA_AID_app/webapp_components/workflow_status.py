@@ -25,6 +25,7 @@ WORKFLOW_STEPS: list[tuple[str, str, str]] = [
     ("config", ":material/settings: Konfiguration", "Konfiguration laden/erstellen"),
     ("codebook", ":material/menu_book: Codebook", "Forschungsfrage und Kategorien definieren"),
     ("analysis", ":material/biotech: Analyse", "Eingabedateien bereitstellen und Analyse starten"),
+    ("review", ":material/fact_check: Prüfen", "Kodierungen am Originaldokument prüfen"),
     ("explorer", ":material/bar_chart: Explorer", "Ergebnisse explorieren"),
 ]
 
@@ -32,7 +33,8 @@ WORKFLOW_STEPS: list[tuple[str, str, str]] = [
 NEXT_STEP: dict[str, str] = {
     "config": "codebook",
     "codebook": "analysis",
-    "analysis": "explorer",
+    "analysis": "review",
+    "review": "explorer",
 }
 
 #: Anzeigelabel der naechsten Schritte (fuer die CTA-Beschriftung)
@@ -44,6 +46,7 @@ _STATUS_KEYS: dict[str, str] = {
     "config": "config",
     "codebook": "codebook",
     "analysis": "input_files",
+    "review": "review",
     "explorer": "explorer",
 }
 

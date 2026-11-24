@@ -1,0 +1,111 @@
+<!doctype html>
+<!--
+  Streamlit-Component-Host fuer den QCA-AID PDF-Viewer.
+
+  Warum dieser Host: `st.components.v1.html` hat keinen Rueckkanal. Damit der
+  Viewer Ereignisse (Seitenwechsel, Klick auf eine Kodierung) an die App
+  melden kann, wird der Viewer-HTML-Block hier als Argument empfangen, in ein
+  Blob-iframe eingebettet und die postMessage-Ereignisse des Viewers per
+  Streamlit-Protokoll (setComponentValue) zurueckgereicht.
+
+  Das Viewer-HTML selbst bleibt framework-frei (postMessage an window.parent);
+  nur dieser Host kennt das Streamlit-Protokoll.
+-->
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<style>
+  html, body { margin:0; padding:0; height:100%; overflow:hidden; }
+  iframe { border:0; width:100%; height:100%; display:block; }
+</style>
+</head>
+<body>
+<script>
+(function () {
+  "use strict";
+
+  var PROTOCOL = { isStreamlitMessage: true };
+  var viewerFrame = null;
+  var lastHtml = null;
+  var currentOverlays = {};
+  var viewerPage = null;
+  var renderPage = null;
+
+  function send(type, extra) {
+    var message = Object.assign({}, PROTOCOL, extra || {});
+    message.type = type;
+    window.parent.postMessage(message, "*");
+  }
+
+  function sendToViewer(message) {
+    if (viewerFrame && viewerFrame.contentWindow) {
+      viewerFrame.contentWindow.postMessage(message, "*");
+    }
+  }
+
+  function replaceViewer(sourceHtml, height) {
+    if (viewerFrame) { viewerFrame.remove(); viewerFrame = null; }
+    if (!sourceHtml) { return; }
+    var blob = new Blob([sourceHtml], { type: "text/html" });
+    var url = URL.createObjectURL(blob);
+    viewerFrame = document.createElement("iframe");
+    viewerFrame.title = "Dokumentvorschau";
+    viewerFrame.src = url;
+    document.body.appendChild(viewerFrame);
+    if (height) { send("streamlit:setFrameHeight", { height: height }); }
+  }
+
+  window.addEventListener("message", function (event) {
+    var data = event.data;
+
+    // App -> Host: neue Viewer-Konfiguration
+    if (data && data.type === "streamlit:render") {
+      var args = data.args || {};
+      currentOverlays = args.overlays || {};
+
+      if (args.html !== lastHtml || !viewerFrame) {
+        // Nur bei echten Aenderungen (Dokument, Layout, Einstellungen) neu
+        // bauen - sonst Scrollposition und Ladezustand verlohren.
+        replaceViewer(args.html, args.height);
+        lastHtml = args.html;
+        renderPage = args.page || null;
+        viewerPage = 1; // der Viewer startet oben
+      } else {
+        // Live-Update: Overlays in den laufenden Viewer schieben, Seite nur
+        // bei echtem Unterschied kommandieren (kein Springen bei Reruns).
+        sendToViewer({ source: "qca-host", type: "set-overlays", overlays: currentOverlays });
+        if (args.page && viewerPage !== null && args.page !== viewerPage) {
+          sendToViewer({ source: "qca-host", type: "goto-page", page: args.page });
+        }
+      }
+      if (args.height) {
+        send("streamlit:setFrameHeight", { height: args.height });
+      }
+      return;
+    }
+
+    // Viewer -> Host -> App: Ereignis als Component-Value durchreichen
+    if (
+      viewerFrame &&
+      event.source === viewerFrame.contentWindow &&
+      data && data.source === "qca-viewer"
+    ) {
+      if (data.type === "page-change" && data.page) {
+        viewerPage = data.page;
+      } else if (data.type === "ready") {
+        // Der Viewer hoert erst nach dem Modul-Import zu - Overlays und
+        // Zielseite jetzt nachreichen.
+        sendToViewer({ source: "qca-host", type: "set-overlays", overlays: currentOverlays });
+        if (renderPage && renderPage > 1) {
+          sendToViewer({ source: "qca-host", type: "goto-page", page: renderPage });
+        }
+      }
+      send("streamlit:setComponentValue", { value: data, dataType: "json" });
+    }
+  });
+
+  send("streamlit:componentReady", { apiVersion: 1 });
+})();
+</script>
+</body>
+</html>

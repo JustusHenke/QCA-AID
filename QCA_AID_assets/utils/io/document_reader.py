@@ -32,6 +32,8 @@ class DocumentReader:
     def __init__(self, data_dir: str):
         self.data_dir = data_dir
         self.supported_formats = {'.docx', '.pdf', '.txt'}
+        self.indexes = {}
+        self._last_index = None
         os.makedirs(data_dir, exist_ok=True)
         
         # Prüfe verfügbare Features
@@ -53,7 +55,12 @@ class DocumentReader:
         return sanitize_text_for_excel(text)
 
     async def read_documents(self) -> Dict[str, str]:
+        """Asynchroner Kompatibilitaets-Wrapper (Arbeit ist synchron)."""
+        return self.read_documents_sync()
+
+    def read_documents_sync(self) -> Dict[str, str]:
         documents = {}
+        self.indexes = {}
         try:
             all_files = os.listdir(self.data_dir)
             
@@ -93,6 +100,8 @@ class DocumentReader:
                     
                     if content and content.strip():
                         documents[filename] = content
+                        if extension == ".pdf" and self._last_index is not None:
+                            self.indexes[filename] = self._last_index
                         print(f"✅ Erfolgreich eingelesen: {len(content)} Zeichen")
                     else:
                         print(f"⚠ Keine Textinhalte gefunden")
@@ -206,6 +215,18 @@ class DocumentReader:
             raise
 
     def _read_pdf(self, filepath: str) -> str:
+        """Seitenbewusste PDF-Extraktion ueber den DocumentIndexer."""
+        self._last_index = None
+        try:
+            from ...preprocessing.document_index import DocumentIndexer
+            index = DocumentIndexer().build(Path(filepath), doc_id=Path(filepath).stem)
+            self._last_index = index
+            return self.clean_problematic_characters(index.full_text())
+        except Exception as exc:
+            print(f"Index-Pfad fehlgeschlagen ({exc}), nutze Legacy-Extraktion")
+            return self._read_pdf_legacy(filepath)
+
+    def _read_pdf_legacy(self, filepath: str) -> str:
         """
         Liest eine PDF-Datei ein und extrahiert den Text mit verbesserter Fehlerbehandlung.
         

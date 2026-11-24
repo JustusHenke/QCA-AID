@@ -4,6 +4,94 @@
 
 ---
 
+## Neu in 0.15.4 (2026-11-24)
+
+### Prüfen-Tab: Entscheidungen in die Analyse-XLSX übernehmen
+
+#### Details
+- **Ein Ziel, additiv geschrieben:** Der Knopf „In Analyse-XLSX übernehmen“ (Export-Bereich des Prüfen-Tabs) ergänzt die zentrale Arbeitsmappe um fünf Spalten in `Kodierungsergebnisse` — `Review_Status` (bestätigt/verworfen/offen), `Hauptkategorie_Review`, `Subkategorien_Review`, `Review_Änderung` und `Review_Stand`. Bestandsspalten, Häufigkeitsanalysen, Intercoder-Bericht und Kategorien bleiben unverändert; die Statuszelle wird eingefärbt (grün/rot/gelb), Änderungen orange.
+- **Neues Blatt `Review_Entscheidungen`:** eine Zeile je Kodierung mit `Hauptkategorie_vorher`/`_nachher`, `Subkategorien_vorher`/`_nachher`, Status, geänderten Feldern und Stand — direkt hinter `Kodierungsergebnisse`, mit Filter und fixierter Kopfzeile.
+- **Sicherung vor jedem Schreiben:** `<output>/backup/<datei>_vor-review_<stempel>.xlsx`. Der Stempel entspricht dem der Excel-Ausgabe. Meldet Excel die Datei als gesperrt, bricht die Übernahme mit Hinweis ab statt halb zu schreiben.
+- **Rückweg beim Laden:** Liegt `Hauptkategorie_Review` vor, gilt sie als aktueller Code; `Review_Status` bestimmt bestätigt/verworfen. Damit sind die Entscheidungen über Sitzungen hinweg in der zentralen Datei sichtbar und der Prüfen-Tab öffnet mit dem letzten Stand. Ein geänderter Code markiert die Kodierung als menschliche Entscheidung (`created_by = human`).
+- **Headless und getestet:** `webapp_logic/review_writeback.py` (`write_review_into_xlsx`, `change_summary`, `WritebackError`) plus 16 Tests (`test_review_writeback.py`) und Verdrahtungstests (`test_review_tab_wiring.py`), inklusive Round-Trip Schreiben → Laden.
+
+## Neu in 0.15.3 (2026-11-24)
+
+### PDF-Export: annotierte PDFs in output/Annotated/ mit Namensstempel, keine unannotierten Zwischen-PDFs
+
+#### Details
+- **Ein Unterordner, ein Stempel:** Die Analysis-Pipeline legt annotierte PDFs unter `output/Annotated/` ab und versieht sie mit demselben Namensstempel wie die Excel-Ausgabe: `<dokument>_QCA_annotiert_<YYYYMMDD_HHMMSS>.pdf`. Der Stempel wird einmal pro Lauf erzeugt, alle PDFs eines Exports gehören damit sichtbar zusammen.
+- **Keine unannotierten PDFs mehr:** DOCX/TXT werden für die Annotation nur noch in einem temporären Arbeitsverzeichnis (`qca_aid_convert_*` im System-Temp) nach PDF konvertiert und nach dem Annotieren gelöscht. Im Ausgabeverzeichnis bleibt ausschließlich das annotierte PDF; die frühere Zwischendatei `<dokument>.pdf` entfällt.
+- **Neue Pfadregel als Modul:** `QCA_AID_assets/utils/export/paths.py` bündelt `ANNOTATED_SUBDIR`, `export_stamp()`, `annotated_pdf_path()` und `conversion_workspace()`. `DocumentToPDFConverter.convert(..., target_dir=...)` akzeptiert ein Zielverzeichnis, `PDFAnnotator.annotate_pdf_with_codings()` nutzt ohne `output_path` dieselbe Regel (Ablage neben der Quelle in `Annotated/`).
+- **Tests:** `QCA_AID_app/tests/test_annotated_pdf_export.py` (Pfadregel, Stempelformat, Aufräumen des Arbeitsverzeichnisses, Konverter-Zielverzeichnis, beide Exporter, ein Stempel für mehrere Dateien).
+
+### Änderungen aus dem Prüfen-Tab bleiben im Rezensionspaket
+
+- Kodierungsänderungen im Viewer (bestätigen, verwerfen, anderen Code zuweisen) wirken auf den Sitzungszustand und werden **nicht** in die Analyse-XLSX zurückgeschrieben. Sie werden als eigenes, prüfbares Paket nach `output/review/` exportiert: annotiertes PDF, `<dokument>_review_<stamp>.xlsx` (Blatt `Kodierungen`, `Aenderungen`, `Meta`) und `<dokument>_review_<stamp>.json`. Die Analyse-Ausgabe bleibt unangetastet – der Vergleich „vorher/nachher“ steht im Blatt `Aenderungen`.
+
+## Neu in 0.15.2 (2026-11-24)
+
+### Prüfen-Tab: Schraffur für Mehrfachkodierungen, Auswahl hervorheben, „Abbrechen“ im Ändern-Dialog
+
+- **Schraffur statt Übermalen:** Im Textmarker-Modus lag die zweite Kodierung derselben Textstelle nur als dünner Randstreifen an – optisch kaum zu sehen. Jetzt bekommt die Basiskodierung den flächigen Textmarker, jede weitere Kodierung eine diagonale Schraffur in ihrer Kategoriefarbe über exakt dieselben Quads (plus weiterhin den Randstreifen zum Anklicken). SVG-`<pattern>` je Kodierung, abschaltbar über `RenderOptions.hatch_shared`.
+- **Klick auf den Code wählt die Kodierung:** Der Kategoriename in der Liste ist jetzt ein Button. Ein Klick setzt die Kodierung aktiv („▶“ und blauer Hinweis), springt bei Bedarf auf ihre Seite und hebt sie im Viewer hervor: die gewählte Markierung bleibt voll deckend, alle anderen werden auf 35 % abgeschwächt.
+- **„Ändern“ ist inline und abbrechbar:** Statt eines Popovers öffnet der Knopf „✎ Ändern“ einen Bereich mit „Diesen Code übernehmen“, „Anlegen und übernehmen“ und **„Abbrechen“**; Abbrechen schließt ohne Änderung. Segment-ID, Konfidenz, Begründung und Inferenz-Hinweis bleiben im Popover „Details“.
+
+#### Technische Hinweise
+
+- `QCA_AID_assets/annotation/renderer.py`: neu `_add_hatch` (Pattern-Defs je Kodierung), `_emphasis` (Deckkraft der Auswahl), `HATCH_SIZE`, `DIM_OPACITY`; `_add_rect` kann ein `opacity`-Attribut setzen.
+- `QCA_AID_assets/annotation/model.py`: `RenderOptions.hatch_shared` (Default `True`, in `to_dict`/`from_dict`).
+- `QCA_AID_app/viewer/coding_panel.py`: Parameter `on_select`, Editier-Zustand in `session_state[f"{key_prefix}_editing"]`, Inline-Editor mit „Abbrechen“.
+- `QCA_AID_app/webapp_components/review_ui.py`: `_select_coding` setzt `review_active_segment` (und die Seite) und rerunnt; das Overlay wird über `active_coding_id` neu gebaut, ohne den Viewer neu zu laden.
+- Tests: AppTest-Smoke für Öffnen/Abbrechen des Dialogs und Klick auf den Code; Renderer-Tests für Schraffur, Auswahl-Deckkraft und `hatch_shared=False`. Gesamt 487 Tests.
+
+### 🧹 Sonstiges
+
+## Neu in 0.15.1 (2026-11-24)
+
+### Prüfen-Tab: Mehrfachkodierung sichtbar, seitenbezogener Panel-Kopf
+
+Anlass: Von 7 Kodierungen in `text_demo_wiss.pdf` waren im Viewer nur wenige Markierungen zu sehen.
+
+- **Eine Textstelle, ein Highlight, eigene Stripes je Kodierung:** Wird derselbe Chunk mehrfach kodiert (z. B. `Legitimationsstrategien` *und* `Strukturelle_Rahmenbedingungen`), sind die Quads beider Kodierungen identisch – die zweite Markierung lag exakt auf der ersten und hat sie unsichtbar gemacht. Das Overlay gruppiert jetzt nach Textstelle (Seite + Quad-Geometrie) statt nach Segment-ID: Die Textstelle bekommt ein In-Text-Highlight, jede weitere Kodierung einen eigenen, klickbaren Margin-Stripe in ihrer Kategoriefarbe. Aus wenigen sichtbaren Flächen werden alle 7 Kodierungen unterscheidbar.
+- **Panel-Kopf zählt die aktuelle Seite:** „Kodierungen auf S. 1 — 7 · 4 Textstellen · 7 Vorschläge · 0 bestätigt · 0 verworfen · 0 ohne Anker“. Hat die Seite weniger Kodierungen als das Dokument, steht die Gesamtzahl als Hinweis darunter.
+- **Ganze Chunks markiert:** Die erste Ankerstufe reicht jetzt bis 1200 Zeichen (vorher 800). Chunks bis zu dieser Laenge werden vollstaendig markiert statt nur im Kopf - im Demo-Dokument 100 % jedes Chunks. Scheitert die lange Stufe, greifen unveraendert 800 / 500 / 240 Zeichen.
+- **Zitatvorschau je Zeile:** Jede Zeile zeigt die ersten ~110 Zeichen der markierten Textstelle.
+- **Hinweis auf geteilte Textstelle:** „↔ gleiche Textstelle wie 1 weitere Kodierung“.
+- **Hinweis auf verteilte Markierungen:** „⇅ Markierung verteilt über n Abschnitte“, wenn der Chunk Text aus mehreren Spalten/Absätzen enthält (etwa Fließtext + Abstract) und die Markierung deshalb über die Seite springt.
+
+#### Technische Hinweise
+
+- `QCA_AID_assets/annotation/renderer.py`: Gruppierung `_group_by_region` mit `_region_key` (gerundete Quad-Geometrie); Margin-Stripes gestapelt je weiterer Kodierung.
+- `QCA_AID_app/viewer/coding_panel.py`: neu `panel_header`, `panel_regions`, `_quote_preview`, `_spread`; `CodingRow` um `quote`, `same_region`, `blocks` erweitert.
+- `QCA_AID_app/webapp_logic/review_service.py`: `QUOTE_STAGES = (1200, 800, 500, 240)`; `normalize_doc_name` als Raw-Docstring (Escape-Warnung).
+- Tests: `test_overlay_renderer.py` (gleiche Textstelle wird nicht übermalt, aktive Kodierung gewinnt das Highlight), `test_coding_panel.py` (Seitenkopf, Textstellenzählung, Zitatvorschau, Shared-Region-Flags), `test_review_service.py` (Overlay-Map).
+- Die Markierung enthält **keinen Chunk-Offset**: Chunk 0 beginnt mit dem Seitenkopf des Artikels (`32 NUMBER 109_Winter 2022 THE PUBLIC-PRIVATE DEBATE | …`) – das ist die gedruckte Kopfzeile in der linken Randspalte, nicht die Chunk-ID.
+
+### 🧹 Sonstiges
+
+## Neu in 0.15.0 (2026-11-23)
+
+### Prüfen-Tab: Dokumentvorschau mit Annotation und Kodierprüfung
+
+Neuer Arbeitsplatz „Prüfen" zwischen Analyse und Explorer:
+
+- **Dokumentvorschau (Canonical PDF):** Eingabedokumente (PDF, DOCX, DOC, HTML, MD, TXT) werden einmalig in ein kanonisches PDF konvertiert, gecacht und mit Textindex abgelegt. Analyse-Vorschau und Prüfen-Tab nutzen dieselbe Geometrie.
+- **Kodierungen laden und prüfen:** Kodierungen aus der Analyse-XLSX laden, an der Vorschau verankern (Textmarker, Unterstreichen, Randnotiz, Klammer), bestätigen oder verwerfen.
+- **Umcodieren:** Pro Kodierung einen anderen Code vergeben – Auswahl aus Codebook-Kategorien und Subcodes (plus den bereits vergebenen Codes) oder Freitext im Format `Kategorie › Subcode`. Korrekturen werden als menschliche Entscheidung markiert (`created_by=human`, Status bestätigt).
+- **Rückkanal im Viewer:** Klick auf eine markierte Stelle im PDF selektiert die Kodierung im Panel und merkt sich die Seite (eigener Streamlit-Component-Host; ohne Rückkanal läuft die Vorschau unverändert weiter).
+- **Gestufte Ankerlaengen:** Chunks werden moeglichst weit markiert (bis zu 800 Zeichen, dann 500, dann der konservative 240er-Kopf). Scheitert eine Stufe im PDF, greift die naechste – längere Markierungen, ohne die Garantie „nie falsch platziert" anzutasten.
+- **Export:** annotiertes PDF (Highlights mit /QuadPoints, Legende, Marginalien) und Kodierungen als XLSX.
+
+#### Technische Hinweise
+
+- **PyMuPDF ist jetzt Kernabhängigkeit** (Seitengeometrie, Textindex, PDF-Export, Text-Fallbacks für DOCX/MD/TXT). Weasyprint, docling, LibreOffice und Pandoc bleiben optional – fehlende Konverter werden in der Vorschau mit konkreter Installationshilfe gemeldet; Analyse und Export laufen weiter.
+- Neue Module: `webapp_logic/preview_service.py`, `webapp_logic/review_service.py`, `viewer/code_options.py` sowie Component-Host `viewer/_component_host/`.
+- Erneuerte `requirements.txt`/Extras: `pip install qca-aid[converters]` für optionale Konverter-Fallbacks.
+- Konvertierungsfehler bleiben nicht dauerhaft: nach Erfolg wird der Eintrag im Fehlerregister (`documents/_not_convertible.json`) gelöscht.
+
+### 🧹 Sonstiges
+
 ## Neu in 0.14.1 (2026-11-19)
 
 ### Fix: Intercoder-Reliabilität rechnet jetzt echtes Krippendorff's Alpha

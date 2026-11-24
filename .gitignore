@@ -45,6 +45,11 @@ CRUSH.md
 
 # Project specific
 output/
+# Abgeleitete Dokumentartefakte (Canonical_PDF-Cache fuer Vorschau/Annotation)
+documents/
+converted_cache/
+# Lokale Referenz-Clones (nicht Teil des Projekts)
+.research/
 *.log
 token_stats.json
 .qca-aid-project.json

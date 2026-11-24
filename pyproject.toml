@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "qca-aid"
-version = "0.14.1"
+version = "0.15.4"
 description = "QCA-AID: Qualitative Content Analysis mit KI-Unterstützung"
 readme = "README.md"
 license = {file = "LICENSE"}
@@ -41,6 +41,7 @@ dependencies = [
     "pandas>=2.2.3",
     "pypdf>=4.0.0",
     "python-docx>=1.1.0",
+    "PyMuPDF>=1.24.0",
     "spacy>=3.7.0",
     "scikit-learn>=1.3.0",
     "matplotlib>=3.8.0",
@@ -62,9 +63,15 @@ test = [
     "pytest-cov>=4.1.0",
     "pytest-asyncio>=0.21.0",
 ]
+# PyMuPDF ist Pflicht (Vorschau/Annotation) und steht daher bei den
+# Kernabhaengigkeiten; reportlab bleibt optional.
 pdf = [
-    "PyMuPDF>=1.24.0",
     "reportlab>=4.0.0",
+]
+# Optionale Konverter-Fallbacks fuer DOCX/DOC/HTML/TXT ohne LibreOffice/Pandoc.
+converters = [
+    "weasyprint>=62.0",
+    "docling>=2.0",
 ]
 
 [project.scripts]
@@ -89,4 +96,5 @@ QCA_AID_assets = [
 ]
 QCA_AID_app = [
     "examples/*.json",
+    "viewer/_component_host/*.html",
 ]

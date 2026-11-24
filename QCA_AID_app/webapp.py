@@ -53,6 +53,7 @@ from webapp_logic.performance_monitor import get_performance_monitor, checkpoint
 from webapp_components.config_ui import render_config_tab
 from webapp_components.codebook_ui import render_codebook_tab
 from webapp_components.analysis_ui import render_analysis_tab
+from webapp_components.review_ui import render_review_tab
 from webapp_components.explorer_ui import render_explorer_tab
 from webapp_components.fluent_styles import get_fluent_css
 from webapp_components.dirty_state_bar import (
@@ -239,15 +240,22 @@ def rerun_with_tab_state():
     st.rerun()
 
 
+#: Navigations-Tabs in Workflow-Reihenfolge (id = session_state.active_tab).
+#: Reihenfolge ist Teil des Vertrags: Sidebar-Workflow (WORKFLOW_STEPS) und
+#: "Weiter"-CTAs (NEXT_STEP) folgen derselben Kette.
+NAV_TABS: list[dict[str, str]] = [
+    {"id": "config", "label": ":material/settings: Konfiguration"},
+    {"id": "codebook", "label": ":material/menu_book: Codebook"},
+    {"id": "analysis", "label": ":material/biotech: Analyse"},
+    {"id": "review", "label": ":material/fact_check: Prüfen"},
+    {"id": "explorer", "label": ":material/bar_chart: Explorer"},
+]
+
+
 def render_navigation():
     """Tab-Navigation mit WCAG-konformen Farben."""
     
-    TABS = [
-        {"id": "config",   "label": ":material/settings: Konfiguration"},
-        {"id": "codebook", "label": ":material/menu_book: Codebook"},
-        {"id": "analysis", "label": ":material/biotech: Analyse"},
-        {"id": "explorer", "label": ":material/bar_chart: Explorer"},
-    ]
+    TABS = NAV_TABS
 
     st.markdown("""
     <style>
@@ -332,6 +340,7 @@ def render_navigation():
         "Konfiguration": "config",
         "Codebook": "codebook",
         "Analyse": "analysis",
+        "Prüfen": "review",
         "Explorer": "explorer",
     }
     current_tab = st.session_state.get("active_tab")
@@ -655,6 +664,11 @@ def main():
         # Analysis Tab benötigt keine zusätzlichen Daten (nutzt config_data)
         render_analysis_tab()
     
+    elif active_tab == "review":
+        # Prüfen-Tab: Dokumentvorschau + Kodierungen (keine Lazy-Loads nötig,
+        # die Dokumente werden über den PreviewService gecacht)
+        render_review_tab()
+
     elif active_tab == "explorer":
         # Lazy load beim ersten Zugriff auf Tab
         if 'explorer_config_data' not in st.session_state:
@@ -664,7 +678,7 @@ def main():
     else:
         # Fallback für unbekannte Tabs
         st.error(f"Unbekannter Tab: {active_tab}")
-        st.info("Verfügbare Tabs: config, codebook, analysis, explorer")
+        st.info("Verfügbare Tabs: config, codebook, analysis, review, explorer")
     
     # R1.3/R1.4: "Weiter"-CTA am Tab-Ende (disabled bei Blockern)
     render_next_step_cta(active_tab)

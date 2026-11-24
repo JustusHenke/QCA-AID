@@ -26,6 +26,7 @@ from webapp_logic.readiness import (  # noqa: E402
     TAB_CODEBOOK,
     TAB_CONFIG,
     TAB_EXPLORER,
+    TAB_REVIEW,
     codebook_ready,
     get_blockers,
     get_readiness_issues,
@@ -331,6 +332,7 @@ class TestWorkflowStatus:
             TAB_CONFIG: True,
             TAB_CODEBOOK: True,
             "input_files": True,
+            TAB_REVIEW: True,
             TAB_EXPLORER: True,
         }
 

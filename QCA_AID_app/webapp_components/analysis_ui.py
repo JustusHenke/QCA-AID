@@ -16,6 +16,7 @@ from webapp_logic.file_manager import FileManager
 from webapp_components.workflow_status import switch_to_tab
 from webapp_components.focus import render_focus_banner, set_focus
 from webapp_components.pagination import render_pagination_controls
+from webapp_components.review_ui import render_document_preview
 
 
 def rerun_preserving_tab():
@@ -206,7 +207,9 @@ def render_input_files():
     Requirement 12.2: WHEN Eingabedateien angezeigt werden
                      THEN das System SHALL Dateiname, Typ und Größe anzeigen
     Requirement 12.3: WHEN ein Benutzer eine Datei auswählt
-                     THEN das System SHALL eine Textvorschau der ersten 500 Zeichen anzeigen
+                     THEN das System SHALL eine PDF-Vorschau des Originaldokuments
+                     anzeigen (Konvertierung ueber den Canonical_PDF-Cache; die
+                     frueher hier stehende reine Textvorschau ist abgeloest)
     Requirement 12.4: WHEN keine Eingabedateien vorhanden sind
                      THEN das System SHALL eine Meldung mit Upload-Hinweis anzeigen
     Requirement 12.5: WHEN der INPUT_DIR nicht existiert
@@ -241,7 +244,8 @@ def render_input_files():
     # List files in input directory
     try:
         files = file_manager.list_files(
-            directory=input_dir, extensions=[".txt", ".pdf", ".docx", ".doc"]
+            directory=input_dir,
+            extensions=[".pdf", ".docx", ".doc", ".html", ".htm", ".md", ".txt"],
         )
     except Exception as e:
         st.error(f":material/cancel: Fehler beim Auflisten der Dateien: {str(e)}")
@@ -298,21 +302,8 @@ def render_input_files():
             with col3:
                 st.metric("Geändert", selected_file.format_date())
 
-            # Display file preview
-            st.markdown("**Vorschau:**")
-            try:
-                preview = file_manager.get_file_preview(
-                    file_path=selected_file.path, max_chars=500
-                )
-                st.text_area(
-                    "Dateiinhalt",
-                    value=preview,
-                    height=150,
-                    disabled=True,
-                    label_visibility="collapsed",
-                )
-            except Exception as e:
-                st.warning(f":material/warning: Vorschau nicht verfügbar: {str(e)}")
+            # Display file preview (Canonical_PDF, gecacht)
+            render_document_preview(Path(selected_file.path))
 
     # Show directory stats
     with st.expander(":material/bar_chart: Verzeichnis-Statistik"):

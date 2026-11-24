@@ -30,13 +30,19 @@ class TestStepStatus:
 
     def test_all_complete(self):
         status = step_status(
-            {"config": True, "codebook": True, "input_files": True, "explorer": True}
+            {
+                "config": True,
+                "codebook": True,
+                "input_files": True,
+                "review": True,
+                "explorer": True,
+            }
         )
         assert all(status.values())
 
     def test_missing_keys_are_false(self):
         status = step_status({})
-        assert set(status) == {"config", "codebook", "analysis", "explorer"}
+        assert set(status) == {"config", "codebook", "analysis", "review", "explorer"}
         assert not any(status.values())
 
     def test_truthy_coercion(self):
@@ -48,13 +54,14 @@ class TestStepStatus:
 class TestWorkflowStructure:
     def test_steps_cover_all_tabs_in_order(self):
         keys = [tab for tab, _, _ in WORKFLOW_STEPS]
-        assert keys == ["config", "codebook", "analysis", "explorer"]
+        assert keys == ["config", "codebook", "analysis", "review", "explorer"]
 
     def test_next_step_chain(self):
         assert NEXT_STEP == {
             "config": "codebook",
             "codebook": "analysis",
-            "analysis": "explorer",
+            "analysis": "review",
+            "review": "explorer",
         }
         assert "explorer" not in NEXT_STEP  # letzter Schritt hat keinen Nachfolger
 

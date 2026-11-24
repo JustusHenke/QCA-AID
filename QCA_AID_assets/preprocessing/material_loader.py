@@ -145,6 +145,23 @@ class MaterialLoader:
         return text
 
     def load_documents(self) -> Dict[str, str]:
+        """Laedt alle Dokumente ueber die zentrale Ingest-Pipeline."""
+        try:
+            from ..utils.io.document_reader import DocumentReader
+            raw = DocumentReader(self.data_dir).read_documents_sync()
+        except Exception as exc:
+            print(f"Ingest-Pipeline fehlgeschlagen ({exc}), nutze Legacy-Loader")
+            return self._load_documents_legacy()
+
+        documents: Dict[str, str] = {}
+        for name, text in raw.items():
+            cleaned = self.preprocess_text(text)
+            if cleaned.strip():
+                documents[name] = cleaned
+                print(f"Erfolgreich geladen: {name} ({len(cleaned)} Zeichen)")
+        return documents
+
+    def _load_documents_legacy(self) -> Dict[str, str]:
         """
         Sammelt und lädt alle unterstützten Dateien aus dem Verzeichnis.
         
