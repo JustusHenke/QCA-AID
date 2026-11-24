@@ -333,7 +333,7 @@ class QCAPrompts:
                     "category": 0.00-1.00,
                     "subcategories": 0.00-1.00
                 }},
-                "text_references": ["Konkrete Textstellen"],
+                "text_references": ["Max. 5 massgebliche Textstellen als wortwoertlicher, unveraenderter, zusammenhaengender Auszug aus dem Text oben (je 1-3 Saetze bzw. max. 400 Zeichen). Keine Paraphrase, keine Zusammenfassung."],
                 "definition_matches": ["Passende Definitionsaspekte"],
                 "subcategory_validation": {{
                     "chosen_main_category": "Name der gewählten Hauptkategorie",
@@ -734,6 +734,7 @@ class QCAPrompts:
                 "keywords": "2-3 Begriffe mit Fokus-Bezug",
                 "category": "Gewählte Hauptkategorie",
                 "subcategories": ["NUR Subkategorien der gewählten Hauptkategorie"],
+                "text_references": ["Max. 5 massgebliche Textstellen als wortwoertlicher, unveraenderter, zusammenhaengender Auszug aus dem Text oben (je 1-3 Saetze bzw. max. 400 Zeichen). Keine Paraphrase, keine Zusammenfassung."],
                 "justification": "MUSS enthalten: 1. Fokus-Einfluss 2. Hauptkategorie-Begründung 3. Subkategorie-Zuordnung zur gewählten Hauptkategorie",
                 "confidence": {{
                     "total": 0.00-1.00,
@@ -853,7 +854,7 @@ class QCAPrompts:
                         "category": 0.00-1.00,
                         "subcategories": 0.00-1.00
                     }},
-                    "text_references": ["Relevante Textstellen"],
+                    "text_references": ["Max. 5 massgebliche Textstellen als wortwoertlicher, unveraenderter, zusammenhaengender Auszug aus dem Text oben (je 1-3 Saetze bzw. max. 400 Zeichen). Keine Paraphrase, keine Zusammenfassung."],
                     "definition_matches": ["Passende Definitionsaspekte"],
                     "context_influence": "Wie der Dokumentkontext die Kodierung beeinflusst hat",
                     "focus_adherence": {{
@@ -1567,6 +1568,10 @@ Erweitere das JSON-Format um folgende Felder:
         - Erkläre die Kategoriewahl mit direktem Bezug zum Text
         - Nenne konkrete Textstellen als Belege
         
+        5. TEXTANKER (text_references):
+        - Zitiere die massgeblichen Stellen WOERTLICH und UNVERAENDERT aus dem Segment
+        - Zusammenhaengende Ausschnitte, keine Paraphrasen, max. 5 je 1-3 Saetze
+        
         Antworte NUR mit folgendem JSON-Format:
         {{
           "results": [
@@ -1577,7 +1582,8 @@ Erweitere das JSON-Format um folgende Felder:
               "confidence": 0.92,
               "justification": "Begründung mit Textbezug",
               "paraphrase": "Zusammenfassung des Segments",
-              "keywords": "keyword1, keyword2, keyword3"
+              "keywords": "keyword1, keyword2, keyword3",
+              "text_references": ["Max. 5 wortwoertliche, unveraenderte, zusammenhaengende Ausschnitte des Segments (je 1-3 Saetze). Keine Paraphrase."]
             }}
           ]
         }}

@@ -632,7 +632,7 @@ class DeductiveCoder:
                                 "confidence",
                                 {"total": 0.0, "category": 0.0, "subcategories": 0.0},
                             ),
-                            text_references=tuple([chunk[:100]]),
+                            text_references=tuple(result.get("text_references", []) or [chunk[:100]]),
                             uncertainties=None,
                             paraphrase=result.get("paraphrase", ""),
                             keywords=result.get("keywords", ""),

@@ -43,6 +43,58 @@ from ..utils.export.helpers import (
 )
 from ..utils.impact_analysis import export_multiple_coding_report
 
+
+# --- Textanker (Wortlaut-Auszuege fuer den Pruefen-Tab) --------------------
+
+#: Obergrenzen gegen Prompt-Ausreisser (Spec text-anker-export, R4).
+TEXTANKER_MAX_COUNT = 6
+TEXTANKER_MAX_CHARS = 1000
+
+#: Fuer Excel unzulaessige Steuerzeichen (ohne Tab/Zeilenumbruch).
+_TEXTANKER_ILLEGAL = re.compile(r"[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]")
+
+
+def normalize_ws(text: Any) -> str:
+    """Whitespace (auch Zeilenumbrueche) auf je ein Leerzeichen normalisieren."""
+    return " ".join(str(text or "").split())
+
+
+def format_text_anchors(coding: Dict[str, Any], chunk_text: str) -> str:
+    """Formatiert LLM-Textreferenzen als ' | '-getrennte Wortlaut-Auszuege.
+
+    Nur kodierte Segmente erhalten Auszuege (R3a). Jede Referenz muss nach
+    Whitespace-Normalisierung im Chunktext enthalten sein (R3) - Paraphrasen
+    und erfundene Stellen werden verworfen. Enthaelt ein Auszug ein '|',
+    wird er ebenfalls verworfen, damit der Trenner eindeutig bleibt (R2).
+    Grenzen: max. TEXTANKER_MAX_COUNT Auszuege, je max. TEXTANKER_MAX_CHARS
+    (R4). Ohne gueltige Referenz bleibt die Zelle leer (R5).
+    """
+    category = str(coding.get("category", "") or "").strip()
+    if not category or category.casefold() == "nicht kodiert":
+        return ""
+
+    chunk_norm = normalize_ws(chunk_text)
+    if not chunk_norm:
+        return ""
+
+    references = coding.get("text_references") or []
+    anchors: List[str] = []
+    for ref in references:
+        if not isinstance(ref, str):
+            continue
+        candidate = normalize_ws(_TEXTANKER_ILLEGAL.sub("", ref)).strip()
+        if not candidate or "|" in candidate:
+            continue
+        if len(candidate) > TEXTANKER_MAX_CHARS:
+            continue
+        if candidate not in chunk_norm:
+            continue
+        if candidate not in anchors:
+            anchors.append(candidate)
+        if len(anchors) >= TEXTANKER_MAX_COUNT:
+            break
+    return " | ".join(anchors)
+
 try:
     from ..utils.export.pdf_annotator import PDFAnnotator
     from ..utils.export.converters import DocumentToPDFConverter
@@ -997,7 +1049,7 @@ class ResultsExporter:
         required_columns = {
             'Dokument', 'Chunk_Nr', 'Text', 'Kodiert', 
             'Hauptkategorie', 'Kategorietyp', 'Subkategorien', 
-            'Begründung', 'Konfidenz', 'Mehrfachkodierung'
+            'Begründung', 'Textanker', 'Konfidenz', 'Mehrfachkodierung'
         }
         
         try:
@@ -1686,6 +1738,7 @@ class ResultsExporter:
                 'Subkategorien': sanitize_text_for_excel(subcats_text),
                 'Schlüsselwörter': sanitize_text_for_excel(keywords_text),
                 'Begründung': sanitize_text_for_excel(justification),
+                'Textanker': format_text_anchors(coding, text),
                 'Konfidenz': f"{confidence_value:.2f}",  # FIX: Korrekte Konfidenz-Formatierung
                 'Mehrfachkodierung': mehrfachkodierung_status,  # FIX: Korrekte Mehrfachkodierung-Logik
                 'Instanz_Nr': instance_info.get('instance_number', 1) if is_multiple else 1,  # FIX: HinzugefÜgt
@@ -2205,12 +2258,13 @@ class ResultsExporter:
             10: 25,  # Subkategorien - WICHTIG
             11: 20,  # Schlüsselwörter - WICHTIG
             12: 40,  # Begründung - WICHTIG: Breit fuer Begründung
-            13: 10,  # Konfidenz - WICHTIG
-            14: 12,  # Mehrfachkodierung
-            15: 10,  # Instanz_Nr
-            16: 12,  # Gesamt_Instanzen
-            17: 12,  # Review_Typ
-            18: 15   # Kodierer
+            13: 40,  # Textanker - WICHTIG
+            14: 10,  # Konfidenz - WICHTIG
+            15: 12,  # Mehrfachkodierung
+            16: 10,  # Instanz_Nr
+            17: 12,  # Gesamt_Instanzen
+            18: 12,  # Review_Typ
+            19: 15   # Kodierer
         }
         
         for col, width in column_widths.items():
@@ -2225,6 +2279,8 @@ class ResultsExporter:
             worksheet.cell(row=row, column=6).alignment = Alignment(wrap_text=True, vertical='top')
             # Begründung-Spalte (12)
             worksheet.cell(row=row, column=12).alignment = Alignment(wrap_text=True, vertical='top')
+            # Textanker-Spalte (13)
+            worksheet.cell(row=row, column=13).alignment = Alignment(wrap_text=True, vertical='top')
     
     def _create_reliability_sheet(self, workbook, reliability: float, export_mode: str):
         """

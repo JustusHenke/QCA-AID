@@ -48,6 +48,7 @@ class UnifiedAnalysisResult:
     keywords: str = ""
     paraphrase: str = ""
     justification: str = ""
+    text_references: List[str] = None
 
 
 class UnifiedRelevanceAnalyzer:
@@ -1151,6 +1152,7 @@ class UnifiedRelevanceAnalyzer:
         keywords = result.get("keywords", "")
         paraphrase = result.get("paraphrase", "")
         justification = result.get("justification", "")
+        text_references = result.get("text_references", []) or []
 
         return UnifiedAnalysisResult(
             segment_id=segment_id,
@@ -1164,6 +1166,7 @@ class UnifiedRelevanceAnalyzer:
             keywords=keywords,
             paraphrase=paraphrase,
             justification=justification,
+            text_references=text_references,
         )
 
     def _estimate_tokens(self, prompt: str, response: Dict[str, Any]) -> int:

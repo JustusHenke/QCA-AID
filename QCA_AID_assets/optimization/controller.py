@@ -2077,6 +2077,7 @@ class OptimizationController:
                                 "keywords": getattr(result, "keywords", ""),
                                 "paraphrase": getattr(result, "paraphrase", ""),
                                 "justification": getattr(result, "justification", ""),
+                                "text_references": list(getattr(result, "text_references", []) or []),
                                 "coder_id": coder_id,
                                 "category_preselection_used": bool(preferred_cats),
                                 "preferred_categories": preferred_cats,
@@ -5791,9 +5792,8 @@ Antworte NUR mit folgendem JSON-Format:
                                     ),
                                     "keywords": getattr(result, "keywords", ""),
                                     "paraphrase": getattr(result, "paraphrase", ""),
-                                    "justification": getattr(
-                                        result, "justification", ""
-                                    ),
+                                    "justification": getattr(result, "justification", ""),
+                                    "text_references": list(getattr(result, "text_references", []) or []),
                                     "coder_id": coder_id,
                                     "analysis_mode": "grounded",
                                     "grounded_recoded": True,
@@ -5827,6 +5827,7 @@ Antworte NUR mit folgendem JSON-Format:
                                 "keywords": getattr(result, "keywords", ""),
                                 "paraphrase": getattr(result, "paraphrase", ""),
                                 "justification": getattr(result, "justification", ""),
+                                "text_references": list(getattr(result, "text_references", []) or []),
                                 "coder_id": coder_id,
                             }
                             results_for_reliability.append(reliability_result)
@@ -5878,6 +5879,7 @@ Antworte NUR mit folgendem JSON-Format:
                                 "keywords": getattr(result, "keywords", ""),
                                 "paraphrase": getattr(result, "paraphrase", ""),
                                 "justification": getattr(result, "justification", ""),
+                                "text_references": list(getattr(result, "text_references", []) or []),
                                 "coder_id": "auto_1",
                                 "analysis_mode": "grounded",
                                 "grounded_recoded": True,
@@ -5911,6 +5913,7 @@ Antworte NUR mit folgendem JSON-Format:
                             "keywords": getattr(result, "keywords", ""),
                             "paraphrase": getattr(result, "paraphrase", ""),
                             "justification": getattr(result, "justification", ""),
+                            "text_references": list(getattr(result, "text_references", []) or []),
                             "coder_id": "auto_1",
                         }
                         results_for_reliability.append(reliability_result)

@@ -112,6 +112,26 @@ class Coding:
     inference: bool = False
     page: Optional[int] = None
     anchor: Optional[Anchor] = None
+    #: Wortlaut-Auszuege aus der Analyse-XLSX (Spalte "Textanker") -
+    #: Quelle fuer Stufe 1 der Anker-Kette (review_service.anchor_codings).
+    text_anchors: List[str] = field(default_factory=list)
+    #: Aufgeloeste Anker-Regionen; Primaerregion ist anchors[0] == anchor.
+    anchors: List[Anchor] = field(default_factory=list)
+
+    def __post_init__(self) -> None:
+        """Haelt Primaer-Anker und Anker-Liste konsistent (E4).
+
+        - Nur ``anchor`` gesetzt (alte Aufrufstellen): ``anchors`` wird
+          daraus initialisiert.
+        - Nur ``anchors`` gesetzt: ``anchor`` zeigt auf die erste Region
+          (Primaerseite).
+        - Beide gesetzt: ``anchors[0]`` gewinnt.
+        """
+        if self.anchors:
+            if self.anchor is not self.anchors[0]:
+                self.anchor = self.anchors[0]
+        elif self.anchor is not None:
+            self.anchors = [self.anchor]
 
     def validate(self, require_anchor: bool = True) -> Tuple[bool, List[str]]:
         """Validiert Kodierung und Invarianten.
@@ -156,6 +176,14 @@ class Coding:
                     errors.extend(f"Anker: {e}" for e in anchor_errors)
                 if not self.anchor.anchored:
                     errors.append("Anker ist nicht aufgeloest (unanchored)")
+                for i, extra in enumerate(self.anchors[1:], start=2):
+                    extra_ok, extra_errors = extra.validate()
+                    if not extra_ok:
+                        errors.extend(f"Zusatzanker {i}: {e}" for e in extra_errors)
+                    if not extra.anchored:
+                        errors.append(
+                            f"Zusatzanker {i} ist nicht aufgeloest (unanchored)"
+                        )
 
         return len(errors) == 0, errors
 
@@ -172,6 +200,8 @@ class Coding:
             "inference": self.inference,
             "page": self.page,
             "anchor": self.anchor.to_dict() if self.anchor else None,
+            "text_anchors": list(self.text_anchors),
+            "anchors": [a.to_dict() for a in self.anchors],
         }
 
     @classmethod
@@ -189,6 +219,10 @@ class Coding:
             inference=data.get("inference", False),
             page=data.get("page"),
             anchor=Anchor.from_dict(anchor_data) if anchor_data else None,
+            text_anchors=list(data.get("text_anchors", [])),
+            anchors=[
+                Anchor.from_dict(a) for a in data.get("anchors", []) if a
+            ],
         )
 
 
@@ -344,6 +378,10 @@ class RenderOptions:
     #: Mehrfachkodierungen derselben Textstelle im Textmarker-Modus zusaetzlich
     #: schraffieren (statt nur als Randstreifen zu zeigen).
     hatch_shared: bool = True
+    #: Index der aktiv hervorgehobenen Region innerhalb der aktiven
+    #: Kodierung (Spec text-anker-export, R13). None = alle Regionen
+    #: der aktiven Kodierung voll deckend.
+    active_anchor_index: Optional[int] = None
 
     def validate(self) -> Tuple[bool, List[str]]:
         errors: List[str] = []
@@ -362,6 +400,7 @@ class RenderOptions:
             "opacity": self.opacity,
             "blend": self.blend,
             "hatch_shared": self.hatch_shared,
+            "active_anchor_index": self.active_anchor_index,
         }
 
     @classmethod
@@ -372,6 +411,7 @@ class RenderOptions:
             opacity=data.get("opacity", 0.4),
             blend=data.get("blend", "multiply"),
             hatch_shared=data.get("hatch_shared", True),
+            active_anchor_index=data.get("active_anchor_index"),
         )
 
 

@@ -67,6 +67,20 @@ COL_CODED = ("Kodiert",)
 COL_SEGMENT = ("Original_Chunk_ID", "Chunk_Nr", "Segment_ID", "Segment")
 COL_INFERENCE = ("Inferenz", "Inference")
 
+#: Spalte mit Wortlaut-Ankern (Spec text-anker-export). Fehlt sie
+#: (aeltere Exporte), laeuft die Anker-Kette komplett ueber die
+#: Chunk-Stufen - Verhalten wie vor 0.16.
+COL_TEXTANKER = ("Textanker", "Text_Anker")
+
+#: Mindestlaenge eines Textankers (R11): darunter ist die Stelle zu
+#: kurz fuer zuverlaessiges Matching im PDF.
+TEXTANKER_MIN_CHARS = 20
+TEXTANKER_MIN_WORDS = 3
+
+#: Praefix-Stufen fuer lange Anker: Der volle Anker wird zuerst
+#: probiert, danach Wortlaut-Praefixe (nie Paraphrasen, R12).
+TEXTANKER_STAGES: Tuple[int, ...] = (1000, 500, 240)
+
 #: Spalten, die der Pruefen-Tab beim Zurueckschreiben in die Analyse-XLSX
 #: anlegt (siehe webapp_logic.review_writeback). Liegen sie vor, gelten sie
 #: als aktueller Stand - die Bestandsspalten bleiben der Ursprungszustand.
@@ -283,6 +297,30 @@ def _apply_review_state(
     return review_category, review_subcategories, status, created_by
 
 
+def parse_text_anchors(value: Any) -> List[str]:
+    """Parst die Textanker-Zelle (' | '-getrennt) in Zitatliste (R8/R11).
+
+    Leere Teile, Teile unter der Mindestlaenge (weniger als
+    ``TEXTANKER_MIN_CHARS`` Zeichen bzw. ``TEXTANKER_MIN_WORDS`` Woerter)
+    und Duplikate fallen weg. Alte Dateien ohne Spalte liefern [].
+    """
+    raw = _as_text(value)
+    if not raw or raw.casefold() == "nan":
+        return []
+    anchors: List[str] = []
+    for part in raw.split("|"):
+        candidate = normalize_ws(part)
+        if not candidate:
+            continue
+        if len(candidate) < TEXTANKER_MIN_CHARS:
+            continue
+        if len(candidate.split()) < TEXTANKER_MIN_WORDS:
+            continue
+        if candidate not in anchors:
+            anchors.append(candidate)
+    return anchors
+
+
 def coding_from_record(
     record: Mapping[str, Any],
     doc_id: str,
@@ -310,6 +348,7 @@ def coding_from_record(
         return None
 
     justification = _as_text(_first(record, COL_JUSTIFICATION)) or None
+    text_anchors = parse_text_anchors(_first(record, COL_TEXTANKER))
     inference = _as_bool(_first(record, COL_INFERENCE), default=False)
     # Anforderung 7.5: Inferenz-Kodierungen brauchen immer eine Begruendung.
     if inference and not justification:
@@ -322,6 +361,7 @@ def coding_from_record(
         subcategories=subcategories,
         confidence=_as_confidence(_first(record, COL_CONFIDENCE)),
         justification=justification,
+        text_anchors=text_anchors,
         created_by=created_by,
         status=status,
         inference=inference,
@@ -435,14 +475,24 @@ def anchor_codings(
     resolver: Optional[AnchorResolver] = None,
     fuzzy_threshold: float = 0.85,
 ) -> List[Coding]:
-    """Loest fuer jede Kodierung einen Anker auf (unveraenderlich).
+    """Loest fuer jede Kodierung Anker auf (unveraenderlich).
 
-    Bereits verankerte Kodierungen bleiben unangetastet. Fuer den Chunktext
-    werden gestaffelte Zitatlaengen probiert (QUOTE_STAGES, von lang nach
-    kurz): die laengste auffindbare Stufe wird markiert, die kuerzeste Stufe
-    greift nur, wenn alle laengeren scheitern. Kodierungen ohne auffindbares
-    Zitat bekommen ``anchor=None`` und bleiben im Panel als "ohne Anker"
-    sichtbar.
+    Kette (Spec text-anker-export, R9/R12):
+
+    1. **Textanker:** Jeder Textanker der Kodierung wird einzeln im PDF
+       gesucht (Seite via Textindex, Wortlaut-Praefixe als Stufen). Wird ein
+       Anker nicht gefunden, wird nur dieser uebersprungen - die anderen
+       bleiben unberuehrt. Aufgeloeste Anker werden als Regionenliste
+       gesetzt (auch auf verschiedenen Seiten, R10).
+    2. **Voll-Fallback:** Kann KEIN Textanker aufgeloest werden, greift fuer
+       die gesamte Kodierung die bisherige Methode (gestaffelte Chunk-Zitate
+       QUOTE_STAGES, von lang nach kurz).
+    3. Scheitert auch diese, bekommt die Kodierung ``anchor=None`` und bleibt
+       im Panel als "ohne Anker" sichtbar.
+
+    Die Garantie "nie falsch platzieren" gilt unveraendert: Jede Stufe
+    zitiert Wortlaut (ganze Anker oder Praefixe davon, Chunk-Stufen
+    ebenfalls Praefixe) - geraten wird nie.
     """
     resolver = resolver or AnchorResolver()
     resolved: List[Coding] = []
@@ -458,12 +508,102 @@ def anchor_codings(
 
         pdf_doc = fitz.open(pdf_path)
 
+    def _resolve_quote(coding: Coding, quote: str, page: int) -> Optional[Anchor]:
+        """Loest ein Wortlaut-Zitat auf; lange Zitate als Praefix-Stufen.
+
+        Alle Stufen sind Praefixe desselben unveranderten Texts - nie
+        paraphrasiert, nie ergaenzt (R12).
+        """
+        stages: List[str] = [quote]
+        if len(quote) > TEXTANKER_STAGES[-1]:
+            for limit in TEXTANKER_STAGES:
+                if limit >= len(quote):
+                    break
+                shortened = select_quote(quote, max_chars=limit)
+                if shortened and shortened not in stages:
+                    stages.append(shortened)
+        for stage_quote in stages:
+            try:
+                if in_doc_resolver is not None:
+                    candidate = in_doc_resolver(
+                        doc=pdf_doc,
+                        doc_id=coding.doc_id,
+                        page=page,
+                        quote=stage_quote,
+                        page_label=_page_label(index, page),
+                        fuzzy_threshold=fuzzy_threshold,
+                    )
+                else:
+                    candidate = resolver.resolve(
+                        pdf_path=pdf_path,
+                        doc_id=coding.doc_id,
+                        page=page,
+                        quote=stage_quote,
+                        page_label=_page_label(index, page),
+                        fuzzy_threshold=fuzzy_threshold,
+                    )
+            except Exception as exc:  # noqa: BLE001 - eine Stufe kippt nicht alles
+                logger.warning(
+                    "Anker-Aufloesung fehlgeschlagen (%s, %d Zeichen): %s",
+                    coding.segment_id,
+                    len(stage_quote),
+                    exc,
+                )
+                continue
+            if candidate.anchored:
+                return candidate
+        return None
+
     try:
         for coding in codings:
             if coding.anchor is not None and coding.anchor.anchored:
                 resolved.append(coding)
                 continue
 
+            # --- Stufe 1: Textanker einzeln (R9) ---
+            if coding.text_anchors:
+                anchors: List[Anchor] = []
+                for anchor_quote in coding.text_anchors:
+                    page = find_page_for_quote(index, anchor_quote) or coding.page
+                    if page is None:
+                        continue
+                    candidate = _resolve_quote(coding, anchor_quote, page)
+                    if candidate is not None and candidate.anchored:
+                        anchors.append(candidate)
+                if anchors:
+                    pages = sorted({a.page for a in anchors})
+                    logger.info(
+                        "Textanker: %d/%d aufgeloest (%s, S. %s)",
+                        len(anchors),
+                        len(coding.text_anchors),
+                        coding.segment_id,
+                        ", ".join(str(p) for p in pages),
+                    )
+                    resolved.append(
+                        Coding(
+                            segment_id=coding.segment_id,
+                            doc_id=coding.doc_id,
+                            category=coding.category,
+                            subcategories=list(coding.subcategories),
+                            confidence=coding.confidence,
+                            justification=coding.justification,
+                            created_by=coding.created_by,
+                            status=coding.status,
+                            inference=coding.inference,
+                            page=anchors[0].page,
+                            anchor=anchors[0],
+                            anchors=anchors,
+                            text_anchors=list(coding.text_anchors),
+                        )
+                    )
+                    continue
+                logger.info(
+                    "Textanker: 0/%d aufgeloest (%s) - Voll-Fallback auf Chunk-Stufen",
+                    len(coding.text_anchors),
+                    coding.segment_id,
+                )
+
+            # --- Stufe 2: Voll-Fallback auf die Chunk-Stufen (R9/R12) ---
             quote = select_quote(
                 coding.anchor.quote if coding.anchor else "",
                 max_chars=QUOTE_SOURCE_LIMIT,
@@ -483,34 +623,8 @@ def anchor_codings(
             anchor = None
             chosen_quote = quote
             for stage_quote in quote_stages(quote):
-                try:
-                    if in_doc_resolver is not None:
-                        candidate = in_doc_resolver(
-                            doc=pdf_doc,
-                            doc_id=coding.doc_id,
-                            page=page,
-                            quote=stage_quote,
-                            page_label=_page_label(index, page),
-                            fuzzy_threshold=fuzzy_threshold,
-                        )
-                    else:
-                        candidate = resolver.resolve(
-                            pdf_path=pdf_path,
-                            doc_id=coding.doc_id,
-                            page=page,
-                            quote=stage_quote,
-                            page_label=_page_label(index, page),
-                            fuzzy_threshold=fuzzy_threshold,
-                        )
-                except Exception as exc:  # noqa: BLE001 - eine Stufe kippt nicht alles
-                    logger.warning(
-                        "Anker-Aufloesung fehlgeschlagen (%s, Stufe %d): %s",
-                        coding.segment_id,
-                        len(stage_quote),
-                        exc,
-                    )
-                    continue
-                if candidate.anchored:
+                candidate = _resolve_quote(coding, stage_quote, page)
+                if candidate is not None:
                     anchor = candidate
                     chosen_quote = stage_quote
                     break
@@ -532,6 +646,8 @@ def anchor_codings(
                     inference=coding.inference,
                     page=anchor.page,
                     anchor=anchor,
+                    anchors=[anchor],
+                    text_anchors=list(coding.text_anchors),
                 )
             )
     finally:
@@ -564,6 +680,7 @@ def _without_anchor(coding: Coding, quote: str = "") -> Coding:
         inference=coding.inference,
         page=coding.page,
         anchor=anchor,
+        text_anchors=list(coding.text_anchors),
     )
 
 
@@ -588,6 +705,7 @@ def build_overlay_map(
     opacity: float = 0.4,
     blend: str = "multiply",
     renderer: Optional[OverlayRenderer] = None,
+    active_anchor_index: Optional[int] = None,
 ) -> Dict[int, str]:
     """Erzeugt je Seite mit Kodierungen ein SVG-Overlay.
 
@@ -603,9 +721,17 @@ def build_overlay_map(
         active_coding_id=active_coding_id,
         opacity=opacity,
         blend=blend,
+        active_anchor_index=active_anchor_index,
     )
 
-    anchors = [c.anchor for c in codings if c.anchor is not None and c.anchor.anchored]
+    # Alle aufgeloesten Regionen je Kodierung (R10) - nicht nur den
+    # Primaeranker. Der Renderer gruppiert sie je Textstelle (R14).
+    anchors = [
+        anchor
+        for coding in codings
+        for anchor in coding.anchors
+        if anchor.anchored and anchor.quads
+    ]
     if not anchors:
         return {}
 
@@ -642,4 +768,9 @@ __all__ = [
     "available_coding_sources",
     "anchor_codings",
     "build_overlay_map",
+    "COL_TEXTANKER",
+    "parse_text_anchors",
+    "TEXTANKER_MIN_CHARS",
+    "TEXTANKER_MIN_WORDS",
+    "TEXTANKER_STAGES",
 ]

@@ -291,3 +291,100 @@ def test_edit_dialog_opens_and_can_be_cancelled(tmp_path):
 
 if __name__ == "__main__":
     sys.exit(pytest.main([__file__, "-v"]))
+
+# --------------------------------------------------------------------------
+# Textanker-Regionen im Panel (Spec text-anker-export, R13)
+# --------------------------------------------------------------------------
+
+
+def _multi_anchor_coding(segment_id="s1", pages=(1, 2)):
+    anchors = [
+        Anchor(
+            doc_id="doc", page=page, quote=f"Zitat auf Seite {page} mit etwas Text",
+            quads=[[72, 100, 300, 114]], anchored=True,
+        )
+        for page in pages
+    ]
+    return Coding(
+        segment_id=segment_id, doc_id="doc", category="Kat",
+        anchors=anchors, text_anchors=["a", "b"],
+    )
+
+
+class TestAnchorViews:
+    def test_alle_regionen_als_zeilen(self):
+        rows = build_coding_rows([_multi_anchor_coding()])
+        assert len(rows) == 1
+        views = rows[0].anchor_views
+        assert [v.index for v in views] == [0, 1]
+        assert [v.page for v in views] == [1, 2]
+        assert all("Zitat auf Seite" in v.quote for v in views)
+
+    def test_nur_verankerte_regionen(self):
+        coding = _multi_anchor_coding()
+        unanchored = Anchor(doc_id="doc", page=3, quote="offen", anchored=False)
+        coding.anchors.append(unanchored)
+        rows = build_coding_rows([coding])
+        assert [v.page for v in rows[0].anchor_views] == [1, 2]
+
+    def test_active_flag_mit_index(self):
+        coding = _multi_anchor_coding()
+        rows = build_coding_rows(
+            [coding], active_id="s1", active_anchor_index=1
+        )
+        flags = [v.active for v in rows[0].anchor_views]
+        assert flags == [False, True]
+
+    def test_active_flag_ohne_index_alle_aus(self):
+        coding = _multi_anchor_coding()
+        rows = build_coding_rows([coding], active_id="s1")
+        assert all(not v.active for v in rows[0].anchor_views)
+
+    def test_single_anchor_zeile(self):
+        coding = _multi_anchor_coding(pages=(1,))
+        rows = build_coding_rows([coding])
+        assert len(rows[0].anchor_views) == 1
+        assert rows[0].quote.startswith("Zitat auf Seite 1")
+
+    def test_unverankerte_kodierung_leere_views(self):
+        coding = Coding(
+            segment_id="s", doc_id="doc", category="K",
+            anchor=Anchor(doc_id="doc", page=1, quote="x", anchored=False),
+        )
+        rows = build_coding_rows([coding])
+        assert rows[0].anchor_views == []
+        assert rows[0].anchored is False
+
+
+class TestOverlayMapMultiRegion:
+    def test_overlay_map_liefert_beide_seiten(self):
+        import sys as _sys
+
+        _app_dir = str(Path(__file__).resolve().parent.parent)
+        if _app_dir not in _sys.path:
+            _sys.path.insert(0, _app_dir)
+        from webapp_logic.review_service import build_overlay_map
+
+        coding = _multi_anchor_coding()
+        overlays = build_overlay_map(
+            page_sizes=[(595, 842), (595, 842)],
+            codings=[coding],
+        )
+        assert sorted(overlays) == [1, 2]
+
+    def test_overlay_map_active_anchor_index_aktzeptiert(self):
+        import sys as _sys
+
+        _app_dir = str(Path(__file__).resolve().parent.parent)
+        if _app_dir not in _sys.path:
+            _sys.path.insert(0, _app_dir)
+        from webapp_logic.review_service import build_overlay_map
+
+        coding = _multi_anchor_coding(pages=(1, 1))
+        overlays = build_overlay_map(
+            page_sizes=[(595, 842)],
+            codings=[coding],
+            active_coding_id="s1",
+            active_anchor_index=1,
+        )
+        assert 1 in overlays

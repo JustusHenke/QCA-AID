@@ -95,6 +95,8 @@ RENDER_MODE_LABELS: Dict[str, str] = {
 STATE_CODINGS = "review_codings"
 STATE_SOURCE = "review_source"
 STATE_ACTIVE = "review_active_segment"
+#: Index der gewaehlten Region innerhalb der aktiven Kodierung (R13).
+STATE_ACTIVE_ANCHOR = "review_active_anchor"
 STATE_MODE = "review_render_mode"
 STATE_PAGE = "review_page"
 STATE_DOC = "review_doc_id"
@@ -245,6 +247,7 @@ def preview_document(
     src: Path,
     codings: Optional[List[Coding]] = None,
     active_coding_id: Optional[str] = None,
+    active_anchor_index: Optional[int] = None,
     mode: str = "highlight",
     height: int = COMPACT_HEIGHT,
     show_thumbnails: bool = False,
@@ -281,6 +284,7 @@ def preview_document(
             codings=codings,
             mode=mode,
             active_coding_id=active_coding_id,
+            active_anchor_index=active_anchor_index,
         )
 
     render_pdf_viewer(
@@ -415,6 +419,7 @@ def _load_codings(document: PreviewDocument, doc_name: str, source: Path, refres
         st.session_state[STATE_CODINGS] = []
         st.session_state[STATE_SOURCE] = str(source)
         st.session_state[STATE_ACTIVE] = None
+        st.session_state[STATE_ACTIVE_ANCHOR] = None
         return
 
     if not raw:
@@ -435,6 +440,7 @@ def _load_codings(document: PreviewDocument, doc_name: str, source: Path, refres
     st.session_state[STATE_ORIGINAL] = anchored
     st.session_state[STATE_SOURCE] = str(source)
     st.session_state[STATE_ACTIVE] = None
+    st.session_state[STATE_ACTIVE_ANCHOR] = None
 
     summary = panel_summary(anchored)
     st.success(
@@ -480,10 +486,32 @@ def _select_coding(segment_id: str) -> None:
     """
     codings: List[Coding] = list(st.session_state.get(STATE_CODINGS) or [])
     st.session_state[STATE_ACTIVE] = segment_id
+    st.session_state[STATE_ACTIVE_ANCHOR] = None
     for coding in codings:
         if coding.segment_id == segment_id and coding.page:
             st.session_state[STATE_PAGE] = coding.page
             break
+    st.rerun()
+
+
+def _select_anchor(segment_id: str, anchor_index: int) -> None:
+    """Klick auf eine Textstelle im Panel: Kodierung + Region aktiv (R13).
+
+    Springt zur Seite der Region und hebt genau diese Region im Viewer
+    hervor; die uebrigen Regionen derselben Kodierung werden
+    abgeschwaecht (Renderer: active_anchor_index).
+    """
+    codings: List[Coding] = list(st.session_state.get(STATE_CODINGS) or [])
+    st.session_state[STATE_ACTIVE] = segment_id
+    st.session_state[STATE_ACTIVE_ANCHOR] = anchor_index
+    for coding in codings:
+        if coding.segment_id != segment_id:
+            continue
+        if 0 <= anchor_index < len(coding.anchors):
+            page = coding.anchors[anchor_index].page
+            if page:
+                st.session_state[STATE_PAGE] = page
+        break
     st.rerun()
 
 
@@ -640,6 +668,7 @@ def render_review_tab() -> None:
             selected_path,
             codings=codings,
             active_coding_id=active_id,
+            active_anchor_index=st.session_state.get(STATE_ACTIVE_ANCHOR),
             mode=mode,
             height=WORKSPACE_HEIGHT,
             show_thumbnails=True,
@@ -674,6 +703,10 @@ def render_review_tab() -> None:
                 code_options=code_options,
                 on_recode=_apply_coding_change,
                 on_select=_select_coding,
+                on_select_anchor=_select_anchor,
+                active_anchor_index=st.session_state.get(
+                    STATE_ACTIVE_ANCHOR
+                ),
             )
 
     # -- Export -----------------------------------------------------------

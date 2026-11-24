@@ -14,7 +14,7 @@ Duenn (Streamlit):
 """
 
 import logging
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 from typing import Callable, Dict, List, Optional, Sequence
 
 from QCA_AID_assets.annotation.model import Coding
@@ -26,6 +26,16 @@ ACTION_ACCEPT = "accept"
 ACTION_REJECT = "reject"
 ACTION_CHANGE = "change"
 ALLOWED_ACTIONS = (ACTION_ACCEPT, ACTION_REJECT, ACTION_CHANGE)
+
+
+@dataclass
+class AnchorView:
+    """Eine verankerte Region einer Kodierung (fuer die Panelzeile, R13)."""
+
+    index: int
+    page: Optional[int]
+    quote: str
+    active: bool = False
 
 
 @dataclass
@@ -45,6 +55,7 @@ class CodingRow:
     quote: str = ""
     same_region: int = 1
     blocks: int = 1
+    anchor_views: List[AnchorView] = field(default_factory=list)
 
 
 def _page_of(coding: Coding) -> Optional[int]:
@@ -149,8 +160,14 @@ def build_coding_rows(
     active_id: Optional[str] = None,
     page: Optional[int] = None,
     status: Optional[str] = None,
+    active_anchor_index: Optional[int] = None,
 ) -> List[CodingRow]:
-    """Baut die Anzeigezeilen, gefiltert nach Seite/Status und sortiert."""
+    """Baut die Anzeigezeilen, gefiltert nach Seite/Status und sortiert.
+
+    Je Kodierung enthaelt die Zeile ``anchor_views`` mit allen
+    aufgeloesten Regionen (Seite + Zitatvorschau) - die Grundlage fuer
+    die klickbaren Textstellen-Zeilen (R13).
+    """
     region_counts = _region_counts(codings)
     rows: List[CodingRow] = []
     for coding in codings:
@@ -175,6 +192,19 @@ def build_coding_rows(
                 quote=_quote_preview(coding.anchor.quote if coding.anchor else ""),
                 same_region=region_counts.get(key, 1) if key is not None else 1,
                 blocks=_spread(coding.anchor) or 1,
+                anchor_views=[
+                    AnchorView(
+                        index=index,
+                        page=anchor.page,
+                        quote=_quote_preview(anchor.quote),
+                        active=(
+                            coding.segment_id == active_id
+                            and active_anchor_index == index
+                        ),
+                    )
+                    for index, anchor in enumerate(coding.anchors)
+                    if anchor.anchored
+                ],
             )
         )
     rows.sort(key=lambda r: (r.page if r.page is not None else 0, r.segment_id))
@@ -284,6 +314,8 @@ def render_coding_panel(
     code_options: Optional[Sequence[CodeOption]] = None,
     on_recode: Optional[Callable[[str, CodeOption], None]] = None,
     on_select: Optional[Callable[[str], None]] = None,
+    on_select_anchor: Optional[Callable[[str, int], None]] = None,
+    active_anchor_index: Optional[int] = None,
 ) -> None:
     """Rendert die Kodierungsliste (Streamlit).
 
@@ -296,10 +328,18 @@ def render_coding_panel(
             einen eigenen "Abbrechen"-Knopf.
         on_select: Callback (segment_id), wenn der Code angeklickt wird - die
             Kodierung wird aktiv und im Viewer hervorgehoben.
+        on_select_anchor: Callback (segment_id, anchor_index), wenn eine
+            konkrete Textstelle mehrfach verankerter Kodierungen
+            angeklickt wird - springt zu dieser Region (R13).
     """
     import streamlit as st
 
-    rows = build_coding_rows(codings, active_id=active_id, page=page)
+    rows = build_coding_rows(
+        codings,
+        active_id=active_id,
+        page=page,
+        active_anchor_index=active_anchor_index,
+    )
     visible = [c for c in codings if page is None or _page_of(c) == page]
     edit_key = f"{key_prefix}_editing"
 
@@ -340,7 +380,32 @@ def render_coding_panel(
                     st.markdown(f"{marker}**{row.category}**{anchor_note}")
                 if row.subcategories:
                     st.caption("Sub: " + ", ".join(row.subcategories))
-                if row.quote:
+                if len(row.anchor_views) > 1:
+                    # Mehrere verankerte Textstellen: je eine klickbare
+                    # Zeile mit Seitenzahl und Zitatvorschau (R13).
+                    for view in row.anchor_views:
+                        label = (
+                            f"{'▶ ' if view.active else ''}"
+                            f"S. {view.page} · „{view.quote}“"
+                        )
+                        if on_select_anchor is not None:
+                            if st.button(
+                                label,
+                                key=(
+                                    f"{key_prefix}_ank_{row.segment_id}_"
+                                    f"{view.index}"
+                                ),
+                                type="tertiary",
+                                use_container_width=True,
+                                help=(
+                                    "Diese Textstelle im Viewer anzeigen "
+                                    "und hervorheben"
+                                ),
+                            ):
+                                on_select_anchor(row.segment_id, view.index)
+                        else:
+                            st.caption(label, help="Textstelle im Dokument")
+                elif row.quote:
                     st.caption(f"„{row.quote}“", help="Textstelle im Dokument")
                 if row.same_region > 1:
                     st.caption(
@@ -415,6 +480,7 @@ def render_coding_panel(
 __all__ = [
     "CodingRow",
     "build_coding_rows",
+    "AnchorView",
     "panel_summary",
     "apply_action",
     "render_coding_panel",

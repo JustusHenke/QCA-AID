@@ -121,7 +121,7 @@ class OverlayRenderer:
                     color = colors.get(coding.category, self.palette[0])
                     self._add_in_text(
                         highlight_layer, coding, anchor, color, opts,
-                        opacity=_emphasis(coding, opts, emphasize),
+                        opacity=_pair_emphasis(coding, anchor, opts, emphasize),
                     )
                 for idx, (coding, anchor) in enumerate(other_pairs):
                     color = colors.get(coding.category, self.palette[0])
@@ -131,7 +131,7 @@ class OverlayRenderer:
                     if opts.mode == "highlight" and opts.hatch_shared:
                         self._add_hatch(
                             defs, highlight_layer, coding, anchor, color, opts,
-                            opacity=_emphasis(coding, opts, emphasize),
+                            opacity=_pair_emphasis(coding, anchor, opts, emphasize),
                         )
                     self._add_margin_stripe(margin_layer, coding, anchor, color, stack=idx)
             elif opts.mode == "margin":
@@ -161,16 +161,18 @@ class OverlayRenderer:
         """
         groups: Dict[tuple, List[Tuple[Coding, Anchor]]] = {}
 
-        # 1) Kanonisch: der Anker haengt an der Kodierung.
-        attached = [
-            c for c in codings
-            if c.anchor is not None and c.anchor.anchored and c.anchor.quads
-        ]
-        if attached:
-            for coding in attached:
-                if coding.anchor.page != page:
-                    continue
-                groups.setdefault(region_key(coding.anchor), []).append((coding, coding.anchor))
+        # 1) Kanonisch: die Anker haengen an den Kodierungen - alle
+        #    Regionen (Spec text-anker-export, R10). Eine Kodierung mit
+        #    mehreren Textstellen liefert mehrere (coding, anchor)-Paare,
+        #    auch auf verschiedenen Seiten.
+        pairs_from_codings: List[Tuple[Coding, Anchor]] = []
+        for coding in codings:
+            for anchor in coding.anchors:
+                if anchor.anchored and anchor.quads and anchor.page == page:
+                    pairs_from_codings.append((coding, anchor))
+        if pairs_from_codings:
+            for coding, anchor in pairs_from_codings:
+                groups.setdefault(region_key(anchor), []).append((coding, anchor))
             return groups
 
         # 2) Fallback: separate Ankerliste, positionsgleich zu den Kodierungen.
@@ -347,6 +349,28 @@ def _emphasis(coding: Coding, opts: RenderOptions, active: bool) -> Optional[flo
     if not active or not opts.active_coding_id:
         return None
     return 1.0 if coding.segment_id == opts.active_coding_id else DIM_OPACITY
+
+
+def _pair_emphasis(
+    coding: Coding, anchor: Anchor, opts: RenderOptions, active: bool
+) -> Optional[float]:
+    """Deckkraft einer konkreten Region (Spec text-anker-export, R13).
+
+    Basis ist die Kodierungs-Deckkraft (_emphasis). Ist eine konkrete
+    Region der aktiven Kodierung gewaehlt (active_anchor_index), werden
+    die uebrigen Regionen derselben Kodierung abgeschwaecht - die
+    gewaehlte Textstelle bleibt voll deckend.
+    """
+    base = _emphasis(coding, opts, active)
+    if opts.active_anchor_index is None:
+        return base
+    if coding.segment_id != opts.active_coding_id:
+        return base
+    try:
+        index = coding.anchors.index(anchor)
+    except ValueError:
+        return base
+    return DIM_OPACITY if index != opts.active_anchor_index else None
 
 
 def _add_rect(layer, x, y, w, h, color, coding: Coding, rx: float = 0.0,

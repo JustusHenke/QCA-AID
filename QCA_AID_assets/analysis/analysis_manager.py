@@ -1814,6 +1814,7 @@ class IntegratedAnalysisManager:
                             keywords = result_data.get("keywords", "")
                             paraphrase = result_data.get("paraphrase", "")
                             justification = result_data.get("justification", "")
+                            text_references = result_data.get("text_references", []) or []
                             coder_id = result_data.get("coder_id", "auto_1")
                         else:
                             primary_category = opt_result.get(
@@ -1824,6 +1825,7 @@ class IntegratedAnalysisManager:
                             keywords = opt_result.get("keywords", "")
                             paraphrase = opt_result.get("paraphrase", "")
                             justification = opt_result.get("justification", "")
+                            text_references = opt_result.get("text_references", []) or []
                             coder_id = opt_result.get("coder_id", "auto_1")
 
                         coding_result = {
@@ -1843,9 +1845,11 @@ class IntegratedAnalysisManager:
                             "justification": justification
                             if justification
                             else f"Confidence: {confidence_val:.2f}",
+                            "text_references": text_references,
                             "text": segment_text,
                             "paraphrase": paraphrase if paraphrase else "",
                             "keywords": keywords if keywords else "",
+                            "text_references": text_references,
                             "multiple_coding_instance": 1,
                             "total_coding_instances": 1,
                             "target_category": "",
@@ -2458,6 +2462,7 @@ class IntegratedAnalysisManager:
                             keywords = getattr(result, 'keywords', '')
                             paraphrase = getattr(result, 'paraphrase', '')
                             justification = getattr(result, 'justification', '')
+                            text_references = list(getattr(result, 'text_references', []) or [])
 
                             coding_result = {
                                 "segment_id": segment_id,
@@ -2473,6 +2478,7 @@ class IntegratedAnalysisManager:
                                 "text": next((s["text"] for s in opt_segments if s["segment_id"] == segment_id), ""),
                                 "paraphrase": paraphrase if paraphrase else "",
                                 "keywords": keywords if keywords else "",
+                                "text_references": text_references,
                             }
                             self.coding_results.append(coding_result)
 
@@ -2511,6 +2517,7 @@ class IntegratedAnalysisManager:
                             keywords = result_data.get("keywords", "")
                             paraphrase = result_data.get("paraphrase", "")
                             justification = result_data.get("justification", "")
+                            text_references = result_data.get("text_references", []) or []
                             coder_id = result_data.get("coder_id", "auto_1")
                         else:
                             primary_category = opt_result.get(
@@ -2521,6 +2528,7 @@ class IntegratedAnalysisManager:
                             keywords = opt_result.get("keywords", "")
                             paraphrase = opt_result.get("paraphrase", "")
                             justification = opt_result.get("justification", "")
+                            text_references = opt_result.get("text_references", []) or []
                             coder_id = opt_result.get("coder_id", "auto_1")
 
                         coding_result = {
@@ -2540,9 +2548,11 @@ class IntegratedAnalysisManager:
                             "justification": justification
                             if justification
                             else f"Grounded Analysis: Confidence {confidence_val:.2f}",
+                            "text_references": text_references,
                             "text": segment_text,
                             "paraphrase": paraphrase if paraphrase else "",
                             "keywords": keywords if keywords else "",
+                            "text_references": text_references,
                             "multiple_coding_instance": result_data.get(
                                 "multiple_coding_instance", 1
                             )
@@ -2604,6 +2614,7 @@ class IntegratedAnalysisManager:
                             keywords = result_data.get("keywords", "")
                             paraphrase = result_data.get("paraphrase", "")
                             justification = result_data.get("justification", "")
+                            text_references = result_data.get("text_references", []) or []
                             coder_id = result_data.get("coder_id", "auto_1")
                         else:
                             # Fallback für altes Format
@@ -2612,6 +2623,7 @@ class IntegratedAnalysisManager:
                             subcategories = opt_result.get("subcodes", [])
                             keywords = ", ".join(opt_result.get("keywords", []))
                             paraphrase = opt_result.get("memo", "")
+                            text_references = opt_result.get("text_references", []) or []
                             justification = f"Subcode Analysis: {len(subcategories)} codes identified"
                             coder_id = "auto_1"
 
@@ -2629,6 +2641,7 @@ class IntegratedAnalysisManager:
                             "text": segment_text,
                             "paraphrase": paraphrase,
                             "keywords": keywords,
+                            "text_references": text_references,
                             "multiple_coding_instance": 1,
                             "total_coding_instances": 1,
                             "target_category": "",
@@ -2672,6 +2685,7 @@ class IntegratedAnalysisManager:
                         keywords = result_data.get("keywords", "")
                         paraphrase = result_data.get("paraphrase", "")
                         justification = result_data.get("justification", "")
+                        text_references = result_data.get("text_references", []) or []
                         coder_id = result_data.get("coder_id", "auto_1")
                     else:
                         # Fallback für altes Format
@@ -2680,6 +2694,7 @@ class IntegratedAnalysisManager:
                         subcategories = opt_result.get("subcodes", [])
                         keywords = ", ".join(opt_result.get("keywords", []))
                         paraphrase = opt_result.get("memo", "")
+                        text_references = opt_result.get("text_references", []) or []
                         justification = (
                             f"Subcode Analysis: {len(subcategories)} codes identified"
                         )
@@ -2699,6 +2714,7 @@ class IntegratedAnalysisManager:
                         "text": segment_text,
                         "paraphrase": paraphrase,
                         "keywords": keywords,
+                        "text_references": text_references,
                         "multiple_coding_instance": 1,
                         "total_coding_instances": 1,
                         "target_category": "",
@@ -3060,6 +3076,7 @@ class IntegratedAnalysisManager:
                             "text": segment_text,
                             "paraphrase": getattr(coding_result, "paraphrase", ""),
                             "keywords": getattr(coding_result, "keywords", ""),
+                            "text_references": list(getattr(coding_result, "text_references", []) or []),
                             "grounded_recoded": True,
                             "multiple_coding_instance": 1,
                             "total_coding_instances": 1,

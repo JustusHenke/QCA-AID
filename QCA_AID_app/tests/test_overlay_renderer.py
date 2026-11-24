@@ -329,3 +329,108 @@ def test_explicit_category_color_wins():
 
 if __name__ == "__main__":
     sys.exit(pytest.main([__file__, "-v"]))
+
+# --------------------------------------------------------------------------
+# Mehrere Regionen je Kodierung (Spec text-anker-export, R10/R13/R14)
+# --------------------------------------------------------------------------
+
+
+class TestMultiRegionOverlay:
+    def test_alle_regionen_einer_kodierung_werden_gezeichnet(self):
+        a1 = _anchor(page=1, quads=[[72, 100, 300, 114]])
+        a2 = _anchor(page=1, quads=[[72, 400, 300, 414]])
+        coding = _coding()
+        coding.anchors = [a1, a2]
+
+        svg = OverlayRenderer().build_page_svg(
+            1, [a1, a2], [coding], RenderOptions()
+        )
+        _, groups = _layers(svg)
+        rects = _solid(groups["qca-highlights"])
+        assert len(rects) == 2
+
+    def test_regionen_auf_anderer_seite_ignoriert_fuer_diese_seite(self):
+        a1 = _anchor(page=1, quads=[[72, 100, 300, 114]])
+        a2 = _anchor(page=2, quads=[[72, 100, 300, 114]])
+        coding = _coding()
+        coding.anchors = [a1, a2]
+
+        svg = OverlayRenderer().build_page_svg(
+            1, [a1, a2], [coding], RenderOptions()
+        )
+        _, groups = _layers(svg)
+        assert len(_solid(groups["qca-highlights"])) == 1
+
+    def test_ohne_anchors_feld_fallback_auf_anchor(self):
+        # Kodierung gebaut mit anchor= (E4-Sync setzt anchors automatisch);
+        # Verhalten wie vor 0.16.
+        anchor = _anchor()
+        coding = _coding(anchor=anchor)
+        svg = OverlayRenderer().build_page_svg(
+            1, [anchor], [coding], RenderOptions()
+        )
+        _, groups = _layers(svg)
+        assert len(_solid(groups["qca-highlights"])) == 1
+
+    def test_geteilte_stelle_weiterhin_gruppiert(self):
+        # Zwei Kodierungen, identische Quads -> eine In-Text-Flaeche,
+        # die zweite als Schraffur + Randstreifen (R14 unveraendert).
+        shared = _anchor(quads=[[72, 100, 300, 114]])
+        c1 = _coding("s1", "Kat A")
+        c1.anchors = [shared]
+        c2 = _coding("s2", "Kat B")
+        c2.anchors = [shared]
+
+        svg = OverlayRenderer().build_page_svg(
+            1, [shared], [c1, c2], RenderOptions()
+        )
+        _, groups = _layers(svg)
+        assert len(_solid(groups["qca-highlights"])) == 1
+        assert len(_hatched(groups["qca-highlights"])) == 1
+
+    def test_active_anchor_index_dimmt_andere_regionen(self):
+        a1 = _anchor(page=1, quads=[[72, 100, 300, 114]])
+        a2 = _anchor(page=1, quads=[[72, 400, 300, 414]])
+        coding = _coding("s1")
+        coding.anchors = [a1, a2]
+
+        svg = OverlayRenderer().build_page_svg(
+            1, [a1, a2], [coding],
+            RenderOptions(active_coding_id="s1", active_anchor_index=1),
+        )
+        _, groups = _layers(svg)
+        rects = _solid(groups["qca-highlights"])
+        opacities = sorted(float(r.get("opacity")) for r in rects if r.get("opacity"))
+        # Region 0 abgeschwaecht, Region 1 voll (kein opacity-Attribut)
+        assert opacities == [0.35]
+
+    def test_active_anchor_index_ohne_wahl_alle_voll(self):
+        a1 = _anchor(page=1, quads=[[72, 100, 300, 114]])
+        a2 = _anchor(page=1, quads=[[72, 400, 300, 414]])
+        coding = _coding("s1")
+        coding.anchors = [a1, a2]
+
+        svg = OverlayRenderer().build_page_svg(
+            1, [a1, a2], [coding],
+            RenderOptions(active_coding_id="s1"),
+        )
+        _, groups = _layers(svg)
+        rects = _solid(groups["qca-highlights"])
+        # Aktive Kodierung ohne Regionswahl: beide Regionen voll deckend
+        assert all(float(r.get("opacity")) == 1.0 for r in rects)
+
+    def test_zwei_ankere_kodierungen_unterschiedlicher_stellen(self):
+        a1 = _anchor(page=1, quads=[[72, 100, 300, 114]])
+        a2 = _anchor(page=1, quads=[[72, 400, 300, 414]])
+        c1 = _coding("s1", "Kat A")
+        c1.anchors = [a1]
+        c2 = _coding("s2", "Kat B")
+        c2.anchors = [a2]
+
+        svg = OverlayRenderer().build_page_svg(
+            1, [a1, a2], [c1, c2], RenderOptions()
+        )
+        _, groups = _layers(svg)
+        # Unterschiedliche Stellen: beide voll als In-Text-Flaeche
+        assert len(_solid(groups["qca-highlights"])) == 2
+        assert len(_hatched(groups["qca-highlights"])) == 0
