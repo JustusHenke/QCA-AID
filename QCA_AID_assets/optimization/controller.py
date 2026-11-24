@@ -340,6 +340,9 @@ class OptimizationController:
                                 self.keywords = data.get("keywords", "")
                                 self.paraphrase = data.get("paraphrase", "")
                                 self.justification = data.get("justification", "")
+                                self.text_references = list(
+                                    data.get("text_references", []) or []
+                                )
 
                         result = MockResult(result_data)
 
@@ -382,6 +385,7 @@ class OptimizationController:
                     if hasattr(result, "paraphrase")
                     else "",
                     "justification": f"[Mehrfachkodierung {instance_number}/{total_instances}, Fokus: {focus_category}] {result.justification if hasattr(result, 'justification') else ''}",
+                    "text_references": list(getattr(result, "text_references", []) or []),
                     "coder_id": coder_id,
                     "category_preselection_used": True,
                     "preferred_categories": [focus_category],
@@ -1825,6 +1829,7 @@ class OptimizationController:
                 "keywords": r.keywords if r.keywords else "",
                 "paraphrase": r.paraphrase if r.paraphrase else "",
                 "justification": r.justification if r.justification else "",
+                "text_references": list(getattr(r, "text_references", []) or []),
                 "coder_id": coder_id,
                 "category_preselection_used": bool(preferred_cats),
                 "preferred_categories": preferred_cats,
@@ -1869,6 +1874,7 @@ class OptimizationController:
                 "keywords": r.keywords if r.keywords else "",
                 "paraphrase": r.paraphrase if r.paraphrase else "",
                 "justification": r.justification if r.justification else "",
+                "text_references": list(getattr(r, "text_references", []) or []),
                 "coder_id": coder_id,
                 "category_preselection_used": False,  # No preselection in inductive
                 "preferred_categories": [],
@@ -1917,6 +1923,7 @@ class OptimizationController:
                 "keywords": r.keywords if r.keywords else "",
                 "paraphrase": r.paraphrase if r.paraphrase else "",
                 "justification": r.justification if r.justification else "",
+                "text_references": list(getattr(r, "text_references", []) or []),
                 "coder_id": coder_id,
                 "category_preselection_used": bool(preferred_cats),
                 "preferred_categories": preferred_cats,

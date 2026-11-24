@@ -4,6 +4,17 @@
 
 ---
 
+## Neu in 0.16.1 (2026-11-24)
+
+### Fix: Textanker im abduktiven Modus
+
+#### Details
+- **Befund:** Im abduktiven Modus blieb die Spalte `Textanker` leer. Die Ursache war nicht der Prompt - der abduktive Kodier-Aufruf nutzt den Standard-Batch-Prompt, der das Feld `Konkrete Textstellen` (`text_references`) längst abfragt - sondern der Pass-Through: `_format_single_coding_result_abductive` baute das Ergebnis-Dict ohne das Feld auf.
+- **Behoben in allen betroffenen Pfaden:** derselbe Verlust bestand im Multi-Coder-Deduktivformatierer (`_format_single_coding_result`), im Induktivformatierer (`_format_single_coding_result_inductive`) und im Fokus-Pfad der Mehrfachkodierung (`MockResult` + `formatted_result` in `_code_segment_with_focus`). Alle fünf Stellen reichen `text_references` jetzt durch (gleiche Zeile wie die Phase-1-Stellen).
+- **Regressionstests:** zwei Quelltext-Assertionen in `test_text_anker_export.py` verankern, dass alle drei Formatierer und der Fokus-Pfad das Feld führen.
+
+### 🧹 Sonstiges
+
 ## Neu in 0.16.0 (2026-11-24)
 
 ### Textanker: Wortlautanker fuer den Pruefen-Tab

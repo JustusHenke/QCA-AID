@@ -229,6 +229,39 @@ def test_focus_fallback_nimmt_llm_referenzen():
     assert 'result.get("text_references", []) or [chunk[:100]]' in src
 
 
+
+# ------------------------------------------- Pass-Through im Controller (T1)
+
+def test_formatierer_uebernehmen_text_references_in_allen_modi():
+    """Regression: Die Kodier-Formatierer durfen text_references nicht fallen
+    lassen - im abduktiven Modus blieb die Textanker-Spalte sonst leer, obwohl
+    der Standard-Batch-Prompt das Feld liefert (Fix Phase 4.1)."""
+    src = (
+        REPO_ROOT / "QCA_AID_assets" / "optimization" / "controller.py"
+    ).read_text(encoding="utf-8")
+    for marker in (
+        "def _format_single_coding_result(",
+        "def _format_single_coding_result_inductive(",
+        "def _format_single_coding_result_abductive(",
+    ):
+        start = src.index(marker)
+        end = src.index('"analysis_mode"', start)
+        block = src[start:end]
+        assert "text_references" in block, f"text_references fehlt: {marker}"
+
+
+def test_fokus_pfad_uebernimmt_text_references():
+    """Fokussierte Mehrfachkodierung: MockResult + formatted_result fuehren
+    text_references durch statt sie beim Umformatieren zu verlieren."""
+    src = (
+        REPO_ROOT / "QCA_AID_assets" / "optimization" / "controller.py"
+    ).read_text(encoding="utf-8")
+    start = src.index("def _code_segment_with_focus(")
+    end = src.index("def _process_focused_batch(", start)
+    block = src[start:end]
+    assert "self.text_references" in block  # MockResult
+    assert block.count('"text_references"') >= 2  # MockResult-Lese + formatted_result
+
 # ------------------------------------------------- Export-Zeile (R1, T5)
 
 def test_export_zeile_fuehrt_textanker_nach_begruendung():
